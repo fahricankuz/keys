@@ -1,4 +1,4 @@
-# Kiracım: Hostinger (Apache / LiteSpeed) ayarları. Derlemeyle birlikte public_html köküne gider.
+# anahtar: Hostinger (Apache / LiteSpeed) ayarları. Derlemeyle birlikte public_html köküne gider.
 # Gizli dosya olduğu için Dosya Yöneticisi'nde "gizli dosyaları göster" açık olmalı.
 Options -Indexes -MultiViews
 DirectoryIndex index.html

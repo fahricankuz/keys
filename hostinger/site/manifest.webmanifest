@@ -1,6 +1,6 @@
 {
-  "name": "Kiracım",
-  "short_name": "Kiracım",
+  "name": "anahtar",
+  "short_name": "anahtar",
   "description": "Kira, ödeme, depozito ve arıza takibi tek yerde.",
   "lang": "tr",
   "start_url": "./",

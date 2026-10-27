@@ -2,7 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { S, subscribe, snapshot } from '../domain/state';
 import { useWindowDimensions } from 'react-native';
 
-/* Kiracım marka paleti: krem zemin, sıcak mürekkep, kiremit kırmızısı. */
+/* anahtar marka paleti: krem zemin, sıcak mürekkep, kiremit kırmızısı. */
 export const light = {
   bg: '#FAF5F0', surface: '#FFFDFB', surface2: '#E8DDD5', line: '#E8DDD5', tile: '#F3ECE5',
   ink: '#1D1A19', muted: '#5C4F4A', accent: '#C8302E', accentInk: '#FAF5F0', accentSoft: '#F0CFC8',
@@ -11,7 +11,7 @@ export const light = {
   /** Pasif düğme/öğe. */
   offBg: '#E8DDD5', offInk: '#9A8F8A',
   hero: '#1D1A19', heroInk: '#FAF5F0', heroMuted: '#BDB1AB',
-  okBg: '#D5EBD7', okInk: '#17653F', badBg: '#F0CFC8', badInk: '#A8231F', warnBg: '#F2B544', warnInk: '#1D1A19',
+  okBg: '#D5EBD7', okInk: '#2A6B3A', badBg: '#F0CFC8', badInk: '#B42318', warnBg: '#F2B544', warnInk: '#1D1A19',
   shadow: 'rgba(29,26,25,0.10)',
   peach: '#F0CFC8', butter: '#F2B544', sage: '#D5EBD7', sky: '#E8DDD5', rose: '#F7E4DF', cream: '#FAF5F0', deepA: '#1D1A19', deepB: '#5C4F4A',
   lemon: '#F2B544', mint: '#D5EBD7', lavender: '#E8DDD5', line6: 'rgba(29,26,25,0.06)'

@@ -1,6 +1,6 @@
 # Mülk sahibi aboneliği — kurulum
 
-Kiracım'da **kiracılar ücretsizdir**; mülk sahipleri abone olur. Bu belge,
+anahtar'da **kiracılar ücretsizdir**; mülk sahipleri abone olur. Bu belge,
 aboneliğin App Store, Google Play ve web'de satılması için gereken hesap ve
 ayarları adım adım anlatır. Kod tarafı hazırdır; aşağıdakiler yalnızca senin
 hesaplarında yapılacak ayarlardır.
@@ -69,7 +69,7 @@ Connect'te oluşturulmuş uygulama kaydı (bkz. `docs/mobil.md`).
 1. **Business** (Anlaşmalar, Vergi ve Bankacılık) → *Paid Apps* anlaşmasını
    imzala, banka ve vergi bilgilerini gir. Bu bitmeden satış yapılamaz.
 2. Uygulama → **Monetization → Subscriptions** → bir abonelik grubu oluştur
-   (ör. "Kiracım").
+   (ör. "anahtar").
 3. Gruba iki abonelik ekle: `evim_aylik` (1 ay) ve `evim_yillik` (1 yıl).
    Her biri için fiyat, Türkçe/İngilizce görünen ad ve açıklama gir.
 4. **Users and Access → Integrations → In-App Purchase** → bir anahtar
@@ -93,9 +93,9 @@ Connect'te oluşturulmuş uygulama kaydı (bkz. `docs/mobil.md`).
 
 ## 4. RevenueCat
 
-1. revenuecat.com → yeni proje ("Kiracım").
-2. **Apps** → *App Store* uygulaması ekle (bundle id: `online.kiracim.app`, .p8 anahtarı,
-   Issuer ID, Key ID). *Play Store* uygulaması ekle (paket adı: `online.kiracim.app`,
+1. revenuecat.com → yeni proje ("anahtar").
+2. **Apps** → *App Store* uygulaması ekle (bundle id: `io.anahtar.app`, .p8 anahtarı,
+   Issuer ID, Key ID). *Play Store* uygulaması ekle (paket adı: `io.anahtar.app`,
    hizmet hesabı JSON'u).
 3. **Products** → mağazalardaki dört ürünü içe aktar.
 4. **Entitlements** → `pro` oluştur, dört ürünü bağla.
@@ -169,7 +169,7 @@ Ardından RevenueCat → **Integrations → Webhooks**:
 | `revenuecatAndroidKey` | `goog_…` |
 | `webPurchaseUrl` | RevenueCat Web Purchase Link (web satışı yoksa boş) |
 | `webManageUrl` | web aboneleri için yönetim sayfası |
-| `termsUrl`, `privacyUrl` | hazır: `https://kiracim.online/kosullar/` ve `/gizlilik/` (site/ klasörü) |
+| `termsUrl`, `privacyUrl` | hazır: `https://anahtar.io/kosullar/` ve `/gizlilik/` (site/ klasörü) |
 | `plans[].price` | yalnızca web'de gösterilen fiyat metni (ör. `₺249`); mobilde fiyat mağazadan okunur |
 
 ## 8. Test

@@ -554,7 +554,7 @@ function InviteSheet({ pid, code }: { pid?: string; code?: string }) {
   const c = useColors();
   if (!code) return null;
   const link = LIVE ? inviteLink(code) : CONFIG.publicUrl + 'katil?kod=' + code;
-  const text = t('Merhaba,') + ' ' + p.name + ' ' + t('için Kiracım’da ortak panelimize katılır mısın? Davet kodun:') + ' ' + code + ' — ' + link;
+  const text = t('Merhaba,') + ' ' + p.name + ' ' + t('için anahtar’da ortak panelimize katılır mısın? Davet kodun:') + ' ' + code + ' — ' + link;
   return (
     <Stack>
       <Title>{t('Kiracını davet et')}</Title>
@@ -564,7 +564,7 @@ function InviteSheet({ pid, code }: { pid?: string; code?: string }) {
         <Button title={t('Kopyala')} icon={<Icon name="doc" size={16} color="#fff" />} style={{ flex: 1 }} onPress={async () => { try { await Clipboard.setStringAsync(link); host.notify({ title: t('Kopyalandı'), body: t('Davet bağlantısı panoya alındı.'), icon: 'doc' }); } catch {} }} />
         <Button kind="ghost" title={t('WhatsApp')} style={{ flex: 1 }} onPress={() => Linking.openURL('https://wa.me/?text=' + encodeURIComponent(text))} />
       </Row>
-      <Button kind="ghost" block title={t('E-posta ile gönder')} onPress={() => Linking.openURL('mailto:?subject=' + encodeURIComponent(t('Kiracım daveti')) + '&body=' + encodeURIComponent(text))} />
+      <Button kind="ghost" block title={t('E-posta ile gönder')} onPress={() => Linking.openURL('mailto:?subject=' + encodeURIComponent(t('anahtar daveti')) + '&body=' + encodeURIComponent(text))} />
       {!LIVE && <Note>{t('Demo modunda davet gerçek değildir; kod yalnızca akışı göstermek içindir.')}</Note>}
     </Stack>
   );

@@ -1,4 +1,4 @@
-/* Yükleme göstergesi (Uiverse "pl" örneği, Kiracım renkleriyle): dört halka birbirinin içinden
+/* Yükleme göstergesi (Uiverse "pl" örneği, anahtar renkleriyle): dört halka birbirinin içinden
    geçerek dolar ve boşalır. Her halkanın çizgi uzunluğu, kalınlığı ve kayması anahtar karelerden
    doğrusal olarak hesaplanır; "hareketi azalt" açıksa halkalar durağan, tam çizgi olarak görünür. */
 import { useEffect, useState } from 'react';

@@ -35,7 +35,7 @@ export default function Katil() {
   const lead = team
     ? t('{owner} seni {role} olarak ekibine davet etti. Ücretsiz ekip hesabını oluştur ya da giriş yap; ekibe otomatik katılacaksın.',
       { owner: info!.owner, role: roleLabel(info!.role).toLocaleLowerCase('tr') })
-    : t('Mülk sahibin seni Kiracım’a davet etti. Hesabını oluştur ya da giriş yap; kiraladığın mülke otomatik bağlanacaksın.');
+    : t('Mülk sahibin seni anahtar’a davet etti. Hesabını oluştur ya da giriş yap; kiraladığın mülke otomatik bağlanacaksın.');
   return (
     <AuthShell title={title} lead={lead}>
       {code ? (

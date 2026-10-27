@@ -1,4 +1,4 @@
-// Kiracım — anlık bildirim gönderici (Supabase Edge Function, Deno).
+// anahtar — anlık bildirim gönderici (Supabase Edge Function, Deno).
 //
 // notifications tablosuna eklenen her satır için Database Webhook bu
 // fonksiyonu çağırır; fonksiyon kullanıcının kayıtlı cihazlarına bildirim
@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
             from: env('EMAIL_FROM'),
             to,
             subject: n.title,
-            text: `${n.body}\n\n${link}\n\n— Kiracım`
+            text: `${n.body}\n\n${link}\n\n— anahtar`
           })
         });
         mailed = res.ok;

@@ -31,7 +31,7 @@ export const categories = (): Category[] => [
     items: [
       { title: t('Fotoğraflı mesaj'), body: t('Fotoğraf mesajın içinde görünür.') },
       { title: t('Belge arşivi'), body: t('Sözleşme, sigorta ve DASK tarihleri hatırlatılır.') },
-      { title: t('Kontrol edilen yüklemeler'), body: t('Dekont ve belgeler Kiracım ekibince kontrol edilir.') },
+      { title: t('Kontrol edilen yüklemeler'), body: t('Dekont ve belgeler anahtar ekibince kontrol edilir.') },
       { title: t('Giriş tutanağı'), body: t('Oda oda, fotoğraflı ve iki tarafın onayıyla.') }
     ] },
   { id: 'cikis', icon: 'key', title: t('Çıkış ve depozito'),
@@ -80,12 +80,12 @@ export const plans = () => tiers().map((x: any) => ({
 }));
 
 export const faq = () => [
-  { q: t('Kiracım nedir?'), a: t('Kiracı ve mülk sahibinin aynı veriye iki taraftan baktığı bir kira yönetimi uygulamasıdır: kira ödemeleri, talepler, belgeler, giriş ve çıkış tutanağı, depozito iadesi, giderler ve sözleşme yenileme tek akışta.') },
+  { q: t('anahtar nedir?'), a: t('Kiracı ve mülk sahibinin aynı veriye iki taraftan baktığı bir kira yönetimi uygulamasıdır: kira ödemeleri, talepler, belgeler, giriş ve çıkış tutanağı, depozito iadesi, giderler ve sözleşme yenileme tek akışta.') },
   { q: t('Kiracı için ücretli mi?'), a: t('Hayır. Kiracı hesabı her zaman ücretsizdir; dekont yükleyebilir, talep açabilir, mesajlaşabilir ve belgelerine bakabilirsin.') },
   { q: t('Ücretsiz deneme nasıl işliyor?'), a: t('Her paket 1 ay ücretsiz denemeyle başlar; deneme süresince 5 mülke kadar ekleyebilir, bütün özellikleri kullanabilirsin. Süre bitince kayıtların silinmez, salt okunur olur; okuma ve mesajlaşma açık kalır, kiracının işleri etkilenmez.') },
   { q: t('Paketler arasındaki fark ne?'), a: t('Başlangıç tek mülk içindir ve ödeme, talep, belge ve hatırlatmaları kapsar. Portföy 5 mülke kadar çıkar; ekip üyeleri, Excel ile toplu aktarma, yıllık rapor ve vergi tahmini ekler. Kurumsal sınırsız mülk, öncelikli destek ve kurulum yardımı içerir.') },
-  { q: t('Davet kodum yok, ne yapmalıyım?'), a: t('Kayıt olurken kodu boş bırakabilirsin. Hesabını açtıktan sonra ev sahibinden kodu isteyip panelden girersin; ev sahibin henüz Kiracım kullanmıyorsa uygulamadan ona WhatsApp ile öneri gönderebilirsin.') },
-  { q: t('Yüklediğim dekont ve belgeleri kim görür?'), a: t('Yüklenen dekont, belge ve faturalar Kiracım ekibince kontrol edilir; onaylanınca yalnızca o evin kiracısı ve mülk sahibine görünür. Reddedilirse gerekçesiyle haber alırsın.') },
+  { q: t('Davet kodum yok, ne yapmalıyım?'), a: t('Kayıt olurken kodu boş bırakabilirsin. Hesabını açtıktan sonra ev sahibinden kodu isteyip panelden girersin; ev sahibin henüz anahtar kullanmıyorsa uygulamadan ona WhatsApp ile öneri gönderebilirsin.') },
+  { q: t('Yüklediğim dekont ve belgeleri kim görür?'), a: t('Yüklenen dekont, belge ve faturalar anahtar ekibince kontrol edilir; onaylanınca yalnızca o evin kiracısı ve mülk sahibine görünür. Reddedilirse gerekçesiyle haber alırsın.') },
   { q: t('Hangi mülk tiplerini destekliyor?'), a: t('Konut, ofis, mağaza ve depo. Tutanak alanları, talep önerileri ve belge kategorileri mülk tipine göre gelir.') },
   { q: t('Kira artışını nasıl hesaplıyor?'), a: t('TÜFE ortalamasıyla yasal üst sınır hesaplanır; teklif bu sınırı aşamaz. Kiracı kabul eder ya da görüşmeye çağırır.') },
   { q: t('Verimi dışa aktarabilir ya da silebilir miyim?'), a: t('Evet. Ödeme ve giderleri Excel olarak, tüm verini JSON olarak indirebilirsin; hesabını ve sahibi olduğun mülklerin verisini uygulamadan silebilirsin. Silme gibi geri dönüşsüz işler onay ister.') }

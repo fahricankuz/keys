@@ -66,7 +66,7 @@ export function ImportScreen() {
             <Muted>{t('Davet kodunu WhatsApp ile gönder; kiracın kodla katılınca mülkün paneline bağlanır. Kodlar 30 gün geçerlidir.')}</Muted>
             {invites.map((r) => {
               const link = LIVE ? inviteLink(r.code) : CONFIG.publicUrl + 'katil?kod=' + r.code;
-              const text = t('Merhaba,') + ' ' + r.name + ' ' + t('için Kiracım’da ortak panelimize katılır mısın? Davet kodun:') + ' ' + r.code + ' — ' + link;
+              const text = t('Merhaba,') + ' ' + r.name + ' ' + t('için anahtar’da ortak panelimize katılır mısın? Davet kodun:') + ' ' + r.code + ' — ' + link;
               return (
                 <Card key={r.id} gap={8}>
                   <Row between>
@@ -169,9 +169,9 @@ export function ImportScreen() {
           </Card>
           <Row wrap>
             <Button kind="ghost" style={{ flex: 1 }} title={t('Excel şablonu')} icon={<Icon name="doc" size={16} />}
-              onPress={() => host.saveFile('kiracim-mulk-sablonu.xlsx', templateXlsx(), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')} />
+              onPress={() => host.saveFile('anahtar-mulk-sablonu.xlsx', templateXlsx(), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')} />
             <Button kind="ghost" style={{ flex: 1 }} title={t('CSV şablonu')} icon={<Icon name="doc" size={16} />}
-              onPress={() => host.saveFile('kiracim-mulk-sablonu.csv', templateCsv(), 'text/csv;charset=utf-8')} />
+              onPress={() => host.saveFile('anahtar-mulk-sablonu.csv', templateCsv(), 'text/csv;charset=utf-8')} />
           </Row>
           <Button block title={t('Dosya seç')} icon={<Icon name="plus" size={16} color="#fff" />} onPress={choose} />
           <Note>{t('Tek seferde en fazla {n} mülk aktarılır.', { n: MAX })} {t('Daha büyük portföyler için ekibimiz yardım eder.')}</Note>

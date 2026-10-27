@@ -233,7 +233,7 @@ export function Support() {
           </Row>
           {r.message ? <Text v="small" selectable>{r.message}</Text> : null}
           <Row wrap>
-            {r.email ? <Button kind="ghost" title={t('E-posta gönder')} onPress={() => Linking.openURL('mailto:' + r.email + '?subject=' + encodeURIComponent(t('Kiracım iletişim talebin'))).catch(() => {})} /> : null}
+            {r.email ? <Button kind="ghost" title={t('E-posta gönder')} onPress={() => Linking.openURL('mailto:' + r.email + '?subject=' + encodeURIComponent(t('anahtar iletişim talebin'))).catch(() => {})} /> : null}
             <Button kind={r.status === 'open' ? 'primary' : 'ghost'} title={r.status === 'open' ? t('Kapat') : t('Yeniden aç')} onPress={() => toggle(r)} />
           </Row>
         </Card>

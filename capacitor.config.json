@@ -1,6 +1,6 @@
 {
-  "appId": "online.kiracim.app",
-  "appName": "Kiracım",
+  "appId": "io.anahtar.app",
+  "appName": "anahtar",
   "webDir": "www",
   "ios": {
     "contentInset": "never"

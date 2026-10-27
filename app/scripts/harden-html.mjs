@@ -55,7 +55,7 @@ function walk(dir) {
 }
 
 const TITLES = JSON.parse(readFileSync(new URL('../src/site/titles.json', import.meta.url), 'utf8'));
-const DESC = 'Kiracım: kiracı ile mülk sahibi için kira, ödeme, depozito, arıza ve belge takibi tek yerde.';
+const DESC = 'anahtar: kiracı ile mülk sahibi için kira, ödeme, depozito, arıza ve belge takibi tek yerde.';
 const titleFor = (file) => {
   const key = relative(out, file).replace(/\.html$/, '').replace(/(^|\/)index$/, '');
   return TITLES[key] || TITLES[key.split('/')[0]] || TITLES._default;
@@ -83,7 +83,7 @@ for (const file of walk(out)) {
     '<meta name="referrer" content="strict-origin-when-cross-origin"/>',
     '<meta name="theme-color" content="#FAF5F0"/>',
     '<meta name="apple-mobile-web-app-capable" content="yes"/>',
-    '<meta name="apple-mobile-web-app-title" content="Kiracım"/>',
+    '<meta name="apple-mobile-web-app-title" content="anahtar"/>',
     '<meta name="apple-mobile-web-app-status-bar-style" content="default"/>',
     `<link rel="manifest" href="${base}/manifest.webmanifest"/>`,
     `<link rel="apple-touch-icon" href="${base}/apple-touch-icon.png"/>`

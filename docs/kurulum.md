@@ -43,7 +43,7 @@ Kuralların tamamı `tests/sql.spec.mjs` içinde gerçek bir Postgres'e karşı 
 
 **Authentication → URL Configuration**
 
-- **Site URL**: uygulamanın yayın adresi, `https://kiracim.online/`
+- **Site URL**: uygulamanın yayın adresi, `https://anahtar.io/`
 - **Redirect URLs**: aynı adresi ekle. Yerelde deneyeceksen `http://localhost:8000/` da ekle.
 
 **Authentication → Providers → Email**
@@ -96,7 +96,7 @@ npx supabase secrets set \
   VAPID_PRIVATE_KEY="..." \
   VAPID_SUBJECT="mailto:senin@adresin.com" \
   WEBHOOK_SECRET="uzun-rastgele-bir-deger" \
-  APP_URL="https://kiracim.online/"
+  APP_URL="https://anahtar.io/"
 
 npx supabase functions deploy push --no-verify-jwt
 ```
@@ -132,7 +132,7 @@ gönderince bildirim gelmeli.
 [Resend](https://resend.com) hesabı açıp alan adını doğrula, sonra:
 
 ```bash
-npx supabase secrets set RESEND_API_KEY="re_..." EMAIL_FROM="Kiracım <bildirim@alanadin.com>"
+npx supabase secrets set RESEND_API_KEY="re_..." EMAIL_FROM="anahtar <bildirim@alanadin.com>"
 ```
 
 Kullanıcılar **Hesap → E-posta ile de bildir** seçeneğiyle açar.
@@ -144,7 +144,7 @@ RevenueCat kurulumu ile `billing` fonksiyonu için: [abonelik.md](abonelik.md).
 Abonelik kurulmadan da uygulama çalışır: her mülk sahibi 1 aylık (30 gün) denemeyle
 başlar.
 
-## 7. GitHub Pages ve kiracim.online
+## 7. GitHub Pages ve anahtar.io
 
 1. Depo → **Settings → Pages → Source: GitHub Actions**.
 2. Alan adını aldığın firmanın DNS panelinde şu kayıtları ekle:
@@ -161,13 +161,13 @@ başlar.
 | AAAA | `@` | `2606:50c0:8003::153` |
 | CNAME | `www` | `fahricankuz.github.io` |
 
-3. Settings → Pages → **Custom domain**: `kiracim.online` → Save. DNS yayılınca
+3. Settings → Pages → **Custom domain**: `anahtar.io` → Save. DNS yayılınca
    (birkaç dakika–birkaç saat) **Enforce HTTPS** kutusunu işaretle.
 4. Güvenlik için alan adını GitHub hesabına da doğrula: profil → Settings →
    Pages → *Add a domain* (verilen TXT kaydını DNS'e ekle). Bu, başkasının
    alan adını kendi sitesine bağlamasını engeller.
 
-Bundan sonra varsayılan dala her gönderimde site `https://kiracim.online/`
+Bundan sonra varsayılan dala her gönderimde site `https://anahtar.io/`
 adresinde güncellenir. Telefon uygulamasının bağlantıları da bu alan adıyla
 çalışır: [mobil.md](mobil.md#3-bağlantıların-uygulamayı-açması).
 
@@ -263,7 +263,7 @@ yönetici verebilir (`tests/admin.sql.spec.mjs`).
 2. **GitHub → Settings → Secrets and variables → Actions → Variables** altına iki değişken ekle:
    - `SUPABASE_URL` = Project URL
    - `SUPABASE_ANON_KEY` = anon public anahtar
-   - (isteğe bağlı) `CUSTOM_DOMAIN` = `kiracim.online`
+   - (isteğe bağlı) `CUSTOM_DOMAIN` = `anahtar.io`
 3. **GitHub → Settings → Pages → Source: "GitHub Actions"** seç.
 4. Değişiklikler **varsayılan dala** birleşince site yayınlanır (Actions sekmesinde "GitHub Pages" çalışması yeşil olur). Adres: `https://<kullanıcı>.github.io/project_evim/` ya da `CUSTOM_DOMAIN` verdiysen o alan adı.
 5. Supabase **Authentication → URL Configuration** altına bu adresi **Site URL** ve **Redirect URL** olarak ekle.

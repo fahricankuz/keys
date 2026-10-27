@@ -1,6 +1,6 @@
 # Hostinger'a kurulum
 
-Kiracım statik bir sitedir: derlenmiş dosyalar Hostinger'a yüklenir, veri ve giriş Supabase'dedir.
+anahtar statik bir sitedir: derlenmiş dosyalar Hostinger'a yüklenir, veri ve giriş Supabase'dedir.
 Hostinger'da **Node.js, veritabanı ya da PHP gerekmez**; en ucuz web hosting paketi (Premium/Business)
 ve bir alan adı yeter. Aşağıdaki işlerin çoğu bir kez yapılır; sonra her güncelleme otomatik gelir.
 
@@ -21,8 +21,8 @@ GitHub'a push → (otomatik) siteyi derle → `hostinger` dalı + zip paketi →
 **Project Settings → API**'den `Project URL` ve `anon public` anahtarını al.
 
 Sonra **Authentication → URL Configuration**:
-- *Site URL*: `https://kiracim.online` (kendi alan adınız)
-- *Redirect URLs*: `https://kiracim.online/**`
+- *Site URL*: `https://anahtar.io` (kendi alan adınız)
+- *Redirect URLs*: `https://anahtar.io/**`
 
 ## 2. GitHub değişkenlerini gir (bir kez)
 
@@ -44,7 +44,7 @@ Hostinger → **Websites → Website ekle → Node.js uygulaması / GitHub'dan i
 | Alan | Değer | Neden |
 | --- | --- | --- |
 | Depo | **`fahricankuz/keys`** | Kaynak kod (`app/` klasörü) bu depodadır. |
-| Dal | Varsayılan dal (`main`; birleştirilene kadar `claude/github-keys-setup-uzvnzm`) | `app/` klasörünü içeren dal. |
+| Dal | `claude/github-keys-setup-uzvnzm` (ya da birleştirildiği varsayılan dal) | `app/` klasörünü içeren dal. |
 | Framework ön ayarı | **Other** | Listede Expo yok; çıktı düz statik dosyadır. |
 | Düğüm sürümü | **22.x** | Uygulama Node 22 ile test edildi (20.x de çalışır). |
 | Kök dizin | **`app`** | Uygulama bu klasördedir (kökte eski site var). |
@@ -65,15 +65,8 @@ Ortam değişkenleri (**Ortam değişkenleri → Ekle**):
 Bu üç değişken **derleme sırasında** siteye gömülür; sonradan değiştirirsen yeniden dağıtım gerekir.
 `service_role` anahtarını **asla** girme.
 
-Dağıtım bitince `https://kiracim.online/giris/kiraci` adresini doğrudan aç; açılıyorsa temiz adresler çalışıyor demektir
+Dağıtım bitince `https://anahtar.io/giris/kiraci` adresini doğrudan aç; açılıyorsa temiz adresler çalışıyor demektir
 (derleme her sayfanın klasör kopyasını da ürettiği için yeniden yazma kuralı olmayan sunucularda da çalışır).
-
-## 3b. Hazır paket ile (derleme yok, `hostinger/` klasörü)
-
-Depodaki `hostinger/` klasörü önceden derlenmiş sitedir (yerel hesap modunda, Supabase bağlı değil).
-Aynı sihirbazda alanları şöyle doldurun: **Kök dizin `hostinger`**, Framework **Other**, Düğüm **22.x**,
-Derleme komutu **`npm run build`**, Çıktı dizini **`dist`**, Giriş dosyası **boş**. Ortam değişkeni gerekmez.
-Supabase'e geçince bunun yerine 3. bölümdeki (`app` kök dizinli) ayarı kullanın; o her push'ta koddan yeniden derler.
 
 ## 4. Elle yükleme (zip): GitHub Actions ile
 
@@ -107,20 +100,20 @@ Her güncellemede 3. bölümden yeni zip'i alıp aynısını tekrarlayın (eski 
 
 1. hPanel → **Domains**: alan adınızı bu web sitesine bağlayın (Hostinger'dan aldıysanız otomatik bağlıdır; başka yerden aldıysanız nameserver'ları Hostinger'a çevirin ya da `A` kaydını Hostinger IP'sine yönlendirin).
 2. hPanel → **Security → SSL**: ücretsiz SSL'i etkinleştirin. `.htaccess` HTTP'yi otomatik HTTPS'e yönlendirir.
-3. `www` için: hPanel'de `www.kiracim.online` adresini ana alan adına yönlendirin ya da alt alan adı olarak ekleyin.
+3. `www` için: hPanel'de `www.anahtar.io` adresini ana alan adına yönlendirin ya da alt alan adı olarak ekleyin.
 
 ## 7. Yönetici hesabını aç (bir kez)
 
 `docs/kurulum.md` → "Yönetici (denetçi) hesabı": sitede bir hesap açın, SQL Editor'de
-`insert into public.admins …` çalıştırın. Sonra `https://kiracim.online/giris/yonetici` ile girin.
+`insert into public.admins …` çalıştırın. Sonra `https://anahtar.io/giris/yonetici` ile girin.
 Yönetici paneli (denetim, bağlantılar, mesajlar, yasaklama, işlem kaydı) için aynı belgeye bakın.
 **Yönetici hesabında iki adımlı doğrulama ve benzersiz parola kullanın.**
 
 ## 8. Kurulum sonrası kontrol listesi
 
-- [ ] `https://kiracim.online` açılıyor, adres çubuğunda kilit görünüyor.
-- [ ] `http://kiracim.online` otomatik `https` olur.
-- [ ] `https://kiracim.online/giris/kiraci` adresini **doğrudan açınca** ve sayfayı **yenileyince** giriş ekranı gelir (404 gelirse `.htaccess` yüklenmemiştir, 4. bölümde gizli dosyaları göster).
+- [ ] `https://anahtar.io` açılıyor, adres çubuğunda kilit görünüyor.
+- [ ] `http://anahtar.io` otomatik `https` olur.
+- [ ] `https://anahtar.io/giris/kiraci` adresini **doğrudan açınca** ve sayfayı **yenileyince** giriş ekranı gelir (404 gelirse `.htaccess` yüklenmemiştir, 4. bölümde gizli dosyaları göster).
 - [ ] Kiracı kaydı yapılıyor; Supabase → Authentication → Users listesinde kullanıcı görünüyor.
 - [ ] Yönetici girişi `/admin` panelini açıyor; yönetici olmayan hesap açamıyor.
 - [ ] <https://securityheaders.com> adresinde alan adınız (Hostinger'da başlıklar `.htaccess` ile gelir; yüksek not beklenir).
@@ -152,7 +145,7 @@ Supabase SQL Editor'de yeniden çalıştırmayı unutmayın; tekrar çalıştır
 
 ## Telefonda "bazen eski uygulama açılıyor"
 
-Eski sürüm telefonlara bir servis çalışıcısı (`sw.js`) kurup sayfaları kaydediyordu; çalışıcı kalınca kiracim.online
+Eski sürüm telefonlara bir servis çalışıcısı (`sw.js`) kurup sayfaları kaydediyordu; çalışıcı kalınca anahtar.io
 yeni site yerine eski uygulamayı gösterebilir. Yeni derleme kökte aynı adlı bir `sw.js` getirir: telefon bunu eski
 çalışıcının yerine alır, kayıtlı eski sayfaları siler, kendini kaldırır ve sekmeyi yeniler. Ayrıca site açılırken
 eski çalışıcı ve `evim-` önbelleği ayrıca temizlenir.

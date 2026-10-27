@@ -126,7 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const u = { id: a.id, email: a.email, name: a.name, role: a.role, createdAt: a.createdAt };
       enter(u); setUser(u); return null;
     } catch (e: any) {
-      if (e?.banned !== undefined) return t('Hesabın askıya alındı: {m}', { m: e.banned || t('gerekçe belirtilmedi') }) + ' ' + t('Bilgi için info@kiracim.online adresine yaz.');
+      if (e?.banned !== undefined) return t('Hesabın askıya alındı: {m}', { m: e.banned || t('gerekçe belirtilmedi') }) + ' ' + t('Bilgi için info@anahtar.io adresine yaz.');
       return t('Bağlantı kurulamadı. Biraz sonra yeniden dene.');
     }
   }, []);

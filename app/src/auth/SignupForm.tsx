@@ -61,7 +61,7 @@ export default function SignupForm({ role }: { role: Role }) {
           value={code} onChangeText={(v) => setCode(v.toUpperCase())} autoCapitalize="characters" maxLength={12}
           hint={team
             ? t('Kodu mülk sahibi “Ekip” ekranından oluşturur. Şimdi girmezsen hesabını açtıktan sonra da girebilirsin.')
-            : t('Kodu ev sahibin Kiracım’da oluşturur. Şimdi girmezsen hesabını açtıktan sonra da girebilirsin.')}
+            : t('Kodu ev sahibin anahtar’da oluşturur. Şimdi girmezsen hesabını açtıktan sonra da girebilirsin.')}
         />
       ) : null}
       <PressScale onPress={() => setConsent(!consent)} accessibilityRole="checkbox" aria-checked={consent} accessibilityState={{ checked: consent }} scaleTo={0.99} style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>

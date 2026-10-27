@@ -1,5 +1,5 @@
 -- =====================================================================
--- Kiracım — Supabase şeması
+-- anahtar — Supabase şeması
 -- Supabase panelinde SQL Editor'e yapıştırıp bir kez çalıştırın.
 -- Tekrar çalıştırmak güvenlidir (create ... if not exists / or replace).
 --

@@ -1,1 +1,0 @@
-__d(function(g,r,i,a,m,e,d){"use strict";Object.defineProperty(e,'__esModule',{value:!0}),Object.defineProperty(e,"default",{enumerable:!0,get:function(){return l}});var t=r(d[0]),u=r(d[1]),n=r(d[2]),c=r(d[3]);function l(){return'landlord'!==u.ui.role||u.ui.team?(0,c.jsx)(t.Redirect,{href:"/uygulama"}):(0,c.jsx)(n.TeamScreen,{})}},1374,[85,849,1341,2]);

@@ -3,4 +3,4 @@ Disallow: /uygulama
 Disallow: /admin
 Allow: /
 
-Sitemap: https://kiracim.online/sitemap.xml
+Sitemap: https://anahtar.io/sitemap.xml

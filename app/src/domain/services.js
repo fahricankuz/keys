@@ -136,7 +136,7 @@ function exportSheets(pid){
       { name: t('Giderler'), totalLabel: t('Toplam'), totals: [3], rows: exps,
         columns: [text(t('Mülk')), date(t('Tarih')), text(t('Kategori')), money(t('Tutar (₺)')), text(t('Açıklama'))] }
     ],
-    file: 'kiracim-' + (pid ? slug(P(pid).name) : 'portfoy') + '-' + iso(t0())
+    file: 'anahtar-' + (pid ? slug(P(pid).name) : 'portfoy') + '-' + iso(t0())
   };
 }
 
@@ -383,7 +383,7 @@ export const A = {
     if (LIVE) backend.markRead(d.pid, at);
   },
   exportData: () => {
-    host.saveFile('kiracim-verileri.json', JSON.stringify(S, null, 2), 'application/json');
+    host.saveFile('anahtar-verileri.json', JSON.stringify(S, null, 2), 'application/json');
     notify({ title:t('Veriler hazır'), body:t('JSON dosyasını içe aktararak geri yükleyebilirsin.'), icon:'doc' }, false);
   },
   importData: d => {
@@ -394,7 +394,7 @@ export const A = {
       go('/kiraci');
       notify({ title:t('Veri yüklendi'), body:t('Dosyadaki durum geri yüklendi.'), icon:'doc' }, false);
     } catch(e){
-      notify({ title:t('Dosya okunamadı'), body:t('Bu dosya Kiracım verisi gibi görünmüyor.'), icon:'doc' }, false);
+      notify({ title:t('Dosya okunamadı'), body:t('Bu dosya anahtar verisi gibi görünmüyor.'), icon:'doc' }, false);
     }
   },
   downloadText: () => {
@@ -546,7 +546,7 @@ export const A = {
       body:t('Paket satın alma ve yükseltme kısa süre içinde açılacak. Bu sürede hesabın ve kayıtların korunur. Acil bir ihtiyacın varsa bize yaz: {email}', { email: CONFIG.supportEmail }),
       ok:t('Tamam'), alone:true
     })
-    : notify({ title:t('Aboneliği telefondan başlat'), body:t('Kiracım’ın iPhone ya da Android uygulamasından abone olabilirsin; aynı hesapla web’de de geçerli olur.'), icon:'key' }, false)
+    : notify({ title:t('Aboneliği telefondan başlat'), body:t('anahtar’ın iPhone ya da Android uygulamasından abone olabilirsin; aynı hesapla web’de de geçerli olur.'), icon:'key' }, false)
 };
 
 /** Eylemi çalıştırır; kilitliyse sheet açar. */
@@ -620,7 +620,7 @@ export async function submit(type, v){
       title: rec.status === 'partial' ? t('Kısmi ödeme kaydedildi') : t('Dekont yüklendi'),
       body: rec.status === 'partial'
         ? tl(due - total)+(' '+t('bakiye görünüyor; kalanı yükleyince onaya gider.'))
-        : LIVE ? t('Kiracım ekibi dekontu inceliyor. Onaylanınca mülk sahibine iletilir.') : t('Mülk sahibinin onayı bekleniyor. Onaylanınca haber vereceğiz.'),
+        : LIVE ? t('anahtar ekibi dekontu inceliyor. Onaylanınca mülk sahibine iletilir.') : t('Mülk sahibinin onayı bekleniyor. Onaylanınca haber vereceğiz.'),
       icon:'card'
     });
     return true;
@@ -651,7 +651,7 @@ export async function submit(type, v){
     if (cat === 'DASK poliçesi' && until) p.dask = until;
     sysMsg(p, cat+(' '+t('yüklendi:')+' ')+name);
     save(); host.closeSheet();
-    notify({ title:t('Belge yüklendi'), body: cat + (until ? ' · '+fmtFull(parse(until))+(' '+t('için hatırlatma kuruldu')) : '') + (LIVE ? ' · '+t('Kiracım ekibi inceleyecek.') : ''), icon:'doc' });
+    notify({ title:t('Belge yüklendi'), body: cat + (until ? ' · '+fmtFull(parse(until))+(' '+t('için hatırlatma kuruldu')) : '') + (LIVE ? ' · '+t('anahtar ekibi inceleyecek.') : ''), icon:'doc' });
     return true;
   }
 
@@ -696,7 +696,7 @@ export async function submit(type, v){
       title:t('Mülk eklendi'), body:t('Kiracıya davet linkini gönder.'), icon:'home',
       actions:[{ label:t('WhatsApp ile davet et'), run:() => {
         const n = num ? '9' + num.replace(/^9/, '') : '';
-        host.openUrl('https://wa.me/'+n+'?text='+encodeURIComponent((t('Merhaba,')+' ')+name+(' '+t('için Kiracım’da ortak panelimize katılır mısın? [davet linki]'))));
+        host.openUrl('https://wa.me/'+n+'?text='+encodeURIComponent((t('Merhaba,')+' ')+name+(' '+t('için anahtar’da ortak panelimize katılır mısın? [davet linki]'))));
       } }]
     });
     return true;
@@ -715,7 +715,7 @@ export async function submit(type, v){
       return true;
     }
     host.closeSheet();
-    host.openUrl('mailto:' + CONFIG.supportEmail + '?subject=' + encodeURIComponent(t('Kiracım iletişim talebi'))
+    host.openUrl('mailto:' + CONFIG.supportEmail + '?subject=' + encodeURIComponent(t('anahtar iletişim talebi'))
       + '&body=' + encodeURIComponent([message, units ? t('Mülk sayısı: {n}', { n: units }) : '', phone].filter(Boolean).join('\n')));
     return true;
   }

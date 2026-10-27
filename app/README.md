@@ -1,4 +1,4 @@
-# Kiracım — web sitesi ve mobil uygulama (React Native)
+# anahtar — web sitesi ve mobil uygulama (React Native)
 
 Tek kod tabanı: **tanıtım sitesi + uygulama** web'de, aynı uygulama iOS ve Android'de.
 Expo + React Native (web için `react-native-web`), yönlendirme `expo-router`.

@@ -65,7 +65,7 @@ function PhoneMock({ w }: { w: number }) {
     ['calendar', t('Sözleşme yenileme'), t('69 gün'), 'neutral']
   ];
   return (
-    <View accessibilityRole="image" accessibilityLabel={t('Kiracım uygulamasında ödemeler ekranı')}
+    <View accessibilityRole="image" accessibilityLabel={t('anahtar uygulamasında ödemeler ekranı')}
       style={{ width: w, height: h, padding: bezel, borderRadius: r, backgroundColor: c.deepA, boxShadow: shadows.lift }}>
       <View style={{ flex: 1, borderRadius: r - bezel, backgroundColor: c.bg, overflow: 'hidden' }}>
         {/* durum çubuğu ve ada */}
@@ -145,7 +145,7 @@ function Hero({ go, scrollTo }: { go: (p: string) => void; scrollTo: (k: string)
       <View style={{ alignItems: 'center', gap: phone ? 18 : 24 }}>
         <View style={{ alignItems: 'center' }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: size * 0.12 }}>
-            <Slam delay={80} height={Math.round(size * 1.1)}><Display size={size}>{t('Kira işi,')}</Display></Slam>
+            <Slam delay={80} height={Math.round(size * 1.1)}><Display size={size}>{t('Kira işinin')}</Display></Slam>
             <Reveal delay={420} y={12}>
               <Pill bg={c.tile} size={pill}>
                 <View style={{ width: pill * 0.4, height: pill * 0.4, borderRadius: pill * 0.1, backgroundColor: c.lemon }} />
@@ -153,8 +153,7 @@ function Hero({ go, scrollTo }: { go: (p: string) => void; scrollTo: (k: string)
               </Pill>
             </Reveal>
           </View>
-          <Slam delay={200} height={Math.round(size * 1.1)}><Display size={size}>{t('ev kadar')}</Display></Slam>
-          <Slam delay={320} height={Math.round(size * 1.1)}><Display size={size} color={c.accent}>{t('rahat.')}</Display></Slam>
+          <Slam delay={220} height={Math.round(size * 1.1)}><Display size={size} color={c.accent}>{t('anahtarı.')}</Display></Slam>
         </View>
         <Reveal delay={260} style={{ alignItems: 'center', gap: 22, maxWidth: 640 }}>
           <Text v="body" style={{ fontSize: phone ? 18 : 23, lineHeight: phone ? 27 : 32, textAlign: 'center' }} color={c.muted}>
@@ -221,7 +220,7 @@ function Manifesto() {
   return (
     <Container style={{ paddingTop: phone ? 80 : 160, alignItems: 'center' }}>
       <View style={{ gap: phone ? 8 : 14, alignItems: 'center', maxWidth: 980 }}>
-        <Reveal><Text v="label" color={c.accentText} style={{ fontSize: 13, letterSpacing: 0.4, marginBottom: 6 }}>{t('Kiracım böyle düşünür')}</Text></Reveal>
+        <Reveal><Text v="label" color={c.accentText} style={{ fontSize: 13, letterSpacing: 0.4, marginBottom: 6 }}>{t('anahtar böyle düşünür')}</Text></Reveal>
         {lines.map((l, i) => <Reveal key={l} delay={i * 70}><Display size={phone ? 28 : 60} center color={i === 2 ? c.accent : c.ink}>{l}</Display></Reveal>)}
       </View>
     </Container>
@@ -378,7 +377,7 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
       ['check', t('Birlikte takip edin'), t('Dekont onayı, talepler, belgeler ve hatırlatmalar tek ekranda. Ekibini de davet edebilirsin.')]
     ],
     tenant: [
-      ['chat', t('Davet kodunu al'), t('Ev sahibin mülkü Kiracım’a ekleyince sana bir davet kodu ya da bağlantı gönderir.')],
+      ['chat', t('Davet kodunu al'), t('Ev sahibin mülkü anahtar’a ekleyince sana bir davet kodu ya da bağlantı gönderir.')],
       ['key', t('Ücretsiz hesap aç'), t('Kayıt olurken kodu gir. Kodun henüz yoksa sonra da girebilirsin.')],
       ['card', t('Kiranı ve talebini takip et'), t('Dekontunu yükle, arıza bildir, belgelerine bak. Her adım iki tarafta aynı görünür.')],
       ['bell', t('Hatırlatma al'), t('Kira günü, sözleşme yenileme ve tutanak onayı için zamanında haber alırsın.')]
@@ -426,7 +425,7 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
         </Animated.View>
         <Reveal style={{ alignItems: 'center', gap: 14 }}>
           <View style={{ alignSelf: 'center' }}><Button kind="primary" title={cta[0]} onPress={() => go(cta[1])} /></View>
-          <Text v="small" muted style={{ textAlign: 'center', maxWidth: 560 }}>{t('Yüklenen dekont, belge ve faturalar Kiracım ekibince kontrol edilir; onaylanınca karşı tarafa görünür.')}</Text>
+          <Text v="small" muted style={{ textAlign: 'center', maxWidth: 560 }}>{t('Yüklenen dekont, belge ve faturalar anahtar ekibince kontrol edilir; onaylanınca karşı tarafa görünür.')}</Text>
         </Reveal>
       </Container>
     </View>
@@ -567,7 +566,7 @@ function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
         <View style={{ flexDirection: phone ? 'column' : 'row', justifyContent: 'space-between', gap: phone ? 36 : 48 }}>
           <View style={{ gap: 14, maxWidth: 300 }}>
             <Wordmark size={28} color={c.heroInk} />
-            <Text v="small" color={c.heroMuted} style={{ lineHeight: 21 }}>{t('Kira işi, ev kadar rahat.')}</Text>
+            <Text v="small" color={c.heroMuted} style={{ lineHeight: 21 }}>{t('Kira işinin anahtarı.')}</Text>
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: phone ? 32 : 72 }}>
             {cols.map(([head, links]) => (
@@ -581,7 +580,7 @@ function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
           </View>
         </View>
         <View style={{ borderTopWidth: 1, borderTopColor: 'rgba(250,245,240,0.14)', paddingTop: 20, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-          <Text v="small" color={c.heroMuted}>© {new Date().getFullYear()} Kiracım · {t('Tüm hakları saklıdır.')}</Text>
+          <Text v="small" color={c.heroMuted}>© {new Date().getFullYear()} anahtar · {t('Tüm hakları saklıdır.')}</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {[['tr', 'Türkçe'], ['en', 'English']].map(([k, label]) => (
               <PressScale key={k} accessibilityRole="button" accessibilityState={{ selected: lang === k }} onPress={() => { setLang(k); if (typeof location !== 'undefined') location.reload(); }}

@@ -1,7 +1,6 @@
-Kiracım - Hostinger (Node.js uygulaması / dosya yükleme) ayarları
+anahtar - Hostinger (Node.js uygulaması / dosya yükleme) ayarları
 Framework: Other | Düğüm: 22.x | Paket yöneticisi: npm
 Kök dizin: boş | Derleme komutu: npm run build | Çıktı dizini: dist | Giriş dosyası: boş
 
-Bu paket önceki "kiracim-hostinger-wizard" paketinin yerine geçer; aynı ayarlarla yüklenir.
-Site yerel hesap modunda derlendi (Supabase tanımlı değil). Sunucuya geçmek için kaynak koddaki
-docs/canliya-alma.md dosyasına bakın; Supabase bilgileri girildikten sonra site kaynak koddan yeniden derlenmelidir.
+Alan adı: anahtar.io. Site yerel hesap modunda derlendi (Supabase tanımlı değil).
+Sunucuya geçmek için kaynak koddaki docs/canliya-alma.md dosyasına bakın.

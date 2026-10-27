@@ -4,7 +4,7 @@
 //   APNS_KEY        — App Store Connect → Keys → APNs anahtarı (.p8 dosyasının içeriği)
 //   APNS_KEY_ID     — anahtar kimliği (10 karakter)
 //   APNS_TEAM_ID    — Apple ekip kimliği
-//   APNS_BUNDLE_ID  — uygulama kimliği (varsayılan online.kiracim.app)
+//   APNS_BUNDLE_ID  — uygulama kimliği (varsayılan io.anahtar.app)
 //   APNS_SANDBOX    — "1": Xcode'dan kurulan geliştirme sürümleri için
 //   FCM_SERVICE_ACCOUNT — Firebase → Project settings → Service accounts → JSON anahtarının içeriği
 
@@ -40,7 +40,7 @@ export async function sendApns(deviceToken: string, n: Note): Promise<Result> {
     method: 'POST',
     headers: {
       authorization: 'bearer ' + await apnsToken(),
-      'apns-topic': env('APNS_BUNDLE_ID') || 'online.kiracim.app',
+      'apns-topic': env('APNS_BUNDLE_ID') || 'io.anahtar.app',
       'apns-push-type': 'alert',
       'apns-priority': '10',
       ...(n.tag ? { 'apns-collapse-id': n.tag.slice(0, 64) } : {}),

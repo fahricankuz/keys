@@ -6,13 +6,13 @@
 export const CONFIG = {
   supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL || '',
   supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-  publicUrl: 'https://kiracim.online/',
-  supportEmail: 'info@kiracim.online',
+  publicUrl: 'https://anahtar.io/',
+  supportEmail: 'info@anahtar.io',
   legal: {
-    terms: 'https://kiracim.online/kosullar/',
-    privacy: 'https://kiracim.online/gizlilik/',
-    deletion: 'https://kiracim.online/hesap-silme/',
-    support: 'https://kiracim.online/destek/'
+    terms: 'https://anahtar.io/kosullar/',
+    privacy: 'https://anahtar.io/gizlilik/',
+    deletion: 'https://anahtar.io/hesap-silme/',
+    support: 'https://anahtar.io/destek/'
   },
   billing: {
     /** Fiyatlar tanımlanana kadar satın alma kapalıdır; herkes deneme ya da yöneticinin verdiği paketle kullanır. */

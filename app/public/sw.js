@@ -1,5 +1,5 @@
-/* Kiracım: eski uygulamanın servis çalışıcısını temizler.
-   Eski sürüm telefonlara sayfaları kaydedip önce onları gösteriyordu (kiracim.online'da "bazen eski uygulama açılıyor").
+/* anahtar: eski uygulamanın servis çalışıcısını temizler.
+   Eski sürüm telefonlara sayfaları kaydedip önce onları gösteriyordu (anahtar.io'da "bazen eski uygulama açılıyor").
    Tarayıcı bu dosyayı eski çalışıcının yerine koyar; bu da kayıtlı eski sayfaları siler, kendini kaldırır
    ve açık sekmeleri yeniler. Yeni sitede çevrimdışı önbellek yoktur; bu dosya silinmemeli. */
 self.addEventListener('install', () => self.skipWaiting());

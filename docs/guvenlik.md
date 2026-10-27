@@ -1,6 +1,6 @@
 # Güvenlik: WAF ve alan adı koruması
 
-Kiracım statik bir site olarak GitHub Pages'te yayınlanır; veri Supabase'tedir. Koruma üç katmandır
+anahtar statik bir site olarak GitHub Pages'te yayınlanır; veri Supabase'tedir. Koruma üç katmandır
 ve her katmanın ne yaptığı aşağıda ayrı ayrı yazılıdır. **Bu belgedeki Cloudflare, alan adı sağlayıcısı
 ve Supabase adımları sizin hesaplarınızda yapılır; koddan yapılamaz.** Koddaki kısım depoda hazırdır.
 
@@ -34,14 +34,14 @@ onları Cloudflare değil Supabase'in kendi koruması ve Turnstile (adım 4) kor
 6. **GitHub alan adı doğrulaması** (alt alan adı ele geçirmeyi önler): GitHub → profil Settings → Pages → *Add a domain* → verilen TXT kaydını DNS'e ekleyin. Sonra depo Settings → Pages → *Enforce HTTPS* işaretli olsun.
 7. **Kullanılmayan DNS kayıtlarını silin** (eski alt alan adları, artık var olmayan hizmetlere CNAME).
 8. **CAA kaydı**: yalnızca sertifika vermesine izin verdiğiniz kuruluşu yazın, örn. `0 issue "letsencrypt.org"`.
-9. **E-posta sahtecilik koruması** (`info@kiracim.online` adına başkası posta atamasın). E-posta sağlayıcınızın verdiği SPF ve DKIM kayıtlarını ekleyin; DMARC için başlangıç:
-   `_dmarc  TXT  "v=DMARC1; p=quarantine; rua=mailto:info@kiracim.online"`
+9. **E-posta sahtecilik koruması** (`info@anahtar.io` adına başkası posta atamasın). E-posta sağlayıcınızın verdiği SPF ve DKIM kayıtlarını ekleyin; DMARC için başlangıç:
+   `_dmarc  TXT  "v=DMARC1; p=quarantine; rua=mailto:info@anahtar.io"`
    Birkaç hafta raporlara bakıp sorun yoksa `p=reject` yapın.
 
 ## 3. Cloudflare WAF (ücretsiz plan yeter)
 
-1. cloudflare.com → *Add a site* → `kiracim.online` → Free plan. Verdiği iki **nameserver** adresini alan adı sağlayıcınızda "nameserver" olarak girin.
-2. DNS: GitHub Pages için `kiracim.online` apex'ine GitHub'ın dört A kaydı (`185.199.108.153`, `.109.153`, `.110.153`, `.111.153`) ve `www` için `CNAME <kullanici>.github.io` ekleyin. **Proxy (turuncu bulut) açık** olsun; WAF yalnızca proxy açıkken çalışır.
+1. cloudflare.com → *Add a site* → `anahtar.io` → Free plan. Verdiği iki **nameserver** adresini alan adı sağlayıcınızda "nameserver" olarak girin.
+2. DNS: GitHub Pages için `anahtar.io` apex'ine GitHub'ın dört A kaydı (`185.199.108.153`, `.109.153`, `.110.153`, `.111.153`) ve `www` için `CNAME <kullanici>.github.io` ekleyin. **Proxy (turuncu bulut) açık** olsun; WAF yalnızca proxy açıkken çalışır.
 3. **SSL/TLS** → mod **Full (strict)**; *Always Use HTTPS* açık; *Minimum TLS Version* 1.2; *Automatic HTTPS Rewrites* açık.
 4. **SSL/TLS → Edge Certificates → HSTS**: açın (max-age 6 ay, includeSubDomains). Site yalnızca HTTPS çalıştığını doğruladıktan sonra.
 5. **DNSSEC**: DNS → Settings → DNSSEC → Enable; verilen DS kaydını alan adı sağlayıcınıza girin.
@@ -68,7 +68,7 @@ Hesap işlemleri doğrudan Supabase'e gider; Cloudflare duvarının görmediği 
    Supabase CAPTCHA'yı açıp Site Key'i eklemezseniz **kimse giriş yapamaz**; ikisini birlikte yapın. Not: doğrulama kutusu yalnızca web sürümünde çizilir; mağaza uygulamasına geçildiğinde yerel sürüm için ayrıca düşünülür.
 2. **Authentication → Rate Limits**: e-posta gönderimi, giriş denemesi ve kayıt sınırlarını varsayılandan düşük tutun.
 3. **Authentication → Providers → Email**: *Confirm email* açık, en az parola uzunluğu 8 (uygulama da bunu ister), mümkünse *Leaked password protection* (Pro plan).
-4. **Authentication → URL Configuration**: *Site URL* ve *Redirect URLs* yalnızca gerçek adresiniz (`https://kiracim.online/**`). Başka yönlendirme adresi bırakmayın.
+4. **Authentication → URL Configuration**: *Site URL* ve *Redirect URLs* yalnızca gerçek adresiniz (`https://anahtar.io/**`). Başka yönlendirme adresi bırakmayın.
 5. **Authentication → Sign In / Providers**: kullanmadığınız her şeyi (anonim giriş, telefon, üçüncü taraf) kapatın.
 6. **Yönetici hesabı**: yönetici e-postasında iki adımlı doğrulamalı, benzersiz parola kullanın; `public.admins` tablosundaki satır sayısını az tutun.
 7. **API anahtarları**: depoya yalnızca `anon` anahtarı girer (herkese açıktır, veriyi RLS korur). **`service_role` anahtarını asla depoya, değişkene ya da sayfaya koymayın.**

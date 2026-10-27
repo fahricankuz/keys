@@ -1,4 +1,4 @@
-# Kiracım marka kimliği
+# anahtar marka kimliği
 
 Fol Studio estetiğinde hazırlanan marka kimliği sisteminin uygulamadaki karşılığı.
 Uygulama kodu: `app/` (Expo / React Native). Tokenlar: `app/src/ui/theme.ts`.
@@ -13,16 +13,16 @@ Net yaz, yumuşak davran. Sayı büyük, söz kısa.
 
 ## Logo
 
-**Güncel logo (kullanılan):** ev + anahtar deliği simgesi ve "kiracım" wordmark'ı, "i"nin halkası Kiremit. Dosyalar: `app/assets/brand/` (ev, kelime ve halka ayrı katmanlar, krem ve Gece Mürekkebi renkleri; birleşik `logo-ink.png` / `logo-cream.png`). Bileşen: `app/src/ui/Wordmark.tsx`. Kaynak görsel PNG/WebP olduğu için baskı için vektör (SVG/AI) dosyası ayrıca istenmeli.
+**Güncel logo (kullanılan):** ev + anahtar deliği simgesi ve "anahtar" wordmark'ı, "i"nin halkası Kiremit. Dosyalar: `app/assets/brand/` (ev, kelime ve halka ayrı katmanlar, krem ve Gece Mürekkebi renkleri; birleşik `logo-ink.png` / `logo-cream.png`). Bileşen: `app/src/ui/Wordmark.tsx`. Kaynak görsel PNG/WebP olduğu için baskı için vektör (SVG/AI) dosyası ayrıca istenmeli.
 
 Aşağıdaki metin ilk marka belgesindeki tarifi korur.
 
-Wordmark **kiracım**, küçük harf, kalın, geometrik. İmza: "i"nin noktası içi boş bir Kiremit halka
+Wordmark **anahtar**, küçük harf, kalın, geometrik. İmza: "i"nin noktası içi boş bir Kiremit halka
 ("Anahtar Noktası"); noktasız "ı" kapı gibi sade. Koruma alanı: halka çapının iki katı. Minimum: dijitalde
 72 px, baskıda 18 mm. Uygulama simgesi: Kiremit zemin, krem "k" ve halka nokta.
 Kodda: `app/src/ui/Wordmark.tsx` (açılışta halka "i"den "ı"ya sıçrar, 600 ms).
 
-> Not: "Kiracım" adı için tescil ve alan adı taraması yaptırılmalıdır.
+> Not: "anahtar" adı için tescil ve alan adı taraması yaptırılmalıdır.
 
 ## Renk
 

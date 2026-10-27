@@ -20,7 +20,7 @@ export default function AuthShell({ title, lead, children }: { title: string; le
           <Grain />
           <PressScale onPress={() => router.replace('/')} accessibilityRole="link"><Wordmark size={34} color={c.heroInk} animate /></PressScale>
           <View style={{ gap: 16, maxWidth: 440 }}>
-            <Text v="h1" color="#FFF3EA" style={{ fontFamily: fonts.siteBold, fontSize: 56, lineHeight: 53 }}>{t('Kira işi, ev kadar rahat.')}</Text>
+            <Text v="h1" color="#FFF3EA" style={{ fontFamily: fonts.siteBold, fontSize: 56, lineHeight: 53 }}>{t('Kira işinin anahtarı.')}</Text>
             <Text v="body" color={c.heroMuted}>{t('Kiracılar ücretsiz. Mülk sahipleri 1 ay ücretsiz dener.')}</Text>
           </View>
           <Text v="small" color={c.heroMuted}>{t('Konut, ofis, mağaza ve depo')}</Text>

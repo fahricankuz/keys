@@ -1,4 +1,4 @@
-# Kiracım
+# anahtar
 
 Kiracı ve mülk sahibinin **aynı veriye iki taraftan baktığı** kira yönetimi
 uygulaması: konut, ofis, mağaza ve depo. Kira ödemeleri, talepler, belgeler,

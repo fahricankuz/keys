@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Kiracım",
-    "slug": "kiracim",
-    "scheme": "kiracim",
+    "name": "anahtar",
+    "slug": "anahtar",
+    "scheme": "anahtar",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,14 +10,13 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "online.kiracim.app"
+      "bundleIdentifier": "io.anahtar.app"
     },
     "android": {
-      "package": "online.kiracim.app",
+      "package": "io.anahtar.app",
       "adaptiveIcon": {
-        "backgroundColor": "#F4F4F1",
+        "backgroundColor": "#C8302E",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false

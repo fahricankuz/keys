@@ -1,8 +1,8 @@
 {
-  "name": "kiracim-site",
+  "name": "anahtar-site",
   "version": "1.0.0",
   "private": true,
-  "description": "Kiracım: derlenmiş statik site. Çıktı: dist/",
+  "description": "anahtar: derlenmiş statik site. Çıktı: dist/",
   "scripts": {
     "build": "node build.mjs"
   }

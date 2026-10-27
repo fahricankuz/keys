@@ -412,7 +412,7 @@ export function humanError(e){
   const m = String(e?.message || e || '');
   if (e?.code === 'EV403' || /Paket sınırı/.test(m)) return t('Paketinin mülk sınırına ulaştın. Daha fazla mülk için paketini yükselt.');
   if (e?.code === 'EV402' || /Abonelik gerekli/.test(m)) return t('Deneme süren bitti. Kayıtları değiştirmek için abone ol; okuma ve mesajlaşma açık.');
-  if (/user is banned|banned/i.test(m)) return t('Hesabın askıya alındı. Bilgi için info@kiracim.online adresine yaz.');
+  if (/user is banned|banned/i.test(m)) return t('Hesabın askıya alındı. Bilgi için info@anahtar.io adresine yaz.');
   if (/Invalid login credentials/i.test(m)) return t('E-posta ya da şifre hatalı.');
   if (/Email not confirmed/i.test(m)) return t('E-posta adresini henüz doğrulamadın. Gelen kutunu kontrol et.');
   if (/User already registered/i.test(m)) return t('Bu e-posta ile bir hesap zaten var. Giriş yapmayı dene.');

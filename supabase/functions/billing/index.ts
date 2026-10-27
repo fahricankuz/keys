@@ -1,4 +1,4 @@
-// Kiracım — abonelik eşitleyici (Supabase Edge Function, Deno).
+// anahtar — abonelik eşitleyici (Supabase Edge Function, Deno).
 //
 // İki yoldan çağrılır:
 //  1. RevenueCat webhook'u: her satın alma, yenileme, iptal ve süre bitiminde.

@@ -53,7 +53,7 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
       <Container style={{ zIndex: 20 }}>
         <View style={{ position: 'relative' }}>
           <View style={{ minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <Wordmark size={phone ? 22 : 26} animate />
+            <Wordmark size={phone ? 24 : 28} animate />
             {!phone && (
               <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
                 <Pressable onPress={() => setOpen((x) => !x)} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={t('Özellikler')}

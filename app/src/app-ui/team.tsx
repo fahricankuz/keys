@@ -130,7 +130,7 @@ export function TeamShareSheet({ code, role, phone }: { code?: string; role?: st
   const c = useColors();
   if (!code) return null;
   const link = inviteLink(code);
-  const text = t('Merhaba, Kiracım’da ekibime {role} olarak katılır mısın? Davet kodun: {code} — {link}', { role: roleLabel(role || 'agent').toLocaleLowerCase('tr'), code, link });
+  const text = t('Merhaba, anahtar’da ekibime {role} olarak katılır mısın? Davet kodun: {code} — {link}', { role: roleLabel(role || 'agent').toLocaleLowerCase('tr'), code, link });
   return (
     <Stack>
       <Title>{t('Daveti gönder')}</Title>
@@ -144,7 +144,7 @@ export function TeamShareSheet({ code, role, phone }: { code?: string; role?: st
           try { await Clipboard.setStringAsync(link); host.notify({ title: t('Kopyalandı'), body: t('Davet bağlantısı panoya alındı.'), icon: 'doc' }); } catch {}
         }} />
       </View>
-      <Button kind="ghost" block title={t('E-posta ile gönder')} onPress={() => Linking.openURL('mailto:?subject=' + encodeURIComponent(t('Kiracım ekip daveti')) + '&body=' + encodeURIComponent(text))} />
+      <Button kind="ghost" block title={t('E-posta ile gönder')} onPress={() => Linking.openURL('mailto:?subject=' + encodeURIComponent(t('anahtar ekip daveti')) + '&body=' + encodeURIComponent(text))} />
     </Stack>
   );
 }
