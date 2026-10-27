@@ -16,7 +16,7 @@ import { tl, fmt, fmtFull, monthYear, parse, t0, iso, between, daysTo, tm, dayLa
 import { Button, Chip, PressScale, Text } from '../ui/kit';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 import {
-  Avatar, Bar, Big, BigRoll, Card, Empty, FileLink, H2, Hero, Icon, IconBtn, Items, KV, Label, LI, List, Mid, Muted, Note, ReviewChip, Row, Seg, Stack, Steps, StatusChip, Thumbs, initials, toneOf, typeIcon
+  Avatar, Bar, Big, BigRoll, Card, Empty, FileLink, H2, Hero, Icon, IconBtn, Items, KV, Label, LI, List, Mid, Muted, Note, ReviewChip, Row, Seg, Stack, Steps, StatusChip, Thumbs, initials, toneOf, typeIcon, MonthTiles, MonthLegend, lastMonths
 } from './blocks';
 import { Toggle } from './forms';
 import { MonthWindows } from '../ui/Facade';
@@ -79,6 +79,17 @@ export function RentHero({ p }: { p: any }) {
       </Row>
       {action}
     </Hero>
+  );
+}
+
+/** Ay ay kira durumu: mülk sahibi portföyündeki karoların aynısı (hangi ay ödendi, hangisi bekliyor). */
+export function MonthStatusCard({ p }: { p: any }) {
+  return (
+    <Card gap={10}>
+      <H2>{t('Ay ay kira durumu')}</H2>
+      <MonthTiles months={lastMonths(p)} />
+      <MonthLegend />
+    </Card>
   );
 }
 
@@ -148,6 +159,7 @@ export function SecPay({ p }: { p: any }) {
   return (
     <Stack>
       <RentHero p={p} />
+      <MonthStatusCard p={p} />
       <RenewalCard p={p} />
       <Row>
         <Card style={{ flex: 1 }} gap={4}><Label>{t('Aidat')}</Label><Text v="h3">{tl(p.aidat)} {t('/ ay')}</Text><Muted>{t(p.aidatPayer)} {t('öder')}</Muted></Card>

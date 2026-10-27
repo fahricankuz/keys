@@ -401,6 +401,7 @@ export const EN_EXTRA = {
   'Tahsilat oranı': 'Collection rate',
   'net getiri {pct}': 'net yield {pct}',
   'Ay ay': 'Month by month',
+  'Ay ay kira durumu': 'Rent status by month',
   'Ay': 'Month',
   'Tahsil': 'Collected',
   'Bu yıl için kayıt yok.': 'No records for this year.',

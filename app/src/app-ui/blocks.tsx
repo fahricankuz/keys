@@ -4,14 +4,14 @@ import { Linking, Pressable, ScrollView, StyleProp, View, ViewStyle, Image } fro
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { SvgXml } from 'react-native-svg';
 import { I, ic } from '../domain/icons';
-import { ST } from '../domain/logic';
+import { ST, statusOf } from '../domain/logic';
 import { Chip, PressScale, Text } from '../ui/kit';
-import { t } from '../domain/i18n';
+import { t, locale } from '../domain/i18n';
 import { LIVE } from '../domain/config';
 import { fileUrl, mediaSrc, reviewOf } from '../domain/backend';
 import { useStore } from './hooks';
 import { useRoll } from '../ui/motion';
-import { tl } from '../domain/util';
+import { tl, monthYear, parse, t0, mkey, addM } from '../domain/util';
 import { fonts, radius, useColors } from '../ui/theme';
 
 export function Icon({ name, size = 18, color }: { name: string; size?: number; color?: string }) {
@@ -280,6 +280,14 @@ function useTileStyle() {
     late: { bg: c.badBg, ink: c.badInk, border: c.badInk },
     upcoming: { bg: 'transparent', ink: c.muted, border: c.line, dashed: true }
   } as Record<string, { bg: string; ink: string; border: string; dashed?: boolean }>)[kind];
+}
+
+/** Son n ayın ödeme durumu (sözleşme başlangıcından öncesi gösterilmez). */
+export function lastMonths(p: any, n = 6) {
+  const from = String(p.startDate || '').slice(0, 7);
+  return Array.from({ length: n }, (_, i) => mkey(addM(t0(), i - (n - 1))))
+    .filter((k) => !from || k >= from)
+    .map((k) => ({ key: k, label: parse(k + '-01').toLocaleDateString(locale(), { month: 'short' }), full: monthYear(k), status: statusOf(p, k) }));
 }
 
 /** months: [{ key, label, full, status }] */

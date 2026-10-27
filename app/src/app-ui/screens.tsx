@@ -17,13 +17,13 @@ import { tl, fmt, fmtFull, monthYear, monthName, parse, t0, iso, daysTo, up, per
 import { Button, Chip, PressScale, Text } from '../ui/kit';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 import {
-  Avatar, Bar, Big, Card, Empty, H2, Hero, Icon, IconBtn, Items, KV, Label, LI, Mid, Muted, Note, Row, Seg, Stack, StatusChip, initials, toneOf, typeIcon, BigRoll, MonthTiles, MonthLegend
+  Avatar, Bar, Big, Card, Empty, H2, Hero, Icon, IconBtn, Items, KV, Label, LI, Mid, Muted, Note, Row, Seg, Stack, StatusChip, initials, toneOf, typeIcon, BigRoll, MonthTiles, MonthLegend, lastMonths
 } from './blocks';
 import { Toggle } from './forms';
 import { useStore } from './hooks';
 import { useSheet } from './overlays';
 import {
-  AgendaBody, AgendaSection, InspectTabs, RenewalCard, RentHero, SecDocs, SecExpenses, SecInspect, SecMoveOut, SecMsg, SecPay, SecReq, ReqCard, stopajLine, useGo
+  AgendaBody, AgendaSection, InspectTabs, MonthStatusCard, RenewalCard, RentHero, SecDocs, SecExpenses, SecInspect, SecMoveOut, SecMsg, SecPay, SecReq, ReqCard, stopajLine, useGo
 } from './sections';
 
 /* ---------------- sayfa iskeleti ---------------- */
@@ -109,6 +109,7 @@ export function TenantPanel() {
         {mates.map((x: any) => <PersonRow key={x.id} abbr={initials(x.name)} name={x.name} sub={t('Diğer kiracı')} />)}
       </Card>
       <RentHero p={p} />
+      <MonthStatusCard p={p} />
       <RenewalCard p={p} />
       {p.moveOut && !p.moveOut.refunded ? <MoveOutTeaser p={p} to="/kiraci/belgeler/cikis" /> : null}
       <Row wrap gap={10}>
@@ -254,14 +255,6 @@ export function Portfolio() {
 }
 
 const PROP_SUBS: [string, string][] = [['ozet', t('Özet')], ['odeme', t('Ödemeler')], ['talep', t('Talepler')], ['mesaj', t('Mesajlar')], ['belge', t('Belgeler')], ['tutanak', t('Tutanak')], ['gider', t('Giderler')], ['rapor', t('Rapor')]];
-
-/** Son n ayın ödeme durumu (sözleşme başlangıcından öncesi gösterilmez). */
-function lastMonths(p: any, n = 6) {
-  const from = String(p.startDate || '').slice(0, 7);
-  return Array.from({ length: n }, (_, i) => mkey(addM(t0(), i - (n - 1))))
-    .filter((k) => !from || k >= from)
-    .map((k) => ({ key: k, label: parse(k + '-01').toLocaleDateString(locale(), { month: 'short' }), full: monthYear(k), status: statusOf(p, k) }));
-}
 
 /** Yazışmalar: son mesaja göre yeniden eskiye (ekip üyesi yalnız mesaj yetkisi olan mülkleri görür). */
 function threadIds() {
