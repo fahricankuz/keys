@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.0",
-    "@capacitor/cli": "^8.5.2",
+    "@capacitor/cli": "^8.5.3",
     "@electric-sql/pglite": "^0.2.17",
     "@playwright/test": "1.49.1",
     "esbuild": "^0.28.2"
