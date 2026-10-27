@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Anlık bildirim (APNs). Mağaza sürümünde Xcode bunu "production" yapar. -->
+	<key>aps-environment</key>
+	<string>development</string>
+	<!-- Universal Links: https://kiracim.online/katil/… ve /auth uygulamada açılır.
+	     Alan adını config.js → publicUrl ile aynı yap (docs/mobil.md). -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:kiracim.online</string>
+	</array>
+</dict>
+</plist>

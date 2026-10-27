@@ -1,0 +1,4 @@
+Contact: mailto:info@kiracim.online
+Preferred-Languages: tr, en
+Canonical: https://kiracim.online/.well-known/security.txt
+Expires: 2027-10-25T00:00:00.000Z

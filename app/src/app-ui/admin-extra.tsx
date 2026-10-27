@@ -1,0 +1,243 @@
+/* Yönetici paneli: genel bakış göstergeleri, mülk sahibi abonelikleri ve "Bize ulaş" talepleri. */
+import { ReactNode, useEffect, useState } from 'react';
+import { Linking, View } from 'react-native';
+import { extendTrial, humanError, loadKpis, loadSubscriptions, loadSupport, setPlan, setSupportStatus } from '../domain/admin';
+import { CONFIG } from '../domain/config';
+import { planLabel } from '../domain/plans';
+import { t } from '../domain/i18n';
+import { tl } from '../domain/util';
+import { Button, Chip, Field, Text } from '../ui/kit';
+import { Loader } from '../ui/Loader';
+import { fonts, radius, useColors } from '../ui/theme';
+import { Card, Empty, H2, Muted, Row, Seg, Stack } from './blocks';
+
+const day = (v: any) => (v ? new Date(v).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) + '%' : '—');
+const delta = (a: number, b: number) => (b ? (a >= b ? '+' : '−') + Math.abs(Math.round(((a - b) / b) * 100)) + '%' : '');
+
+/** Sunucudan veri yükler; reload() ile yeniden çeker. */
+function useLoad<T>(fn: () => Promise<T>, deps: any[] = []) {
+  const [data, setData] = useState<T | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    let gone = false;
+    setErr(null);
+    fn().then((d) => { if (!gone) setData(d); }).catch((e) => { if (!gone) setErr(humanError(e)); });
+    return () => { gone = true; };
+  }, [...deps, tick]);
+  return { data, err, reload: () => setTick((x) => x + 1) };
+}
+
+const Spin = () => <View style={{ alignItems: 'center', paddingVertical: 20 }}><Loader size={64} /></View>;
+
+function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  const c = useColors();
+  return (
+    <View style={{ flexGrow: 1, flexBasis: 160, backgroundColor: c.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: c.line, padding: 18, gap: 4 }}>
+      <Text v="small" muted>{label}</Text>
+      <Text v="h2" style={{ fontFamily: fonts.siteBold, fontSize: 28 }}>{value}</Text>
+      {sub ? <Text v="small" muted>{sub}</Text> : null}
+    </View>
+  );
+}
+const Grid = ({ children }: { children: ReactNode }) => <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>{children}</View>;
+
+/** Günlük yeni kayıt çubuk grafiği; üzerine gelince günün sayısı görünür. */
+function Signups({ series }: { series: any[] }) {
+  const c = useColors();
+  const [hover, setHover] = useState<number | null>(null);
+  const totals = series.map((d) => Number(d.landlords) + Number(d.tenants));
+  const max = Math.max(1, ...totals);
+  const cur = hover != null ? series[hover] : null;
+  return (
+    <Card gap={10}>
+      <Row between wrap>
+        <H2>{t('Günlük yeni kayıt')}</H2>
+        <Muted>{cur
+          ? day(cur.d) + ' · ' + t('{n} kayıt', { n: totals[hover!] }) + ' (' + t('{a} mülk sahibi, {b} kiracı/ekip', { a: cur.landlords, b: cur.tenants }) + ')'
+          : t('En yüksek: {n}', { n: max })}</Muted>
+      </Row>
+      <View style={{ height: 120, flexDirection: 'row', alignItems: 'flex-end', gap: 2, borderBottomWidth: 1, borderBottomColor: c.line }}>
+        {totals.map((n, i) => (
+          <View key={series[i].d} {...({ onMouseEnter: () => setHover(i), onMouseLeave: () => setHover(null) } as any)} onTouchStart={() => setHover(i)}
+            accessible accessibilityLabel={day(series[i].d) + ': ' + n} style={{ flex: 1, height: '100%', justifyContent: 'flex-end' }}>
+            <View style={{ height: Math.max(n ? 3 : 0, (n / max) * 112), backgroundColor: hover === i ? c.ink : c.accent, borderTopLeftRadius: 4, borderTopRightRadius: 4 }} />
+          </View>
+        ))}
+      </View>
+      <Row between><Muted>{day(series[0]?.d)}</Muted><Muted>{day(series[series.length - 1]?.d)}</Muted></Row>
+    </Card>
+  );
+}
+
+function PlanBars({ plans, total }: { plans: Record<string, number>; total: number }) {
+  const c = useColors();
+  const rows = ['tek', 'bes', 'kurumsal', 'pro'].map((id) => [id, Number(plans[id] || 0)] as [string, number]).filter(([id, n]) => n || id !== 'pro');
+  const max = Math.max(1, ...rows.map((r) => r[1]));
+  return (
+    <Card gap={10}>
+      <H2>{t('Paketler')}</H2>
+      {rows.map(([id, n]) => (
+        <View key={id} style={{ gap: 4 }}>
+          <Row between><Text v="small">{planLabel(id)}</Text><Text v="small" style={{ fontFamily: fonts.bodyBold }}>{n} · {pct(n, total)}</Text></Row>
+          <View style={{ height: 8, borderRadius: 4, backgroundColor: c.surface2 }}><View style={{ width: (n / max) * 100 + '%' as any, height: 8, borderRadius: 4, backgroundColor: c.accent }} /></View>
+        </View>
+      ))}
+    </Card>
+  );
+}
+
+export function Overview() {
+  const c = useColors();
+  const [days, setDays] = useState('30');
+  const { data: k, err } = useLoad<any>(() => loadKpis(Number(days)), [days]);
+  if (err) return <Text v="small" color={c.badInk}>{err}</Text>;
+  if (!k) return <Spin />;
+  const plans = k.plans || {};
+  const priced = CONFIG.billing.tiers.filter((x: any) => x.price != null);
+  const mrr = priced.length ? priced.reduce((a: number, x: any) => a + Number(plans[x.id] || 0) * Number(x.price), 0) : null;
+  const o = k.owners;
+  return (
+    <Stack>
+      <Seg value={days} onChange={setDays} options={[['7', t('7 gün')], ['30', t('30 gün')], ['90', t('90 gün')]]} />
+      <Grid>
+        <Stat label={t('Üye')} value={String(k.users.total)} sub={t('{a} mülk sahibi · {b} kiracı · {c} ekip', { a: k.users.landlords, b: k.users.tenants, c: k.users.team })} />
+        <Stat label={t('Yeni kayıt ({n} gün)', { n: k.days })} value={String(k.signups.period)} sub={[delta(k.signups.period, k.signups.prev), t('önceki dönem: {n}', { n: k.signups.prev })].filter(Boolean).join(' · ')} />
+        <Stat label={t('Ödeyen mülk sahibi')} value={String(o.paying)} sub={t('Dönüşüm: {p}', { p: pct(o.paying, o.total) })} />
+        <Stat label={t('Aylık gelir (tahmini)')} value={mrr == null ? '—' : tl(mrr)} sub={mrr == null ? t('Fiyatlar tanımlanınca hesaplanır') : t('Fiyatı tanımlı paketlerden')} />
+      </Grid>
+      <Grid>
+        <Stat label={t('Denemede')} value={String(o.trial)} sub={t('{n} tanesi 7 gün içinde bitiyor', { n: o.expiring })} />
+        <Stat label={t('Etkin mülk sahibi (30 gün)')} value={String(o.active)} sub={pct(o.active, o.total) + ' ' + t('mülk sahibi')} />
+        <Stat label={t('Erişimi biten')} value={String(o.lapsed)} sub={t('Deneme ya da abonelik bitmiş')} />
+        <Stat label={t('Ödeme sorunu')} value={String(k.billingIssues)} sub={t('{n} abonelik yenilenmeyecek', { n: k.cancelling })} />
+      </Grid>
+      <Grid>
+        <Stat label={t('Yönetilen mülk')} value={String(k.units.total)} sub={t('{n} mülkte kiracı bağlı', { n: k.units.connected })} />
+        <Stat label={t('Bu ay onaylı kira')} value={tl(k.rent.month)} sub={[delta(k.rent.month, k.rent.prevMonth), t('geçen ay: {v}', { v: tl(k.rent.prevMonth) })].filter(Boolean).join(' · ')} />
+        <Stat label={t('Açık talep')} value={String(k.supportOpen)} sub={t('Kurumsal, içe aktarma, genel')} />
+      </Grid>
+      <Signups series={k.series} />
+      <PlanBars plans={plans} total={o.paying} />
+    </Stack>
+  );
+}
+
+const FILTERS: [string, string][] = [['all', 'Hepsi'], ['trial', 'Denemede'], ['expiring', '7 günde bitiyor'], ['paying', 'Ödeyen'], ['issue', 'Ödeme sorunu'], ['lapsed', 'Erişimi biten']];
+
+/** Deneme uzatma ve elle paket verme (gerekçe kayda yazılır). */
+function SubActions({ s, reload }: { s: any; reload: () => void }) {
+  const c = useColors();
+  const [mode, setMode] = useState('');
+  const [days, setDays] = useState('14');
+  const [plan, setPlanId] = useState('kurumsal');
+  const [until, setUntil] = useState('');
+  const [why, setWhy] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const store = s.subscribed && s.store && s.store !== 'admin';
+  const run = async (fn: () => Promise<any>) => {
+    if (!why.trim()) { setErr(t('Gerekçe yaz.')); return; }
+    setBusy(true); setErr(null);
+    try { await fn(); setMode(''); setWhy(''); reload(); } catch (e) { setErr(humanError(e)); }
+    setBusy(false);
+  };
+  if (!mode) return (
+    <Row wrap>
+      <Button kind="ghost" title={t('Denemeyi uzat')} onPress={() => setMode('trial')} />
+      {store ? <Muted>{t('Mağaza aboneliği; paket mağazadan yönetilir.')}</Muted> : <Button kind="ghost" title={t('Paket ver')} onPress={() => setMode('plan')} />}
+      {s.store === 'admin' && s.subscribed ? <Button kind="ghost" title={t('Paketi kaldır')} onPress={() => { setMode('plan'); setPlanId(''); }} /> : null}
+    </Row>
+  );
+  return (
+    <View style={{ gap: 10 }}>
+      {mode === 'trial'
+        ? <Field label={t('Eklenecek gün (1–90)')} value={days} onChangeText={(x) => setDays(x.replace(/\D/g, '').slice(0, 2))} keyboardType="numeric" />
+        : <>
+          <Seg value={plan} onChange={setPlanId} options={[['tek', planLabel('tek')], ['bes', planLabel('bes')], ['kurumsal', planLabel('kurumsal')], ['', t('Paketi kaldır')]]} />
+          {plan ? <Field label={t('Bitiş tarihi (YYYY-AA-GG, boş: süresiz)')} value={until} onChangeText={setUntil} placeholder="2027-12-31" maxLength={10} /> : null}
+        </>}
+      <Field label={t('Gerekçe')} value={why} onChangeText={setWhy} placeholder={t('Kayda yazılır')} maxLength={240} />
+      <Row wrap>
+        <Button kind="ghost" title={t('Vazgeç')} onPress={() => { setMode(''); setErr(null); }} />
+        <Button loading={busy} title={mode === 'trial' ? t('Uzat') : plan ? t('Paketi ver') : t('Paketi kaldır')}
+          onPress={() => run(() => mode === 'trial' ? extendTrial(s.id, Number(days), why.trim()) : setPlan(s.id, plan, until ? until + 'T23:59:59Z' : null, why.trim()))} />
+      </Row>
+      {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
+    </View>
+  );
+}
+
+export function Subscriptions() {
+  const c = useColors();
+  const { data, err, reload } = useLoad<any[]>(() => loadSubscriptions());
+  const [q, setQ] = useState('');
+  const [f, setF] = useState('all');
+  const soon = Date.now() + 7 * 86400000;
+  const list = (data || []).filter((s) =>
+    (f === 'all' || (f === 'trial' && s.in_trial) || (f === 'expiring' && s.in_trial && Date.parse(s.trial_ends) < soon) || (f === 'paying' && s.subscribed)
+      || (f === 'issue' && s.billing_issue) || (f === 'lapsed' && !s.subscribed && !s.in_trial))
+    && (!q.trim() || [s.name, s.email].join(' ').toLocaleLowerCase('tr').includes(q.trim().toLocaleLowerCase('tr'))));
+  return (
+    <Stack>
+      <Field label={t('E-postayla ara')} value={q} onChangeText={setQ} placeholder={t('Ad ya da e-posta')} autoCapitalize="none" />
+      <Seg scroll value={f} onChange={setF} options={FILTERS.map(([k, l]) => [k, t(l)] as [string, string])} />
+      {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
+      {data || err ? null : <Spin />}
+      {data && !list.length ? <Empty>{t('Eşleşen mülk sahibi yok.')}</Empty> : null}
+      {list.map((s) => (
+        <Card key={s.id} gap={8}>
+          <Row between wrap>
+            <View style={{ flex: 1, minWidth: 200 }}><H2>{s.name || s.email}</H2><Muted>{s.email} · {t('Kayıt')}: {day(s.created_at)}</Muted></View>
+            <Row gap={8} wrap>
+              {s.subscribed ? <Chip tone="ok" label={planLabel(s.plan)} /> : s.in_trial ? <Chip tone="warn" label={t('Deneme')} /> : <Chip tone="bad" label={t('Erişim yok')} />}
+              {s.billing_issue ? <Chip tone="bad" label={t('Ödeme sorunu')} /> : null}
+              {s.banned ? <Chip tone="bad" label={t('Askıda')} /> : null}
+            </Row>
+          </Row>
+          <Muted>{s.subscribed
+            ? [t('Kaynak: {s}', { s: s.store === 'admin' ? t('yönetici') : s.store || '—' }), s.expires_at ? t('Bitiş: {d}', { d: day(s.expires_at) }) : t('Süresiz'), s.will_renew ? t('Yenilenecek') : t('Yenilenmeyecek')].join(' · ')
+            : t('Deneme bitişi: {d}', { d: day(s.trial_ends) }) + (s.extra_days ? ' · ' + t('+{n} gün uzatıldı', { n: s.extra_days }) : '')}</Muted>
+          <Muted>{t('{n} mülk', { n: s.units })} · {t('{n} kiracı', { n: s.tenants })}</Muted>
+          <SubActions s={s} reload={reload} />
+        </Card>
+      ))}
+    </Stack>
+  );
+}
+
+const KIND: Record<string, string> = { kurumsal: 'Kurumsal paket', import: 'Toplu içe aktarma', upgrade: 'Paket yükseltme', genel: 'Genel' };
+
+export function Support() {
+  const c = useColors();
+  const [f, setF] = useState('open');
+  const { data, err, reload } = useLoad<any[]>(() => loadSupport());
+  const list = (data || []).filter((r) => f === 'all' || r.status === f);
+  const toggle = async (r: any) => { try { await setSupportStatus(r.id, r.status === 'open' ? 'done' : 'open'); reload(); } catch {} };
+  return (
+    <Stack>
+      <Seg value={f} onChange={setF} options={[['open', t('Açık')], ['done', t('Kapatılan')], ['all', t('Hepsi')]]} />
+      {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
+      {data || err ? null : <Spin />}
+      {data && !list.length ? <Empty>{t('Talep yok.')}</Empty> : null}
+      {list.map((r) => (
+        <Card key={r.id} gap={6}>
+          <Row between wrap>
+            <View style={{ flex: 1, minWidth: 200 }}><H2>{r.name || r.email || '—'}</H2><Muted>{[r.email, r.phone].filter(Boolean).join(' · ')}</Muted></View>
+            <Row gap={8} wrap>
+              <Chip tone="accent" label={t(KIND[r.kind] || r.kind)} />
+              {r.units ? <Chip label={t('{n} mülk', { n: r.units })} /> : null}
+              <Muted>{day(r.created_at)}</Muted>
+            </Row>
+          </Row>
+          {r.message ? <Text v="small" selectable>{r.message}</Text> : null}
+          <Row wrap>
+            {r.email ? <Button kind="ghost" title={t('E-posta gönder')} onPress={() => Linking.openURL('mailto:' + r.email + '?subject=' + encodeURIComponent(t('Kiracım iletişim talebin'))).catch(() => {})} /> : null}
+            <Button kind={r.status === 'open' ? 'primary' : 'ghost'} title={r.status === 'open' ? t('Kapat') : t('Yeniden aç')} onPress={() => toggle(r)} />
+          </Row>
+        </Card>
+      ))}
+    </Stack>
+  );
+}

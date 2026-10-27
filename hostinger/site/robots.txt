@@ -1,0 +1,6 @@
+User-agent: *
+Disallow: /uygulama
+Disallow: /admin
+Allow: /
+
+Sitemap: https://kiracim.online/sitemap.xml

@@ -1,0 +1,142 @@
+/* Tanıtım sitesinin üst şeridi ve menüsü. "Özellikler" açılır panelinde kategori seçilince
+   sayfadaki Özellikler bölümü o kategorinin sekmesiyle açılır (Landing → openFeature). */
+import { useEffect, useState } from 'react';
+import { Pressable, Text as RNText, View } from 'react-native';
+import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
+import { useRouter } from 'expo-router';
+import { t } from '../domain/i18n';
+import { useAuth } from '../auth/auth';
+import { Button, Container, PressScale, Text } from '../ui/kit';
+import { Wordmark } from '../ui/Wordmark';
+import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
+import { Icon } from '../app-ui/blocks';
+import { categories } from './content';
+
+export function TopBar() {
+  const c = useColors();
+  const router = useRouter();
+  const { phone } = useBreakpoint();
+  return (
+    <View style={{ backgroundColor: c.deepA }}>
+      <PressScale onPress={() => router.push('/kayit/mulk-sahibi')} accessibilityRole="link" scaleTo={0.99}
+        style={{ minHeight: 40, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, flexWrap: 'wrap', paddingVertical: 8 }}>
+        <RNText style={{ fontFamily: fonts.bodyMedium, fontSize: phone ? 12.5 : 13.5, color: c.heroInk, textAlign: 'center' }}>{t('Mülk sahiplerine 1 ay ücretsiz deneme')}</RNText>
+        <RNText style={{ fontFamily: fonts.bodyBold, fontSize: phone ? 12.5 : 13.5, color: c.butter }}>{t('Hemen başla')} ›</RNText>
+      </PressScale>
+    </View>
+  );
+}
+
+export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; scrollTo: (k: string) => void; openFeature: (id: string) => void }) {
+  const c = useColors();
+  const { phone } = useBreakpoint();
+  const { user, ready } = useAuth();
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('keydown', esc);
+    return () => document.removeEventListener('keydown', esc);
+  }, []);
+  const links: [string, string][] = [['nasil', t('Nasıl çalışır')], ['fiyat', t('Fiyatlar')], ['sss', t('SSS')]];
+  const glass: any = { backgroundColor: c.bg + 'B8', backdropFilter: 'saturate(180%) blur(22px)', WebkitBackdropFilter: 'saturate(180%) blur(22px)' };
+  const btn = { minHeight: phone ? 40 : 44, paddingHorizontal: phone ? 12 : 20 };
+  // Oturum açıksa giriş / kayıt yerine panele dönüş gösterilir.
+  const signedIn = ready && !!user;
+  return (
+    <View style={[{ zIndex: 20, borderBottomWidth: 1, borderBottomColor: c.line6 }, glass]}>
+      {open && !phone ? (
+        <Animated.View entering={FadeIn.duration(260)} exiting={FadeOut.duration(180)} style={{ position: 'fixed' as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }}>
+          <Pressable accessibilityLabel={t('Kapat')} onPress={() => setOpen(false)} style={[{ flex: 1, backgroundColor: 'rgba(29,26,25,0.22)' }, { backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' } as any]} />
+        </Animated.View>
+      ) : null}
+      <Container style={{ zIndex: 20 }}>
+        <View style={{ position: 'relative' }}>
+          <View style={{ minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <Wordmark size={phone ? 22 : 26} animate />
+            {!phone && (
+              <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+                <Pressable onPress={() => setOpen((x) => !x)} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={t('Özellikler')}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: open ? c.surface2 : 'transparent' }}>
+                  <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{t('Özellikler')}</Text>
+                  <View style={{ transform: [{ rotate: open ? '90deg' : '-90deg' }] }}><Icon name="back" size={13} /></View>
+                </Pressable>
+                {links.map(([k, label]) => (
+                  <PressScale key={k} onPress={() => { setOpen(false); scrollTo(k); }} accessibilityRole="link" style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+                    <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{label}</Text>
+                  </PressScale>
+                ))}
+              </View>
+            )}
+            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+              {signedIn ? (
+                <Button kind="primary" title={t('Panele git')} onPress={() => go(user!.admin ? '/admin' : '/uygulama')} style={btn} />
+              ) : (
+                <>
+                  <Button kind="ghost" title={t('Giriş yap')} onPress={() => go('/giris')} style={btn} />
+                  <Button kind="primary" title={phone ? t('Kayıt ol') : t('Ücretsiz dene')} onPress={() => go('/kayit')} style={btn} />
+                </>
+              )}
+            </View>
+          </View>
+          {open && !phone && <FeatureMenu go={go} signedIn={signedIn} onPick={(id) => { setOpen(false); openFeature(id); }} />}
+        </View>
+      </Container>
+    </View>
+  );
+}
+
+/** Açılır özellik menüsü: solda kategoriler, ortada maddeler. Bir kategoriye ya da maddeye basınca
+    sayfa o kategorinin sekmesine kayar; bütün özellikler aynı anda açılmaz. */
+function FeatureMenu({ onPick, go, signedIn }: { onPick: (id: string) => void; go: (p: string) => void; signedIn: boolean }) {
+  const c = useColors();
+  const { desktop } = useBreakpoint();
+  const cats = categories();
+  const [active, setActive] = useState(cats[0].id);
+  const cur = cats.find((x) => x.id === active) || cats[0];
+  return (
+    <View style={{ position: 'absolute', top: 66, left: 0, right: 0, zIndex: 60 }}>
+      <Animated.View entering={FadeInDown.duration(200)} exiting={FadeOut.duration(120)}
+        style={{ backgroundColor: c.surface, borderRadius: 32, borderWidth: 1, borderColor: c.line, padding: 14, flexDirection: 'row', gap: 6, boxShadow: shadows.lift }}>
+        <View style={{ width: 270, gap: 4 }} accessibilityRole="tablist">
+          {cats.map((cat) => {
+            const on = cat.id === active;
+            return (
+              <Pressable key={cat.id} onHoverIn={() => setActive(cat.id)} onPress={() => onPick(cat.id)} accessibilityRole="tab" accessibilityState={{ selected: on }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, minHeight: 50, borderRadius: 18, backgroundColor: on ? c.surface2 : 'transparent' }}>
+                <Icon name={cat.icon} size={20} color={on ? c.accentText : c.ink} />
+                <RNText style={{ flex: 1, fontFamily: on ? fonts.bodyXBold : fonts.bodyBold, fontSize: 16, color: c.ink }}>{cat.title}</RNText>
+                <View style={{ transform: [{ rotate: '180deg' }], opacity: on ? 1 : 0.35 }}><Icon name="back" size={16} /></View>
+              </Pressable>
+            );
+          })}
+        </View>
+        <View style={{ width: 1, backgroundColor: c.line, marginVertical: 8 }} />
+        <Animated.View key={cur.id} entering={FadeIn.duration(220)} style={{ flex: 1, paddingHorizontal: 22, paddingVertical: 10, gap: 18 }}>
+          <RNText style={{ fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: c.muted }}>{cur.lead}</RNText>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 28, rowGap: 18 }}>
+            {cur.items.map((it) => (
+              <PressScale key={it.title} onPress={() => onPick(cur.id)} accessibilityRole="link" scaleTo={0.98} style={{ width: desktop ? '46%' : '100%', gap: 4 }}>
+                <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 16, color: c.ink }}>{it.title}</RNText>
+                <RNText style={{ fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: c.muted }}>{it.body}</RNText>
+              </PressScale>
+            ))}
+          </View>
+          <PressScale onPress={() => onPick(cur.id)} accessibilityRole="link" style={{ alignSelf: 'flex-start' }}>
+            <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 14, color: c.accentText }}>{t('{name} bölümüne git', { name: cur.title })} ›</RNText>
+          </PressScale>
+        </Animated.View>
+        {desktop && !signedIn && (
+          <>
+            <View style={{ width: 1, backgroundColor: c.line, marginVertical: 8 }} />
+            <View style={{ width: 260, padding: 10, gap: 12, justifyContent: 'center' }}>
+              <RNText style={{ fontFamily: fonts.siteBold, fontSize: 20, lineHeight: 22, letterSpacing: -0.4, color: c.ink }}>{t('1 ay ücretsiz dene')}</RNText>
+              <Text v="small" muted>{t('Kiracılar her zaman ücretsiz. Mülk sahipleri her paketi 1 ay ücretsiz dener.')}</Text>
+              <Button kind="primary" title={t('Hesap oluştur')} onPress={() => go('/kayit')} />
+            </View>
+          </>
+        )}
+      </Animated.View>
+    </View>
+  );
+}

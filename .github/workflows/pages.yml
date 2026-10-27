@@ -1,0 +1,68 @@
+name: GitHub Pages
+
+# Varsayılan dala her push'ta Kiracım uygulamasını (app/) derleyip yayınlar.
+# İlk kullanımda: Settings → Pages → Source: "GitHub Actions" seçilmeli.
+# Settings → Secrets and variables → Actions → Variables altına şunlar eklenir:
+#   SUPABASE_URL        https://xxxx.supabase.co            (zorunlu: gerçek hesaplar için)
+#   SUPABASE_ANON_KEY   eyJ…  (anon/public anahtar; herkese açıktır)  (zorunlu)
+#   CUSTOM_DOMAIN       kiracim.online                      (isteğe bağlı: kendi alan adı)
+#   TURNSTILE_SITE_KEY  0x4AAAA…  (isteğe bağlı: Cloudflare Turnstile bot koruması, docs/guvenlik.md)
+# İkisi de boşsa site yerel hesap moduyla yayınlanır (veri yalnızca o tarayıcıda).
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Paketleri kur
+        working-directory: app
+        run: npm ci
+      - name: Tür denetimi
+        working-directory: app
+        run: npx tsc --noEmit
+      - name: Bağımlılık güvenlik denetimi (bilgi amaçlı)
+        working-directory: app
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high
+      - name: Siteyi derle
+        working-directory: app
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+          CUSTOM_DOMAIN: ${{ vars.CUSTOM_DOMAIN }}
+        run: |
+          # Kendi alan adı varsa kökten, yoksa https://<kullanıcı>.github.io/<depo>/ altından sunulur.
+          if [ -z "$CUSTOM_DOMAIN" ]; then export EXPO_BASE_URL="/${GITHUB_REPOSITORY#*/}"; fi
+          npx expo export -p web --output-dir ../_site
+          node scripts/harden-html.mjs ../_site
+          cp ../_site/+not-found.html ../_site/404.html
+          touch ../_site/.nojekyll
+          if [ -n "$CUSTOM_DOMAIN" ]; then echo "$CUSTOM_DOMAIN" > ../_site/CNAME; fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

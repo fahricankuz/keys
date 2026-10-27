@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Kiracım",
+    "slug": "kiracim",
+    "scheme": "kiracim",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "online.kiracim.app"
+    },
+    "android": {
+      "package": "online.kiracim.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#F4F4F1",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Dekont ve talep fotoğrafları için galeriye erişim gerekir.",
+          "cameraPermission": "Tutanak ve talep fotoğrafı çekmek için kamera erişimi gerekir."
+        }
+      ],
+      "expo-document-picker"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

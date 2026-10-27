@@ -1,0 +1,9 @@
+{
+  "name": "kiracim-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Kiracım: derlenmiş statik site. Çıktı: dist/",
+  "scripts": {
+    "build": "node build.mjs"
+  }
+}

@@ -1,0 +1,32 @@
+/* kiracim.online yasal ve destek sayfaları — uygulamanın renkleriyle */
+:root{
+  --bg:#F7F1E8; --surface:#FCF9F4; --ink:#211C17; --muted:#6B6158; --line:#E8DFD1;
+  --accent:#A8492A; --mark:#F6D5CF; --mark-ink:#8A2A1A;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#171512; --surface:#201D19; --ink:#F2ECE4; --muted:#B3A99D; --line:#35302A;
+         --accent:#E08A67; --mark:#44241D; --mark-ink:#F4C0B3; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 'Manrope','Segoe UI',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+main{max-width:760px;margin:0 auto;padding:28px 16px 64px}
+header.top{display:flex;align-items:center;gap:10px;margin-bottom:24px}
+header.top a{display:flex;align-items:center;gap:10px;color:inherit;text-decoration:none;font-weight:800;font-size:19px}
+header.top .mark{width:34px;height:34px;border-radius:9px;background:var(--accent);display:grid;place-items:center}
+nav.legal{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px;margin:-8px 0 24px}
+nav.legal a{color:var(--muted)}
+nav.legal a[aria-current]{color:var(--ink);font-weight:700}
+h1{font-size:30px;line-height:1.15;margin:0 0 6px;letter-spacing:-.4px}
+h2{font-size:19px;margin:30px 0 8px}
+h3{font-size:16px;margin:20px 0 6px}
+p,li{color:var(--ink)}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+a{color:var(--accent)}
+.draft{background:var(--mark);color:var(--mark-ink);border-radius:12px;padding:12px 14px;margin:0 0 22px;font-size:14.5px}
+mark.ph{background:var(--mark);color:var(--mark-ink);border-radius:5px;padding:0 4px}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14.5px}
+th,td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:8px 8px 8px 0}
+th{font-weight:700}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:12px 0}
+footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:13.5px}
+@media (max-width:560px){ table,thead,tbody,tr,th,td{display:block} thead{display:none} td{border:0;padding:2px 0} tr{border-bottom:1px solid var(--line);padding:8px 0} }

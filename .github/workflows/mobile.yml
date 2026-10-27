@@ -1,0 +1,53 @@
+name: Mobil derleme
+
+# iOS ve Android projelerinin derlendiğini doğrular; Android için test edilebilir
+# bir APK üretir (Actions → çalıştırma → Artifacts). Mağaza sürümü imzası için
+# docs/mobil.md → "Mağaza sürümü".
+on:
+  push:
+    paths: ['assets/**', 'android/**', 'ios/**', 'native/**', 'capacitor.config.json', 'package*.json', 'scripts/build.mjs', 'index.html', '.github/workflows/mobile.yml']
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm run build:native
+      - name: APK (hata ayıklama)
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon -PevimVersionCode=${{ github.run_number }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evim-android-debug
+          path: android/app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:native
+      - name: Simülatör için derle (imzasız)
+        working-directory: ios/App
+        run: |
+          xcodebuild -project App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build | tail -40
+          test ${PIPESTATUS[0]} -eq 0

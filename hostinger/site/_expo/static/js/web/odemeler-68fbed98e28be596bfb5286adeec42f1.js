@@ -1,0 +1,1 @@
+__d(function(g,r,i,a,m,e,d){"use strict";Object.defineProperty(e,'__esModule',{value:!0}),Object.defineProperty(e,"default",{enumerable:!0,get:function(){return f}});var t=r(d[0]),n=r(d[1]),u=r(d[2]),c=r(d[3]);function f(){return'tenant'===n.ui.role?(0,c.jsx)(u.TenantScreen,{tab:"pay"}):(0,c.jsx)(t.Redirect,{href:"/uygulama"})}},1381,[85,849,1367,2]);

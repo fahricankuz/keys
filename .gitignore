@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+*.log
+test-results/
+playwright-report/
+www/
+hostinger-site/
+
+# Hazır Hostinger paketi (hostinger/): Expo varlık klasörü sitenin parçasıdır
+!/hostinger/site/assets/node_modules/

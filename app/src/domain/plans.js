@@ -1,0 +1,59 @@
+/* Mülk sahibi paketleri: adlar, mülk sınırı metni, fiyat ve paketlere göre özellikler.
+   Kiracı hesapları her zaman ücretsizdir. Her paket 1 ay ücretsiz denemeyle başlar. */
+
+import { t } from './i18n.js';
+import { CONFIG } from './config.js';
+
+export const PLAN_LABEL = {
+  tek: () => t('Başlangıç'),
+  bes: () => t('Portföy'),
+  kurumsal: () => t('Kurumsal'),
+  trial: () => t('Deneme'),
+  pro: () => t('Sınırsız')
+};
+export const planLabel = (id) => PLAN_LABEL[id] ? PLAN_LABEL[id]() : String(id || '');
+
+export function tiers(){ return CONFIG.billing.tiers; }
+
+export function unitsText(units){
+  return units == null ? t('5’ten fazla mülk') : units === 1 ? t('1 mülk') : t('{n} mülke kadar', { n: units });
+}
+
+export function priceText(tier){
+  if (tier.price != null) return '₺' + Number(tier.price).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return tier.id === 'kurumsal' ? t('Teklif alın') : t('Fiyat yakında');
+}
+
+/** Paketlere göre açılan özellikler. Başlangıç'ta olmayanlar Portföy ve Kurumsal'da açıktır;
+    deneme süresince hepsi açıktır. */
+export const FEATURES = {
+  team: ['bes', 'kurumsal', 'trial', 'pro'],      // ekip üyeleri (emlakçı, muhasebeci, personel)
+  import: ['bes', 'kurumsal', 'trial', 'pro'],    // Excel / CSV ile toplu içe aktarma
+  report: ['bes', 'kurumsal', 'trial', 'pro']     // yıllık rapor, Excel dışa aktarma, vergi tahmini
+};
+
+/** Paket kartlarında gösterilen maddeler. */
+export function tierPoints(id){
+  const base = [
+    t('Ödeme ve dekont takibi, kısmi ödeme'),
+    t('Arıza ve tadilat talepleri, mesajlaşma'),
+    t('Belge arşivi, giriş ve çıkış tutanağı'),
+    t('Kira, DASK ve sözleşme hatırlatmaları')
+  ];
+  if (id === 'tek') return base;
+  const pro = [
+    t('Başlangıç’taki her şey'),
+    t('Ekip üyeleri: emlakçı, muhasebeci, personel'),
+    t('Excel / CSV ile toplu mülk aktarma'),
+    t('Yıllık rapor, Excel dışa aktarma ve vergi tahmini'),
+    t('Gider defteri ve mülk başına net getiri')
+  ];
+  if (id === 'bes') return pro;
+  return [
+    t('Portföy’deki her şey'),
+    t('Sınırsız mülk ve ekip üyesi'),
+    t('Öncelikli destek'),
+    t('Kurulum ve veri taşıma yardımı'),
+    t('Kuruma özel sözleşme ve fatura')
+  ];
+}

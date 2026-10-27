@@ -1,0 +1,2 @@
+export const Platform = { OS: 'web', select: (o) => o.web ?? o.default };
+export default { Platform };

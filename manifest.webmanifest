@@ -1,0 +1,23 @@
+{
+  "name": "Kiracım — kira yönetimi",
+  "short_name": "Kiracım",
+  "description": "Kiracı ve ev sahibi için kira, talep, belge ve depozito takibi.",
+  "lang": "tr",
+  "dir": "ltr",
+  "start_url": "./#/",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F7F1E8",
+  "theme_color": "#A8492A",
+  "categories": ["finance", "productivity", "lifestyle"],
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Ödemeler", "url": "./#/kiraci/odemeler" },
+    { "name": "Portföy", "url": "./#/ev-sahibi" }
+  ]
+}

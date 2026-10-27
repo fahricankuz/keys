@@ -1,0 +1,59 @@
+# Kiracım: Hostinger (Apache / LiteSpeed) ayarları. Derlemeyle birlikte public_html köküne gider.
+# Gizli dosya olduğu için Dosya Yöneticisi'nde "gizli dosyaları göster" açık olmalı.
+Options -Indexes -MultiViews
+DirectoryIndex index.html
+ErrorDocument 404 /404.html
+
+<IfModule mod_rewrite.c>
+RewriteEngine On
+
+# HTTPS'e zorla
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Temiz adresler: /giris/kiraci -> /giris/kiraci.html (uygulama sayfaları ayrı .html dosyalarıdır)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.html -f
+RewriteRule ^(.+)$ $1.html [L]
+</IfModule>
+
+# Gizli dosyalara (.git, .env …) erişim yok; güvenlik.txt için .well-known açık
+<IfModule mod_rewrite.c>
+RewriteCond %{REQUEST_URI} !^/\.well-known/
+RewriteRule (^|/)\.(?!well-known) - [F,L]
+</IfModule>
+
+<IfModule mod_headers.c>
+Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+Header always set X-Content-Type-Options "nosniff"
+Header always set X-Frame-Options "DENY"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"
+Header always set Permissions-Policy "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+Header always set Cross-Origin-Opener-Policy "same-origin"
+# İçerik güvenlik politikasının geri kalanı her sayfanın içinde (<meta>) derlemede yazılır.
+Header always set Content-Security-Policy "frame-ancestors 'none'"
+
+# Sayfalar her seferinde doğrulansın (yeni sürüm hemen görünsün); dosya adı özetli varlıklar 1 yıl saklansın.
+<FilesMatch "\.html$">
+  Header set Cache-Control "no-cache"
+</FilesMatch>
+<FilesMatch "\.(js|png|jpg|jpeg|webp|svg|ttf|woff2?|ico)$">
+  Header set Cache-Control "public, max-age=31536000, immutable"
+</FilesMatch>
+# Eski servis çalışıcısını temizleyen dosya hiç önbelleğe alınmasın (yukarıdaki .js kuralını ezer).
+<FilesMatch "^sw\.js$">
+  Header set Cache-Control "no-cache, max-age=0"
+</FilesMatch>
+<FilesMatch "^(manifest\.webmanifest|security\.txt)$">
+  Header set Cache-Control "public, max-age=86400"
+</FilesMatch>
+</IfModule>
+
+<IfModule mod_deflate.c>
+AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json application/manifest+json image/svg+xml
+</IfModule>
+
+AddType application/manifest+json .webmanifest
+AddType font/ttf .ttf
