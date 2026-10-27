@@ -1,0 +1,1 @@
+__d(function(g,r,i,a,m,e,d){"use strict";Object.defineProperty(e,'__esModule',{value:!0}),Object.defineProperty(e,"default",{enumerable:!0,get:function(){return c}});var t=r(d[0]),n=r(d[1]),u=r(d[2]);function c(){return'tenant'===t.ui.role?(0,u.jsx)(n.TenantScreen,{tab:"msg"}):(0,u.jsx)(n.Threads,{})}},1373,[849,1361,2]);

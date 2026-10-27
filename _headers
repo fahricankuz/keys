@@ -1,0 +1,13 @@
+# Cloudflare Pages / Netlify gibi yanıt başlığı ayarlanabilen sunucularda geçerlidir.
+# GitHub Pages bu dosyayı yok sayar; orada aynı koruma Cloudflare (WAF) üzerinden verilir (docs/guvenlik.md).
+/*
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin
+  Content-Security-Policy: frame-ancestors 'none'
+
+/sw.js
+  Cache-Control: no-cache, max-age=0
