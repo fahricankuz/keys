@@ -1,0 +1,51 @@
+name: Güvenlik taraması
+
+# Kod (CodeQL), gizli anahtar (gitleaks) ve bağımlılık (npm audit) taraması.
+# Her gönderimde, her çekme isteğinde ve haftada bir çalışır.
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '17 5 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@v3
+
+  gizli-anahtar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  bagimlilik:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Kök paketler (yalnızca üretim bağımlılıkları)
+        run: npm audit --omit=dev --audit-level=high
+      # zod açığı yalnızca Expo derleme aracında (@expo/cli); tarayıcıya giden pakete girmez.
+      # Expo'nun kendi sürümüyle kapanır; o zamana dek yalnızca kritik açıklar derlemeyi durdurur.
+      - name: Site paketleri
+        working-directory: app
+        run: npm audit --omit=dev --audit-level=critical

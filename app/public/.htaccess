@@ -19,6 +19,11 @@ RewriteCond %{REQUEST_FILENAME}.html -f
 RewriteRule ^(.+)$ $1.html [L]
 </IfModule>
 
+# Yedek, kaynak haritası, yapılandırma ve günlük dosyaları hiçbir zaman sunulmasın
+<FilesMatch "\.(map|bak|old|orig|swp|sql|log|env|ya?ml|lock|ini|sh)$">
+  Require all denied
+</FilesMatch>
+
 # Gizli dosyalara (.git, .env …) erişim yok; güvenlik.txt için .well-known açık
 <IfModule mod_rewrite.c>
 RewriteCond %{REQUEST_URI} !^/\.well-known/
@@ -32,6 +37,10 @@ Header always set X-Frame-Options "DENY"
 Header always set Referrer-Policy "strict-origin-when-cross-origin"
 Header always set Permissions-Policy "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
 Header always set Cross-Origin-Opener-Policy "same-origin"
+Header always set Cross-Origin-Resource-Policy "same-origin"
+Header always set X-Permitted-Cross-Domain-Policies "none"
+Header always unset X-Powered-By
+Header always unset Server
 # İçerik güvenlik politikasının geri kalanı her sayfanın içinde (<meta>) derlemede yazılır.
 Header always set Content-Security-Policy "frame-ancestors 'none'"
 
