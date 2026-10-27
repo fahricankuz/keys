@@ -13,7 +13,9 @@ ve Supabase adımları sizin hesaplarınızda yapılır; koddan yapılamaz.** Ko
 | Referrer politikası | aynı betik | Adres bilgisi başka sitelere tam sızmaz. |
 | Bot koruması (Turnstile) | `app/src/auth/captcha.tsx` | `TURNSTILE_SITE_KEY` verilirse giriş, kayıt ve şifre sıfırlamada doğrulama kutusu çıkar (adım 4). |
 | Veri erişimi | `supabase/schema.sql` (RLS) | Herkes yalnızca kendi kaydını okur/yazar; yönetici işlemleri sunucuda yetkilidir. Gerçek Postgres'te sınanır (`tests/*.sql.spec.mjs`). |
-| Bağımlılık güncelleme | `.github/dependabot.yml`, iş akışında `npm audit` | Haftalık güncelleme PR'ı ve yüksek açık uyarısı. |
+| Bağımlılık güncelleme | `.github/dependabot.yml` (kök ve `app/`) | Haftalık güncelleme PR'ı. |
+| Otomatik tarama | `.github/workflows/guvenlik.yml` | CodeQL (kod açıkları), gitleaks (sızan anahtar), `npm audit` (bağımlılık). Her gönderimde ve haftada bir. |
+| Gizli değer karşılaştırması | `supabase/functions/*/index.ts` | Webhook gizli değerleri sabit sürede karşılaştırılır. |
 | İletişim | `app/public/.well-known/security.txt` | Güvenlik açığı bildirimi için adres. |
 | Başlık dosyası | `app/public/_headers` | Cloudflare Pages/Netlify'a taşınırsa HSTS vb. başlıklar kendiliğinden gelir; GitHub Pages yok sayar. |
 
@@ -75,6 +77,9 @@ Hesap işlemleri doğrudan Supabase'e gider; Cloudflare duvarının görmediği 
 8. **Yedek**: Supabase → Database → Backups açık olsun (günlük).
 
 ## 5. Sınırlar ve açık işler
+
+- `zod` yüksek açığı (`npm audit`) yalnızca Expo derleme aracından gelir (`@expo/cli`), tarayıcıya giden pakete girmez; Expo güncellemesiyle kapanır. Tarama bu yüzden `app/` için yalnızca kritik açıkta durur.
+- İlk çalıştırmada `guvenlik.yml` bulgu çıkarırsa Security → Code scanning sayfasında görünür.
 
 - Turnstile akışı gerçek Cloudflare/Supabase ile bu ortamda denenemedi (dışarı bağlantı yok); anahtar yokken formlar değişmeden çalışır ve testlerle doğrulanmıştır. Anahtarı ekledikten sonra bir kez kayıt ve giriş deneyin.
 - CSP `style-src 'unsafe-inline'` içerir (React Native Web stilleri satır içidir); betikler için `unsafe-inline` yoktur.

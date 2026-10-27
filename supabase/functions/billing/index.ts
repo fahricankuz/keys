@@ -31,6 +31,13 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+// Gizli değer karşılaştırması sabit sürede yapılır (zamanlama farkından değer sezdirmez).
+function safeEqual(a: string, b: string): boolean {
+  const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
+  let d = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) d |= (x[i] ?? 0) ^ (y[i] ?? 0);
+  return d === 0;
+}
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
@@ -56,7 +63,7 @@ Deno.serve(async (req) => {
 
   try {
     // 1) RevenueCat webhook'u
-    if (hook && (auth === hook || auth === 'Bearer ' + hook)) {
+    if (hook && (safeEqual(auth, hook) || safeEqual(auth, 'Bearer ' + hook))) {
       const payload = await req.json().catch(() => null);
       const event = payload?.event;
       if (!event) return json({ error: 'Olay yok' }, 400);

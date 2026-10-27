@@ -30,11 +30,19 @@ const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY')
   auth: { persistSession: false }
 });
 
+// Gizli değer karşılaştırması sabit sürede yapılır (zamanlama farkından değer sezdirmez).
+function safeEqual(a: string, b: string): boolean {
+  const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
+  let d = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) d |= (x[i] ?? 0) ^ (y[i] ?? 0);
+  return d === 0;
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('Yalnızca POST', { status: 405 });
 
   const secret = env('WEBHOOK_SECRET');
-  if (!secret || req.headers.get('x-evim-secret') !== secret) {
+  if (!secret || !safeEqual(req.headers.get('x-evim-secret') ?? '', secret)) {
     return new Response('Yetkisiz', { status: 401 });
   }
 
