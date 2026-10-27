@@ -82,7 +82,7 @@ export async function setPlan(uid, plan, until, why){
 export async function loadSupport(){
   const c = await client();
   return must(await c.from('support_requests')
-    .select('id, user_id, kind, units, name, email, phone, message, status, created_at')
+    .select('id, user_id, kind, units, name, email, phone, message, company, source, details, status, created_at')
     .order('created_at', { ascending: false })) || [];
 }
 

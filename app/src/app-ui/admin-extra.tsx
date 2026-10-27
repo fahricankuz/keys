@@ -291,13 +291,17 @@ export function Support() {
       {list.map((r) => (
         <Card key={r.id} gap={6}>
           <Row between wrap>
-            <View style={{ flex: 1, minWidth: 200 }}><H2>{r.name || r.email || '—'}</H2><Muted>{[r.email, r.phone].filter(Boolean).join(' · ')}</Muted></View>
+            <View style={{ flex: 1, minWidth: 200 }}><H2>{r.name || r.email || '—'}{r.company ? ' · ' + r.company : ''}</H2><Muted>{[r.email, r.phone].filter(Boolean).join(' · ')}</Muted></View>
             <Row gap={8} wrap>
               <Chip tone="accent" label={t(KIND[r.kind] || r.kind)} />
+              {r.source === 'web' ? <Chip tone="warn" label={t('Web formu')} /> : null}
               {r.units ? <Chip label={t('{n} mülk', { n: r.units })} /> : null}
               <Muted>{day(r.created_at)}</Muted>
             </Row>
           </Row>
+          {r.details && (r.details.types?.length || r.details.role || r.details.city || r.details.timeline) ? (
+            <Muted>{[r.details.types?.length ? r.details.types.map((x: string) => t(x)).join(', ') : '', r.details.role ? t(r.details.role) : '', r.details.city, r.details.timeline ? t(r.details.timeline) : ''].filter(Boolean).join(' · ')}</Muted>
+          ) : null}
           {r.message ? <Text v="small" selectable>{r.message}</Text> : null}
           <Row wrap>
             {r.email ? <Button kind="ghost" title={t('E-posta gönder')} onPress={() => Linking.openURL('mailto:' + r.email + '?subject=' + encodeURIComponent(t('anahtar iletişim talebin'))).catch(() => {})} /> : null}

@@ -45,7 +45,7 @@ Header always unset Server
 Header always set Content-Security-Policy "frame-ancestors 'none'"
 
 # Sayfalar her seferinde doğrulansın (yeni sürüm hemen görünsün); dosya adı özetli varlıklar 1 yıl saklansın.
-<FilesMatch "\.html$">
+<FilesMatch "\.(html|css|xml)$">
   Header set Cache-Control "no-cache"
 </FilesMatch>
 <FilesMatch "\.(js|png|jpg|jpeg|webp|svg|ttf|woff2?|ico)$">

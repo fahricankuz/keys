@@ -437,3 +437,29 @@ test('ayarlar: telefonda üst çubuktaki dişliden açılır; mülk sahibi rapor
   await expect(page.getByText('Tahsilat oranı')).toBeVisible();
   await expect(page.getByText('Moda Dairesi').last()).toBeVisible();
 });
+
+test('kurumsal başvuru: fiyatlardaki "Bize ulaşın" formu açar; başvuru yönetici paneline düşer', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto(url('/'));
+  await page.getByRole('button', { name: 'Bize ulaşın' }).first().click();
+  await expect(page).toHaveURL(/\/kurumsal/);
+  await page.getByLabel('Ad soyad').fill('Ayşe Yılmaz');
+  await page.getByLabel('Şirket / kurum (isteğe bağlı)').fill('Yılmaz Emlak');
+  await page.getByLabel('E-posta').fill('ayse@firma.com');
+  await page.getByLabel('Yaklaşık mülk adedi').fill('40');
+  await page.getByRole('checkbox', { name: 'Konut' }).click();
+  await page.getByRole('checkbox', { name: 'Ofis' }).click();
+  await page.getByRole('radio', { name: 'Emlak ofisi' }).click();
+  await page.getByRole('button', { name: 'Başvuruyu gönder' }).click();
+  await expect(page.getByText('Aydınlatma metnini onayla.')).toBeVisible();
+  await page.getByRole('checkbox', { name: /Aydınlatma Metni/ }).click();
+  await page.getByRole('button', { name: 'Başvuruyu gönder' }).click();
+  await expect(page.getByText('Başvurun bize ulaştı')).toBeVisible();
+  const r = (await db(page)).tables.support_requests.find((x) => x.source === 'web');
+  expect(r).toMatchObject({ kind: 'kurumsal', units: 40, company: 'Yılmaz Emlak', details: { types: ['Konut', 'Ofis'], role: 'Emlak ofisi' } });
+  await login(page, 'admin@ornek.com');
+  await expect(page).toHaveURL(/\/admin/);
+  await page.getByRole('button', { name: /Talepler/ }).first().click();
+  await expect(page.getByText('Ayşe Yılmaz · Yılmaz Emlak')).toBeVisible();
+  await expect(page.getByText('Web formu')).toBeVisible();
+});

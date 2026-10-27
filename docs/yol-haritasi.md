@@ -33,6 +33,11 @@ Sahip: 👤 = sizin yapmanız gereken (hesap, sözleşme, karar) · 🤖 = kodda
       aylık `0 6 1 * *` gövde `{"period":"month"}`, yıllık `30 6 1 1 *` gövde `{"period":"year"}`.
       Deneme: gövdeye `"only":"<kullanıcı id>"` ekleyip bir kez elle çalıştırın.
 
+- [ ] 👤 **Kurumsal başvuru e-postası** (`supabase/functions/lead-mail`): `supabase functions deploy lead-mail`; gizli değişkenler
+      `LEAD_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM` (isteğe bağlı `LEAD_TO`, varsayılan `info@anahtar.io`). Supabase → Database → **Webhooks** →
+      tablo `support_requests`, olay **INSERT**, tür *Supabase Edge Functions* → `lead-mail`, başlık `x-anahtar-secret: <LEAD_SECRET>`.
+      Başvurular webhook kurulmadan da yönetici paneli → Talepler'de görünür.
+
 ## Faz 1 — Güvenlik ve hukuk (1–2 hafta, Faz 0 ile paralel)
 
 - [ ] 👤 **KVKK**: aydınlatma metni ve gizlilik politikasını avukata kontrol ettirin; VERBİS kayıt yükümlülüğünü değerlendirin;

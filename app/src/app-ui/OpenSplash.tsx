@@ -1,6 +1,7 @@
-/* Panele giriş: ekran tuğla rengi, ortada kireç rengi "a". "a"nın gözü anahtar deliğidir; içinden sıcak bir ışık
-   sızar, sonra kamera deliğe doğru hızlanarak ilerler ve delik ekranı kaplayınca panel arkasında görünür.
-   Yaklaşık 1,7 sn; her girişte ve sekmenin ilk açılışında. Hareketi azaltma tercihinde yalnızca kısa bir solma.
+/* Panele giriş: ekran tuğla rengi, ortada kireç rengi "a". "a"nın gözü anahtar deliğidir ve zeminle aynı renktedir.
+   Kamera deliğe doğru hızlanarak ilerler, "a" ekranın dışına taşar ve ekran tümüyle tuğla rengine döner; ardından
+   ortadan anahtar deliği biçiminde bir pencere açılır ve büyüyerek paneli gösterir.
+   Yaklaşık 2 sn; her girişte ve sekmenin ilk açılışında. Hareketi azaltma tercihinde yalnızca kısa bir solma.
    Yakınlaştırma CSS ölçeği yerine SVG geometrisiyle yapılır: 60 kat büyümede de kenarlar keskin kalır. */
 import { useEffect, useState } from 'react';
 import { Platform, useWindowDimensions, View } from 'react-native';
@@ -14,9 +15,10 @@ const LOGIN = 'anahtar-acilis-giris';
 export function playOnNextOpen() { try { sessionStorage.setItem(LOGIN, '1'); } catch {} }
 const KIREC = '#FAF5F0';
 /** Anahtar deliği (MONO çizim birimleri): üstte daire, altta yamuk. */
-const HOLE = { ax: 506.5, bx: 552.7, y: 696.9, r: 80, cx: 562.6, dx: 496.6, by: 764.3, mid: { x: 529.6, y: 680 } };
+const HOLE = { ax: 506.5, bx: 552.7, y: 696.9, r: 80, cx: 562.6, dx: 496.6, by: 764.3, mid: { x: 529.6, y: 680 }, c: { x: 529.6, y: 620.3 } };
 
-const INTRO = 520, HOLD = 260, ZOOM = 920;
+const INTRO = 520, HOLD = 220, ZOOM = 720, OPEN = 560;
+const TOTAL = INTRO + HOLD + ZOOM + OPEN;
 /** Hareketi azaltma tercihinde: yakınlaşma yok, logo görünür ve ekran yumuşakça solar. */
 const FADE = 900;
 const clamp = (v: number) => Math.max(0, Math.min(1, v));
@@ -48,13 +50,13 @@ export default function OpenSplash() {
     const t0 = Date.now();
     const tick = () => {
       const t = Date.now() - t0;
-      if (t >= (reduced ? FADE : INTRO + HOLD + ZOOM)) { setShow(false); return; }
+      if (t >= (reduced ? FADE : TOTAL)) { setShow(false); return; }
       setMs(t);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     // Güvenlik: kare döngüsü durursa (arka plan sekmesi) panel yine açılır.
-    const id = setTimeout(() => setShow(false), INTRO + HOLD + ZOOM + 900);
+    const id = setTimeout(() => setShow(false), TOTAL + 900);
     return () => { cancelAnimationFrame(raf); clearTimeout(id); };
   }, [show, reduced]);
 
@@ -65,20 +67,23 @@ export default function OpenSplash() {
   const k = tile / 1000;
   const ox = w / 2 - tile / 2, oy = h / 2 - tile / 2;
   const gx = ox + k * 180, gy = oy + k * 190, gs = k * 0.64;
-  const kx = gx + gs * HOLE.mid.x, ky = gy + gs * HOLE.mid.y;
+  // Yakınlaşma deliğin dairesinin merkezine doğru: daire ekranı kaplayınca hiç kireç rengi kalmaz.
+  const kx = gx + gs * HOLE.c.x, ky = gy + gs * HOLE.c.y;
 
   const intro = reduced ? 1 : outCubic(clamp(ms / INTRO));
   const zp = reduced ? 0 : clamp((ms - INTRO - HOLD) / ZOOM);
+  const op = reduced ? 0 : clamp((ms - INTRO - HOLD - ZOOM) / OPEN);
   const fade = reduced ? 1 - clamp((ms - 450) / (FADE - 450)) : 1;
-  // Delik ekranın en uzak köşesini aşana kadar büyür; ölçek logaritmik ilerler (hız hissi sabit, sonda ivmelenir).
-  const far = Math.max(Math.hypot(kx, ky), Math.hypot(w - kx, ky), Math.hypot(kx, h - ky), Math.hypot(w - kx, h - ky));
-  const end = (far / (HOLE.r * gs)) * 1.15;
-  const s = (0.94 + 0.06 * intro) * Math.exp(Math.log(end) * zp * zp);
+  // 1) Yakınlaşma: "a"nın deliği (zeminle aynı renk) ekranın en uzak köşesini aşana kadar büyür; ölçek logaritmik ilerler.
+  const far = (x: number, y: number) => Math.max(Math.hypot(x, y), Math.hypot(w - x, y), Math.hypot(x, h - y), Math.hypot(w - x, h - y));
+  const end = (far(kx, ky) / (HOLE.r * gs)) * 1.2;
+  const s = (0.94 + 0.06 * intro) * Math.exp(Math.log(end) * zp * zp * zp);
   const lift = 14 * (1 - intro);
-  // Deliğin merkezine göre ölçekleme.
   const tx = kx + s * (gx - kx), ty = ky + s * (gy - ky) + lift, sc = s * gs;
-  const glow = intro * (1 - clamp(zp / 0.28));
-  const d = hole(tx, ty, sc);
+  // 2) Açılış: ekranın ortasından anahtar deliği biçiminde pencere büyür, panel görünür.
+  const e = op < 0.5 ? 4 * op * op * op : 1 - Math.pow(-2 * op + 2, 3) / 2;
+  const os = e * (far(w / 2, h / 2) / HOLE.r) * 1.08;
+  const win = op > 0 ? hole(w / 2 - os * HOLE.c.x, h / 2 - os * HOLE.c.y, os) : '';
 
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
@@ -89,19 +94,15 @@ export default function OpenSplash() {
             <Stop offset="0" stopColor="#D23B37" />
             <Stop offset="1" stopColor="#A9221F" />
           </RadialGradient>
-          <RadialGradient id="op-glow" cx={tx + sc * 529.6} cy={ty + sc * 640} r={sc * 150} gradientUnits="userSpaceOnUse">
-            <Stop offset="0" stopColor="#FFF4DA" />
-            <Stop offset="0.55" stopColor="#F7DDB0" />
-            <Stop offset="1" stopColor="#F2B544" />
-          </RadialGradient>
         </Defs>
-        {/* Tuğla zemin; anahtar deliği kadar delik: panel bu pencereden görünür. */}
-        <Path d={`M0,0 H${w} V${h} H0 Z ${d}`} fill="url(#op-bg)" fillRule="evenodd" />
-        <G opacity={intro} transform={`translate(${tx},${ty}) scale(${sc})`}>
-          <Path d={MONO} fill={KIREC} fillRule="evenodd" />
-        </G>
-        {/* Deliğin ardındaki ışık; yakınlaşma başlarken söner. */}
-        {glow > 0.01 ? <Path d={d} fill="url(#op-glow)" opacity={glow} /> : null}
+        {/* Tuğla zemin; açılışta ortasından anahtar deliği biçiminde pencere açılır. */}
+        <Path d={`M0,0 H${w} V${h} H0 Z ${win}`} fill="url(#op-bg)" fillRule="evenodd" />
+        {/* "a" ekrandan taşınca çizilmez; deliği zemini gösterir (ayrı renk yok). */}
+        {zp < 1 ? (
+          <G opacity={intro} transform={`translate(${tx},${ty}) scale(${sc})`}>
+            <Path d={MONO} fill={KIREC} fillRule="evenodd" />
+          </G>
+        ) : null}
       </Svg>
     </View>
   );

@@ -258,6 +258,17 @@ export function createClient(url, key, opts){
         persist(db);
         return { data:inv.property_id, error:null };
       }
+      if (name === 'submit_lead'){
+        const p = args.p || {};
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.email || '')) return { data:null, error:{ message:'Geçerli bir e-posta adresi yaz.' } };
+        if (!p.consent) return { data:null, error:{ message:'Aydınlatma metnini onayla.' } };
+        db.tables.support_requests = db.tables.support_requests || [];
+        const id = uuid();
+        db.tables.support_requests.push({ id, user_id:me || null, kind:'kurumsal', units: p.units ? Number(p.units) : null, name:p.name, email:p.email, phone:p.phone || '',
+          message:p.message || '', company:p.company || '', source:'web', details:{ types:p.types || [], role:p.role || '', city:p.city || '', timeline:p.timeline || '' }, status:'open', created_at:now() });
+        persist(db);
+        return { data:id, error:null };
+      }
       if (name === 'is_admin') return { data: !!me && isAdmin(db, me), error:null };
       if (name === 'admin_users'){
         if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };

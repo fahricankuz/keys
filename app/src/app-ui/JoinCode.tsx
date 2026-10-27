@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Linking, View } from 'react-native';
+import { Linking, TextInput, View } from 'react-native';
 import AuthShell from '../auth/AuthShell';
 import { useAuth } from '../auth/auth';
 import { CONFIG } from '../domain/config';
 import { t } from '../domain/i18n';
 import { Button, Field, PressScale, Text } from '../ui/kit';
-import { fonts, useColors } from '../ui/theme';
+import { fonts, radius, useColors } from '../ui/theme';
+import { Icon } from './blocks';
 
 /** Mülke bağlı olmayan kiracı ya da hiçbir mülke atanmamış ekip üyesi: mülk sahibinin verdiği kodu girer.
     Kayıtta kod girilmediyse hesap açıldıktan sonra buradan girilir. */
@@ -21,7 +22,7 @@ export default function JoinCode({ team = false }: { team?: boolean }) {
     t('Merhaba, kira takibini anahtar üzerinden yapabilir miyiz? Mülkü ekleyip bana davet kodu gönderirsen bağlanırım: {url}', { url: CONFIG.publicUrl })));
   return (
     <AuthShell
-      title={team ? t('Ekibe katıl') : t('Mülkine bağlan')}
+      title={team ? t('Ekibe katıl') : t('Mülküne bağlan')}
       lead={team
         ? t('Mülk sahibinden aldığın ekip davet kodunu gir. Kodu mülk sahibi anahtar’da “Ekip” ekranından oluşturur.')
         : t('Mülk sahibinden aldığın davet kodunu gir. Kodu mülk sahibin anahtar’da “Kiracı ekle” ile oluşturur.')}>
@@ -51,20 +52,31 @@ export function JoinBanner() {
   const ask = () => Linking.openURL('https://wa.me/?text=' + encodeURIComponent(
     t('Merhaba, kira takibini anahtar üzerinden yapabilir miyiz? Mülkü ekleyip bana davet kodu gönderirsen bağlanırım: {url}', { url: CONFIG.publicUrl })));
   return (
-    <View accessibilityRole="alert" style={{ backgroundColor: c.warnBg, borderRadius: 24, padding: 18, gap: 12 }}>
-      <View style={{ gap: 4 }}>
-        <Text v="body" color={c.warnInk} style={{ fontFamily: fonts.bodyXBold }}>{t('Mülkine bağlan')}</Text>
-        <Text v="small" color={c.warnInk}>{t('Mülk eklemek için mülk sahibinden aldığın davet kodu gerekli. Kodu girene kadar ödeme, talep ve belgeler boş görünür.')}</Text>
-      </View>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
-        <View style={{ flexGrow: 1, flexBasis: 200 }}>
-          <Field label={t('Davet kodu')} value={code} onChangeText={(v) => setCode(v.toUpperCase())} autoCapitalize="characters" maxLength={12} onSubmitEditing={submit} error={err} placeholder="ABCD1234" />
+    <View accessibilityRole="alert" style={{ backgroundColor: c.surface, borderRadius: 26, borderWidth: 1, borderColor: c.line, overflow: 'hidden' }}>
+      <View style={{ flexDirection: 'row', gap: 14, padding: 20, paddingBottom: 16, alignItems: 'flex-start', backgroundColor: c.warnBg }}>
+        <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(29,26,25,0.08)', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="key" size={22} color={c.warnInk} />
         </View>
-        <Button kind="dark" title={t('Mülke bağlan')} onPress={submit} loading={busy} style={{ minHeight: 52 }} />
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text v="body" color={c.warnInk} style={{ fontFamily: fonts.bodyXBold, fontSize: 17 }}>{t('Mülküne bağlan')}</Text>
+          <Text v="small" color={c.warnInk} style={{ opacity: 0.85 }}>{t('Mülk eklemek için mülk sahibinden aldığın davet kodu gerekli. Kodu girene kadar ödeme, talep ve belgeler boş görünür.')}</Text>
+        </View>
       </View>
-      <PressScale onPress={ask} accessibilityRole="link" style={{ alignSelf: 'flex-start', paddingVertical: 4 }}>
-        <Text v="small" color={c.warnInk} style={{ fontFamily: fonts.bodyBold, textDecorationLine: 'underline' }}>{t('Kodun yok mu? Ev sahibime WhatsApp ile yaz')}</Text>
-      </PressScale>
+      <View style={{ padding: 20, paddingTop: 16, gap: 12 }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+          <TextInput value={code} onChangeText={(v) => { setCode(v.toUpperCase()); setErr(null); }} onSubmitEditing={submit}
+            accessibilityLabel={t('Davet kodu')} placeholder={t('Davet kodu') + ' · ABCD1234'} placeholderTextColor={c.muted}
+            autoCapitalize="characters" autoCorrect={false} maxLength={12}
+            style={{ flexGrow: 1, flexBasis: 200, minHeight: 52, borderRadius: radius.pill, paddingHorizontal: 20, backgroundColor: c.bg, color: c.ink,
+              borderWidth: 1.5, borderColor: err ? c.badInk : c.line, fontFamily: code ? fonts.bodyBold : fonts.body, fontSize: 16, letterSpacing: code ? 2 : 0 }} />
+          <Button kind="dark" title={t('Mülke bağlan')} onPress={submit} loading={busy} style={{ minHeight: 52, paddingHorizontal: 26 }} />
+        </View>
+        {err ? <Text v="small" color={c.badInk} accessibilityLiveRegion="polite">{err}</Text> : null}
+        <PressScale onPress={ask} accessibilityRole="link" style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 }}>
+          <Icon name="chat" size={16} color={c.accentText} />
+          <Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('Kodun yok mu? Ev sahibine WhatsApp ile yaz')}</Text>
+        </PressScale>
+      </View>
     </View>
   );
 }

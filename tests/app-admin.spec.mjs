@@ -155,7 +155,7 @@ test('davet bağlantısı kodu saklar; mülke bağlı olmayan kiracı kod ekran�
     localStorage.setItem('__fakedb', JSON.stringify(d));
   });
   await login(page, 'kiraci@ornek.com');
-  await expect(page.getByText('Mülkine bağlan').first()).toBeVisible();
+  await expect(page.getByText('Mülküne bağlan').first()).toBeVisible();
   await page.getByLabel('Davet kodu').fill('abcd1234');
   await page.getByRole('button', { name: 'Mülke bağlan' }).click();
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();

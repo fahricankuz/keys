@@ -394,7 +394,7 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
     Önerilen paket (Portföy) koyu zemin, krem yazı ve sarı vurgularla öne çıkar; diğerleri açık zeminlidir. */
 function PlanCta(p: any, go: (path: string) => void) {
   return p.id === 'kurumsal'
-    ? { title: t('Bize ulaşın'), onPress: () => { Linking.openURL('mailto:' + CONFIG.supportEmail + '?subject=' + encodeURIComponent(t('Kurumsal paket'))).catch(() => {}); } }
+    ? { title: t('Bize ulaşın'), onPress: () => go('/kurumsal') }
     : { title: t('Paketi seç'), onPress: () => go('/kayit/mulk-sahibi') };
 }
 

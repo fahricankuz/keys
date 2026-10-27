@@ -28,5 +28,7 @@
   "kosullar": "Kullanım Koşulları | anahtar",
   "hesap-silme": "Hesap silme | anahtar",
   "+not-found": "Sayfa bulunamadı | anahtar",
-  "_default": "anahtar"
+  "_default": "anahtar",
+  "kurumsal": "Kurumsal paket başvurusu | anahtar",
+  "uygulama/ayarlar": "Ayarlar | anahtar"
 }

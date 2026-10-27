@@ -2174,3 +2174,50 @@ begin
     grant execute on function public.owner_report(uuid, text, date) to service_role;
   end if;
 end $$;
+
+-- ---------------------------------------------------------------------
+-- 14. Kurumsal paket başvuru formu (sitedeki "Bize ulaşın")
+-- ---------------------------------------------------------------------
+-- Başvurular "Bize ulaş" talepleriyle aynı tabloya düşer (yönetici paneli → Talepler).
+-- Oturumsuz ziyaretçi de gönderebilir; doğrudan tablo yetkisi yok, yalnız submit_lead işlevi yazar.
+-- info@anahtar.io'ya e-posta: supabase/functions/lead-mail (Database Webhook, support_requests INSERT).
+alter table public.support_requests add column if not exists company text not null default '' check (length(company) <= 160);
+alter table public.support_requests add column if not exists details jsonb not null default '{}'::jsonb;
+alter table public.support_requests add column if not exists source  text not null default 'app' check (source in ('app','web'));
+
+create or replace function public.submit_lead(p jsonb)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  nm text := btrim(coalesce(p ->> 'name', ''));
+  em text := lower(btrim(coalesce(p ->> 'email', '')));
+  ph text := btrim(coalesce(p ->> 'phone', ''));
+  co text := btrim(coalesce(p ->> 'company', ''));
+  msg text := btrim(coalesce(p ->> 'message', ''));
+  units int;
+  types jsonb := coalesce(p -> 'types', '[]'::jsonb);
+  rid uuid;
+begin
+  if length(nm) not between 2 and 120 then raise exception 'Adını yaz.' using errcode = '22023'; end if;
+  if em !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' or length(em) > 200 then raise exception 'Geçerli bir e-posta adresi yaz.' using errcode = '22023'; end if;
+  if length(ph) > 30 or length(co) > 160 or length(msg) > 4000 then raise exception 'Alanlardan biri çok uzun.' using errcode = '22023'; end if;
+  if coalesce((p ->> 'consent')::boolean, false) is not true then raise exception 'Aydınlatma metnini onayla.' using errcode = '22023'; end if;
+  begin units := nullif(p ->> 'units', '')::int; exception when others then units := null; end;
+  if units is not null and (units < 0 or units > 1000000) then units := null; end if;
+  if jsonb_typeof(types) <> 'array' or exists (select 1 from jsonb_array_elements_text(types) x where x not in ('Konut','Ofis','Mağaza','Depo','Arsa','Diğer')) then
+    types := '[]'::jsonb;
+  end if;
+  -- Kötüye kullanım sınırı: aynı adresten saatte en fazla 3, sistem genelinde 10 dakikada en fazla 30 başvuru.
+  if (select count(*) from public.support_requests where source = 'web' and email = em and created_at > now() - interval '1 hour') >= 3
+     or (select count(*) from public.support_requests where source = 'web' and created_at > now() - interval '10 minutes') >= 30 then
+    raise exception 'Çok sık başvuru. Biraz sonra yeniden dene.' using errcode = '54000';
+  end if;
+  insert into public.support_requests (user_id, kind, units, name, email, phone, message, company, source, details)
+  values (auth.uid(), 'kurumsal', units, nm, em, ph, msg, co, 'web', jsonb_build_object(
+    'types', types,
+    'role', left(coalesce(p ->> 'role', ''), 60),
+    'city', left(coalesce(p ->> 'city', ''), 80),
+    'timeline', left(coalesce(p ->> 'timeline', ''), 60)))
+  returning id into rid;
+  return rid;
+end $$;
+grant execute on function public.submit_lead(jsonb) to anon, authenticated;

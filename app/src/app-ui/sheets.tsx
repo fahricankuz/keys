@@ -29,6 +29,7 @@ import { PayButton } from '../ui/motion';
 import { host } from '../domain/host';
 import { MailPreviewSheet, MailReportSettings } from './report-mail';
 import { PlanCard } from '../site/PlanCard';
+import { EnterpriseForm } from '../site/EnterpriseForm';
 import { plans as sitePlans } from '../site/content';
 
 const propOf = (pid?: string) => (pid && (S as any).props[pid] ? P(pid) : P((S as any).myHome));
@@ -739,7 +740,7 @@ function TierPicker({ current, suggest, onPick }: { current?: string; suggest?: 
 
 /** Kurumsal için iletişim formu açılır; diğer paketler satın almaya gider. */
 function pickTier(id: string, units: number | null, open: (n: string, p?: any) => void) {
-  if (id === 'kurumsal') open('destek-talebi', { kind: 'kurumsal', units });
+  if (id === 'kurumsal') open('kurumsal-basvuru');
   else act('buy', { tier: id });
 }
 
@@ -817,6 +818,18 @@ function SubscriptionSheet() {
   );
 }
 
+/** Kurumsal başvuru (uygulama içinden): sitedeki formun aynısı, ad ve e-posta hesaptan dolu gelir. */
+function EnterpriseSheet({ close }: { close: () => void }) {
+  const { user } = useAuth();
+  return (
+    <Stack>
+      <Title>{t('Kurumsal paket')}</Title>
+      <Muted>{t('Portföyünü kısaca anlat; sana uygun fiyatı ve kurulum planını iki iş günü içinde iletelim.')}</Muted>
+      <EnterpriseForm onDone={close} email={user?.email || ''} name={user?.name || ''} />
+    </Stack>
+  );
+}
+
 /** Paket sınırına gelince: yükseltme önerisi. */
 function UpgradeSheet({ need, suggest }: { need?: number; suggest?: string }) {
   const { open } = useSheet();
@@ -831,7 +844,7 @@ function UpgradeSheet({ need, suggest }: { need?: number; suggest?: string }) {
       </Note>
       <TierPicker current={a.subscribed ? a.plan : undefined} suggest={suggest} onPick={(id) => pickTier(id, need ?? null, open)} />
       {suggest === 'kurumsal'
-        ? <Button block title={t('Kurumsal için bize ulaş')} onPress={() => open('destek-talebi', { kind: 'kurumsal', units: need })} />
+        ? <Button block title={t('Kurumsal için bize ulaş')} onPress={() => open('kurumsal-basvuru')} />
         : <Button block title={t('Paketi yükselt')} onPress={() => act('buy', { tier: suggest })} />}
     </Stack>
   );
@@ -890,6 +903,7 @@ export function renderSheet(name: string, p: any, close: () => void): ReactNode 
     case 'iade': return <RefundSheet pid={p.pid} close={close} />;
     case 'abonelik': return <SubscriptionSheet />;
     case 'rapor-eposta': return <MailPreviewSheet />;
+    case 'kurumsal-basvuru': return <EnterpriseSheet close={close} />;
     case 'paket': return <UpgradeSheet need={p.need} suggest={p.suggest} />;
     case 'destek-talebi': return <SupportSheet kind={p.kind} units={p.units} close={close} />;
     case 'ekip-davet': return <TeamInviteSheet close={close} />;

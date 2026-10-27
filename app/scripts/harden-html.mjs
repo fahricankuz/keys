@@ -61,9 +61,17 @@ const titleFor = (file) => {
   return TITLES[key] || TITLES[key.split('/')[0]] || TITLES._default;
 };
 
+// Statik sayfaların stil dosyası içerik özetiyle istenir: yeni sürüm yayınlanınca tarayıcı ve sunucu önbelleği eskisini vermez.
+const cssFile = join(out, 'site.css');
+const cssV = existsSync(cssFile) ? createHash('sha256').update(readFileSync(cssFile)).digest('hex').slice(0, 10) : '';
+
 let count = 0;
 for (const file of walk(out)) {
   let html = readFileSync(file, 'utf8');
+  if (cssV) {
+    const v = html.replace(/(href="(?:\.\.\/|\/)?site\.css)(?:\?v=[0-9a-f]+)?"/g, `$1?v=${cssV}"`);
+    if (v !== html) { html = v; writeFileSync(file, html); }
+  }
   if (html.includes('http-equiv="Content-Security-Policy"')) continue;      // zaten sertleştirilmiş
   html = html.replace('<html lang="en">', '<html lang="tr">');
   const guard = `<script>${FRAME_GUARD}</script>`;

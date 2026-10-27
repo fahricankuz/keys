@@ -162,6 +162,12 @@ export async function updateProfile({ name, phone }){
   await loadAll();
 }
 
+/** Kurumsal paket başvurusu (sitedeki form; oturum gerekmez). Sunucu yoksa yalnızca doğrular. */
+export async function submitLead(p){
+  if (!LIVE) return null;
+  return must(await (await client()).rpc('submit_lead', { p }));
+}
+
 export async function deleteAccount(){
   must(await sb().rpc('delete_my_account'));
   await closeSession();

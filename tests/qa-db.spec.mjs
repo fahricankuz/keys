@@ -38,11 +38,12 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
       and has_function_privilege('authenticated', p.oid, 'EXECUTE') order by 1`);
   expect(rows.map(r => r.proname)).toEqual([
     // Her biri kendi içinde yetki denetler: admin_* → is_admin, team_* → yalnız kendi ekibi, import_properties → mülk sahibi,
-    // activity_feed → sahip/ekip, invite_preview → kodu bilen, member_can / msg_side → çağıranın kendi üyeliği.
+    // activity_feed → sahip/ekip, invite_preview → kodu bilen, member_can / msg_side → çağıranın kendi üyeliği,
+    // submit_lead → herkese açık kurumsal başvuru (alan doğrulaması ve sıklık sınırı içinde).
     'accept_invite', 'activity_feed', 'admin_audit_log', 'admin_delete_message', 'admin_extend_trial', 'admin_kpis', 'admin_messages',
     'admin_set_ban', 'admin_set_plan', 'admin_subscriptions', 'admin_threads', 'admin_users',
     'delete_my_account', 'file_review_ok', 'has_access', 'import_properties', 'invite_preview', 'is_admin', 'is_banned', 'is_member', 'is_owner',
-    'member_can', 'member_role', 'msg_side', 'my_access', 'review_ok', 'shares_property', 'team_list', 'team_remove', 'team_set'
+    'member_can', 'member_role', 'msg_side', 'my_access', 'review_ok', 'shares_property', 'submit_lead', 'team_list', 'team_remove', 'team_set'
   ]);
 });
 
@@ -251,4 +252,24 @@ test('rapor e-postası: dönem özeti doğru; alıcı listesi paket ve ayara bak
   await db.query(`update public.profiles set settings = settings || '{"reportMonthly":false}' where id = $1`, [R]);
   expect(await who('month')).not.toContain('rapor@ornek.com');
   expect(await who('year')).toContain('rapor@ornek.com');
+});
+
+test('kurumsal başvuru: oturumsuz ziyaretçi gönderir; doğrulama ve sıklık sınırı; yalnız yönetici görür', async () => {
+  await as(null, true);
+  const lead = (o = {}) => JSON.stringify({ name: 'Ayşe Yılmaz', email: 'ayse@firma.com', company: 'Yılmaz Emlak', phone: '05001112233', units: '40', types: ['Konut', 'Ofis'], role: 'Emlak ofisi', consent: true, message: 'Merhaba', ...o });
+  const [{ id }] = await q(`select public.submit_lead($1::jsonb) id`, [lead()]);
+  expect(id).toBeTruthy();
+  expect(await tryCall(db, `select public.submit_lead($1::jsonb)`, [lead({ email: 'bozuk' })])).toMatch(/e-posta/);
+  expect(await tryCall(db, `select public.submit_lead($1::jsonb)`, [lead({ consent: false })])).toMatch(/Aydınlatma/);
+  expect(await tryCall(db, `insert into public.support_requests (name, email) values ('x', 'y@z.co')`)).toBeTruthy();
+  await q(`select public.submit_lead($1::jsonb)`, [lead({ types: ['Konut', '<script>'] })]);
+  await q(`select public.submit_lead($1::jsonb)`, [lead()]);
+  expect(await tryCall(db, `select public.submit_lead($1::jsonb)`, [lead()])).toMatch(/Çok sık/);
+  await as(L);
+  expect(await q(`select * from public.support_requests where source = 'web'`)).toEqual([]);
+  await as(A);
+  const rows = await q(`select kind, units, company, details from public.support_requests where source = 'web' order by created_at`);
+  expect(rows.length).toBe(3);
+  expect(rows[0]).toMatchObject({ kind: 'kurumsal', units: 40, company: 'Yılmaz Emlak', details: { types: ['Konut', 'Ofis'], role: 'Emlak ofisi' } });
+  expect(rows[1].details.types).toEqual([]);
 });

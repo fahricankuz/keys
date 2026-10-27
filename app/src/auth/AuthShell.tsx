@@ -9,7 +9,11 @@ import { Grain } from '../ui/Grain';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 
 /** Giriş, kayıt ve şifre ekranlarının ortak iskeleti: geniş ekranda solda marka paneli. */
-export default function AuthShell({ title, lead, children }: { title: string; lead?: string; children: ReactNode }) {
+export default function AuthShell({ title, lead, children, side, wide }: {
+  title: string; lead?: string; children: ReactNode;
+  /** Sol paneldeki başlık, metin ve maddeler (varsayılan: marka sözü). */
+  side?: { title: string; lead: string; points?: string[]; foot?: string }; wide?: boolean;
+}) {
   const c = useColors();
   const router = useRouter();
   const { desktop } = useBreakpoint();
@@ -20,14 +24,20 @@ export default function AuthShell({ title, lead, children }: { title: string; le
           <Grain />
           <PressScale onPress={() => router.replace('/')} accessibilityRole="link"><Wordmark size={34} color={c.heroInk} animate /></PressScale>
           <View style={{ gap: 16, maxWidth: 440 }}>
-            <Text v="h1" color="#FFF3EA" style={{ fontFamily: fonts.siteBold, fontSize: 56, lineHeight: 53 }}>{t('Kira işinin anahtarı.')}</Text>
-            <Text v="body" color={c.heroMuted}>{t('Kiracılar ücretsiz. Mülk sahipleri 1 ay ücretsiz dener.')}</Text>
+            <Text v="h1" color="#FFF3EA" style={{ fontFamily: fonts.siteBold, fontSize: side ? 48 : 56, lineHeight: side ? 50 : 53 }}>{side ? side.title : t('Kira işinin anahtarı.')}</Text>
+            <Text v="body" color={c.heroMuted}>{side ? side.lead : t('Kiracılar ücretsiz. Mülk sahipleri 1 ay ücretsiz dener.')}</Text>
+            {side?.points?.map((x) => (
+              <View key={x} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+                <Text v="body" color={c.lemon} style={{ fontFamily: fonts.bodyXBold }}>✓</Text>
+                <Text v="body" color="#FFF3EA" style={{ flex: 1 }}>{x}</Text>
+              </View>
+            ))}
           </View>
-          <Text v="small" color={c.heroMuted}>{t('Konut, ofis, mağaza ve depo')}</Text>
+          <Text v="small" color={c.heroMuted}>{side?.foot ?? t('Konut, ofis, mağaza ve depo')}</Text>
         </View>
       )}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 20, paddingVertical: 40 }} keyboardShouldPersistTaps="handled">
-        <Animated.View entering={FadeInDown.springify().damping(22).stiffness(130)} style={{ width: '100%', maxWidth: 440, alignSelf: 'center', gap: 22 }}>
+        <Animated.View entering={FadeInDown.springify().damping(22).stiffness(130)} style={{ width: '100%', maxWidth: wide ? 620 : 440, alignSelf: 'center', gap: 22 }}>
           {!desktop && <PressScale onPress={() => router.replace('/')} accessibilityRole="link"><Wordmark size={28} /></PressScale>}
           <View style={{ gap: 8 }}>
             <Text v="h1" style={{ fontSize: 36, lineHeight: 38, fontFamily: fonts.siteBold }}>{title}</Text>
