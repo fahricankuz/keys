@@ -78,7 +78,7 @@ export function useHeroCards(w = CARD_W) {
       <Big icon="check" title={t('Ödeme onaylandı')} sub="₺30.000 · Kasım" />
     ]} />,
     talep: <FloatCard key={k} w={w} tag={t('Talepler')} tone={c.sky} delay={500} scenes={[
-      <View style={{ backgroundColor: c.surface, borderRadius: 16, padding: 12, gap: 10 }}><RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 13, color: c.ink }}>{t('Kombi basıncı düşüyor')}</RNText><Steps status={2} labels={[t('Açıldı'), t('Görüldü'), t('İşlemde'), t('Çözüldü')]} /></View>,
+      <View style={{ backgroundColor: c.surface, borderRadius: 16, padding: 12, gap: 10 }}><RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 13, color: c.ink }}>{t('Kombi basıncı düşüyor')}</RNText><Steps status={2} labels={[]} /><RNText style={{ fontFamily: fonts.body, fontSize: 12, color: c.muted }}>{t('Durum')}: <RNText style={{ fontFamily: fonts.bodyXBold, color: c.ink }}>{t('İşlemde')}</RNText></RNText></View>,
       <View style={{ gap: 6 }}><Line a={t('Usta teklifi')} b="₺1.850" /><Line a={t('Fatura')} b={t('Gidere işlendi')} tone="ok" /></View>
     ]} />,
     yazisma: <FloatCard key={k} w={w} tag={t('Yazışma')} tone={c.sage} delay={900} scenes={[

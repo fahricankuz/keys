@@ -230,8 +230,12 @@ export function Steps({ status, labels }: { status: number; labels: string[] }) 
           </View>
         ))}
       </View>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        {labels.map((l, i) => <Text key={l} v="small" color={i === status ? c.ink : c.muted} style={{ fontSize: 12, fontFamily: i === status ? fonts.bodyXBold : fonts.body }}>{l}</Text>)}
+      {/* Etiketler eşit sütunlarda: dar alanda birbirine yapışmaz (ilk sola, son sağa, ortadakiler ortaya hizalı). */}
+      <View style={{ flexDirection: 'row', gap: 4 }}>
+        {labels.map((l, i) => (
+          <Text key={l} v="small" numberOfLines={1} color={i === status ? c.ink : c.muted}
+            style={{ flex: 1, minWidth: 0, fontSize: 11.5, textAlign: i === 0 ? 'left' : i === labels.length - 1 ? 'right' : 'center', fontFamily: i === status ? fonts.bodyXBold : fonts.body }}>{l}</Text>
+        ))}
       </View>
     </View>
   );

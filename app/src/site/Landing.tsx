@@ -1,7 +1,7 @@
 /* Tanıtım sitesi (ana sayfa). Bölümler: başlık + telefon, dönen sözcük, manifesto, özellikler (sekmeli),
    nasıl çalışır, fiyatlar, sıkça sorulanlar, iletişim, alt bilgi. */
 import { ReactNode, useEffect, useRef, useState } from 'react';
-import { Linking, ScrollView, Text as RNText, View } from 'react-native';
+import { Linking, Platform, ScrollView, Text as RNText, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeInDown, FadeOutUp } from 'react-native-reanimated';
 import { t, getLang, setLang } from '../domain/i18n';
@@ -12,6 +12,7 @@ import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
 import { Slam } from '../ui/motion';
 import { Reveal } from '../ui/Reveal';
 import { useHeroCards } from './HeroCards';
+import { PhoneStage } from './Phones';
 import { Icon, Steps } from '../app-ui/blocks';
 import { useLangTick } from '../app-ui/hooks';
 import { categories, faq, plans } from './content';
@@ -20,11 +21,14 @@ import { Nav, TopBar } from './Navbar';
 const EASE = 'cubic-bezier(0.32,0.72,0,1)';
 const site = (path: string) => CONFIG.publicUrl.replace(/\/?$/, '/') + path;
 
+/** Web'de başlıklar dengeli kırılır: ikinci satırda tek sözcük kalmaz (text-wrap: balance). */
+const BALANCE: any = Platform.OS === 'web' ? { textWrap: 'balance' } : null;
+
 /** Büyük başlık yazısı. */
 function Display({ children, size, color, style, center }: { children: ReactNode; size: number; color?: string; style?: any; center?: boolean }) {
   const c = useColors();
   return (
-    <RNText style={[{ fontFamily: fonts.siteBold, fontSize: size, lineHeight: Math.round(size * 1.04), letterSpacing: -size * (size > 40 ? 0.035 : 0.02), color: color ?? c.ink, textAlign: center ? 'center' : undefined }, style]}>
+    <RNText style={[{ fontFamily: fonts.siteBold, fontSize: size, lineHeight: Math.round(size * 1.08), letterSpacing: -size * (size > 40 ? 0.035 : 0.02), color: color ?? c.ink, textAlign: center ? 'center' : undefined, ...BALANCE }, style]}>
       {children}
     </RNText>
   );
@@ -36,8 +40,8 @@ function SectionHead({ label, title, body, onDark, compact }: { label?: string; 
   return (
     <Reveal style={{ alignItems: 'center', gap: phone || compact ? 10 : 14, maxWidth: compact ? 1140 : 820, alignSelf: 'center' }}>
       {label ? <Text v="label" color={onDark ? c.butter : c.accentText} style={{ fontSize: 13, letterSpacing: 0.4 }}>{label}</Text> : null}
-      <Display size={phone ? 30 : compact ? 44 : 64} center color={onDark ? c.heroInk : undefined}>{title}</Display>
-      {body ? <Text v="body" color={onDark ? c.heroMuted : c.muted} style={{ fontSize: phone ? 16 : compact ? 18 : 21, lineHeight: phone ? 23 : compact ? 26 : 30, textAlign: 'center', maxWidth: compact ? 760 : 640 }}>{body}</Text> : null}
+      <Display size={phone ? 26 : compact ? 44 : 64} center color={onDark ? c.heroInk : undefined}>{title}</Display>
+      {body ? <Text v="body" color={onDark ? c.heroMuted : c.muted} style={{ fontSize: phone ? 15 : compact ? 18 : 21, lineHeight: phone ? 21 : compact ? 26 : 30, textAlign: 'center', maxWidth: compact ? 760 : 640, ...BALANCE }}>{body}</Text> : null}
     </Reveal>
   );
 }
@@ -50,99 +54,21 @@ function Pill({ children, bg, size }: { children: ReactNode; bg: string; size: n
   );
 }
 
-/* ---------------- telefon ---------------- */
-
-/** iPhone oranında (yaklaşık 9:19,5) telefon: durum çubuğu, ada, ödeme kartı, son işlemler ve sekme çubuğu. */
-function PhoneMock({ w }: { w: number }) {
-  const c = useColors();
-  const h = Math.round(w * 2.06);
-  const r = w * 0.15, bezel = w * 0.032;
-  const u = w / 300;
-  const rows: [string, string, string, 'ok' | 'warn' | 'neutral'][] = [
-    ['card', t('Ekim kirası'), t('Ödendi'), 'ok'],
-    ['wrench', t('Kombi bakımı'), t('İşlemde'), 'warn'],
-    ['doc', t('DASK poliçesi'), t('52 gün'), 'neutral'],
-    ['calendar', t('Sözleşme yenileme'), t('69 gün'), 'neutral']
-  ];
-  return (
-    <View accessibilityRole="image" accessibilityLabel={t('anahtar uygulamasında ödemeler ekranı')}
-      style={{ width: w, height: h, padding: bezel, borderRadius: r, backgroundColor: c.deepA, boxShadow: shadows.lift }}>
-      <View style={{ flex: 1, borderRadius: r - bezel, backgroundColor: c.bg, overflow: 'hidden' }}>
-        {/* durum çubuğu ve ada */}
-        <View style={{ height: 44 * u, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22 * u }}>
-          <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 12 * u, color: c.ink }}>9:41</RNText>
-          <View style={{ width: 84 * u, height: 24 * u, borderRadius: 12 * u, backgroundColor: c.deepA }} />
-          <View style={{ flexDirection: 'row', gap: 3 * u, alignItems: 'center' }}>
-            {[5, 7, 9, 11].map((x) => <View key={x} style={{ width: 3 * u, height: x * u, borderRadius: 1, backgroundColor: c.ink }} />)}
-            <View style={{ width: 20 * u, height: 10 * u, borderRadius: 3 * u, borderWidth: 1.2, borderColor: c.ink, marginLeft: 3 * u, padding: 1 }}><View style={{ flex: 1, width: '75%', backgroundColor: c.ink, borderRadius: 1.5 }} /></View>
-          </View>
-        </View>
-        <View style={{ flex: 1, paddingHorizontal: 16 * u, paddingTop: 6 * u, gap: 12 * u }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View>
-              <RNText style={{ fontFamily: fonts.body, fontSize: 11 * u, color: c.muted }}>{t('Merhaba Ayşe')}</RNText>
-              <RNText style={{ fontFamily: fonts.siteBold, fontSize: 21 * u, color: c.ink, letterSpacing: -0.4 }}>{t('Ödemeler')}</RNText>
-            </View>
-            <View style={{ width: 34 * u, height: 34 * u, borderRadius: 17 * u, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}><Icon name="bell" size={Math.round(16 * u)} /></View>
-          </View>
-          <View style={{ backgroundColor: c.deepA, borderRadius: 22 * u, padding: 16 * u, gap: 9 * u }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <RNText style={{ fontFamily: fonts.body, fontSize: Math.max(11, 12 * u), color: c.heroMuted }}>{t('Bu ayın kirası')}</RNText>
-              <View style={{ backgroundColor: c.butter, borderRadius: radius.pill, paddingHorizontal: 9 * u, paddingVertical: 3 * u }}>
-                <RNText style={{ fontFamily: fonts.bodyBold, fontSize: Math.max(10, 10 * u), color: '#1D1A19' }}>{t('3 gün kaldı')}</RNText>
-              </View>
-            </View>
-            <RNText style={{ fontFamily: fonts.display, fontSize: 40 * u, lineHeight: 44 * u, color: c.heroInk, letterSpacing: -1.2 * u, fontVariant: ['tabular-nums'] }}>₺28.500</RNText>
-            <View style={{ flexDirection: 'row', gap: 3.5 * u }}>
-              {Array.from({ length: 12 }).map((_, i) => (
-                <View key={i} style={{ flex: 1, height: 10 * u, borderRadius: 3.5 * u, backgroundColor: i < 7 ? c.butter : 'rgba(250,245,240,0.16)', borderWidth: i === 7 ? 1.5 : 0, borderColor: c.accent }} />
-              ))}
-            </View>
-            <View style={{ backgroundColor: c.accent, borderRadius: radius.pill, minHeight: 40 * u, alignItems: 'center', justifyContent: 'center', marginTop: 4 * u }}>
-              <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 13 * u, color: c.accentInk }}>{t('Dekont yükle')}</RNText>
-            </View>
-          </View>
-          <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 13 * u, color: c.ink }}>{t('Yaklaşan işler')}</RNText>
-          <View style={{ backgroundColor: c.surface, borderRadius: 18 * u, borderWidth: 1, borderColor: c.line, paddingHorizontal: 12 * u }}>
-            {rows.map(([icon, title, chip, tone], i) => (
-              <View key={title} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 * u, paddingVertical: 10 * u, borderTopWidth: i ? 1 : 0, borderTopColor: c.line6 }}>
-                <View style={{ width: 30 * u, height: 30 * u, borderRadius: 10 * u, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}><Icon name={icon} size={Math.round(15 * u)} /></View>
-                <RNText numberOfLines={1} style={{ flex: 1, fontFamily: fonts.bodyBold, fontSize: 12 * u, color: c.ink }}>{title}</RNText>
-                <Chip tone={tone} label={chip} />
-              </View>
-            ))}
-          </View>
-        </View>
-        {/* sekme çubuğu ve ana ekran çizgisi */}
-        <View style={{ borderTopWidth: 1, borderTopColor: c.line6, backgroundColor: c.surface, paddingTop: 10 * u, paddingBottom: 8 * u, gap: 10 * u }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
-            {[['home', t('Panel')], ['card', t('Ödemeler')], ['wrench', t('Talepler')], ['chat', t('Mesajlar')]].map(([icon, label], i) => (
-              <View key={icon} style={{ alignItems: 'center', gap: 3 * u }}>
-                <Icon name={icon} size={Math.round(18 * u)} color={i === 1 ? c.accent : c.muted} />
-                <RNText style={{ fontFamily: i === 1 ? fonts.bodyBold : fonts.body, fontSize: 9.5 * u, color: i === 1 ? c.accent : c.muted }}>{label}</RNText>
-              </View>
-            ))}
-          </View>
-          <View style={{ alignSelf: 'center', width: 110 * u, height: 4.5 * u, borderRadius: 3, backgroundColor: c.ink }} />
-        </View>
-      </View>
-    </View>
-  );
-}
-
 /* ---------------- başlık ---------------- */
 
-function Hero({ go, scrollTo }: { go: (p: string) => void; scrollTo: (k: string) => void }) {
+function Hero({ scrollTo }: { go: (p: string) => void; scrollTo: (k: string) => void }) {
   const c = useColors();
   const { phone, width } = useBreakpoint();
   const wide = width >= 1100;
-  const size = phone ? 46 : wide ? 88 : 76;
+  const size = phone ? 34 : wide ? 76 : 66;
   const pill = Math.round(size * 0.7);
-  const cards = useHeroCards(wide ? 248 : 232);
-  const device = <PhoneMock w={phone ? 270 : 300} />;
+  const cards = useHeroCards(phone ? 220 : wide ? 210 : 232);
+  // Telefon sahnesi: masaüstünde üç, telefonda iki telefon; ortadaki koyu tema. Sahne ekran genişliğini aşmaz.
+  const phoneW = phone ? Math.min(200, Math.floor((width - 32) / 1.9)) : wide ? 270 : Math.min(260, Math.floor((width - 32) / 2.6));
+  const stage = <PhoneStage w={phoneW} count={phone ? 2 : 3} show={phone ? 0.52 : 0.6} />;
   return (
-    <Container style={{ paddingTop: phone ? 40 : 72, alignItems: 'center' }}>
-      <View style={{ alignItems: 'center', gap: phone ? 18 : 24 }}>
+    <Container style={{ paddingTop: phone ? 28 : 44, alignItems: 'center' }}>
+      <View style={{ alignItems: 'center', gap: phone ? 14 : 18 }}>
         <View style={{ alignItems: 'center' }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: size * 0.12 }}>
             <Slam delay={80} height={Math.round(size * 1.1)}><Display size={size}>{t('Kira işinin')}</Display></Slam>
@@ -155,29 +81,32 @@ function Hero({ go, scrollTo }: { go: (p: string) => void; scrollTo: (k: string)
           </View>
           <Slam delay={220} height={Math.round(size * 1.1)}><Display size={size} color={c.accent}>{t('anahtarı.')}</Display></Slam>
         </View>
-        <Reveal delay={260} style={{ alignItems: 'center', gap: 22, maxWidth: 640 }}>
-          <Text v="body" style={{ fontSize: phone ? 18 : 23, lineHeight: phone ? 27 : 32, textAlign: 'center' }} color={c.muted}>
+        <Reveal delay={260} style={{ alignItems: 'center', gap: phone ? 14 : 20, maxWidth: 620 }}>
+          <Text v="body" style={{ fontSize: phone ? 15.5 : 20, lineHeight: phone ? 22 : 28, textAlign: 'center' }} color={c.muted}>
             {t('Sözleşme, ödeme, depozito ve arıza yazışması tek uygulamada. Kiracı ve mülk sahibi aynı kayda iki taraftan bakar.')}
           </Text>
-          <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <Button kind="primary" title={t('1 ay ücretsiz dene')} onPress={() => go('/kayit')} />
-            <Button kind="ghost" title={t('Fiyatları gör')} onPress={() => scrollTo('fiyat')} />
-          </View>
-          <Text v="small" muted style={{ textAlign: 'center', fontSize: 14 }}>{[t('1 ay ücretsiz deneme'), t('Konut, ofis, mağaza, depo')].join(' · ')}</Text>
+          <Button kind="ghost" title={t('Fiyatları gör')} onPress={() => scrollTo('fiyat')} style={{ alignSelf: 'center' }} />
+          <Text v="small" muted style={{ textAlign: 'center', fontSize: phone ? 13 : 14 }}>{[t('1 ay ücretsiz deneme'), t('Konut, ofis, mağaza, depo')].join(' · ')}</Text>
         </Reveal>
       </View>
-      <Reveal delay={380} y={56} style={{ marginTop: phone ? 28 : 56, width: '100%', alignItems: 'center' }}>
+      <Reveal delay={380} y={40} style={{ marginTop: phone ? 20 : 32, width: '100%', alignItems: 'center' }}>
         {wide ? (
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', gap: 44, paddingTop: 12, paddingBottom: 24 }}>
-            <View style={{ gap: 26, marginTop: 70 }}>{cards('l1').odeme}{cards('l2').yazisma}</View>
-            {device}
-            <View style={{ gap: 26, marginTop: 130 }}>{cards('r1').talep}{cards('r2').depozito}</View>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', gap: 20 }}>
+            <View style={{ gap: 22, marginTop: 60 }}>{cards('l1').odeme}{cards('l2').yazisma}</View>
+            {stage}
+            <View style={{ gap: 22, marginTop: 110 }}>{cards('r1').talep}{cards('r2').depozito}</View>
           </View>
         ) : (
-          <View style={{ width: '100%', alignItems: 'center', gap: 28 }}>
-            <View style={{ paddingTop: 12 }}>{device}</View>
-            {/* Telefonda iki kart yeter: sayfa gereksiz uzamasın. */}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, justifyContent: 'center' }}>{phone ? [cards('a').odeme, cards('b').talep] : [cards('a').odeme, cards('b').talep, cards('c').yazisma, cards('d').depozito]}</View>
+          <View style={{ width: '100%', alignItems: 'center', gap: phone ? 14 : 24 }}>
+            {stage}
+            {/* Kartlar telefonların hemen altında; telefonda yana kaydırılır. */}
+            {phone ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, alignSelf: 'stretch' }} contentContainerStyle={{ gap: 12, paddingHorizontal: 16, paddingVertical: 10 }}>
+                {[cards('a').odeme, cards('b').talep, cards('c').yazisma, cards('d').depozito]}
+              </ScrollView>
+            ) : (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, justifyContent: 'center' }}>{[cards('a').odeme, cards('b').talep, cards('c').yazisma, cards('d').depozito]}</View>
+            )}
           </View>
         )}
       </Reveal>
@@ -192,10 +121,10 @@ function Rotator({ go, scrollTo }: { go: (p: string) => void; scrollTo: (k: stri
   const words = [t('Ödemeler'), t('Talepler'), t('Belgeler'), t('Tutanak'), t('Depozito'), t('Giderler'), t('Yenileme')];
   const [i, setI] = useState(0);
   useEffect(() => { const id = setInterval(() => setI((x) => (x + 1) % words.length), 1900); return () => clearInterval(id); }, [words.length]);
-  const size = phone ? 56 : 128;
+  const size = phone ? 40 : 128;
   return (
     <View style={{ backgroundColor: c.deepA }}>
-      <Container style={{ paddingVertical: phone ? 48 : 120, alignItems: 'center' }}>
+      <Container style={{ paddingVertical: phone ? 36 : 120, alignItems: 'center' }}>
         <Reveal style={{ alignItems: 'center', gap: phone ? 8 : 14 }}>
           <Text v="label" color={c.butter} style={{ fontSize: 13, letterSpacing: 0.4 }}>{t('Tek yerde')}</Text>
           <View style={{ height: size * 1.14, justifyContent: 'center', alignItems: 'center', minWidth: 280 }}>
@@ -203,8 +132,8 @@ function Rotator({ go, scrollTo }: { go: (p: string) => void; scrollTo: (k: stri
               <Display size={size} color={c.heroInk} center>{words[i]}</Display>
             </Animated.View>
           </View>
-          <Text v="body" color={c.heroMuted} style={{ maxWidth: 560, fontSize: phone ? 18 : 23, lineHeight: phone ? 27 : 32, textAlign: 'center' }}>{t('Kiranın tüm işi, ödemeden çıkışa.')}</Text>
-          <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', justifyContent: 'center', marginTop: 14 }}>
+          <Text v="body" color={c.heroMuted} style={{ maxWidth: 560, fontSize: phone ? 15.5 : 23, lineHeight: phone ? 22 : 32, textAlign: 'center' }}>{t('Kiranın tüm işi, ödemeden çıkışa.')}</Text>
+          <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', justifyContent: 'center', marginTop: phone ? 8 : 14 }}>
             <Button kind="primary" title={t('Ücretsiz başla')} onPress={() => go('/kayit')} />
             <Button kind="onDark" title={t('Keşfet')} onPress={() => scrollTo('ozellikler')} />
           </View>
@@ -224,10 +153,10 @@ function Manifesto() {
     t('Konuşulanlar kaybolmaz, kayıtta kalır.')
   ];
   return (
-    <Container style={{ paddingTop: phone ? 56 : 128, alignItems: 'center' }}>
-      <View style={{ gap: phone ? 10 : 14, alignItems: 'center', maxWidth: 980 }}>
+    <Container style={{ paddingTop: phone ? 44 : 128, alignItems: 'center' }}>
+      <View style={{ gap: phone ? 8 : 14, alignItems: 'center', maxWidth: 980 }}>
         <Reveal><Text v="label" color={c.accentText} style={{ fontSize: 13, letterSpacing: 0.4, marginBottom: 6 }}>{t('Neden anahtar?')}</Text></Reveal>
-        {lines.map((l, i) => <Reveal key={l} delay={i * 70}><Display size={phone ? 24 : 46} center color={i === 0 ? c.accent : c.ink}>{l}</Display></Reveal>)}
+        {lines.map((l, i) => <Reveal key={l} delay={i * 70}><Display size={phone ? 20 : 46} center color={i === 0 ? c.accent : c.ink}>{l}</Display></Reveal>)}
       </View>
     </Container>
   );
@@ -327,15 +256,15 @@ function Features({ active, setActive, anchor, go }: { active: string; setActive
     const on = cat.id === cur.id;
     return (
       <PressScale key={cat.id} onPress={() => setActive(cat.id)} accessibilityRole="tab" accessibilityState={{ selected: on }} scaleTo={0.97}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, minHeight: 44, borderRadius: radius.pill, backgroundColor: on ? c.ink : c.surface, borderWidth: 1, borderColor: on ? c.ink : c.line }}>
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: phone ? 12 : 14, minHeight: phone ? 38 : 44, borderRadius: radius.pill, backgroundColor: on ? c.ink : c.surface, borderWidth: 1, borderColor: on ? c.ink : c.line }}>
         <Icon name={cat.icon} size={17} color={on ? c.bg : c.ink} />
-        <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 15, color: on ? c.bg : c.ink }}>{cat.title}</RNText>
+        <RNText style={{ fontFamily: fonts.bodyBold, fontSize: phone ? 13.5 : 15, color: on ? c.bg : c.ink }}>{cat.title}</RNText>
       </PressScale>
     );
   };
   return (
     <View ref={anchor}>
-      <Container style={{ paddingTop: phone ? 56 : 128, gap: phone ? 20 : 40 }}>
+      <Container style={{ paddingTop: phone ? 44 : 128, gap: phone ? 16 : 40 }}>
         <SectionHead label={t('Özellikler')} title={t('Kiranın tüm işi, ödemeden çıkışa.')} body={t('Bir konu seç; o konudaki her şeyi tek bakışta gör.')} />
         <Reveal>
           {desktop ? (
@@ -354,15 +283,15 @@ function Features({ active, setActive, anchor, go }: { active: string; setActive
           <View style={{ flex: 1, gap: 18 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={{ width: 46, height: 46, borderRadius: 15, backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center' }}><Icon name={cur.icon} size={22} color={c.accentText} /></View>
-              <Display size={phone ? 28 : 38}>{cur.title}</Display>
+              <Display size={phone ? 22 : 38}>{cur.title}</Display>
             </View>
-            <Text v="body" muted style={{ fontSize: phone ? 16 : 18, lineHeight: phone ? 24 : 27 }}>{cur.lead}</Text>
+            <Text v="body" muted style={{ fontSize: phone ? 14.5 : 18, lineHeight: phone ? 21 : 27 }}>{cur.lead}</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: phone ? 12 : 16, columnGap: 20 }}>
               {cur.items.map((it) => (
                 <View key={it.title} style={{ width: phone ? '100%' : '46%', flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
                   <View style={{ marginTop: 2 }}><Icon name="check" size={18} color={c.okInk} /></View>
                   <View style={{ flex: 1, gap: 2 }}>
-                    <Text v="small" style={{ fontFamily: fonts.bodyXBold, fontSize: 15 }}>{it.title}</Text>
+                    <Text v="small" style={{ fontFamily: fonts.bodyXBold, fontSize: phone ? 14 : 15 }}>{it.title}</Text>
                     <Text v="small" muted>{it.body}</Text>
                   </View>
                 </View>
@@ -372,9 +301,12 @@ function Features({ active, setActive, anchor, go }: { active: string; setActive
               <Button kind="primary" title={t('1 ay ücretsiz dene')} onPress={() => go('/kayit')} />
             </View>
           </View>
-          <View style={{ flex: desktop ? 0.9 : undefined, width: '100%', maxWidth: 420, alignSelf: 'center' }}>
-            <FeatureVisual id={cur.id} />
-          </View>
+          {/* Telefonda görsel gösterilmez: bölüm tek ekrana sığsın. */}
+          {phone ? null : (
+            <View style={{ flex: desktop ? 0.9 : undefined, width: '100%', maxWidth: 420, alignSelf: 'center' }}>
+              <FeatureVisual id={cur.id} />
+            </View>
+          )}
         </Animated.View>
       </Container>
     </View>
@@ -404,8 +336,8 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
   const list = steps[who];
   const cta = who === 'landlord' ? [t('1 ay ücretsiz dene'), '/kayit/mulk-sahibi'] : [t('Kiracı olarak kayıt ol'), '/kayit/kiraci'];
   return (
-    <View ref={anchor} style={{ backgroundColor: c.tile, marginTop: phone ? 56 : 128 }}>
-      <Container style={{ paddingVertical: phone ? 48 : 112, gap: phone ? 20 : 40 }}>
+    <View ref={anchor} style={{ backgroundColor: c.tile, marginTop: phone ? 44 : 128 }}>
+      <Container style={{ paddingVertical: phone ? 36 : 112, gap: phone ? 16 : 40 }}>
         <SectionHead label={t('Nasıl çalışır')} title={t('Dört adımda başla.')} />
         <Reveal style={{ alignSelf: 'center', flexDirection: 'row', backgroundColor: c.surface, borderRadius: radius.pill, padding: 5, borderWidth: 1, borderColor: c.line }}>
           {([['landlord', t('Mülk sahibiyim')], ['tenant', t('Kiracıyım')]] as const).map(([k, label]) => {
@@ -433,7 +365,7 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
                 <View style={{ flex: 1, gap: 6, paddingRight: desktop ? 28 : 0, paddingBottom: desktop || last ? 0 : 16 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Icon name={icon} size={18} color={c.accentText} />
-                    <Display size={phone ? 21 : 23}>{title}</Display>
+                    <Display size={phone ? 17 : 23}>{title}</Display>
                   </View>
                   <Text v="body" muted style={{ fontSize: phone ? 15 : 16, lineHeight: phone ? 22 : 24 }}>{body}</Text>
                 </View>
@@ -468,13 +400,13 @@ function PlanCard({ p, go }: { p: any; go: (path: string) => void }) {
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
         <View style={{ flex: 1, gap: 2 }}>
           <Text v="label" color={soft} style={{ fontSize: 13 }}>{p.units}</Text>
-          <Display size={phone ? 24 : 26} color={ink}>{p.name}</Display>
+          <Display size={phone ? 21 : 26} color={ink}>{p.name}</Display>
         </View>
         {dark ? <Chip tone="warn" label={t('En çok tercih edilen')} /> : null}
       </View>
       <View style={{ gap: 2 }}>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-          <Display size={p.per ? (phone ? 36 : 40) : 30} color={ink}>{p.price}</Display>
+          <Display size={p.per ? (phone ? 30 : 40) : (phone ? 26 : 30)} color={ink}>{p.price}</Display>
           {p.per ? <Text v="small" color={soft}>{p.per}</Text> : null}
         </View>
         {p.monthlyEq ? <Text v="small" color={soft}>{t('aylık {price}’ye denk gelir', { price: p.monthlyEq })}</Text> : null}
@@ -501,7 +433,7 @@ function Pricing({ go, anchor }: { go: (p: string) => void; anchor: (el: any) =>
   const list = plans(yearly);
   return (
     <View ref={anchor}>
-      <Container style={{ paddingTop: phone ? 56 : 96, gap: phone ? 16 : 22 }}>
+      <Container style={{ paddingTop: phone ? 44 : 96, gap: phone ? 14 : 22 }}>
         <SectionHead compact label={t('Fiyatlar')} title={t('Kiracılar için ücretsiz. Mülk sahibi portföyüne göre.')}
           body={t('Her paket 1 ay ücretsiz denemeyle başlar. Deneme bitince kayıtların silinmez; kiracının işleri hiç etkilenmez.')} />
         <Reveal style={{ alignSelf: 'center', flexDirection: 'row', backgroundColor: c.surface, borderRadius: radius.pill, padding: 4, borderWidth: 1, borderColor: c.line }}>
@@ -538,7 +470,7 @@ function Faq({ anchor }: { anchor: (el: any) => void }) {
   const list = faq();
   return (
     <View ref={anchor}>
-      <Container style={{ paddingTop: phone ? 56 : 128, gap: phone ? 16 : 40 }}>
+      <Container style={{ paddingTop: phone ? 44 : 128, gap: phone ? 12 : 40 }}>
         <SectionHead title={t('Sıkça sorulan sorular')} />
         <Reveal style={{ width: '100%', maxWidth: 820, alignSelf: 'center' }}>
           {list.map((f, i) => {
@@ -547,7 +479,7 @@ function Faq({ anchor }: { anchor: (el: any) => void }) {
               <View key={f.q} style={{ borderTopWidth: 1, borderTopColor: c.line, borderBottomWidth: i === list.length - 1 ? 1 : 0, borderBottomColor: c.line }}>
                 <PressScale onPress={() => setOpen(on ? null : i)} accessibilityRole="button" accessibilityState={{ expanded: on }} scaleTo={0.995}
                   style={{ minHeight: phone ? 56 : 68, paddingVertical: phone ? 12 : 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                  <RNText style={{ flex: 1, fontFamily: fonts.bodyBold, fontSize: phone ? 17 : 19, lineHeight: phone ? 24 : 27, color: c.ink }}>{f.q}</RNText>
+                  <RNText style={{ flex: 1, fontFamily: fonts.bodyBold, fontSize: phone ? 15.5 : 19, lineHeight: phone ? 22 : 27, color: c.ink }}>{f.q}</RNText>
                   <View style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1.5, borderColor: on ? c.accent : c.muted, alignItems: 'center', justifyContent: 'center' }}>
                     <View style={{ position: 'absolute', width: 12, height: 2, borderRadius: 1, backgroundColor: on ? c.accent : c.muted }} />
                     {!on && <View style={{ position: 'absolute', width: 2, height: 12, borderRadius: 1, backgroundColor: c.muted }} />}
@@ -555,7 +487,7 @@ function Faq({ anchor }: { anchor: (el: any) => void }) {
                 </PressScale>
                 {on && (
                   <Animated.View entering={FadeInDown.springify().damping(24).stiffness(180)}>
-                    <Text v="body" muted style={{ fontSize: phone ? 16 : 17, lineHeight: phone ? 25 : 27, paddingBottom: 22, paddingRight: 48 }}>{f.a}</Text>
+                    <Text v="body" muted style={{ fontSize: phone ? 14.5 : 17, lineHeight: phone ? 21 : 27, paddingBottom: phone ? 16 : 22, paddingRight: phone ? 8 : 48 }}>{f.a}</Text>
                   </Animated.View>
                 )}
               </View>
@@ -575,12 +507,12 @@ function Contact({ anchor }: { anchor: (el: any) => void }) {
   const mail = () => Linking.openURL('mailto:' + CONFIG.supportEmail).catch(() => {});
   return (
     <View ref={anchor}>
-      <Container style={{ paddingTop: phone ? 56 : 128, paddingBottom: phone ? 56 : 128, alignItems: 'center' }}>
-        <Reveal style={{ alignItems: 'center', gap: phone ? 18 : 24, maxWidth: 760 }}>
+      <Container style={{ paddingTop: phone ? 44 : 128, paddingBottom: phone ? 44 : 128, alignItems: 'center' }}>
+        <Reveal style={{ alignItems: 'center', gap: phone ? 12 : 24, maxWidth: 760 }}>
           <Text v="label" color={c.accentText} style={{ fontSize: 13, letterSpacing: 0.4 }}>{t('İletişim')}</Text>
-          <Display size={phone ? 34 : 72} center>{t('Soruların için yaz.')}</Display>
-          <PressScale onPress={mail} accessibilityRole="link"><Display size={phone ? 22 : 36} color={c.accent} center>{CONFIG.supportEmail}</Display></PressScale>
-          <Text v="body" muted style={{ fontSize: phone ? 16 : 18, lineHeight: phone ? 24 : 27, textAlign: 'center', maxWidth: 520 }}>
+          <Display size={phone ? 26 : 72} center>{t('Soruların için yaz.')}</Display>
+          <PressScale onPress={mail} accessibilityRole="link"><Display size={phone ? 19 : 36} color={c.accent} center>{CONFIG.supportEmail}</Display></PressScale>
+          <Text v="body" muted style={{ fontSize: phone ? 14.5 : 18, lineHeight: phone ? 21 : 27, textAlign: 'center', maxWidth: 520 }}>
             {t('Hesap, paket ve veri silme işlemleri için destek merkezine ya da e-postaya ulaşabilirsin.')}
           </Text>
           <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>

@@ -3,7 +3,7 @@ import {
   Platform, Pressable, PressableProps, StyleProp, StyleSheet, Text as RNText, TextInput, TextInputProps, TextStyle, View, ViewStyle
 } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { fonts, radius, useColors } from './theme';
+import { fonts, radius, useBreakpoint, useColors } from './theme';
 import { Loader } from './Loader';
 import { t } from '../domain/i18n';
 
@@ -20,12 +20,17 @@ const SCALE: Record<Variant, TextStyle> = {
   num: { fontFamily: fonts.displayBold, fontSize: 56, lineHeight: 60, letterSpacing: -1.1, fontVariant: ['tabular-nums'] }
 };
 
+/** Web'de satır kırılımı: başlıklar dengeli (ikinci satırda tek sözcük kalmaz), metinler "pretty" (son satırda tek sözcük kalmaz). */
+const WRAP: Record<string, any> = Platform.OS === 'web'
+  ? { h1: { textWrap: 'balance' }, h2: { textWrap: 'balance' }, h3: { textWrap: 'balance' }, body: { textWrap: 'pretty' }, small: { textWrap: 'pretty' } }
+  : {};
+
 export function Text({ v = 'body', muted, color, style, children, ...rest }: {
   v?: Variant; muted?: boolean; color?: string; style?: StyleProp<TextStyle>; children?: ReactNode;
 } & Omit<React.ComponentProps<typeof RNText>, 'style'>) {
   const c = useColors();
   return (
-    <RNText {...rest} style={[SCALE[v], { color: color ?? (muted ? c.muted : c.ink) }, style]}>
+    <RNText {...rest} style={[SCALE[v], { color: color ?? (muted ? c.muted : c.ink) }, WRAP[v] || null, style]}>
       {children}
     </RNText>
   );
@@ -69,6 +74,7 @@ export function Button({ title, onPress, kind = 'primary', block, disabled, load
   block?: boolean; disabled?: boolean; loading?: boolean; style?: StyleProp<ViewStyle>; icon?: ReactNode;
 }) {
   const c = useColors();
+  const { phone } = useBreakpoint();
   const [hover, setHover] = useState(false);
   const [focus, setFocus] = useState(false);
   const off = !!(disabled || loading);
@@ -99,7 +105,7 @@ export function Button({ title, onPress, kind = 'primary', block, disabled, load
       onBlur={() => setFocus(false)}
       style={[
         {
-          minHeight: 52, paddingHorizontal: 26, borderRadius: radius.pill, backgroundColor: bg,
+          minHeight: phone ? 46 : 52, paddingHorizontal: phone ? 20 : 26, borderRadius: radius.pill, backgroundColor: bg,
           borderWidth: 2, borderColor: border, boxShadow: focus ? `0 0 0 3px ${c.bg}, 0 0 0 5px ${ring}` : hot ? '0 6px 18px rgba(201,45,43,0.28)' : 'none', ...web,
           flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
           alignSelf: block ? 'stretch' : 'flex-start'
@@ -108,7 +114,7 @@ export function Button({ title, onPress, kind = 'primary', block, disabled, load
       ]}
     >
       {icon}
-      {loading ? <Loader size={28} mono={fg} /> : <RNText style={{ color: fg, fontFamily: fonts.bodyBold, fontSize: 16, ...(Platform.OS === 'web' ? { transitionProperty: 'color', transitionDuration: '220ms' } as any : null) }}>{title}</RNText>}
+      {loading ? <Loader size={28} mono={fg} /> : <RNText style={{ color: fg, fontFamily: fonts.bodyBold, fontSize: phone ? 15 : 16, ...(Platform.OS === 'web' ? { transitionProperty: 'color', transitionDuration: '220ms' } as any : null) }}>{title}</RNText>}
     </PressScale>
   );
 }

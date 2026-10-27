@@ -49,12 +49,13 @@ export function TopBar() {
     <View style={[{ position: 'relative', zIndex: 2, overflow: 'hidden' }, flow]}>
       {shine ? <View style={shine} /> : null}
       <PressScale onPress={() => router.push('/kayit/mulk-sahibi')} accessibilityRole="link" scaleTo={0.99}
-        style={{ minHeight: phone ? 42 : 46, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: phone ? 8 : 12, flexWrap: 'wrap', paddingVertical: 8 }}>
+        style={{ minHeight: phone ? 42 : 46, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: phone ? 8 : 12, flexWrap: 'nowrap', paddingVertical: 8 }}>
         <View style={{ backgroundColor: c.butter, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 }}>
           <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: phone ? 10.5 : 11.5, letterSpacing: 0.6, color: '#1D1A19' }}>{t('FIRSAT')}</RNText>
         </View>
-        <RNText style={{ fontFamily: fonts.bodyBold, fontSize: size, color: c.heroInk, textAlign: 'center' }}>{t('Mülk sahiplerine 1 ay ücretsiz deneme')}</RNText>
-        <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: size, color: c.butter, textDecorationLine: 'underline' }}>{t('Hemen başla')} ›</RNText>
+        {/* Telefonda tek satıra sığsın diye kısa metin. */}
+        <RNText style={{ fontFamily: fonts.bodyBold, fontSize: size, color: c.heroInk, textAlign: 'center' }}>{phone ? t('1 ay ücretsiz deneme') : t('Mülk sahiplerine 1 ay ücretsiz deneme')}</RNText>
+        <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: size, color: c.butter, textDecorationLine: 'underline' }}>{phone ? t('Başla') : t('Hemen başla')} ›</RNText>
       </PressScale>
     </View>
   );
