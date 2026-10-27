@@ -59,7 +59,7 @@ export function RentHero({ p }: { p: any }) {
     else if (per.status === 'review') action = <Button kind="onDark" block title={t('Yüklediğin dekontu gör')} onPress={() => open('dekont', { pid, key })} />;
   } else if (per.status === 'review') {
     action = can(pid, 'decide')
-      ? <Row><Button title={t('Onayla')} onPress={() => act('approvePay', { pid, key })} style={{ flex: 1 }} /><Button kind="onDark" title={t('Dekontu gör')} onPress={() => open('dekont', { pid, key })} style={{ flex: 1 }} /></Row>
+      ? <Row><Button kind="onDark" title={t('Dekontu gör')} onPress={() => open('dekont', { pid, key })} style={{ flex: 1 }} /><Button title={t('Onayla')} onPress={() => act('approvePay', { pid, key })} style={{ flex: 1 }} /></Row>
       : <Button kind="onDark" block title={t('Dekontu gör')} onPress={() => open('dekont', { pid, key })} />;
   } else if ((per.status === 'late' || per.status === 'partial') && can(pid, 'message')) {
     action = <Button kind="primary" block title={t('Nazik hatırlatma gönder')} onPress={() => act('nudge', { pid })} />;

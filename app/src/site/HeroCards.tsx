@@ -69,10 +69,24 @@ function Bubble({ text, mine, icon }: { text: string; mine?: boolean; icon?: str
   );
 }
 
-/** Dört kart: ödeme, talep, yazışma, depozito. Yan sütunlar için ikişer ikişer döner. */
-export function useHeroCards(w = CARD_W) {
+/** Kartı olduğu gibi küçültür (içerik de orantılı küçülür): telefonda kartlar telefonları gölgelemesin. */
+function Scaled({ k, w, children }: { k: number; w: number; children: ReactNode }) {
+  if (k >= 1) return <>{children}</>;
+  return (
+    <View style={{ width: w * k, height: CARD_H * (w / CARD_W) * k + 8 }}>
+      <View style={{ position: 'absolute', top: 0, left: 0, width: w, transform: [{ scale: k }], transformOrigin: 'top left' } as any}>{children}</View>
+    </View>
+  );
+}
+
+/** Dört kart: ödeme, talep, yazışma, depozito. Yan sütunlar için ikişer ikişer döner. `k` < 1 ise kartlar küçültülür. */
+export function useHeroCards(w = CARD_W, k = 1) {
   const c = useColors();
-  const mk = (k: string) => ({
+  const mk = (key: string) => {
+    const set = cards(key);
+    return Object.fromEntries(Object.entries(set).map(([name, el]) => [name, <Scaled key={key + name} k={k} w={w}>{el}</Scaled>])) as typeof set;
+  };
+  const cards = (k: string) => ({
     odeme: <FloatCard key={k} w={w} tag={t('Ödemeler')} tone={c.butter} delay={0} scenes={[
       <View style={{ gap: 6 }}><Line a={t('Eylül')} b={t('Ödendi')} tone="ok" /><Line a={t('Ekim')} b={t('Ödendi')} tone="ok" /><Line a={t('Kasım')} b={t('Onay bekliyor')} tone="warn" /></View>,
       <Big icon="check" title={t('Ödeme onaylandı')} sub="₺30.000 · Kasım" />

@@ -39,7 +39,7 @@ function SectionHead({ label, title, body, onDark, compact }: { label?: string; 
   const { phone } = useBreakpoint();
   return (
     <Reveal style={{ alignItems: 'center', gap: phone || compact ? 10 : 14, maxWidth: compact ? 1140 : 820, alignSelf: 'center' }}>
-      {label ? <Text v="label" color={onDark ? c.butter : c.accentText} style={{ fontSize: 13, letterSpacing: 0.4 }}>{label}</Text> : null}
+      {label ? <Text v="label" color={onDark ? c.lemon : c.accentText} style={{ fontSize: 13, letterSpacing: 0.4 }}>{label}</Text> : null}
       <Display size={phone ? 26 : compact ? 44 : 64} center color={onDark ? c.heroInk : undefined}>{title}</Display>
       {body ? <Text v="body" color={onDark ? c.heroMuted : c.muted} style={{ fontSize: phone ? 15 : compact ? 18 : 21, lineHeight: phone ? 21 : compact ? 26 : 30, textAlign: 'center', maxWidth: compact ? 760 : 640, ...BALANCE }}>{body}</Text> : null}
     </Reveal>
@@ -62,10 +62,11 @@ function Hero({ scrollTo }: { go: (p: string) => void; scrollTo: (k: string) => 
   const wide = width >= 1100;
   const size = phone ? 34 : wide ? 76 : 66;
   const pill = Math.round(size * 0.7);
-  const cards = useHeroCards(phone ? 220 : wide ? 210 : 232);
+  // Telefonda kartlar %62 boyutunda: telefonların altında küçük bir şerit olur.
+  const cards = useHeroCards(phone ? 220 : wide ? 210 : 232, phone ? 0.62 : 1);
   // Telefon sahnesi: masaüstünde üç, telefonda iki telefon; ortadaki koyu tema. Sahne ekran genişliğini aşmaz.
   const phoneW = phone ? Math.min(200, Math.floor((width - 32) / 1.9)) : wide ? 270 : Math.min(260, Math.floor((width - 32) / 2.6));
-  const stage = <PhoneStage w={phoneW} count={phone ? 2 : 3} show={phone ? 0.52 : 0.6} />;
+  const stage = <PhoneStage w={phoneW} count={phone ? 2 : 3} show={phone ? 0.6 : 0.6} />;
   return (
     <Container style={{ paddingTop: phone ? 28 : 44, alignItems: 'center' }}>
       <View style={{ alignItems: 'center', gap: phone ? 14 : 18 }}>
@@ -101,7 +102,7 @@ function Hero({ scrollTo }: { go: (p: string) => void; scrollTo: (k: string) => 
             {stage}
             {/* Kartlar telefonların hemen altında; telefonda yana kaydırılır. */}
             {phone ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, alignSelf: 'stretch' }} contentContainerStyle={{ gap: 12, paddingHorizontal: 16, paddingVertical: 10 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, alignSelf: 'stretch' }} contentContainerStyle={{ gap: 10, paddingHorizontal: 16, paddingVertical: 6 }}>
                 {[cards('a').odeme, cards('b').talep, cards('c').yazisma, cards('d').depozito]}
               </ScrollView>
             ) : (
@@ -126,7 +127,7 @@ function Rotator({ go, scrollTo }: { go: (p: string) => void; scrollTo: (k: stri
     <View style={{ backgroundColor: c.deepA }}>
       <Container style={{ paddingVertical: phone ? 36 : 120, alignItems: 'center' }}>
         <Reveal style={{ alignItems: 'center', gap: phone ? 8 : 14 }}>
-          <Text v="label" color={c.butter} style={{ fontSize: 13, letterSpacing: 0.4 }}>{t('Tek yerde')}</Text>
+          <Text v="label" color={c.lemon} style={{ fontSize: 13, letterSpacing: 0.4 }}>{t('Tek yerde')}</Text>
           <View style={{ height: size * 1.14, justifyContent: 'center', alignItems: 'center', minWidth: 280 }}>
             <Animated.View key={words[i]} entering={FadeInDown.springify().damping(20).stiffness(160)} exiting={FadeOutUp.duration(160)} style={{ position: 'absolute' }}>
               <Display size={size} color={c.heroInk} center>{words[i]}</Display>
@@ -134,8 +135,8 @@ function Rotator({ go, scrollTo }: { go: (p: string) => void; scrollTo: (k: stri
           </View>
           <Text v="body" color={c.heroMuted} style={{ maxWidth: 560, fontSize: phone ? 15.5 : 23, lineHeight: phone ? 22 : 32, textAlign: 'center' }}>{t('Kiranın tüm işi, ödemeden çıkışa.')}</Text>
           <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', justifyContent: 'center', marginTop: phone ? 8 : 14 }}>
-            <Button kind="primary" title={t('Ücretsiz başla')} onPress={() => go('/kayit')} />
             <Button kind="onDark" title={t('Keşfet')} onPress={() => scrollTo('ozellikler')} />
+            <Button kind="primary" title={t('Ücretsiz başla')} onPress={() => go('/kayit')} />
           </View>
         </Reveal>
       </Container>
@@ -146,6 +147,8 @@ function Rotator({ go, scrollTo }: { go: (p: string) => void; scrollTo: (k: stri
 function Manifesto() {
   const c = useColors();
   const { phone } = useBreakpoint();
+  // Telefonda gösterilmez: büyük cümleler küçük ekranda sayfayı uzatıp dağınık gösteriyordu.
+  if (phone) return null;
   const lines = [
     t('Kira ödendi mi? İki taraf da aynı anda görür.'),
     t('Arıza bildirilir, çözülene kadar takip edilir.'),
@@ -394,7 +397,7 @@ function PlanCard({ p, go }: { p: any; go: (path: string) => void }) {
   const rule = dark ? 'rgba(250,245,240,0.14)' : c.line;
   const cta = p.id === 'kurumsal'
     ? <Button kind="primary" block title={t('Bize ulaşın')} onPress={() => Linking.openURL('mailto:' + CONFIG.supportEmail + '?subject=' + encodeURIComponent(t('Kurumsal paket'))).catch(() => {})} />
-    : <Button kind="primary" block title={t('1 ay ücretsiz dene')} onPress={() => go('/kayit/mulk-sahibi')} />;
+    : <Button kind="primary" block title={t('Paketi seç')} onPress={() => go('/kayit/mulk-sahibi')} />;
   return (
     <View style={[{ borderRadius: 26, backgroundColor: dark ? c.deepA : c.surface, borderWidth: dark ? 0 : 1, borderColor: c.line, padding: phone ? 20 : 26, gap: phone ? 12 : 14 }, phone ? { alignSelf: 'stretch' } : { flex: 1 }]}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
@@ -411,11 +414,11 @@ function PlanCard({ p, go }: { p: any; go: (path: string) => void }) {
         </View>
         {p.monthlyEq ? <Text v="small" color={soft}>{t('aylık {price}’ye denk gelir', { price: p.monthlyEq })}</Text> : null}
       </View>
-      <Text v="small" color={dark ? c.butter : c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('1 ay ücretsiz deneme')}</Text>
+      <Text v="small" color={dark ? c.lemon : c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('1 ay ücretsiz deneme')}</Text>
       <View>
         {p.points.map((x: string, k: number) => (
           <View key={x} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start', paddingVertical: phone ? 8 : 10, borderTopWidth: 1, borderTopColor: rule, borderBottomWidth: k === p.points.length - 1 ? 1 : 0, borderBottomColor: rule }}>
-            <View style={{ marginTop: 1 }}><Icon name="check" size={16} color={dark ? c.butter : c.okInk} /></View>
+            <View style={{ marginTop: 1 }}><Icon name="check" size={16} color={dark ? c.lemon : c.okInk} /></View>
             <Text v="small" color={dark ? c.heroInk : c.ink} style={{ flex: 1, fontSize: 14, lineHeight: 20, opacity: dark ? 0.9 : 1 }}>{x}</Text>
           </View>
         ))}
@@ -437,7 +440,7 @@ function Pricing({ go, anchor }: { go: (p: string) => void; anchor: (el: any) =>
         <SectionHead compact label={t('Fiyatlar')} title={t('Kiracılar için ücretsiz. Mülk sahibi portföyüne göre.')}
           body={t('Her paket 1 ay ücretsiz denemeyle başlar. Deneme bitince kayıtların silinmez; kiracının işleri hiç etkilenmez.')} />
         <Reveal style={{ alignSelf: 'center', flexDirection: 'row', backgroundColor: c.surface, borderRadius: radius.pill, padding: 4, borderWidth: 1, borderColor: c.line }}>
-          {([[false, t('Aylık')], [true, t('Yıllık · 2 ay bedava')]] as const).map(([k, label]) => {
+          {([[false, t('Aylık')], [true, t('Yıllık · 2 ay ücretsiz')]] as const).map(([k, label]) => {
             const on = yearly === k;
             return (
               <PressScale key={String(k)} onPress={() => setYearly(k)} accessibilityRole="tab" accessibilityState={{ selected: on }} scaleTo={0.97}
@@ -516,8 +519,8 @@ function Contact({ anchor }: { anchor: (el: any) => void }) {
             {t('Hesap, paket ve veri silme işlemleri için destek merkezine ya da e-postaya ulaşabilirsin.')}
           </Text>
           <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <Button kind="dark" title={t('E-posta gönder')} onPress={mail} />
             <Button kind="ghost" title={t('Destek merkezi')} onPress={() => Linking.openURL(CONFIG.legal.support)} />
+            <Button kind="primary" title={t('E-posta gönder')} onPress={mail} />
           </View>
         </Reveal>
       </Container>
