@@ -8,7 +8,8 @@
     "start": "node scripts/serve.mjs 8000",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
-    "build": "node scripts/build.mjs",
+    "build": "npm ci --prefix app && npm run build --prefix app && rm -rf dist && cp -r app/dist dist",
+    "build:pwa": "node scripts/build.mjs",
     "build:native": "node scripts/build.mjs --native && cap sync",
     "android": "npm run build:native && cap open android",
     "ios": "npm run build:native && cap open ios"

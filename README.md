@@ -43,7 +43,8 @@ python3 -m http.server 8000
 
 **Yayın:** varsayılan dala her gönderimde `.github/workflows/pages.yml` siteyi
 GitHub Pages'e yükler (Settings → Pages → Source: *GitHub Actions*).
-`npm run build` yayın paketini (`www/`) üretir: supabase-js ve yazı tipleri
+`npm run build` (kökte) anahtar sitesini `app/` klasöründen derleyip `dist/` klasörüne yazar (Hostinger için).
+`npm run build:pwa` eski PWA yayın paketini (`www/`) üretir: supabase-js ve yazı tipleri
 pakete alınır.
 
 **Telefon:** `npm run android` / `npm run ios` (Android Studio / Xcode açılır).
