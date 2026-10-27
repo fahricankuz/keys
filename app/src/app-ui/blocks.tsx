@@ -1,5 +1,5 @@
 import { Grain } from '../ui/Grain';
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleProp, View, ViewStyle, Image } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { SvgXml } from 'react-native-svg';
@@ -79,19 +79,33 @@ export function KV({ k, v, onDark }: { k: ReactNode; v: ReactNode; onDark?: bool
   );
 }
 
-export function Big({ children, onDark }: { children: ReactNode; onDark?: boolean }) {
+/** Tek satırda kalan büyük yazı: kutunun genişliğine sığmazsa yazı boyutu küçülür (₺30.000 alt satıra kaymaz).
+    `fitFor`: boyut hesabında kullanılacak metin (sayı yuvarlanırken boyut sabit kalsın diye son değer). */
+function Fit({ v, base, color, fitFor, children }: { v: 'num' | 'h2'; base: number; color: string; fitFor?: string; children: ReactNode }) {
+  const [w, setW] = useState(0);
+  const len = Math.max(String(fitFor ?? (typeof children === 'string' || typeof children === 'number' ? children : '')).length, 1);
+  const size = w ? Math.max(18, Math.min(base, Math.floor(w / (len * 0.62)))) : base;
+  return (
+    <View style={{ alignSelf: 'stretch', minWidth: 0 }} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+      <Text v={v} color={color} numberOfLines={1} style={{ fontSize: size, lineHeight: Math.round(size * 1.08) }}>{children}</Text>
+    </View>
+  );
+}
+
+export function Big({ children, onDark, fitFor }: { children: ReactNode; onDark?: boolean; fitFor?: string }) {
   const c = useColors();
-  return <Text v="num" color={onDark ? c.heroInk : c.ink}>{children}</Text>;
+  return <Fit v="num" base={56} color={onDark ? c.heroInk : c.ink} fitFor={fitFor}>{children}</Fit>;
 }
 
 /** Para tutarı: ilk gösterimde ve değer değişince yuvarlanarak gelir. */
 export function BigRoll({ value, onDark, format = tl }: { value: number; onDark?: boolean; format?: (n: number) => string }) {
   const v = useRoll(Number(value) || 0);
-  return <Big onDark={onDark}>{format(v)}</Big>;
+  return <Big onDark={onDark} fitFor={format(Number(value) || 0)}>{format(v)}</Big>;
 }
 
 export function Mid({ children }: { children: ReactNode }) {
-  return <Text v="h2">{children}</Text>;
+  const c = useColors();
+  return <Fit v="h2" base={32} color={c.ink}>{children}</Fit>;
 }
 
 export function Note({ children, warn }: { children: ReactNode; warn?: boolean }) {
@@ -271,14 +285,14 @@ export const typeIcon = (t: string) => ({ Konut: 'home', Ofis: 'office', Mağaza
 const TILE_OF: Record<string, string> = { approved: 'paid', review: 'review', partial: 'partial', rejected: 'late', late: 'late', pending: 'upcoming' };
 const TILE_MARK: Record<string, string> = { paid: '✓', review: '…', partial: '½', late: '!', upcoming: '–' };
 const TILE_NAME: Record<string, string> = { paid: 'Ödendi', review: 'Onay bekliyor', partial: 'Kısmi', late: 'Gecikti', upcoming: 'Yaklaşan' };
-function useTileStyle() {
+function useTileStyle(onDark?: boolean) {
   const c = useColors();
   return (kind: string) => ({
     paid: { bg: c.okBg, ink: c.okInk, border: c.okBg },
-    review: { bg: c.surface, ink: c.okInk, border: c.okInk },
+    review: { bg: onDark ? c.okBg : c.surface, ink: c.okInk, border: c.okInk },
     partial: { bg: c.warnBg, ink: c.warnInk, border: c.warnBg },
     late: { bg: c.badBg, ink: c.badInk, border: c.badInk },
-    upcoming: { bg: 'transparent', ink: c.muted, border: c.line, dashed: true }
+    upcoming: { bg: 'transparent', ink: onDark ? c.heroMuted : c.muted, border: onDark ? 'rgba(251,244,234,0.35)' : c.line, dashed: true }
   } as Record<string, { bg: string; ink: string; border: string; dashed?: boolean }>)[kind];
 }
 
@@ -309,8 +323,42 @@ export function MonthTiles({ months }: { months: { key: string; label: string; f
   );
 }
 
-export function MonthLegend() {
-  const style = useTileStyle();
+/** Kira kartındaki yıl görünümü: 12 ay iki sırada (Oca–Haz, Tem–Ara). Her karoda ayın adı ve durum işareti
+    (✓ ödendi, … onay bekliyor, ½ kısmi, ! gecikti, – yaklaşan) yazar; sözleşmeden önceki aylar soluk kalır, bu ay çerçevelidir. */
+export function YearTiles({ p, onDark }: { p: any; onDark?: boolean }) {
+  const style = useTileStyle(onDark);
+  const c = useColors();
+  const now = new Date(), year = now.getFullYear();
+  const from = String(p.startDate || '').slice(0, 7);
+  const months = Array.from({ length: 12 }, (_, m) => {
+    const key = year + '-' + String(m + 1).padStart(2, '0');
+    const before = !!from && key < from;
+    const kind = before ? 'upcoming' : TILE_OF[statusOf(p, key) || ''] || 'upcoming';
+    return { key, kind, before, current: m === now.getMonth(), label: parse(key + '-01').toLocaleDateString(locale(), { month: 'short' }).replace('.', ''), full: monthYear(key) };
+  });
+  const tile = (m: (typeof months)[number]) => {
+    const st = style(m.kind);
+    return (
+      <View key={m.key} accessible accessibilityLabel={m.full + ': ' + (m.before ? t('Sözleşme öncesi') : t(TILE_NAME[m.kind]))}
+        style={{ flex: 1, minWidth: 0, height: 46, borderRadius: 10, backgroundColor: st.bg, borderWidth: m.current ? 2.5 : 1.5,
+          borderColor: m.current ? (onDark ? '#fff' : c.ink) : st.border, borderStyle: st.dashed && !m.current ? 'dashed' : 'solid',
+          alignItems: 'center', justifyContent: 'center', opacity: m.before ? 0.35 : 1 }}>
+        <Text v="small" numberOfLines={1} color={st.ink} style={{ fontSize: 11, lineHeight: 13, fontFamily: m.current ? fonts.bodyXBold : undefined }}>{m.label}</Text>
+        <Text v="small" color={st.ink} style={{ fontFamily: fonts.bodyXBold, fontSize: 12, lineHeight: 14 }}>{m.before ? ' ' : TILE_MARK[m.kind]}</Text>
+      </View>
+    );
+  };
+  return (
+    <View style={{ gap: 6, maxWidth: 520 }}>
+      <View style={{ flexDirection: 'row', gap: 5 }}>{months.slice(0, 6).map(tile)}</View>
+      <View style={{ flexDirection: 'row', gap: 5 }}>{months.slice(6).map(tile)}</View>
+    </View>
+  );
+}
+
+export function MonthLegend({ onDark }: { onDark?: boolean }) {
+  const style = useTileStyle(onDark);
+  const c = useColors();
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }} role="list" aria-label={t('Karo açıklaması')}>
       {Object.keys(TILE_MARK).map((kind) => {
@@ -320,7 +368,7 @@ export function MonthLegend() {
             <View style={{ width: 18, height: 18, borderRadius: 5, backgroundColor: st.bg, borderWidth: 1.5, borderColor: st.border, borderStyle: st.dashed ? 'dashed' : 'solid', alignItems: 'center', justifyContent: 'center' }}>
               <Text v="small" color={st.ink} style={{ fontFamily: fonts.bodyXBold, fontSize: 10, lineHeight: 12 }}>{TILE_MARK[kind]}</Text>
             </View>
-            <Text v="small" muted>{t(TILE_NAME[kind])}</Text>
+            <Text v="small" color={onDark ? c.heroMuted : c.muted}>{t(TILE_NAME[kind])}</Text>
           </View>
         );
       })}

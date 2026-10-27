@@ -16,10 +16,9 @@ import { tl, fmt, fmtFull, monthYear, parse, t0, iso, between, daysTo, tm, dayLa
 import { Button, Chip, PressScale, Text } from '../ui/kit';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 import {
-  Avatar, Bar, Big, BigRoll, Card, Empty, FileLink, H2, Hero, Icon, IconBtn, Items, KV, Label, LI, List, Mid, Muted, Note, ReviewChip, Row, Seg, Stack, Steps, StatusChip, Thumbs, initials, toneOf, typeIcon, MonthTiles, MonthLegend, lastMonths
+  Avatar, Bar, Big, BigRoll, Card, Empty, FileLink, H2, Hero, Icon, IconBtn, Items, KV, Label, LI, List, Mid, Muted, Note, ReviewChip, Row, Seg, Stack, Steps, StatusChip, Thumbs, initials, toneOf, typeIcon, MonthLegend, YearTiles
 } from './blocks';
 import { Toggle } from './forms';
-import { MonthWindows } from '../ui/Facade';
 import { Picked, pickImages, takePhoto } from './media';
 import { mediaSrc } from '../domain/backend';
 import { LIVE } from '../domain/config';
@@ -72,24 +71,13 @@ export function RentHero({ p }: { p: any }) {
           <Label onDark>{monthYear(per.key)} {t('kirası')}</Label>
           <BigRoll onDark value={expectedAt(p, per.key)} />
           {p.stopaj ? <Muted onDark>{stopajLine(p, per.key)}</Muted> : null}
-          <View style={{ marginVertical: 6 }}><MonthWindows p={p} onDark /></View>
+          <View style={{ marginVertical: 6, gap: 10 }}><YearTiles p={p} onDark /><MonthLegend onDark /></View>
           <Muted onDark>{line}</Muted>
         </View>
         <StatusChip st={per.status} />
       </Row>
       {action}
     </Hero>
-  );
-}
-
-/** Ay ay kira durumu: mülk sahibi portföyündeki karoların aynısı (hangi ay ödendi, hangisi bekliyor). */
-export function MonthStatusCard({ p }: { p: any }) {
-  return (
-    <Card gap={10}>
-      <H2>{t('Ay ay kira durumu')}</H2>
-      <MonthTiles months={lastMonths(p)} />
-      <MonthLegend />
-    </Card>
   );
 }
 
@@ -159,7 +147,6 @@ export function SecPay({ p }: { p: any }) {
   return (
     <Stack>
       <RentHero p={p} />
-      <MonthStatusCard p={p} />
       <RenewalCard p={p} />
       <Row>
         <Card style={{ flex: 1 }} gap={4}><Label>{t('Aidat')}</Label><Text v="h3">{tl(p.aidat)} {t('/ ay')}</Text><Muted>{t(p.aidatPayer)} {t('öder')}</Muted></Card>

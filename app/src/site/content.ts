@@ -69,18 +69,19 @@ export const categories = (): Category[] => [
 ];
 
 /** Mülk sahibi paketleri (ana sayfa fiyat kartları). */
-export const plans = () => tiers().map((x: any) => ({
+export const plans = (yearly = false) => tiers().map((x: any) => ({
   id: x.id,
   name: planLabel(x.id),
-  price: priceText(x),
-  per: x.price != null ? t('/ ay') : '',
+  price: priceText(x, yearly),
+  per: x.price != null ? (yearly ? t('/ yıl') : t('/ ay')) : '',
+  monthlyEq: yearly && x.yearly != null ? priceText({ price: Math.round((x.yearly / 12) * 100) / 100 }) : '',
   units: unitsText(x.units),
   points: tierPoints(x.id),
   best: x.id === 'bes'
 }));
 
 export const faq = () => [
-  { q: t('anahtar nedir?'), a: t('Kiracı ve mülk sahibinin aynı veriye iki taraftan baktığı bir kira yönetimi uygulamasıdır: kira ödemeleri, talepler, belgeler, giriş ve çıkış tutanağı, depozito iadesi, giderler ve sözleşme yenileme tek akışta.') },
+  { q: t('Anahtar nedir?'), a: t('Kiracı ve mülk sahibinin aynı veriye iki taraftan baktığı bir kira yönetimi uygulamasıdır: kira ödemeleri, talepler, belgeler, giriş ve çıkış tutanağı, depozito iadesi, giderler ve sözleşme yenileme tek akışta.') },
   { q: t('Kiracı için ücretli mi?'), a: t('Hayır. Kiracı hesabı her zaman ücretsizdir; dekont yükleyebilir, talep açabilir, mesajlaşabilir ve belgelerine bakabilirsin.') },
   { q: t('Ücretsiz deneme nasıl işliyor?'), a: t('Her paket 1 ay ücretsiz denemeyle başlar; deneme süresince 5 mülke kadar ekleyebilir, bütün özellikleri kullanabilirsin. Süre bitince kayıtların silinmez, salt okunur olur; okuma ve mesajlaşma açık kalır, kiracının işleri etkilenmez.') },
   { q: t('Paketler arasındaki fark ne?'), a: t('Başlangıç tek mülk içindir ve ödeme, talep, belge ve hatırlatmaları kapsar. Portföy 5 mülke kadar çıkar; ekip üyeleri, Excel ile toplu aktarma, yıllık rapor ve vergi tahmini ekler. Kurumsal sınırsız mülk, öncelikli destek ve kurulum yardımı içerir.') },

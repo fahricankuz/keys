@@ -191,6 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const join = useCallback(async (code: string) => {
     code = code.trim().toUpperCase();
     if (!code) return t('Davet kodunu gir.');
+    if (!LIVE) return t('Davet kodları sunucuya bağlı kurulumda çalışır. Site sunucuya bağlanınca kodunla mülküne bağlanabilirsin.');
     try { await backend.acceptInvite(code); storage.removeItem(INVITE); return null; } catch (e) { return backend.humanError(e); }
   }, []);
 

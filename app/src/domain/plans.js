@@ -19,8 +19,10 @@ export function unitsText(units){
   return units == null ? t('5’ten fazla mülk') : units === 1 ? t('1 mülk') : t('{n} mülke kadar', { n: units });
 }
 
-export function priceText(tier){
-  if (tier.price != null) return '₺' + Number(tier.price).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** Paket fiyatı; `yearly` doğruysa yıllık fiyat. */
+export function priceText(tier, yearly = false){
+  const v = yearly ? tier.yearly : tier.price;
+  if (v != null) return '₺' + Number(v).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return tier.id === 'kurumsal' ? t('Teklif alın') : t('Fiyat yakında');
 }
 

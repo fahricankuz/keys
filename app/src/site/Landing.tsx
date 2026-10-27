@@ -30,14 +30,14 @@ function Display({ children, size, color, style, center }: { children: ReactNode
   );
 }
 
-function SectionHead({ label, title, body, onDark }: { label?: string; title: string; body?: string; onDark?: boolean }) {
+function SectionHead({ label, title, body, onDark, compact }: { label?: string; title: string; body?: string; onDark?: boolean; compact?: boolean }) {
   const c = useColors();
   const { phone } = useBreakpoint();
   return (
-    <Reveal style={{ alignItems: 'center', gap: 14, maxWidth: 820, alignSelf: 'center' }}>
+    <Reveal style={{ alignItems: 'center', gap: phone || compact ? 10 : 14, maxWidth: compact ? 1140 : 820, alignSelf: 'center' }}>
       {label ? <Text v="label" color={onDark ? c.butter : c.accentText} style={{ fontSize: 13, letterSpacing: 0.4 }}>{label}</Text> : null}
-      <Display size={phone ? 36 : 64} center color={onDark ? c.heroInk : undefined}>{title}</Display>
-      {body ? <Text v="body" color={onDark ? c.heroMuted : c.muted} style={{ fontSize: phone ? 17 : 21, lineHeight: phone ? 25 : 30, textAlign: 'center', maxWidth: 640 }}>{body}</Text> : null}
+      <Display size={phone ? 30 : compact ? 44 : 64} center color={onDark ? c.heroInk : undefined}>{title}</Display>
+      {body ? <Text v="body" color={onDark ? c.heroMuted : c.muted} style={{ fontSize: phone ? 16 : compact ? 18 : 21, lineHeight: phone ? 23 : compact ? 26 : 30, textAlign: 'center', maxWidth: compact ? 760 : 640 }}>{body}</Text> : null}
     </Reveal>
   );
 }
@@ -166,7 +166,7 @@ function Hero({ go, scrollTo }: { go: (p: string) => void; scrollTo: (k: string)
           <Text v="small" muted style={{ textAlign: 'center', fontSize: 14 }}>{[t('1 ay ücretsiz deneme'), t('Konut, ofis, mağaza, depo')].join(' · ')}</Text>
         </Reveal>
       </View>
-      <Reveal delay={380} y={56} style={{ marginTop: phone ? 36 : 56, width: '100%', alignItems: 'center' }}>
+      <Reveal delay={380} y={56} style={{ marginTop: phone ? 28 : 56, width: '100%', alignItems: 'center' }}>
         {wide ? (
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', gap: 44, paddingTop: 12, paddingBottom: 24 }}>
             <View style={{ gap: 26, marginTop: 70 }}>{cards('l1').odeme}{cards('l2').yazisma}</View>
@@ -176,7 +176,8 @@ function Hero({ go, scrollTo }: { go: (p: string) => void; scrollTo: (k: string)
         ) : (
           <View style={{ width: '100%', alignItems: 'center', gap: 28 }}>
             <View style={{ paddingTop: 12 }}>{device}</View>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, justifyContent: 'center' }}>{[cards('a').odeme, cards('b').talep, cards('c').yazisma, cards('d').depozito]}</View>
+            {/* Telefonda iki kart yeter: sayfa gereksiz uzamasın. */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, justifyContent: 'center' }}>{phone ? [cards('a').odeme, cards('b').talep] : [cards('a').odeme, cards('b').talep, cards('c').yazisma, cards('d').depozito]}</View>
           </View>
         )}
       </Reveal>
@@ -194,7 +195,7 @@ function Rotator({ go, scrollTo }: { go: (p: string) => void; scrollTo: (k: stri
   const size = phone ? 56 : 128;
   return (
     <View style={{ backgroundColor: c.deepA }}>
-      <Container style={{ paddingVertical: phone ? 72 : 144, alignItems: 'center' }}>
+      <Container style={{ paddingVertical: phone ? 48 : 120, alignItems: 'center' }}>
         <Reveal style={{ alignItems: 'center', gap: phone ? 8 : 14 }}>
           <Text v="label" color={c.butter} style={{ fontSize: 13, letterSpacing: 0.4 }}>{t('Tek yerde')}</Text>
           <View style={{ height: size * 1.14, justifyContent: 'center', alignItems: 'center', minWidth: 280 }}>
@@ -216,12 +217,17 @@ function Rotator({ go, scrollTo }: { go: (p: string) => void; scrollTo: (k: stri
 function Manifesto() {
   const c = useColors();
   const { phone } = useBreakpoint();
-  const lines = [t('Ev, bir adres değil bir duygudur.'), t('Kira, bir yük değil bir düzendir.'), t('Her ay bir pencere yanar.'), t('Net yaz, yumuşak davran.'), t('Sayı büyük, söz kısa.')];
+  const lines = [
+    t('Kira ödendi mi? İki taraf da aynı anda görür.'),
+    t('Arıza bildirilir, çözülene kadar takip edilir.'),
+    t('Sözleşme, dekont ve tutanak tek yerde durur.'),
+    t('Konuşulanlar kaybolmaz, kayıtta kalır.')
+  ];
   return (
-    <Container style={{ paddingTop: phone ? 80 : 160, alignItems: 'center' }}>
-      <View style={{ gap: phone ? 8 : 14, alignItems: 'center', maxWidth: 980 }}>
-        <Reveal><Text v="label" color={c.accentText} style={{ fontSize: 13, letterSpacing: 0.4, marginBottom: 6 }}>{t('anahtar böyle düşünür')}</Text></Reveal>
-        {lines.map((l, i) => <Reveal key={l} delay={i * 70}><Display size={phone ? 28 : 60} center color={i === 2 ? c.accent : c.ink}>{l}</Display></Reveal>)}
+    <Container style={{ paddingTop: phone ? 56 : 128, alignItems: 'center' }}>
+      <View style={{ gap: phone ? 10 : 14, alignItems: 'center', maxWidth: 980 }}>
+        <Reveal><Text v="label" color={c.accentText} style={{ fontSize: 13, letterSpacing: 0.4, marginBottom: 6 }}>{t('Neden anahtar?')}</Text></Reveal>
+        {lines.map((l, i) => <Reveal key={l} delay={i * 70}><Display size={phone ? 24 : 46} center color={i === 0 ? c.accent : c.ink}>{l}</Display></Reveal>)}
       </View>
     </Container>
   );
@@ -308,38 +314,50 @@ const Muted = ({ children }: { children: ReactNode }) => <Text v="small" muted>{
 /** Özellikler: kategori sekmeleri ve seçili kategorinin dört maddesi + görseli. Menüden gelince ilgili sekme açılır. */
 function Features({ active, setActive, anchor, go }: { active: string; setActive: (id: string) => void; anchor: (el: any) => void; go: (p: string) => void }) {
   const c = useColors();
-  const { desktop, phone } = useBreakpoint();
+  const { desktop, phone, width } = useBreakpoint();
   const cats = categories();
   const cur = cats.find((x) => x.id === active) || cats[0];
+  // Masaüstünde sekmeler tek satıra sığıyorsa tek satır, sığmıyorsa dengeli iki satır (ör. 4 + 3) olur.
+  const tabW = (title: string) => 28 + 17 + 8 + title.length * 8.6 + 2;
+  const avail = Math.min(width, 1200) - 32;
+  const oneRow = cats.reduce((a, x) => a + tabW(x.title) + 8, 0) <= avail;
+  const half = Math.ceil(cats.length / 2);
+  const tabRows = oneRow ? [cats] : [cats.slice(0, half), cats.slice(half)];
+  const tab = (cat: (typeof cats)[number]) => {
+    const on = cat.id === cur.id;
+    return (
+      <PressScale key={cat.id} onPress={() => setActive(cat.id)} accessibilityRole="tab" accessibilityState={{ selected: on }} scaleTo={0.97}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, minHeight: 44, borderRadius: radius.pill, backgroundColor: on ? c.ink : c.surface, borderWidth: 1, borderColor: on ? c.ink : c.line }}>
+        <Icon name={cat.icon} size={17} color={on ? c.bg : c.ink} />
+        <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 15, color: on ? c.bg : c.ink }}>{cat.title}</RNText>
+      </PressScale>
+    );
+  };
   return (
     <View ref={anchor}>
-      <Container style={{ paddingTop: phone ? 80 : 160, gap: phone ? 28 : 48 }}>
+      <Container style={{ paddingTop: phone ? 56 : 128, gap: phone ? 20 : 40 }}>
         <SectionHead label={t('Özellikler')} title={t('Kiranın tüm işi, ödemeden çıkışa.')} body={t('Bir konu seç; o konudaki her şeyi tek bakışta gör.')} />
         <Reveal>
-          {/* Masaüstünde sekmeler satıra sığmazsa alta geçer; telefonda yatay kaydırılır. */}
-          <ScrollView horizontal={!desktop} scrollEnabled={!desktop} showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 8, paddingHorizontal: 2, flexDirection: 'row', flexWrap: desktop ? 'wrap' : 'nowrap', justifyContent: desktop ? 'center' : 'flex-start', flexGrow: 1 }} accessibilityRole="tablist">
-            {cats.map((cat) => {
-              const on = cat.id === cur.id;
-              return (
-                <PressScale key={cat.id} onPress={() => setActive(cat.id)} accessibilityRole="tab" accessibilityState={{ selected: on }} scaleTo={0.97}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, minHeight: 46, borderRadius: radius.pill, backgroundColor: on ? c.ink : c.surface, borderWidth: 1, borderColor: on ? c.ink : c.line }}>
-                  <Icon name={cat.icon} size={17} color={on ? c.bg : c.ink} />
-                  <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 15, color: on ? c.bg : c.ink }}>{cat.title}</RNText>
-                </PressScale>
-              );
-            })}
-          </ScrollView>
+          {desktop ? (
+            <View accessibilityRole="tablist" style={{ gap: 8, alignItems: 'center' }}>
+              {tabRows.map((row, r) => <View key={r} style={{ flexDirection: 'row', gap: 8, justifyContent: 'center' }}>{row.map(tab)}</View>)}
+            </View>
+          ) : (
+            /* Telefonda ve tablette sekmeler yatay kaydırılır. */
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }} accessibilityRole="tablist">
+              {cats.map(tab)}
+            </ScrollView>
+          )}
         </Reveal>
         <Animated.View key={cur.id} entering={FadeIn.duration(260)}
-          style={{ flexDirection: desktop ? 'row' : 'column', gap: desktop ? 48 : 28, backgroundColor: c.tile, borderRadius: 32, padding: phone ? 22 : 44, alignItems: desktop ? 'center' : 'stretch' }}>
+          style={{ flexDirection: desktop ? 'row' : 'column', gap: desktop ? 48 : 22, backgroundColor: c.tile, borderRadius: phone ? 24 : 32, padding: phone ? 18 : 44, alignItems: desktop ? 'center' : 'stretch' }}>
           <View style={{ flex: 1, gap: 18 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={{ width: 46, height: 46, borderRadius: 15, backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center' }}><Icon name={cur.icon} size={22} color={c.accentText} /></View>
               <Display size={phone ? 28 : 38}>{cur.title}</Display>
             </View>
             <Text v="body" muted style={{ fontSize: phone ? 16 : 18, lineHeight: phone ? 24 : 27 }}>{cur.lead}</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: 16, columnGap: 20 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: phone ? 12 : 16, columnGap: 20 }}>
               {cur.items.map((it) => (
                 <View key={it.title} style={{ width: phone ? '100%' : '46%', flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
                   <View style={{ marginTop: 2 }}><Icon name="check" size={18} color={c.okInk} /></View>
@@ -386,8 +404,8 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
   const list = steps[who];
   const cta = who === 'landlord' ? [t('1 ay ücretsiz dene'), '/kayit/mulk-sahibi'] : [t('Kiracı olarak kayıt ol'), '/kayit/kiraci'];
   return (
-    <View ref={anchor} style={{ backgroundColor: c.tile, marginTop: phone ? 80 : 160 }}>
-      <Container style={{ paddingVertical: phone ? 72 : 128, gap: phone ? 28 : 44 }}>
+    <View ref={anchor} style={{ backgroundColor: c.tile, marginTop: phone ? 56 : 128 }}>
+      <Container style={{ paddingVertical: phone ? 48 : 112, gap: phone ? 20 : 40 }}>
         <SectionHead label={t('Nasıl çalışır')} title={t('Dört adımda başla.')} />
         <Reveal style={{ alignSelf: 'center', flexDirection: 'row', backgroundColor: c.surface, borderRadius: radius.pill, padding: 5, borderWidth: 1, borderColor: c.line }}>
           {([['landlord', t('Mülk sahibiyim')], ['tenant', t('Kiracıyım')]] as const).map(([k, label]) => {
@@ -407,17 +425,17 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
               <View key={title} style={{ flex: 1, flexDirection: desktop ? 'column' : 'row', gap: desktop ? 18 : 16 }}>
                 {/* numara ve bağlantı çizgisi */}
                 <View style={{ flexDirection: desktop ? 'row' : 'column', alignItems: 'center' }}>
-                  <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: i === 0 ? c.accent : c.surface, borderWidth: 2, borderColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: phone ? 42 : 52, height: phone ? 42 : 52, borderRadius: 26, backgroundColor: i === 0 ? c.accent : c.surface, borderWidth: 2, borderColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
                     <RNText style={{ fontFamily: fonts.siteBold, fontSize: 20, color: i === 0 ? c.accentInk : c.accent }}>{i + 1}</RNText>
                   </View>
-                  {!last ? <View style={desktop ? { flex: 1, height: 2, backgroundColor: c.line, marginHorizontal: 10 } : { width: 2, flex: 1, minHeight: 28, backgroundColor: c.line, marginVertical: 8 }} /> : null}
+                  {!last ? <View style={desktop ? { flex: 1, height: 2, backgroundColor: c.line, marginHorizontal: 10 } : { width: 2, flex: 1, minHeight: 16, backgroundColor: c.line, marginVertical: 6 }} /> : null}
                 </View>
-                <View style={{ flex: 1, gap: 8, paddingRight: desktop ? 28 : 0, paddingBottom: desktop || last ? 0 : 24 }}>
+                <View style={{ flex: 1, gap: 6, paddingRight: desktop ? 28 : 0, paddingBottom: desktop || last ? 0 : 16 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Icon name={icon} size={18} color={c.accentText} />
                     <Display size={phone ? 21 : 23}>{title}</Display>
                   </View>
-                  <Text v="body" muted style={{ fontSize: 16, lineHeight: 24 }}>{body}</Text>
+                  <Text v="body" muted style={{ fontSize: phone ? 15 : 16, lineHeight: phone ? 22 : 24 }}>{body}</Text>
                 </View>
               </View>
             );
@@ -436,48 +454,73 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
 
 function Pricing({ go, anchor }: { go: (p: string) => void; anchor: (el: any) => void }) {
   const c = useColors();
-  const { desktop, phone } = useBreakpoint();
-  const card = { borderRadius: 28, padding: phone ? 26 : 34, gap: 14 };
+  const { desktop, phone, width } = useBreakpoint();
+  const [yearly, setYearly] = useState(false);
+  const card = { borderRadius: 24, padding: phone ? 20 : 26, gap: 10 };
+  const list = plans(yearly);
+  // Telefonda kartlar yan yana kaydırılır (alt alta üç uzun kart yerine); masaüstünde bölüm tek ekrana sığar.
+  const cardW = Math.min(width - 56, 360);
+  const cards = list.map((p) => {
+    const dark = p.best;
+    return (
+      <View key={p.id} style={[card, phone ? { width: cardW } : { flex: 1 }, { backgroundColor: dark ? c.deepA : c.surface, borderWidth: dark ? 0 : 1, borderColor: c.line }]}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text v="label" color={dark ? c.heroMuted : c.muted} style={{ fontSize: 13 }}>{p.units}</Text>
+            <Display size={26} color={dark ? c.heroInk : c.ink}>{p.name}</Display>
+          </View>
+          {dark ? <Chip tone="warn" label={t('En çok tercih edilen')} /> : null}
+        </View>
+        <View style={{ gap: 2 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+            <Display size={p.per ? 36 : 28} color={dark ? c.heroInk : c.ink}>{p.price}</Display>
+            {p.per ? <Text v="small" color={dark ? c.heroMuted : c.muted}>{p.per}</Text> : null}
+          </View>
+          {p.monthlyEq ? <Text v="small" color={dark ? c.heroMuted : c.muted}>{t('aylık {price}’ye denk gelir', { price: p.monthlyEq })}</Text> : null}
+        </View>
+        <Text v="small" color={dark ? c.butter : c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('1 ay ücretsiz deneme')}</Text>
+        <View style={{ gap: 7, marginVertical: 2 }}>
+          {p.points.map((x: string) => (
+            <View key={x} style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={{ marginTop: 1 }}><Icon name="check" size={16} color={dark ? c.butter : c.okInk} /></View>
+              <Text v="small" color={dark ? c.heroMuted : c.muted} style={{ flex: 1, fontSize: 14, lineHeight: 20 }}>{x}</Text>
+            </View>
+          ))}
+        </View>
+        <View style={{ flex: 1, minHeight: 6 }} />
+        {p.id === 'kurumsal'
+          ? <Button kind={dark ? 'onDark' : 'ghost'} block title={t('Bize ulaşın')} onPress={() => Linking.openURL('mailto:' + CONFIG.supportEmail + '?subject=' + encodeURIComponent(t('Kurumsal paket'))).catch(() => {})} />
+          : <Button kind="primary" block title={t('1 ay ücretsiz dene')} onPress={() => go('/kayit/mulk-sahibi')} />}
+      </View>
+    );
+  });
   return (
     <View ref={anchor}>
-      <Container style={{ paddingTop: phone ? 80 : 160, gap: phone ? 32 : 56 }}>
-        <SectionHead label={t('Fiyatlar')} title={t('Kiracılar için ücretsiz. Mülk sahibi portföyüne göre.')}
+      <Container style={{ paddingTop: phone ? 56 : 96, gap: phone ? 16 : 22 }}>
+        <SectionHead compact label={t('Fiyatlar')} title={t('Kiracılar için ücretsiz. Mülk sahibi portföyüne göre.')}
           body={t('Her paket 1 ay ücretsiz denemeyle başlar. Deneme bitince kayıtların silinmez; kiracının işleri hiç etkilenmez.')} />
-        <Reveal style={{ flexDirection: desktop ? 'row' : 'column', gap: 16, alignItems: 'stretch' }}>
-          {plans().map((p) => {
-            const dark = p.best;
+        <Reveal style={{ alignSelf: 'center', flexDirection: 'row', backgroundColor: c.surface, borderRadius: radius.pill, padding: 4, borderWidth: 1, borderColor: c.line }}>
+          {([[false, t('Aylık')], [true, t('Yıllık · 2 ay bedava')]] as const).map(([k, label]) => {
+            const on = yearly === k;
             return (
-              <View key={p.id} style={[card, { flex: 1, backgroundColor: dark ? c.deepA : c.surface, borderWidth: dark ? 0 : 1, borderColor: c.line }]}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <Text v="label" color={dark ? c.heroMuted : c.muted} style={{ fontSize: 13 }}>{p.units}</Text>
-                    <Display size={28} color={dark ? c.heroInk : c.ink}>{p.name}</Display>
-                  </View>
-                  {dark ? <Chip tone="warn" label={t('En çok tercih edilen')} /> : null}
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                  <Display size={p.per ? 44 : 30} color={dark ? c.heroInk : c.ink}>{p.price}</Display>
-                  {p.per ? <Text v="small" color={dark ? c.heroMuted : c.muted}>{p.per}</Text> : null}
-                </View>
-                <Text v="small" color={dark ? c.butter : c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('1 ay ücretsiz deneme')}</Text>
-                <View style={{ gap: 12, marginVertical: 6 }}>
-                  {p.points.map((x: string) => (
-                    <View key={x} style={{ flexDirection: 'row', gap: 10 }}>
-                      <View style={{ marginTop: 1 }}><Icon name="check" size={18} color={dark ? c.butter : c.okInk} /></View>
-                      <Text v="small" color={dark ? c.heroMuted : c.muted} style={{ flex: 1 }}>{x}</Text>
-                    </View>
-                  ))}
-                </View>
-                <View style={{ flex: 1, minHeight: 10 }} />
-                {p.id === 'kurumsal'
-                  ? <Button kind={dark ? 'onDark' : 'ghost'} block title={t('Bize ulaşın')} onPress={() => Linking.openURL('mailto:' + CONFIG.supportEmail + '?subject=' + encodeURIComponent(t('Kurumsal paket'))).catch(() => {})} />
-                  : <Button kind="primary" block title={t('1 ay ücretsiz dene')} onPress={() => go('/kayit/mulk-sahibi')} />}
-              </View>
+              <PressScale key={String(k)} onPress={() => setYearly(k)} accessibilityRole="tab" accessibilityState={{ selected: on }} scaleTo={0.97}
+                style={{ paddingHorizontal: phone ? 16 : 22, minHeight: 40, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: on ? c.ink : 'transparent' }}>
+                <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 14, color: on ? c.bg : c.ink }}>{label}</RNText>
+              </PressScale>
             );
           })}
         </Reveal>
-        <Reveal style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="check" size={18} color={c.okInk} />
+        {phone ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} snapToInterval={cardW + 12} decelerationRate="fast"
+            style={{ marginHorizontal: -16 }} contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}>
+            {cards}
+          </ScrollView>
+        ) : (
+          <Reveal style={{ flexDirection: desktop ? 'row' : 'column', gap: 16, alignItems: 'stretch' }}>{cards}</Reveal>
+        )}
+        {phone ? <Text v="small" muted style={{ textAlign: 'center' }}>{t('Diğer paketler için kaydır')} ›</Text> : null}
+        <Reveal style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="check" size={16} color={c.okInk} />
           <Text v="small" muted>{t('Kiracılar ve ekip üyeleri (emlakçı, muhasebeci, personel) her zaman ücretsiz.')}</Text>
           <PressScale onPress={() => go('/kayit/kiraci')} accessibilityRole="link"><Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('Kiracı olarak kayıt ol')} ›</Text></PressScale>
         </Reveal>
@@ -495,7 +538,7 @@ function Faq({ anchor }: { anchor: (el: any) => void }) {
   const list = faq();
   return (
     <View ref={anchor}>
-      <Container style={{ paddingTop: phone ? 80 : 160, gap: phone ? 28 : 48 }}>
+      <Container style={{ paddingTop: phone ? 56 : 128, gap: phone ? 16 : 40 }}>
         <SectionHead title={t('Sıkça sorulan sorular')} />
         <Reveal style={{ width: '100%', maxWidth: 820, alignSelf: 'center' }}>
           {list.map((f, i) => {
@@ -503,7 +546,7 @@ function Faq({ anchor }: { anchor: (el: any) => void }) {
             return (
               <View key={f.q} style={{ borderTopWidth: 1, borderTopColor: c.line, borderBottomWidth: i === list.length - 1 ? 1 : 0, borderBottomColor: c.line }}>
                 <PressScale onPress={() => setOpen(on ? null : i)} accessibilityRole="button" accessibilityState={{ expanded: on }} scaleTo={0.995}
-                  style={{ minHeight: 68, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                  style={{ minHeight: phone ? 56 : 68, paddingVertical: phone ? 12 : 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
                   <RNText style={{ flex: 1, fontFamily: fonts.bodyBold, fontSize: phone ? 17 : 19, lineHeight: phone ? 24 : 27, color: c.ink }}>{f.q}</RNText>
                   <View style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1.5, borderColor: on ? c.accent : c.muted, alignItems: 'center', justifyContent: 'center' }}>
                     <View style={{ position: 'absolute', width: 12, height: 2, borderRadius: 1, backgroundColor: on ? c.accent : c.muted }} />
@@ -532,10 +575,10 @@ function Contact({ anchor }: { anchor: (el: any) => void }) {
   const mail = () => Linking.openURL('mailto:' + CONFIG.supportEmail).catch(() => {});
   return (
     <View ref={anchor}>
-      <Container style={{ paddingTop: phone ? 80 : 160, paddingBottom: phone ? 80 : 160, alignItems: 'center' }}>
+      <Container style={{ paddingTop: phone ? 56 : 128, paddingBottom: phone ? 56 : 128, alignItems: 'center' }}>
         <Reveal style={{ alignItems: 'center', gap: phone ? 18 : 24, maxWidth: 760 }}>
           <Text v="label" color={c.accentText} style={{ fontSize: 13, letterSpacing: 0.4 }}>{t('İletişim')}</Text>
-          <Display size={phone ? 40 : 80} center>{t('Soruların için yaz.')}</Display>
+          <Display size={phone ? 34 : 72} center>{t('Soruların için yaz.')}</Display>
           <PressScale onPress={mail} accessibilityRole="link"><Display size={phone ? 22 : 36} color={c.accent} center>{CONFIG.supportEmail}</Display></PressScale>
           <Text v="body" muted style={{ fontSize: phone ? 16 : 18, lineHeight: phone ? 24 : 27, textAlign: 'center', maxWidth: 520 }}>
             {t('Hesap, paket ve veri silme işlemleri için destek merkezine ya da e-postaya ulaşabilirsin.')}

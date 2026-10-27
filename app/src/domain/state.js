@@ -346,7 +346,8 @@ function initial(){
   return s;
 }
 
-/** Yerel hesap: veri bu cihazda, hesaba özel anahtarda durur; ilk açılışta örnek veriyle başlar. */
+/** Yerel hesap: veri bu cihazda, hesaba özel anahtarda durur. Yeni hesap boş başlar (örnek mülk yok):
+    kiracı mülk sahibinin davetiyle bağlanır, mülk sahibi ilk mülkünü kendisi ekler. */
 export function openLocal(key, role){
   storageKey = key;
   readOnly = false;
@@ -355,7 +356,7 @@ export function openLocal(key, role){
   if (raw && raw.props && raw.order){
     next = (raw.v || 1) === VERSION ? raw : migrate(raw);
   }
-  if (!next){ next = seed(); }
+  if (!next){ next = emptyState(); }
   const pref = initial();
   next.theme = pref.theme; next.lang = pref.lang;
   S = next;

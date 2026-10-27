@@ -17,11 +17,12 @@ export const CONFIG = {
   billing: {
     /** Fiyatlar tanımlanana kadar satın alma kapalıdır; herkes deneme ya da yöneticinin verdiği paketle kullanır. */
     paused: true,
-    /** Mülk sahibi paketleri: mülk sınırı (units; null = sınırsız) ve aylık fiyat (null = henüz yok). */
+    /** Mülk sahibi paketleri: mülk sınırı (units; null = sınırsız), aylık fiyat (null = teklif) ve yıllık fiyat
+        (aylığın 10 katı: 2 ay bedava). Her paket 1 ay ücretsiz denemeyle başlar. */
     tiers: [
-      { id:'tek', units:1, price:null },
-      { id:'bes', units:5, price:null },
-      { id:'kurumsal', units:null, price:null }
+      { id:'tek', units:1, price:249.99, yearly:2499.90 },
+      { id:'bes', units:5, price:999.99, yearly:9999.90 },
+      { id:'kurumsal', units:null, price:null, yearly:null }
     ],
     /** Deneme süresince eklenebilecek mülk sayısı. */
     trialUnits: 5,

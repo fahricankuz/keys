@@ -23,7 +23,7 @@ import { Toggle } from './forms';
 import { useStore } from './hooks';
 import { useSheet } from './overlays';
 import {
-  AgendaBody, AgendaSection, InspectTabs, MonthStatusCard, RenewalCard, RentHero, SecDocs, SecExpenses, SecInspect, SecMoveOut, SecMsg, SecPay, SecReq, ReqCard, stopajLine, useGo
+  AgendaBody, AgendaSection, InspectTabs, RenewalCard, RentHero, SecDocs, SecExpenses, SecInspect, SecMoveOut, SecMsg, SecPay, SecReq, ReqCard, stopajLine, useGo
 } from './sections';
 
 /* ---------------- sayfa iskeleti ---------------- */
@@ -109,7 +109,6 @@ export function TenantPanel() {
         {mates.map((x: any) => <PersonRow key={x.id} abbr={initials(x.name)} name={x.name} sub={t('Diğer kiracı')} />)}
       </Card>
       <RentHero p={p} />
-      <MonthStatusCard p={p} />
       <RenewalCard p={p} />
       {p.moveOut && !p.moveOut.refunded ? <MoveOutTeaser p={p} to="/kiraci/belgeler/cikis" /> : null}
       <Row wrap gap={10}>

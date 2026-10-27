@@ -668,7 +668,7 @@ function TierPicker({ current, suggest, onPick }: { current?: string; suggest?: 
           <PressScale key={tr.id} onPress={() => onPick(tr.id)} accessibilityRole="button" accessibilityLabel={planLabel(tr.id)} scaleTo={0.99}
             style={{ padding: 16, borderRadius: radius.lg, borderWidth: 1.5, borderColor: rec ? c.accent : c.line, backgroundColor: rec ? c.accentSoft : c.surface, gap: 4 }}>
             <Row between><Text v="h3">{planLabel(tr.id)}</Text>{mine ? <Chip tone="ok" label={t('Paketin')} /> : rec ? <Chip tone="accent" label={t('Önerilen')} /> : null}</Row>
-            <Row between><Muted>{unitsText(tr.units)}</Muted><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{priceText(tr)}</Text></Row>
+            <Row between><Muted>{unitsText(tr.units)}</Muted><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{priceText(tr)}{tr.price != null ? ' ' + t('/ ay') : ''}</Text></Row>
           </PressScale>
         );
       })}

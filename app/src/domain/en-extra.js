@@ -165,7 +165,7 @@ export const EN_EXTRA = {
   'Kiracı için': 'For tenants',
   'Kiracı olarak ücret öder miyim?': 'Do I pay as a tenant?',
   'Kiracılar ücretsiz · Mülk sahipleri 14 gün kartsız dener': 'Free for tenants · Landlords try it 14 days without a card',
-  'anahtar nedir?': 'What is anahtar?',
+  'Anahtar nedir?': 'What is Anahtar?',
   'Kiracıysan ev sahibinden gelen davet bağlantısıyla kayıt ol.': 'If you are a tenant, sign up with the invite link from your landlord.',
   'Kombi basıncı düşüyor': 'Boiler pressure is dropping',
   'Konut dışında da kullanabilir miyim?': 'Can I use it for non-residential property?',
@@ -401,7 +401,7 @@ export const EN_EXTRA = {
   'Tahsilat oranı': 'Collection rate',
   'net getiri {pct}': 'net yield {pct}',
   'Ay ay': 'Month by month',
-  'Ay ay kira durumu': 'Rent status by month',
+  'Sözleşme öncesi': 'Before contract',
   'Ay': 'Month',
   'Tahsil': 'Collected',
   'Bu yıl için kayıt yok.': 'No records for this year.',
@@ -761,5 +761,14 @@ export const EN_EXTRA = {
   'Denemede {units} mülke kadar ekleyebilirsin.': 'You can add up to {units} properties during the trial.',
   'Kira işinin anahtarı.': 'The key to renting.',
   'Kira işinin': 'The key',
-  'anahtarı.': 'to renting.'
+  'anahtarı.': 'to renting.',
+  'Kira ödendi mi? İki taraf da aynı anda görür.': 'Rent paid? Both sides see it at the same moment.',
+  'Arıza bildirilir, çözülene kadar takip edilir.': 'Repairs are reported and tracked until they are fixed.',
+  'Sözleşme, dekont ve tutanak tek yerde durur.': 'Contracts, receipts and inspections live in one place.',
+  'Konuşulanlar kaybolmaz, kayıtta kalır.': 'What was agreed never gets lost; it stays on record.',
+  'Neden anahtar?': 'Why anahtar?',
+  'Yıllık · 2 ay bedava': 'Yearly · 2 months free',
+  'aylık {price}’ye denk gelir': 'equals {price} a month',
+  'Diğer paketler için kaydır': 'Swipe for other plans',
+  'Davet kodları sunucuya bağlı kurulumda çalışır. Site sunucuya bağlanınca kodunla mülküne bağlanabilirsin.': 'Invite codes work when the site is connected to the server. You can join your property with your code once it is connected.'
 };
