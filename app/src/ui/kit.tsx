@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useRef, useState } from 'react';
 import {
   Platform, Pressable, PressableProps, StyleProp, StyleSheet, Text as RNText, TextInput, TextInputProps, TextStyle, View, ViewStyle
 } from 'react-native';
@@ -35,8 +35,9 @@ const LAYOUT_KEYS = ['flex', 'flexGrow', 'flexShrink', 'flexBasis', 'alignSelf',
 
 /** Tüm dokunulabilir yüzeyler: basınca anında yaylanarak küçülür (apple-design: tepki gecikmesiz).
     Yerleşim (flex, genişlik, kenar boşluğu) dış sarmalayıcıya, görünüm iç katmana gider. */
-export function PressScale({ children, style, wrapStyle, scaleTo = 0.97, ...rest }: PressableProps & { scaleTo?: number; style?: StyleProp<ViewStyle>; wrapStyle?: StyleProp<ViewStyle> }) {
+export function PressScale({ children, style, wrapStyle, scaleTo = 0.97, hoverScale, ...rest }: PressableProps & { scaleTo?: number; hoverScale?: number; style?: StyleProp<ViewStyle>; wrapStyle?: StyleProp<ViewStyle> }) {
   const s = useSharedValue(1);
+  const hovered = useRef(false);
   const a = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
   const flat: any = StyleSheet.flatten(style) || {};
   const outer: any = {};
@@ -49,7 +50,9 @@ export function PressScale({ children, style, wrapStyle, scaleTo = 0.97, ...rest
       {...rest}
       style={[outer, wrapStyle]}
       onPressIn={(e) => { s.value = withSpring(scaleTo, { damping: 20, stiffness: 420 }); rest.onPressIn?.(e); }}
-      onPressOut={(e) => { s.value = withSpring(1, { damping: 18, stiffness: 300 }); rest.onPressOut?.(e); }}
+      onPressOut={(e) => { s.value = withSpring(hovered.current ? hoverScale || 1 : 1, { damping: 18, stiffness: 300 }); rest.onPressOut?.(e); }}
+      onHoverIn={(e) => { hovered.current = true; if (hoverScale) s.value = withSpring(hoverScale, { damping: 18, stiffness: 300 }); rest.onHoverIn?.(e); }}
+      onHoverOut={(e) => { hovered.current = false; if (hoverScale) s.value = withSpring(1, { damping: 18, stiffness: 300 }); rest.onHoverOut?.(e); }}
     >
       <Animated.View style={[a, fill ? { alignSelf: 'stretch', flexGrow: 1 } : null, inner]}>{children as ReactNode}</Animated.View>
     </Pressable>
@@ -70,21 +73,26 @@ export function Button({ title, onPress, kind = 'primary', block, disabled, load
   const [focus, setFocus] = useState(false);
   const off = !!(disabled || loading);
   const filled = kind === 'primary' || kind === 'dark' || kind === 'quiet';
+  // Üzerine gelince her düğme kırmızıya geçer (birincil biraz koyulaşır) ve hafifçe büyür; basınca küçülür.
+  const hot = hover && !off;
   const bg = off && filled ? c.offBg
-    : kind === 'primary' ? (hover ? ACCENT_HOVER : c.accent)
+    : hot ? (kind === 'primary' ? ACCENT_HOVER : c.accent)
+    : kind === 'primary' ? c.accent
     : kind === 'dark' ? c.ink
-    : kind === 'quiet' ? (hover ? c.line : c.surface2)
-    : hover ? (kind === 'onDark' ? 'rgba(251,244,234,0.12)' : c.surface2) : 'transparent';
-  const fg = off && filled ? c.offInk : kind === 'primary' ? c.accentInk : kind === 'dark' ? c.bg : kind === 'onDark' ? c.heroInk : c.ink;
-  const border = kind === 'ghost' ? c.ink : kind === 'onDark' ? 'rgba(251,244,234,0.45)' : 'transparent';
+    : kind === 'quiet' ? c.surface2
+    : 'transparent';
+  const fg = off && filled ? c.offInk : hot || kind === 'primary' ? c.accentInk : kind === 'dark' ? c.bg : kind === 'onDark' ? c.heroInk : c.ink;
+  const border = hot ? (kind === 'primary' ? ACCENT_HOVER : c.accent) : kind === 'ghost' ? c.ink : kind === 'onDark' ? 'rgba(251,244,234,0.45)' : kind === 'primary' ? c.accent : 'transparent';
   const ring = kind === 'onDark' ? c.heroInk : c.ink;
-  const web: any = Platform.OS === 'web' ? { transitionProperty: 'background-color, box-shadow', transitionDuration: '280ms' } : null;
+  const web: any = Platform.OS === 'web' ? { transitionProperty: 'background-color, border-color, box-shadow', transitionDuration: '220ms', cursor: off ? 'default' : 'pointer' } : null;
   return (
     <PressScale
       accessibilityRole="button"
       accessibilityState={{ disabled: !!(disabled || loading) }}
       disabled={disabled || loading}
       onPress={onPress}
+      hoverScale={off ? undefined : 1.03}
+      scaleTo={0.95}
       onHoverIn={() => setHover(true)}
       onHoverOut={() => setHover(false)}
       onFocus={() => setFocus(true)}
@@ -92,7 +100,7 @@ export function Button({ title, onPress, kind = 'primary', block, disabled, load
       style={[
         {
           minHeight: 52, paddingHorizontal: 26, borderRadius: radius.pill, backgroundColor: bg,
-          borderWidth: 2, borderColor: border, boxShadow: focus ? `0 0 0 3px ${c.bg}, 0 0 0 5px ${ring}` : 'none', ...web,
+          borderWidth: 2, borderColor: border, boxShadow: focus ? `0 0 0 3px ${c.bg}, 0 0 0 5px ${ring}` : hot ? '0 6px 18px rgba(201,45,43,0.28)' : 'none', ...web,
           flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
           alignSelf: block ? 'stretch' : 'flex-start'
         },
@@ -100,7 +108,7 @@ export function Button({ title, onPress, kind = 'primary', block, disabled, load
       ]}
     >
       {icon}
-      {loading ? <Loader size={28} mono={fg} /> : <RNText style={{ color: fg, fontFamily: fonts.bodyBold, fontSize: 16 }}>{title}</RNText>}
+      {loading ? <Loader size={28} mono={fg} /> : <RNText style={{ color: fg, fontFamily: fonts.bodyBold, fontSize: 16, ...(Platform.OS === 'web' ? { transitionProperty: 'color', transitionDuration: '220ms' } as any : null) }}>{title}</RNText>}
     </PressScale>
   );
 }

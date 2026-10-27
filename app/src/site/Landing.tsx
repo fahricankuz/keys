@@ -1,9 +1,9 @@
 /* Tanıtım sitesi (ana sayfa). Bölümler: başlık + telefon, dönen sözcük, manifesto, özellikler (sekmeli),
    nasıl çalışır, fiyatlar, sıkça sorulanlar, iletişim, alt bilgi. */
 import { ReactNode, useEffect, useRef, useState } from 'react';
-import { Linking, ScrollView, Text as RNText, View } from 'react-native';
+import { Linking, Pressable, ScrollView, Text as RNText, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import Animated, { FadeIn, FadeInDown, FadeOutUp } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeInDown, FadeOutUp, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { t, getLang, setLang } from '../domain/i18n';
 import { CONFIG } from '../domain/config';
 import { Button, Chip, Container, PressScale, Text } from '../ui/kit';
@@ -452,48 +452,79 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
 
 /* ---------------- fiyatlar ---------------- */
 
+/** Fiyat kartı: önde paket, fiyat ve düğme; arkada paketin özellikleri. Masaüstünde üzerine gelince,
+    telefonda dokununca döner. Düğme iki yüzde de vardır, kart dönükken de tıklanır. */
+function PlanCard({ p, w, go }: { p: any; w?: number; go: (path: string) => void }) {
+  const c = useColors();
+  const { phone } = useBreakpoint();
+  const dark = p.best;
+  const [back, setBack] = useState(false);
+  const turn = useSharedValue(0);
+  useEffect(() => { turn.value = withTiming(back ? 180 : 0, { duration: 520, easing: Easing.bezier(0.32, 0.72, 0, 1) }); }, [back]);
+  const front = useAnimatedStyle(() => ({ transform: [{ perspective: 1200 }, { rotateY: turn.value + 'deg' }] }));
+  const rear = useAnimatedStyle(() => ({ transform: [{ perspective: 1200 }, { rotateY: turn.value + 180 + 'deg' }] }));
+  const ink = dark ? c.heroInk : c.ink, soft = dark ? c.heroMuted : c.muted;
+  const face: any = {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 24, padding: phone ? 20 : 26, gap: 10,
+    backgroundColor: dark ? c.deepA : c.surface, borderWidth: dark ? 0 : 1, borderColor: c.line, backfaceVisibility: 'hidden', overflow: 'hidden'
+  };
+  const cta = p.id === 'kurumsal'
+    ? <Button kind="primary" block title={t('Bize ulaşın')} onPress={() => Linking.openURL('mailto:' + CONFIG.supportEmail + '?subject=' + encodeURIComponent(t('Kurumsal paket'))).catch(() => {})} />
+    : <Button kind="primary" block title={t('1 ay ücretsiz dene')} onPress={() => go('/kayit/mulk-sahibi')} />;
+  const head = (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text v="label" color={soft} style={{ fontSize: 13 }}>{p.units}</Text>
+        <Display size={26} color={ink}>{p.name}</Display>
+      </View>
+      {dark ? <Chip tone="warn" label={t('En çok tercih edilen')} /> : null}
+    </View>
+  );
+  return (
+    // Dış yüzey düğme rolü almaz (içindeki düğmeler erişilebilir kalsın); iki yüz de ekran okuyucuya açıktır.
+    <Pressable onPress={() => setBack((x) => !x)} onHoverIn={() => setBack(true)} onHoverOut={() => setBack(false)} focusable={false}
+      style={[{ height: phone ? 372 : 360 }, w ? { width: w } : { flex: 1 }]}>
+      <Animated.View style={[face, front]} pointerEvents={back ? 'none' : 'auto'}>
+        {head}
+        <View style={{ gap: 2, marginTop: 6 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+            <Display size={p.per ? 40 : 30} color={ink}>{p.price}</Display>
+            {p.per ? <Text v="small" color={soft}>{p.per}</Text> : null}
+          </View>
+          {p.monthlyEq ? <Text v="small" color={soft}>{t('aylık {price}’ye denk gelir', { price: p.monthlyEq })}</Text> : null}
+        </View>
+        <Text v="small" color={dark ? c.butter : c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('1 ay ücretsiz deneme')}</Text>
+        <View style={{ flex: 1 }} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text v="small" color={soft} style={{ fontFamily: fonts.bodyBold }}>↻</Text>
+          <Text v="small" color={soft}>{phone ? t('Özellikler için karta dokun') : t('Özellikler için üzerine gel')}</Text>
+        </View>
+        {cta}
+      </Animated.View>
+      <Animated.View style={[face, rear]} pointerEvents={back ? 'auto' : 'none'}>
+        {head}
+        <View style={{ gap: 7, marginTop: 2 }}>
+          {p.points.map((x: string) => (
+            <View key={x} style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={{ marginTop: 1 }}><Icon name="check" size={16} color={dark ? c.butter : c.okInk} /></View>
+              <Text v="small" color={soft} style={{ flex: 1, fontSize: 14, lineHeight: 20 }}>{x}</Text>
+            </View>
+          ))}
+        </View>
+        <View style={{ flex: 1 }} />
+        {cta}
+      </Animated.View>
+    </Pressable>
+  );
+}
+
 function Pricing({ go, anchor }: { go: (p: string) => void; anchor: (el: any) => void }) {
   const c = useColors();
   const { desktop, phone, width } = useBreakpoint();
   const [yearly, setYearly] = useState(false);
-  const card = { borderRadius: 24, padding: phone ? 20 : 26, gap: 10 };
   const list = plans(yearly);
-  // Telefonda kartlar yan yana kaydırılır (alt alta üç uzun kart yerine); masaüstünde bölüm tek ekrana sığar.
+  // Telefonda kartlar yan yana kaydırılır; masaüstünde bölüm tek ekrana sığar.
   const cardW = Math.min(width - 56, 360);
-  const cards = list.map((p) => {
-    const dark = p.best;
-    return (
-      <View key={p.id} style={[card, phone ? { width: cardW } : { flex: 1 }, { backgroundColor: dark ? c.deepA : c.surface, borderWidth: dark ? 0 : 1, borderColor: c.line }]}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text v="label" color={dark ? c.heroMuted : c.muted} style={{ fontSize: 13 }}>{p.units}</Text>
-            <Display size={26} color={dark ? c.heroInk : c.ink}>{p.name}</Display>
-          </View>
-          {dark ? <Chip tone="warn" label={t('En çok tercih edilen')} /> : null}
-        </View>
-        <View style={{ gap: 2 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-            <Display size={p.per ? 36 : 28} color={dark ? c.heroInk : c.ink}>{p.price}</Display>
-            {p.per ? <Text v="small" color={dark ? c.heroMuted : c.muted}>{p.per}</Text> : null}
-          </View>
-          {p.monthlyEq ? <Text v="small" color={dark ? c.heroMuted : c.muted}>{t('aylık {price}’ye denk gelir', { price: p.monthlyEq })}</Text> : null}
-        </View>
-        <Text v="small" color={dark ? c.butter : c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('1 ay ücretsiz deneme')}</Text>
-        <View style={{ gap: 7, marginVertical: 2 }}>
-          {p.points.map((x: string) => (
-            <View key={x} style={{ flexDirection: 'row', gap: 8 }}>
-              <View style={{ marginTop: 1 }}><Icon name="check" size={16} color={dark ? c.butter : c.okInk} /></View>
-              <Text v="small" color={dark ? c.heroMuted : c.muted} style={{ flex: 1, fontSize: 14, lineHeight: 20 }}>{x}</Text>
-            </View>
-          ))}
-        </View>
-        <View style={{ flex: 1, minHeight: 6 }} />
-        {p.id === 'kurumsal'
-          ? <Button kind={dark ? 'onDark' : 'ghost'} block title={t('Bize ulaşın')} onPress={() => Linking.openURL('mailto:' + CONFIG.supportEmail + '?subject=' + encodeURIComponent(t('Kurumsal paket'))).catch(() => {})} />
-          : <Button kind="primary" block title={t('1 ay ücretsiz dene')} onPress={() => go('/kayit/mulk-sahibi')} />}
-      </View>
-    );
-  });
   return (
     <View ref={anchor}>
       <Container style={{ paddingTop: phone ? 56 : 96, gap: phone ? 16 : 22 }}>
@@ -513,10 +544,10 @@ function Pricing({ go, anchor }: { go: (p: string) => void; anchor: (el: any) =>
         {phone ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} snapToInterval={cardW + 12} decelerationRate="fast"
             style={{ marginHorizontal: -16 }} contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}>
-            {cards}
+            {list.map((p) => <PlanCard key={p.id} p={p} w={cardW} go={go} />)}
           </ScrollView>
         ) : (
-          <Reveal style={{ flexDirection: desktop ? 'row' : 'column', gap: 16, alignItems: 'stretch' }}>{cards}</Reveal>
+          <Reveal style={{ flexDirection: desktop ? 'row' : 'column', gap: 16, alignItems: 'stretch' }}>{list.map((p) => <PlanCard key={p.id} p={p} go={go} />)}</Reveal>
         )}
         {phone ? <Text v="small" muted style={{ textAlign: 'center' }}>{t('Diğer paketler için kaydır')} ›</Text> : null}
         <Reveal style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'center' }}>
