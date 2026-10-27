@@ -35,6 +35,13 @@ jobs:
       - name: Tür denetimi
         working-directory: app
         run: npx tsc --noEmit
+      - name: Supabase anahtarı denetimi
+        env:
+          ANON: ${{ vars.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$ANON" ]; then
+            echo "::warning title=Supabase anahtarı yok::SUPABASE_ANON_KEY tanımlı değil; site yerel hesap modunda (veri yalnız tarayıcıda) derleniyor. Settings → Secrets and variables → Actions → Variables altına ekleyin."
+          fi
       - name: Siteyi derle ve sertleştir
         working-directory: app
         env:

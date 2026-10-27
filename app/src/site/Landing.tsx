@@ -76,7 +76,7 @@ function Hero({ scrollTo }: { go: (p: string) => void; scrollTo: (k: string) => 
             <Reveal delay={420} y={12}>
               <Pill bg={c.tile} size={pill}>
                 <View style={{ width: pill * 0.4, height: pill * 0.4, borderRadius: pill * 0.1, backgroundColor: c.lemon }} />
-                <RNText style={{ fontFamily: fonts.bodyBold, fontSize: pill * 0.4, color: c.ink }}>{t('Ödendi')}</RNText>
+                <RNText style={{ fontFamily: fonts.bodyBold, fontSize: Math.max(12, pill * 0.4), color: c.ink }}>{t('Ödendi')}</RNText>
               </Pill>
             </Reveal>
           </View>
@@ -342,7 +342,7 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
     <View ref={anchor} style={{ backgroundColor: c.tile, marginTop: phone ? 44 : 128 }}>
       <Container style={{ paddingVertical: phone ? 36 : 112, gap: phone ? 16 : 40 }}>
         <SectionHead label={t('Nasıl çalışır')} title={t('Dört adımda başla.')} />
-        <Reveal style={{ alignSelf: 'center', flexDirection: 'row', backgroundColor: c.surface, borderRadius: radius.pill, padding: 5, borderWidth: 1, borderColor: c.line }}>
+        <Reveal accessibilityRole="tablist" style={{ alignSelf: 'center', flexDirection: 'row', backgroundColor: c.surface, borderRadius: radius.pill, padding: 5, borderWidth: 1, borderColor: c.line }}>
           {([['landlord', t('Mülk sahibiyim')], ['tenant', t('Kiracıyım')]] as const).map(([k, label]) => {
             const on = who === k;
             return (
@@ -439,7 +439,7 @@ function Pricing({ go, anchor }: { go: (p: string) => void; anchor: (el: any) =>
       <Container style={{ paddingTop: phone ? 44 : 96, gap: phone ? 14 : 22 }}>
         <SectionHead compact label={t('Fiyatlar')} title={t('Kiracılar için ücretsiz. Mülk sahibi portföyüne göre.')}
           body={t('Her paket 1 ay ücretsiz denemeyle başlar. Deneme bitince kayıtların silinmez; kiracının işleri hiç etkilenmez.')} />
-        <Reveal style={{ alignSelf: 'center', flexDirection: 'row', backgroundColor: c.surface, borderRadius: radius.pill, padding: 4, borderWidth: 1, borderColor: c.line }}>
+        <Reveal accessibilityRole="tablist" style={{ alignSelf: 'center', flexDirection: 'row', backgroundColor: c.surface, borderRadius: radius.pill, padding: 4, borderWidth: 1, borderColor: c.line }}>
           {([[false, t('Aylık')], [true, t('Yıllık · 2 ay ücretsiz')]] as const).map(([k, label]) => {
             const on = yearly === k;
             return (
@@ -480,7 +480,7 @@ function Faq({ anchor }: { anchor: (el: any) => void }) {
             const on = open === i;
             return (
               <View key={f.q} style={{ borderTopWidth: 1, borderTopColor: c.line, borderBottomWidth: i === list.length - 1 ? 1 : 0, borderBottomColor: c.line }}>
-                <PressScale onPress={() => setOpen(on ? null : i)} accessibilityRole="button" accessibilityState={{ expanded: on }} scaleTo={0.995}
+                <PressScale onPress={() => setOpen(on ? null : i)} accessibilityRole="button" accessibilityState={{ expanded: on }} aria-expanded={on} scaleTo={0.995}
                   style={{ minHeight: phone ? 56 : 68, paddingVertical: phone ? 12 : 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
                   <RNText style={{ flex: 1, fontFamily: fonts.bodyBold, fontSize: phone ? 15.5 : 19, lineHeight: phone ? 22 : 27, color: c.ink }}>{f.q}</RNText>
                   <View style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1.5, borderColor: on ? c.accent : c.muted, alignItems: 'center', justifyContent: 'center' }}>

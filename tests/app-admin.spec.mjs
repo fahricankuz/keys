@@ -57,7 +57,7 @@ async function tenantUploads(page) {
   await login(page, 'kiraci@ornek.com');
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
   await uploadReceipt(page);
-  await expect(page.getByText('Kiracım ekibi dekontu inceliyor').first()).toBeVisible();
+  await expect(page.getByText('anahtar ekibi dekontu inceliyor').first()).toBeVisible();
   await expect.poll(async () => (await db(page)).tables.reviews.length).toBe(1);   // eşitleme gecikmeli çalışır
 }
 
@@ -65,7 +65,7 @@ test('kiracı dekont yükler; denetim kaydı düşer, mülk sahibi onaydan önce
   await login(page, 'kiraci@ornek.com');
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
   await uploadReceipt(page);
-  await expect(page.getByText('Kiracım ekibi dekontu inceliyor').first()).toBeVisible();
+  await expect(page.getByText('anahtar ekibi dekontu inceliyor').first()).toBeVisible();
 
   await expect.poll(async () => (await db(page)).tables.reviews.length).toBe(1);   // eşitleme gecikmeli çalışır
   const d = await db(page);
@@ -76,7 +76,8 @@ test('kiracı dekont yükler; denetim kaydı düşer, mülk sahibi onaydan önce
 
   await login(page, 'ev@ornek.com');
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
-  await expect(page.getByText('Onay bekliyor')).toHaveCount(0);           // mülk sahibi henüz görmez
+  // mülk sahibi henüz görmez (renk açıklama listesindeki "Onay bekliyor" etiketi sayılmaz)
+  await expect(page.getByText('Onay bekliyor').filter({ hasNot: page.locator('xpath=ancestor::*[@aria-label="Karo açıklaması"]') })).toHaveCount(0);
   expect((await db(page)).tables.notifications).toHaveLength(0);
 });
 
@@ -86,7 +87,8 @@ test('yönetici dekontu onaylar; mülk sahibi onay bekleyen ödemeyi görür ve 
   await expect(page).toHaveURL(/\/admin$/);
   await expect(page.getByText('Yönetici', { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('button', { name: /Denetim \(1\)/ })).toBeVisible();
-  await expect(page.getByText('dekont.png').first()).toBeVisible();
+  await page.getByRole('button', { name: /Denetim \(1\)/ }).click();          // panel "Genel bakış" ile açılır
+  await expect(page.getByText(/dekont.*\.png/).first()).toBeVisible();
   await page.getByRole('button', { name: 'Onayla', exact: true }).click();
   await expect(page.getByText('Bekleyen yükleme yok')).toBeVisible();
 
@@ -122,6 +124,7 @@ test('yönetici reddeder: gerekçe zorunlu, kiracı gerekçeyi görür, ödeme r
   await tenantUploads(page);
 
   await login(page, 'admin@ornek.com');
+  await page.getByRole('button', { name: /^Denetim/ }).click();          // panel "Genel bakış" ile açılır
   await page.getByRole('button', { name: 'Reddet', exact: true }).click();
   await page.getByRole('button', { name: 'Reddet', exact: true }).last().click();       // gerekçesiz
   await expect(page.getByText('Red için gerekçe yaz.')).toBeVisible();
@@ -203,8 +206,9 @@ test('kayıt ayrı: mülk sahibi kaydı rol seçtirmeden mülk sahibi hesabı a�
   await page.getByLabel('Ad soyad').fill('Yeni Mülk Sahibi');
   await page.getByLabel('E-posta').fill('yeni@ornek.com');
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
-  await page.getByRole('checkbox').click();
-  await page.getByRole('button', { name: 'Hesap oluştur' }).click();
+  await page.getByLabel('Şifre (tekrar)').fill(PW);
+  await page.getByRole('checkbox').click({ position: { x: 10, y: 10 } });
+  await page.getByRole('button', { name: /Hesap oluştur|ücretsiz başla/ }).click();
   await expect(page).toHaveURL(/\/uygulama$/);
   const d = await db(page);
   expect(d.tables.profiles.find(p => p.name === 'Yeni Mülk Sahibi').role).toBe('landlord');
@@ -231,50 +235,49 @@ test('yazışmaya fotoğraf eklenir; karşı taraf fotoğrafı mesajda görür',
   await expect(page.getByLabel('Fotoğraf', { exact: true })).toBeVisible();
 });
 
-test('ana sayfa üst menüsü oturum açıkken de "Giriş yap" ve "Kayıt ol" gösterir', async ({ page }) => {
+test('ana sayfa üst menüsü oturum açıkken "Panele git" gösterir, giriş/kayıt göstermez', async ({ page }) => {
   await login(page, 'kiraci@ornek.com');
   await expect(page).toHaveURL(/\/uygulama$/);
   await page.goto(url('/'));
-  await expect(page.getByRole('button', { name: 'Giriş yap' }).first()).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Kayıt ol' }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Panele git' }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Giriş yap' })).toHaveCount(0);
   await expect(page.getByText('Uygulamayı aç')).toHaveCount(0);
 });
 
-test('ana sayfa: duyuru şeridi, açılır özellik menüsü ve kayan özellik kartları, SSS', async ({ page }) => {
+test('ana sayfa: duyuru şeridi, açılır özellik menüsü, yüzen kartlar, fiyat seçimi ve SSS', async ({ page }) => {
   await page.goto(url('/'));
-  await expect(page.getByText('Kiracılar ücretsiz · Mülk sahipleri 14 gün kartsız dener')).toBeVisible();
+  await expect(page.getByText('Mülk sahiplerine 1 ay ücretsiz deneme')).toBeVisible();
   // Başlığın yanındaki yüzen kartlar (ödeme, yazışma, talep, depozito).
   for (const tag of ['Ödemeler', 'Yazışma', 'Talepler', 'Depozito']) await expect(page.getByText(tag, { exact: true }).first()).toBeVisible();
-  // Üzerine gelmek açmaz; basınca açılır ve fare çekilse de açık kalır.
-  await page.getByRole('button', { name: 'Özellikler' }).hover();
-  await expect(page.getByText('Dekont yükleme')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Özellikler' }).click();
-  await expect(page.getByText('Dekont yükleme')).toBeVisible();
+  // Özellikler menüsü: üzerine gelmek açmaz; basınca açılır ve fare çekilse de açık kalır.
+  const menu = page.getByRole('button', { name: 'Özellikler' });
+  const goTo = (name) => page.getByText(name + ' bölümüne git', { exact: false });
+  await menu.hover();
+  await expect(goTo('Ödemeler')).toHaveCount(0);
+  await menu.click();
+  await expect(goTo('Ödemeler')).toBeVisible();
   await page.mouse.move(700, 700);
   await page.waitForTimeout(500);
-  await expect(page.getByText('Dekont yükleme')).toBeVisible();
-  await page.getByRole('tab', { name: /Yazışma ve belgeler/ }).click();
-  await expect(page.getByText('Belge arşivi')).toBeVisible();
-  await expect(page.getByText('Fotoğraflı mesaj')).toBeVisible();
-  // Bir daha basınca kapanır.
-  await page.getByRole('button', { name: 'Özellikler' }).click();
-  await expect(page.getByText('Belge arşivi')).toHaveCount(0);
-  // Esc de kapatır.
-  await page.getByRole('button', { name: 'Özellikler' }).click();
-  await expect(page.getByText('Dekont yükleme')).toBeVisible();
+  await expect(goTo('Ödemeler')).toBeVisible();
+  // Bir daha basınca kapanır; Esc de kapatır.
+  await menu.click();
+  await expect(goTo('Ödemeler')).toHaveCount(0);
+  await menu.click();
+  await expect(goTo('Ödemeler')).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByText('Dekont yükleme')).toHaveCount(0);
-  await expect(page.getByText('Fotoğraflı yazışma')).toBeVisible();
-  await page.getByRole('button', { name: 'Sonraki' }).click();
-  await expect(page.getByRole('button', { name: 'Hemen dene' }).first()).toBeVisible();
-  // Üst menüden SSS'ye inilir; soru basınca açılır, yeniden basınca kapanır.
-  await page.getByRole('link', { name: 'SSS' }).first().click();
-  const q = page.getByRole('button', { name: 'Kiracı olarak ücret öder miyim?' });
-  await expect(q).toBeVisible();
+  await expect(goTo('Ödemeler')).toHaveCount(0);
+  // Fiyatlar: aylık / yıllık seçimi fiyatı değiştirir; paket düğmesi "Paketi seç".
+  await expect(page.getByText('₺249,99').first()).toBeVisible();
+  await page.getByRole('tab', { name: /Yıllık/ }).click();
+  await expect(page.getByText('₺2.499,90').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Paketi seç' }).first()).toBeVisible();
+  // SSS: soru basınca açılır, yeniden basınca kapanır.
+  const q = page.getByRole('button', { name: 'Kiracı için ücretli mi?' });
+  await q.scrollIntoViewIfNeeded();
   await expect(q).toHaveAttribute('aria-expanded', 'false');
   await q.click();
   await expect(q).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByText('Hayır. Kiracı hesapları her zaman ücretsizdir.')).toBeVisible();
+  await expect(page.getByText(/Hayır\. Kiracı hesabı her zaman ücretsizdir/)).toBeVisible();
   await q.click();
   await expect(q).toHaveAttribute('aria-expanded', 'false');
 });
@@ -297,7 +300,8 @@ test('güvenlik: her sayfada CSP var ve satır içi betiklerin hepsi özetle izi
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("base-uri 'self'");
     expect(csp).not.toMatch(/script-src[^;]*'unsafe-(inline|eval)'/);
-    for (const m of html.matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)) {
+    // JSON-LD gibi veri blokları çalıştırılmaz; CSP yalnız çalıştırılabilir satır içi betiklere uygulanır.
+    for (const m of html.matchAll(/<script(?![^>]*\ssrc=)(?![^>]*type="application\/ld\+json")[^>]*>([\s\S]*?)<\/script>/g)) {
       const hash = 'sha256-' + createHash('sha256').update(m[1]).digest('base64');
       expect(csp, f + ' → ' + m[1].slice(0, 60)).toContain(hash);
     }
@@ -321,7 +325,7 @@ test('Hostinger: .htaccess (HTTPS, temiz adresler, başlıklar) ve manifest derl
   expect(ht).toContain('Strict-Transport-Security');
   expect(ht).toContain('ErrorDocument 404 /404.html');
   const man = JSON.parse(readFileSync(DIST + '/manifest.webmanifest', 'utf8'));
-  expect(man).toMatchObject({ short_name: 'Kiracım', display: 'standalone', start_url: './' });
+  expect(man).toMatchObject({ short_name: 'anahtar', display: 'standalone', start_url: './' });
   for (const p of ['404.html', 'giris/kiraci/index.html', 'kayit/mulk-sahibi/index.html', 'uygulama/mesajlar/index.html', 'giris/kiraci.html', 'giris/mulk-sahibi.html', 'giris/yonetici.html', 'kayit/kiraci.html', 'kayit/mulk-sahibi.html', 'sifre.html', 'katil.html', 'uygulama/mesajlar.html', 'admin/index.html', 'index.html'])
     expect(existsSync(DIST + '/' + p), p).toBe(true);
 });
@@ -330,7 +334,7 @@ test('güvenlik: CSP ihlali yok ve çerçeve koruması başka siteye gömmeyi en
   const violations = [];
   page.on('console', (m) => { if (/Content Security Policy|violates the following/i.test(m.text())) violations.push(m.text()); });
   await page.goto(url('/'));
-  await expect(page.getByText('Kira işi,').first()).toBeVisible();
+  await expect(page.getByText('Kira işinin').first()).toBeVisible();
   await page.goto(url('/giris/kiraci'));
   await expect(page.getByLabel('E-posta')).toBeVisible();
   expect(violations).toEqual([]);
@@ -448,4 +452,16 @@ test('yönetici mesajdaki göndereni oradan yasaklayabilir; bağlantılar sekmes
   await page.getByLabel('Yasaklama gerekçesi').fill('Spam');
   await page.getByRole('button', { name: 'Hesabı yasakla' }).click();
   await expect.poll(async () => (await db(page)).tables.bans.map((b) => b.reason)).toEqual(['Spam']);
+});
+
+test('yönetici genel bakışı: üyelik, gelir, kullanım göstergeleri ve aktivasyon hunisi', async ({ page }) => {
+  await tenantUploads(page);
+  await login(page, 'admin@ornek.com');
+  await expect(page).toHaveURL(/\/admin$/);
+  for (const label of ['Üye', 'Ödeyen mülk sahibi', 'Aylık gelir (tahmini)', 'Haftalık etkin kullanıcı', 'Davet kabul oranı (30 gün)', 'Yıllık gelir (ARR, tahmini)', 'Aktivasyon hunisi', 'Günlük yeni kayıt'])
+    await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
+  // Örnek veride tek mülk sahibi: mülkü ve bağlı kiracısı var.
+  await expect(page.getByText(/^1\. Kayıt olan mülk sahibi$/)).toBeVisible();
+  await expect(page.getByText(/^1 · 100%$/).first()).toBeVisible();
+  await page.screenshot({ path: 'test-results/yonetici-genel-bakis.png', fullPage: true });
 });

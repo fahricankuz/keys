@@ -310,6 +310,41 @@ export function createClient(url, key, opts){
         if (name === 'admin_audit_log')
           return { data: db.tables.admin_audit.slice().reverse().map(a => ({ id:a.id, at:a.at, admin_name:nameOfUser(a.admin_id), action:a.action, target:a.target, detail:a.detail })), error:null };
       }
+      if (name === 'admin_kpis'){
+        // Yalnızca testler: supabase/schema.sql → admin_kpis ile aynı biçimde, sahte tablolardan hesaplanır.
+        if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
+        const T = db.tables, d = Math.min(Math.max(Number(args?.days) || 30, 1), 365), day = 864e5, t0 = Date.now();
+        const within = (v, n) => v && t0 - Date.parse(v) < n * day;
+        const owners = T.profiles.filter(p => p.role === 'landlord');
+        const ownsWith = (o, f) => T.properties.some(pr => pr.owner_id === o.id && f(pr));
+        const month = new Date().toISOString().slice(0, 7), prev = new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 7);
+        const sum = m => T.payments.filter(x => ['approved','partial'].includes(x.status) && x.month === m).reduce((a, x) => a + Number(x.amount || 0), 0);
+        const paying = owners.filter(o => accessOf(db, o.id).subscribed).length;
+        const series = Array.from({ length: d }, (_, i) => {
+          const dd = new Date(t0 - (d - 1 - i) * day).toISOString().slice(0, 10);
+          const on = p => String(p.created_at || '').slice(0, 10) === dd;
+          return { d: dd, landlords: T.profiles.filter(p => p.role === 'landlord' && on(p)).length, tenants: T.profiles.filter(p => p.role !== 'landlord' && on(p)).length };
+        });
+        return { data: {
+          days: d,
+          users: { total: T.profiles.length, landlords: owners.length, tenants: T.profiles.filter(p => p.role === 'tenant').length, team: T.profiles.filter(p => p.role === 'team').length },
+          signups: { period: T.profiles.filter(p => within(p.created_at, d)).length, prev: 0 },
+          owners: { total: owners.length, paying, trial: owners.length - paying, expiring: 0, active: owners.length, lapsed: 0 },
+          plans: {}, billingIssues: 0, cancelling: 0,
+          units: { total: T.properties.length, connected: new Set(T.memberships.filter(m => m.role === 'tenant').map(m => m.property_id)).size },
+          rent: { month: sum(month), prevMonth: sum(prev) },
+          supportOpen: T.support_requests.filter(r => r.status === 'open').length,
+          funnel: { owners: owners.length,
+                    withProperty: owners.filter(o => ownsWith(o, () => true)).length,
+                    withTenant: owners.filter(o => ownsWith(o, pr => T.memberships.some(m => m.property_id === pr.id && m.role === 'tenant'))).length,
+                    withPayment: owners.filter(o => ownsWith(o, pr => T.payments.some(x => x.property_id === pr.id && ['approved','partial'].includes(x.status)))).length },
+          activeUsers: { week: T.profiles.length, month: T.profiles.length },
+          invites: { created: T.invites.length, accepted: T.invites.filter(i => i.accepted_by).length },
+          requests: { open: T.requests.filter(r => r.status < 3).length, done: T.requests.filter(r => r.status === 3).length, period: T.requests.length },
+          punctuality: { onTime: 0, late: 0 },
+          series
+        }, error:null };
+      }
       if (name === 'my_access') return { data: accessOf(db, me), error:null };
       if (name === 'delete_my_account'){
         db.users = db.users.filter(u => u.id !== me);

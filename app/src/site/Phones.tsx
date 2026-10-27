@@ -96,7 +96,7 @@ function OwnerScreen({ pal, u }: { pal: Pal; u: number }) {
       </View>
       <View style={{ gap: 2 * u }}>
         <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 12 * u, color: pal.ink }}>{t('Portföyüm')}</RNText>
-        <RNText style={{ fontFamily: fonts.display, fontSize: 30 * u, lineHeight: 34 * u, color: pal.ink, letterSpacing: -1 * u }}>₺114.500<RNText style={{ color: pal.offInk }}>,00</RNText></RNText>
+        <RNText style={{ fontFamily: fonts.display, fontSize: 30 * u, lineHeight: 34 * u, color: pal.ink, letterSpacing: -1 * u }}>₺114.500<RNText style={{ color: pal.muted }}>,00</RNText></RNText>
         <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 10.5 * u, color: pal.okInk }}>%96 {t('tahsil edildi')} <RNText style={{ color: pal.muted, fontFamily: fonts.body }}>· {t('Bu ay')}</RNText></RNText>
       </View>
       <View style={{ flexDirection: 'row', gap: 6 * u }}>
@@ -203,10 +203,13 @@ export function PhoneStage({ w, count = 3, show = 0.66 }: { w: number; count?: 2
   return (
     <View accessibilityRole="image" accessibilityLabel={t('anahtar uygulamasında ödemeler, portföy ve talepler ekranları')}
       style={{ width, height: visible, overflow: 'hidden', alignSelf: 'center' }}>
+      {/* Telefonların içi süs: ekran okuyucu yalnızca dıştaki açıklamayı okur. */}
+      <View aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
       {count === 3 ? <View style={tilt(-7, pad)}><Phone w={side} pal={LIGHT} screen="owner" /></View> : null}
       <View style={tilt(7, width - side - pad)}><Phone w={side} pal={LIGHT} screen="req" /></View>
       <View style={{ position: 'absolute', top: 8, left: pad + (count === 3 ? side - overlap : 0), zIndex: 2 }}><Phone w={w} pal={DARK} screen="pay" /></View>
       <View pointerEvents="none" style={[{ position: 'absolute', left: 0, right: 0, bottom: 0, height: Math.round(visible * 0.32), zIndex: 3 }, fade]} />
+      </View>
     </View>
   );
 }

@@ -77,7 +77,8 @@ export function seed() {
       ],
       rent_history: [{ id: 'p1:' + start, property_id: 'p1', from_date: start, amount: 30000, note: 'Sözleşme başlangıcı' }],
       invites: [], payments: [], requests: [], messages: [], documents: [], expenses: [], notifications: [],
-      push_subscriptions: [], subscriptions: [], device_tokens: [], reviews: [], bans: [], admin_audit: []
+      push_subscriptions: [], subscriptions: [], device_tokens: [], reviews: [], bans: [], admin_audit: [],
+      message_reads: [], support_requests: [], team_members: [], activity: []
     }
   };
 }

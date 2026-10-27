@@ -284,7 +284,7 @@ const X = '00000000-0000-0000-0000-0000000000f1';   // denemesi bitmiş mülk sa
 test('deneme süresindeki mülk sahibinin erişimi var; kiracı her zaman ücretsiz', async () => {
   await as(L);
   const a = (await q(`select public.my_access() a`))[0].a;
-  expect(a).toMatchObject({ role:'landlord', access:true, inTrial:true, subscribed:false, trialDays:14 });
+  expect(a).toMatchObject({ role:'landlord', access:true, inTrial:true, subscribed:false, trialDays:30 });
   await as(T1);
   expect((await q(`select public.my_access() a`))[0].a).toMatchObject({ role:'tenant', access:true });
 });

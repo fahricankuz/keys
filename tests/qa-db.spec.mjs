@@ -37,9 +37,12 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
     where n.nspname = 'public' and p.prosecdef and p.prorettype <> 'trigger'::regtype
       and has_function_privilege('authenticated', p.oid, 'EXECUTE') order by 1`);
   expect(rows.map(r => r.proname)).toEqual([
-    'accept_invite', 'admin_audit_log', 'admin_delete_message', 'admin_messages', 'admin_set_ban', 'admin_threads', 'admin_users',
-    'delete_my_account', 'file_review_ok', 'has_access', 'is_admin', 'is_banned', 'is_member', 'is_owner', 'member_role',
-    'my_access', 'review_ok', 'shares_property'
+    // Her biri kendi içinde yetki denetler: admin_* → is_admin, team_* → yalnız kendi ekibi, import_properties → mülk sahibi,
+    // activity_feed → sahip/ekip, invite_preview → kodu bilen, member_can / msg_side → çağıranın kendi üyeliği.
+    'accept_invite', 'activity_feed', 'admin_audit_log', 'admin_delete_message', 'admin_extend_trial', 'admin_kpis', 'admin_messages',
+    'admin_set_ban', 'admin_set_plan', 'admin_subscriptions', 'admin_threads', 'admin_users',
+    'delete_my_account', 'file_review_ok', 'has_access', 'import_properties', 'invite_preview', 'is_admin', 'is_banned', 'is_member', 'is_owner',
+    'member_can', 'member_role', 'msg_side', 'my_access', 'review_ok', 'shares_property', 'team_list', 'team_remove', 'team_set'
   ]);
 });
 

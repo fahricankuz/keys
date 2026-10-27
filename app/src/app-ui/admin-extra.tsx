@@ -88,6 +88,28 @@ function PlanBars({ plans, total }: { plans: Record<string, number>; total: numb
   );
 }
 
+/** Aktivasyon hunisi: her adımda kaç mülk sahibi var ve tüm mülk sahiplerine oranı. */
+function Funnel({ f }: { f: any }) {
+  const c = useColors();
+  const steps: [string, number][] = [
+    [t('Kayıt olan mülk sahibi'), f.owners], [t('En az bir mülk ekledi'), f.withProperty],
+    [t('Kiracısı bağlandı'), f.withTenant], [t('Onaylı kira ödemesi aldı'), f.withPayment]
+  ];
+  const max = Math.max(1, f.owners);
+  return (
+    <Card gap={10}>
+      <H2>{t('Aktivasyon hunisi')}</H2>
+      <Muted>{t('Mülk sahiplerinin ürünü gerçekten kullanmaya başlama adımları.')}</Muted>
+      {steps.map(([label, n], i) => (
+        <View key={label} style={{ gap: 4 }}>
+          <Row between><Text v="small">{i + 1}. {label}</Text><Text v="small" style={{ fontFamily: fonts.bodyBold }}>{n} · {pct(n, f.owners)}{i ? ' · ' + t('önceki adımdan {p}', { p: pct(n, steps[i - 1][1]) }) : ''}</Text></Row>
+          <View style={{ height: 10, borderRadius: 5, backgroundColor: c.surface2 }}><View style={{ width: (n / max) * 100 + '%' as any, height: 10, borderRadius: 5, backgroundColor: i === steps.length - 1 ? c.okInk : c.accent }} /></View>
+        </View>
+      ))}
+    </Card>
+  );
+}
+
 export function Overview() {
   const c = useColors();
   const [days, setDays] = useState('30');
@@ -118,6 +140,24 @@ export function Overview() {
         <Stat label={t('Bu ay onaylı kira')} value={tl(k.rent.month)} sub={[delta(k.rent.month, k.rent.prevMonth), t('geçen ay: {v}', { v: tl(k.rent.prevMonth) })].filter(Boolean).join(' · ')} />
         <Stat label={t('Açık talep')} value={String(k.supportOpen)} sub={t('Kurumsal, içe aktarma, genel')} />
       </Grid>
+      {/* Kullanım ve sağlık göstergeleri (şema güncel değilse gösterilmez: supabase/schema.sql yeniden çalıştırılmalı). */}
+      {k.activeUsers ? (
+        <>
+          <H2>{t('Kullanım')}</H2>
+          <Grid>
+            <Stat label={t('Haftalık etkin kullanıcı')} value={String(k.activeUsers.week)} sub={t('Son 7 günde en az bir işlem')} />
+            <Stat label={t('Aylık etkin kullanıcı')} value={String(k.activeUsers.month)} sub={t('Bağlılık (haftalık / aylık): {p}', { p: pct(k.activeUsers.week, k.activeUsers.month) })} />
+            <Stat label={t('Davet kabul oranı ({n} gün)', { n: k.days })} value={pct(k.invites.accepted, k.invites.created)} sub={t('{a} davet · {b} kabul', { a: k.invites.created, b: k.invites.accepted })} />
+            <Stat label={t('Zamanında ödeme (geçen ay)')} value={pct(k.punctuality.onTime, k.punctuality.onTime + k.punctuality.late)} sub={t('{a} vadesinde · {b} geç', { a: k.punctuality.onTime, b: k.punctuality.late })} />
+          </Grid>
+          <Grid>
+            <Stat label={t('Açık arıza / tadilat talebi')} value={String(k.requests.open)} sub={t('{a} çözüldü · dönemde {b} yeni', { a: k.requests.done, b: k.requests.period })} />
+            <Stat label={t('Yıllık gelir (ARR, tahmini)')} value={mrr == null ? '—' : tl(mrr * 12)} sub={t('Aylık gelirin 12 katı')} />
+            <Stat label={t('Ödeyen başına aylık gelir')} value={mrr == null || !o.paying ? '—' : tl(mrr / o.paying)} sub={t('ARPU')} />
+          </Grid>
+          <Funnel f={k.funnel} />
+        </>
+      ) : <Muted>{t('Ek göstergeler için Supabase’de supabase/schema.sql dosyasını yeniden çalıştır.')}</Muted>}
       <Signups series={k.series} />
       <PlanBars plans={plans} total={o.paying} />
     </Stack>

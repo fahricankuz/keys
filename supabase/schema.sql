@@ -1625,10 +1625,14 @@ drop policy if exists activity_none on public.activity;  -- okuma activity_feed(
 
 create or replace function public.log_activity(pid text, ent text, act text, rf text, det jsonb, own uuid default null)
 returns void language plpgsql security definer set search_path = public as $$
+declare o uuid := coalesce(own, (select owner_id from public.properties where id = pid));
 begin
   if auth.uid() is null then return; end if;
+  -- Hesap silinirken (profil ve evler zincirleme silinir) kayıt yazılmaz; yoksa yabancı anahtar hatası silmeyi durdurur.
+  if not exists (select 1 from public.profiles where id = auth.uid()) then return; end if;
+  if o is not null and not exists (select 1 from public.profiles where id = o) then return; end if;
   insert into public.activity (owner_id, property_id, actor, actor_role, entity, action, ref, detail)
-  values (coalesce(own, (select owner_id from public.properties where id = pid)), pid, auth.uid(),
+  values (o, pid, auth.uid(),
           coalesce(public.member_role(pid), (select role from public.profiles where id = auth.uid())), ent, act, coalesce(rf, ''), coalesce(det, '{}'::jsonb));
 end $$;
 revoke execute on function public.log_activity(text, text, text, text, jsonb, uuid) from public, anon, authenticated;
@@ -1986,6 +1990,34 @@ begin
        'month', (select coalesce(sum(amount), 0) from public.payments where status in ('approved','partial') and month = to_char(now(), 'YYYY-MM')),
        'prevMonth', (select coalesce(sum(amount), 0) from public.payments where status in ('approved','partial') and month = to_char(now() - interval '1 month', 'YYYY-MM'))),
     'supportOpen', (select count(*) from public.support_requests where status = 'open'),
+    -- Aktivasyon hunisi: mülk sahibi → mülk ekledi → kiracı bağlandı → onaylı ödeme aldı.
+    'funnel', (select jsonb_build_object(
+       'owners', count(*),
+       'withProperty', count(*) filter (where exists (select 1 from public.properties pr where pr.owner_id = o.id)),
+       'withTenant', count(*) filter (where exists (select 1 from public.properties pr join public.memberships m on m.property_id = pr.id
+                                                     where pr.owner_id = o.id and m.role = 'tenant')),
+       'withPayment', count(*) filter (where exists (select 1 from public.properties pr join public.payments pa on pa.property_id = pr.id
+                                                      where pr.owner_id = o.id and pa.status in ('approved','partial'))))
+       from public.profiles o where o.role = 'landlord'),
+    -- Etkin kullanıcı: son 7 / 30 günde en az bir işlem yapan (mülk sahibi, kiracı, ekip).
+    'activeUsers', jsonb_build_object(
+       'week', (select count(distinct actor) from public.activity where at > now() - interval '7 days'),
+       'month', (select count(distinct actor) from public.activity where at > now() - interval '30 days')),
+    -- Kiracı davetleri: dönemde oluşturulan ve kabul edilen.
+    'invites', jsonb_build_object(
+       'created', (select count(*) from public.invites where role = 'tenant' and created_at > now() - make_interval(0, 0, 0, d)),
+       'accepted', (select count(*) from public.invites where role = 'tenant' and accepted_at > now() - make_interval(0, 0, 0, d))),
+    -- Arıza / tadilat talepleri.
+    'requests', jsonb_build_object(
+       'open', (select count(*) from public.requests where status < 3),
+       'done', (select count(*) from public.requests where status = 3),
+       'period', (select count(*) from public.requests where req_date > current_date - d)),
+    -- Geçen ayın ödemeleri: vadesinde (ödeme günü ≤ vade günü) ya da geç.
+    'punctuality', (select jsonb_build_object(
+       'onTime', count(*) filter (where pa.paid_on <= make_date(split_part(pa.month, '-', 1)::int, split_part(pa.month, '-', 2)::int, least(greatest(pr.due_day, 1), 28))),
+       'late', count(*) filter (where pa.paid_on > make_date(split_part(pa.month, '-', 1)::int, split_part(pa.month, '-', 2)::int, least(greatest(pr.due_day, 1), 28))))
+       from public.payments pa join public.properties pr on pr.id = pa.property_id
+       where pa.status in ('approved','partial') and pa.paid_on is not null and pa.month = to_char(now() - interval '1 month', 'YYYY-MM')),
     'series', (select coalesce(jsonb_agg(jsonb_build_object('d', g::date,
                  'landlords', (select count(*) from public.profiles where role = 'landlord' and created_at::date = g::date),
                  'tenants', (select count(*) from public.profiles where role <> 'landlord' and created_at::date = g::date)) order by g), '[]'::jsonb)

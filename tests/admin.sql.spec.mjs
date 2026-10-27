@@ -320,3 +320,28 @@ test('yükleme kararı denetim kaydına düşer', async () => {
   const log = await q(`select action, target from public.admin_audit_log()`);
   expect(log.some(x => x.action === 'review.approved' && x.target === `${r.kind}:${r.property_id}:${r.ref_id}`)).toBe(true);
 });
+
+test('yönetici özeti (KPI): huni, etkin kullanıcı, davet, talep ve vade göstergeleri; yönetici olmayan çağıramaz', async () => {
+  // Geçen ayın kirası vadesinde (ayın 3'ü ≤ 5'i) ödenmiş ve onaylanmış olsun; bir de açık talep.
+  await as(null);
+  await db.query(`insert into public.payments (property_id, month, status, amount, paid_on)
+    values ('p1', to_char(now() - interval '1 month', 'YYYY-MM'), 'approved', 30000,
+            make_date(extract(year from now() - interval '1 month')::int, extract(month from now() - interval '1 month')::int, 3))
+    on conflict (property_id, month) do update set status = 'approved', paid_on = excluded.paid_on`);
+  await as(L);
+  await db.query(`insert into public.requests (id, property_id, cat, title) values ('kpi-r1', 'p1', 'Arıza', 'Kombi')`);
+
+  await as(A);
+  const [{ k }] = await q(`select public.admin_kpis(30) k`);
+  expect(k.funnel).toEqual({ owners: 1, withProperty: 1, withTenant: 1, withPayment: 1 });
+  expect(k.activeUsers.month).toBeGreaterThanOrEqual(2);          // mülk sahibi ve kiracı işlem yaptı
+  expect(k.activeUsers.week).toBeLessThanOrEqual(k.activeUsers.month);
+  expect(k.invites).toEqual({ created: 1, accepted: 1 });
+  expect(k.requests.open).toBeGreaterThanOrEqual(1);
+  expect(k.punctuality).toEqual({ onTime: 1, late: 0 });
+  expect(k.users.landlords).toBe(1);
+  expect(k.series.length).toBe(30);
+
+  await as(X);
+  await expect(q(`select public.admin_kpis(30)`)).rejects.toThrow(/Yönetici/);
+});

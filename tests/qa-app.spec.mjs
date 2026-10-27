@@ -42,8 +42,9 @@ async function signup(page, path, name, email) {
   await page.getByLabel('Ad soyad').fill(name);
   await page.getByLabel('E-posta').fill(email);
   await page.getByLabel('Şifre', { exact: true }).fill('gizli-sifre-1');
-  await page.getByRole('checkbox').click();
-  await page.getByRole('button', { name: 'Hesap oluştur' }).click();
+  await page.getByLabel('Şifre (tekrar)').fill('gizli-sifre-1');
+  await page.getByRole('checkbox').click({ position: { x: 10, y: 10 } });
+  await page.getByRole('button', { name: /Hesap oluştur|ücretsiz başla/ }).click();
 }
 async function signOutLocal(page) {
   await page.evaluate(() => { const d = JSON.parse(localStorage.getItem('__fakedb')); d.session = null; localStorage.setItem('__fakedb', JSON.stringify(d)); });
@@ -82,12 +83,13 @@ test('kabul: mülk sahibi kaydolur, mülk ekler, kiracı davetle katılır, deko
   await (await chooser).setFiles(PNG);
   await expect(page.getByText('dekont.png')).toBeVisible();
   await page.getByRole('button', { name: 'Gönder' }).click();
-  await expect(page.getByText('Kiracım ekibi dekontu inceliyor').first()).toBeVisible();
+  await expect(page.getByText('anahtar ekibi dekontu inceliyor').first()).toBeVisible();
   await expect.poll(async () => (await db(page)).tables.reviews.length).toBe(1);
 
   // 4) Yönetici onaylar.
   await login(page, 'admin@ornek.com');
   await expect(page).toHaveURL(/\/admin$/);
+  await page.getByRole('button', { name: /^Denetim/ }).click();          // panel "Genel bakış" ile açılır
   await page.getByRole('button', { name: 'Onayla', exact: true }).click();
   await expect(page.getByText('Bekleyen yükleme yok')).toBeVisible();
 
@@ -108,7 +110,7 @@ test('performans: ana sayfa bütçesi (yükleme süresi, istek sayısı, aktarı
   page.on('response', async (r) => { try { reqs.push({ url: r.url(), size: (await r.body()).length, type: r.request().resourceType() }); } catch { /* yönlendirme */ } });
   const t0 = Date.now();
   await page.goto(url('/'), { waitUntil: 'load' });
-  await expect(page.getByText('Kira işi,').first()).toBeVisible();
+  await expect(page.getByText('Kira işinin').first()).toBeVisible();
   const visible = Date.now() - t0;
   await page.waitForTimeout(500);
   const js = reqs.filter((r) => r.type === 'script').reduce((n, r) => n + r.size, 0);
@@ -128,10 +130,10 @@ test('performans: ana sayfa bütçesi (yükleme süresi, istek sayısı, aktarı
 
 test('performans: etkileşim (menü açma, sayfa geçişi) 1 saniyenin altında yanıt verir', async ({ page }) => {
   await page.goto(url('/'));
-  await expect(page.getByText('Kira işi,').first()).toBeVisible();
+  await expect(page.getByText('Kira işinin').first()).toBeVisible();
   let t = Date.now();
   await page.getByRole('button', { name: 'Özellikler' }).click();
-  await expect(page.getByText('Dekont yükleme')).toBeVisible();
+  await expect(page.getByText('Dekont yükleme').first()).toBeVisible();
   expect(Date.now() - t).toBeLessThan(1000);
   await page.keyboard.press('Escape');
   t = Date.now();
@@ -364,7 +366,7 @@ test('uygunluk: manifest, dil, başlık, simgeler ve temel meta etiketleri doğr
   const resp = await page.goto(url('/'));
   expect(resp.status()).toBe(200);
   expect(await page.locator('html').getAttribute('lang')).toBe('tr');
-  expect(await page.title()).toMatch(/Kiracım/);
+  expect(await page.title()).toMatch(/anahtar/);
   expect(await page.locator('meta[name=viewport]').getAttribute('content')).toContain('width=device-width');
   const man = await (await page.request.get(url('/manifest.webmanifest'))).json();
   expect(man.icons.map((i) => i.sizes)).toEqual(expect.arrayContaining(['192x192', '512x512']));

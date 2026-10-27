@@ -51,7 +51,7 @@ export function TopBar() {
       <PressScale onPress={() => router.push('/kayit/mulk-sahibi')} accessibilityRole="link" scaleTo={0.99}
         style={{ minHeight: phone ? 42 : 46, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: phone ? 8 : 12, flexWrap: 'nowrap', paddingVertical: 8 }}>
         <View style={{ backgroundColor: c.lemon, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 }}>
-          <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: phone ? 10.5 : 11.5, letterSpacing: 0.6, color: '#1D1A19' }}>{t('FIRSAT')}</RNText>
+          <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: phone ? 11 : 11.5, letterSpacing: 0.6, color: '#1D1A19' }}>{t('FIRSAT')}</RNText>
         </View>
         {/* Telefonda tek satıra sığsın diye kısa metin. */}
         <RNText style={{ fontFamily: fonts.bodyBold, fontSize: size, color: c.heroInk, textAlign: 'center' }}>{phone ? t('1 ay ücretsiz deneme') : t('Mülk sahiplerine 1 ay ücretsiz deneme')}</RNText>
@@ -90,7 +90,7 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
             <Wordmark size={phone ? 24 : 28} animate />
             {!phone && (
               <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
-                <Pressable onPress={() => setOpen((x) => !x)} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={t('Özellikler')}
+                <Pressable onPress={() => setOpen((x) => !x)} accessibilityRole="button" accessibilityState={{ expanded: open }} aria-expanded={open} accessibilityLabel={t('Özellikler')}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: open ? c.surface2 : 'transparent' }}>
                   <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{t('Özellikler')}</Text>
                   <View style={{ transform: [{ rotate: open ? '90deg' : '-90deg' }] }}><Icon name="back" size={13} /></View>
