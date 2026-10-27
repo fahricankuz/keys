@@ -15,7 +15,7 @@
     "ios": "npm run build:native && cap open ios"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.10.0",
+    "@axe-core/playwright": "^4.14.0",
     "@capacitor/cli": "^8.5.2",
     "@electric-sql/pglite": "^0.2.17",
     "@playwright/test": "1.49.1",
