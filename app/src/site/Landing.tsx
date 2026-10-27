@@ -1,9 +1,9 @@
 /* Tanıtım sitesi (ana sayfa). Bölümler: başlık + telefon, dönen sözcük, manifesto, özellikler (sekmeli),
    nasıl çalışır, fiyatlar, sıkça sorulanlar, iletişim, alt bilgi. */
 import { ReactNode, useEffect, useRef, useState } from 'react';
-import { Linking, Pressable, ScrollView, Text as RNText, View } from 'react-native';
+import { Linking, Platform, ScrollView, Text as RNText, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import Animated, { Easing, FadeIn, FadeInDown, FadeOutUp, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOutUp } from 'react-native-reanimated';
 import { t, getLang, setLang } from '../domain/i18n';
 import { CONFIG } from '../domain/config';
 import { Button, Chip, Container, PressScale, Text } from '../ui/kit';
@@ -452,69 +452,46 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
 
 /* ---------------- fiyatlar ---------------- */
 
-/** Fiyat kartı: önde paket, fiyat ve düğme; arkada paketin özellikleri. Masaüstünde üzerine gelince,
-    telefonda dokununca döner. Düğme iki yüzde de vardır, kart dönükken de tıklanır. */
+/** Fiyat kartı (HBO Max plan kartlarına benzer): üstte paket ve fiyat, altında ince çizgilerle ayrılmış özellikler,
+    en altta düğme. Önerilen paket kahverengiden kırmızıya geçen çerçeve ve alttan kırmızı ışımayla öne çıkar. */
 function PlanCard({ p, w, go }: { p: any; w?: number; go: (path: string) => void }) {
   const c = useColors();
   const { phone } = useBreakpoint();
-  const dark = p.best;
-  const [back, setBack] = useState(false);
-  const turn = useSharedValue(0);
-  useEffect(() => { turn.value = withTiming(back ? 180 : 0, { duration: 520, easing: Easing.bezier(0.32, 0.72, 0, 1) }); }, [back]);
-  const front = useAnimatedStyle(() => ({ transform: [{ perspective: 1200 }, { rotateY: turn.value + 'deg' }] }));
-  const rear = useAnimatedStyle(() => ({ transform: [{ perspective: 1200 }, { rotateY: turn.value + 180 + 'deg' }] }));
-  const ink = dark ? c.heroInk : c.ink, soft = dark ? c.heroMuted : c.muted;
-  const face: any = {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 24, padding: phone ? 20 : 26, gap: 10,
-    backgroundColor: dark ? c.deepA : c.surface, borderWidth: dark ? 0 : 1, borderColor: c.line, backfaceVisibility: 'hidden', overflow: 'hidden'
-  };
+  const best = p.best;
+  const web = Platform.OS === 'web';
   const cta = p.id === 'kurumsal'
     ? <Button kind="primary" block title={t('Bize ulaşın')} onPress={() => Linking.openURL('mailto:' + CONFIG.supportEmail + '?subject=' + encodeURIComponent(t('Kurumsal paket'))).catch(() => {})} />
     : <Button kind="primary" block title={t('1 ay ücretsiz dene')} onPress={() => go('/kayit/mulk-sahibi')} />;
-  const head = (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text v="label" color={soft} style={{ fontSize: 13 }}>{p.units}</Text>
-        <Display size={26} color={ink}>{p.name}</Display>
-      </View>
-      {dark ? <Chip tone="warn" label={t('En çok tercih edilen')} /> : null}
-    </View>
-  );
+  const ring: any = best
+    ? (web ? { backgroundImage: `linear-gradient(160deg, #5C4F4A 0%, ${c.accent} 100%)`, boxShadow: '0 18px 40px -12px rgba(200,48,46,0.45)' } : { backgroundColor: c.accent })
+    : { backgroundColor: c.line };
   return (
-    // Dış yüzey düğme rolü almaz (içindeki düğmeler erişilebilir kalsın); iki yüz de ekran okuyucuya açıktır.
-    <Pressable onPress={() => setBack((x) => !x)} onHoverIn={() => setBack(true)} onHoverOut={() => setBack(false)} focusable={false}
-      style={[{ height: phone ? 372 : 360 }, w ? { width: w } : { flex: 1 }]}>
-      <Animated.View style={[face, front]} pointerEvents={back ? 'none' : 'auto'}>
-        {head}
-        <View style={{ gap: 2, marginTop: 6 }}>
+    <View style={[{ borderRadius: 26, padding: best ? 2 : 1 }, ring, w ? { width: w } : { flex: 1 }]}>
+      <View style={{ flex: 1, borderRadius: best ? 24 : 25, backgroundColor: c.surface, padding: phone ? 20 : 26, gap: 14 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <Display size={24}>{p.name}</Display>
+          {best ? <Chip tone="accent" label={t('En çok tercih edilen')} /> : null}
+        </View>
+        <View style={{ gap: 2 }}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-            <Display size={p.per ? 40 : 30} color={ink}>{p.price}</Display>
-            {p.per ? <Text v="small" color={soft}>{p.per}</Text> : null}
+            <Display size={p.per ? 40 : 30} color={best ? c.accent : c.ink}>{p.price}</Display>
+            {p.per ? <Text v="small" muted>{p.per}</Text> : null}
           </View>
-          {p.monthlyEq ? <Text v="small" color={soft}>{t('aylık {price}’ye denk gelir', { price: p.monthlyEq })}</Text> : null}
+          <Text v="small" muted>{p.monthlyEq ? t('aylık {price}’ye denk gelir', { price: p.monthlyEq }) + ' · ' : ''}{p.units}</Text>
         </View>
-        <Text v="small" color={dark ? c.butter : c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('1 ay ücretsiz deneme')}</Text>
-        <View style={{ flex: 1 }} />
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text v="small" color={soft} style={{ fontFamily: fonts.bodyBold }}>↻</Text>
-          <Text v="small" color={soft}>{phone ? t('Özellikler için karta dokun') : t('Özellikler için üzerine gel')}</Text>
-        </View>
-        {cta}
-      </Animated.View>
-      <Animated.View style={[face, rear]} pointerEvents={back ? 'auto' : 'none'}>
-        {head}
-        <View style={{ gap: 7, marginTop: 2 }}>
-          {p.points.map((x: string) => (
-            <View key={x} style={{ flexDirection: 'row', gap: 8 }}>
-              <View style={{ marginTop: 1 }}><Icon name="check" size={16} color={dark ? c.butter : c.okInk} /></View>
-              <Text v="small" color={soft} style={{ flex: 1, fontSize: 14, lineHeight: 20 }}>{x}</Text>
+        <Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('1 ay ücretsiz deneme')}</Text>
+        <View>
+          {p.points.map((x: string, k: number) => (
+            <View key={x} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start', paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.line, borderBottomWidth: k === p.points.length - 1 ? 1 : 0, borderBottomColor: c.line }}>
+              <View style={{ marginTop: 1 }}><Icon name="check" size={16} color={best ? c.accent : c.okInk} /></View>
+              <Text v="small" style={{ flex: 1, fontSize: 14, lineHeight: 20 }}>{x}</Text>
             </View>
           ))}
         </View>
-        <View style={{ flex: 1 }} />
+        <View style={{ flex: 1, minHeight: 4 }} />
         {cta}
-      </Animated.View>
-    </Pressable>
+      </View>
+    </View>
   );
 }
 

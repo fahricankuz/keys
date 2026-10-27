@@ -1,7 +1,7 @@
 /* Tanıtım sitesinin üst şeridi ve menüsü. "Özellikler" açılır panelinde kategori seçilince
    sayfadaki Özellikler bölümü o kategorinin sekmesiyle açılır (Landing → openFeature). */
 import { useEffect, useState } from 'react';
-import { Pressable, Text as RNText, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text as RNText, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { t } from '../domain/i18n';
@@ -12,16 +12,49 @@ import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
 import { Icon } from '../app-ui/blocks';
 import { categories } from './content';
 
+/** Üst duyuru şeridi: kira kartının kahverengisinden kırmızıya akan hareketli geçiş, altta kırmızı ışıma,
+    soldan sağa geçen parıltı ve "Fırsat" etiketi. Hareketi azaltmayı seçen kullanıcıda geçiş durağandır. */
+// Hareketli geçiş ve parıltı (animationKeyframes yalnızca StyleSheet.create içinde çalışır; yalnızca web).
+const ANIM: any = Platform.OS === 'web' ? StyleSheet.create({
+  flow: {
+    backgroundImage: 'linear-gradient(100deg, #1D1A19 0%, #5C4F4A 22%, #8E3A2E 40%, #C8302E 55%, #8E3A2E 70%, #5C4F4A 86%, #1D1A19 100%)',
+    backgroundSize: '300% 100%',
+    animationKeyframes: [{ '0%': { backgroundPosition: '0% 50%' }, '50%': { backgroundPosition: '100% 50%' }, '100%': { backgroundPosition: '0% 50%' } }],
+    animationDuration: '8s', animationIterationCount: 'infinite', animationTimingFunction: 'ease-in-out',
+    boxShadow: '0 10px 26px -8px rgba(200,48,46,0.65)'
+  } as any,
+  still: {
+    backgroundImage: 'linear-gradient(100deg, #1D1A19 0%, #5C4F4A 35%, #C8302E 100%)',
+    boxShadow: '0 10px 26px -8px rgba(200,48,46,0.65)'
+  } as any,
+  shine: {
+    position: 'absolute', top: 0, bottom: 0, width: '30%', left: '-30%',
+    backgroundImage: 'linear-gradient(100deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%)',
+    animationKeyframes: [{ '0%': { transform: 'translateX(0)' }, '60%': { transform: 'translateX(450%)' }, '100%': { transform: 'translateX(450%)' } }],
+    animationDuration: '4.5s', animationIterationCount: 'infinite', animationTimingFunction: 'ease-in-out', pointerEvents: 'none'
+  } as any
+}) : null;
+
+/** Üst duyuru şeridi: kira kartının kahverengisinden kırmızıya akan hareketli geçiş, altta kırmızı ışıma,
+    soldan sağa geçen parıltı ve "Fırsat" etiketi. Hareketi azaltmayı seçen kullanıcıda geçiş durağandır. */
 export function TopBar() {
   const c = useColors();
   const router = useRouter();
   const { phone } = useBreakpoint();
+  const reduce = !!ANIM && typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const flow = ANIM ? (reduce ? ANIM.still : ANIM.flow) : { backgroundColor: c.deepA };
+  const shine = ANIM && !reduce ? ANIM.shine : null;
+  const size = phone ? 12.5 : 14;
   return (
-    <View style={{ backgroundColor: c.deepA }}>
+    <View style={[{ position: 'relative', zIndex: 2, overflow: 'hidden' }, flow]}>
+      {shine ? <View style={shine} /> : null}
       <PressScale onPress={() => router.push('/kayit/mulk-sahibi')} accessibilityRole="link" scaleTo={0.99}
-        style={{ minHeight: 40, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, flexWrap: 'wrap', paddingVertical: 8 }}>
-        <RNText style={{ fontFamily: fonts.bodyMedium, fontSize: phone ? 12.5 : 13.5, color: c.heroInk, textAlign: 'center' }}>{t('Mülk sahiplerine 1 ay ücretsiz deneme')}</RNText>
-        <RNText style={{ fontFamily: fonts.bodyBold, fontSize: phone ? 12.5 : 13.5, color: c.butter }}>{t('Hemen başla')} ›</RNText>
+        style={{ minHeight: phone ? 42 : 46, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: phone ? 8 : 12, flexWrap: 'wrap', paddingVertical: 8 }}>
+        <View style={{ backgroundColor: c.butter, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 }}>
+          <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: phone ? 10.5 : 11.5, letterSpacing: 0.6, color: '#1D1A19' }}>{t('FIRSAT')}</RNText>
+        </View>
+        <RNText style={{ fontFamily: fonts.bodyBold, fontSize: size, color: c.heroInk, textAlign: 'center' }}>{t('Mülk sahiplerine 1 ay ücretsiz deneme')}</RNText>
+        <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: size, color: c.butter, textDecorationLine: 'underline' }}>{t('Hemen başla')} ›</RNText>
       </PressScale>
     </View>
   );

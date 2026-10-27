@@ -771,6 +771,5 @@ export const EN_EXTRA = {
   'aylık {price}’ye denk gelir': 'equals {price} a month',
   'Diğer paketler için kaydır': 'Swipe for other plans',
   'Davet kodları sunucuya bağlı kurulumda çalışır. Site sunucuya bağlanınca kodunla mülküne bağlanabilirsin.': 'Invite codes work when the site is connected to the server. You can join your property with your code once it is connected.',
-  'Özellikler için karta dokun': 'Tap the card for features',
-  'Özellikler için üzerine gel': 'Hover for features'
+  'FIRSAT': 'OFFER'
 };
