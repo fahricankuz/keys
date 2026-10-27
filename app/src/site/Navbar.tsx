@@ -105,7 +105,7 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
               </View>
             )}
             <View style={{ flexDirection: 'row', gap: phone ? (narrow ? 3 : 4) : 6, alignItems: 'center' }}>
-              <LangPicker phone={phone} />
+              {!phone && <LangPicker />}
               {signedIn ? (
                 <Button kind="primary" title={t('Panele git')} onPress={() => go(user!.admin ? '/admin' : '/uygulama')} style={btn} />
               ) : (
@@ -123,8 +123,9 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
   );
 }
 
-/** Dil seçici: küre simgeli yumuşak düğme; basınca altında TR / EN kapsülü açılır (seçilen dilde sayfa yeniden açılır). */
-function LangPicker({ phone }: { phone: boolean }) {
+/** Dil seçici (yalnızca masaüstü): küre simgesi ve geçerli dil kodu; basınca altında TR / EN kapsülü açılır.
+    Telefonda gösterilmez; dil, sayfa sonundaki Türkçe / English düğmeleriyle değişir. */
+function LangPicker() {
   const c = useColors();
   const [open, setOpen] = useState(false);
   const cur = getLang();
@@ -140,18 +141,18 @@ function LangPicker({ phone }: { phone: boolean }) {
     document.addEventListener('keydown', esc);
     return () => document.removeEventListener('keydown', esc);
   }, [open]);
-  const size = phone ? 40 : 44;
   return (
     <View style={{ position: 'relative' }}>
-      <PressScale onPress={() => setOpen((x) => !x)} accessibilityRole="button" accessibilityLabel={t('Dil')} aria-expanded={open} scaleTo={0.92}
-        style={{ width: size, height: size, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: open ? c.surface2 : 'transparent' }}>
-        <Icon name="globe" size={20} />
+      <PressScale onPress={() => setOpen((x) => !x)} accessibilityRole="button" accessibilityLabel={t('Dil')} aria-expanded={open} scaleTo={0.94}
+        style={{ minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: c.line, backgroundColor: open ? c.surface2 : c.surface }}>
+        <Icon name="globe" size={18} />
+        <Text v="small" style={{ fontFamily: fonts.bodyBold, fontSize: 14 }}>{cur.toUpperCase()}</Text>
       </PressScale>
       {open ? (
         <>
           <Pressable accessibilityLabel={t('Kapat')} onPress={() => setOpen(false)} style={{ position: 'fixed' as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 29 }} />
           <Animated.View entering={FadeInDown.duration(160)} exiting={FadeOut.duration(120)}
-            style={[{ position: 'absolute', top: size + 6, right: 0, zIndex: 30, flexDirection: 'row', padding: 4, gap: 2, borderRadius: radius.pill, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line }, { boxShadow: shadows.soft } as any]}>
+            style={[{ position: 'absolute', top: 46, right: 0, zIndex: 30, flexDirection: 'row', padding: 4, gap: 2, borderRadius: radius.pill, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line }, { boxShadow: shadows.soft } as any]}>
             {[['tr', 'TR', 'Türkçe'], ['en', 'EN', 'English']].map(([l, label, name]) => {
               const on = l === cur;
               return (
