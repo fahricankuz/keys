@@ -105,12 +105,7 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
               </View>
             )}
             <View style={{ flexDirection: 'row', gap: phone ? (narrow ? 3 : 4) : 6, alignItems: 'center' }}>
-              {/* Dil: tek dokunuşla Türkçe ↔ English (sayfa seçilen dilde yeniden açılır). */}
-              <PressScale onPress={() => { setLang(getLang() === 'en' ? 'tr' : 'en'); if (typeof location !== 'undefined') location.reload(); }}
-                accessibilityRole="button" accessibilityLabel={getLang() === 'en' ? 'Türkçe' : 'English'} scaleTo={0.94}
-                style={{ minWidth: phone ? 40 : 44, minHeight: phone ? 40 : 44, paddingHorizontal: phone ? 6 : 8, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.line, backgroundColor: c.surface }}>
-                <Text v="small" style={{ fontFamily: fonts.bodyBold, fontSize: 13 }}>{getLang() === 'en' ? 'TR' : 'EN'}</Text>
-              </PressScale>
+              <LangPicker phone={phone} />
               {signedIn ? (
                 <Button kind="primary" title={t('Panele git')} onPress={() => go(user!.admin ? '/admin' : '/uygulama')} style={btn} />
               ) : (
@@ -124,6 +119,51 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
           {open && !phone && <FeatureMenu go={go} signedIn={signedIn} onPick={(id) => { setOpen(false); openFeature(id); }} />}
         </View>
       </Container>
+    </View>
+  );
+}
+
+/** Dil seçici: küre simgeli yumuşak düğme; basınca altında TR / EN kapsülü açılır (seçilen dilde sayfa yeniden açılır). */
+function LangPicker({ phone }: { phone: boolean }) {
+  const c = useColors();
+  const [open, setOpen] = useState(false);
+  const cur = getLang();
+  const pick = (l: string) => {
+    setOpen(false);
+    if (l === cur) return;
+    setLang(l);
+    if (typeof location !== 'undefined') location.reload();
+  };
+  useEffect(() => {
+    if (!open || typeof document === 'undefined') return;
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('keydown', esc);
+    return () => document.removeEventListener('keydown', esc);
+  }, [open]);
+  const size = phone ? 40 : 44;
+  return (
+    <View style={{ position: 'relative' }}>
+      <PressScale onPress={() => setOpen((x) => !x)} accessibilityRole="button" accessibilityLabel={t('Dil')} aria-expanded={open} scaleTo={0.92}
+        style={{ width: size, height: size, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: open ? c.surface2 : 'transparent' }}>
+        <Icon name="globe" size={20} />
+      </PressScale>
+      {open ? (
+        <>
+          <Pressable accessibilityLabel={t('Kapat')} onPress={() => setOpen(false)} style={{ position: 'fixed' as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 29 }} />
+          <Animated.View entering={FadeInDown.duration(160)} exiting={FadeOut.duration(120)}
+            style={[{ position: 'absolute', top: size + 6, right: 0, zIndex: 30, flexDirection: 'row', padding: 4, gap: 2, borderRadius: radius.pill, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line }, { boxShadow: shadows.soft } as any]}>
+            {[['tr', 'TR', 'Türkçe'], ['en', 'EN', 'English']].map(([l, label, name]) => {
+              const on = l === cur;
+              return (
+                <PressScale key={l} onPress={() => pick(l)} accessibilityRole="button" accessibilityLabel={name} accessibilityState={{ selected: on }} scaleTo={0.94}
+                  style={{ minWidth: 44, minHeight: 36, paddingHorizontal: 12, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? c.surface2 : 'transparent' }}>
+                  <Text v="small" style={{ fontFamily: on ? fonts.bodyBold : fonts.bodyMedium, fontSize: 14 }}>{label}</Text>
+                </PressScale>
+              );
+            })}
+          </Animated.View>
+        </>
+      ) : null}
     </View>
   );
 }
