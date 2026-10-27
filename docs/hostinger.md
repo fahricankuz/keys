@@ -12,7 +12,7 @@ ve bir alan adı yeter. Aşağıdaki işlerin çoğu bir kez yapılır; sonra he
 ## Genel akış
 
 ```
-GitHub'a push → (otomatik) siteyi derle → `hostinger` dalı + zip paketi → Hostinger public_html
+GitHub'a push → (otomatik) siteyi derle → `site` dalı + zip paketi → Hostinger public_html
 ```
 
 ## 1. Supabase'i kur (bir kez)
@@ -70,9 +70,9 @@ Dağıtım bitince `https://anahtar.io/giris/kiraci` adresini doğrudan aç; aç
 
 ## 4. Elle yükleme (zip): GitHub Actions ile
 
-Depo → **Actions** → **Hostinger paketi** → **Run workflow** → bitince alttaki **kiracim-hostinger** paketini indir.
+Depo → **Actions** → **Hostinger paketi** → **Run workflow** → bitince alttaki **anahtar-hostinger** paketini indir.
 (Değişkenler: depo Settings → Secrets and variables → Actions → Variables: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, isteğe bağlı `TURNSTILE_SITE_KEY`.)
-Aynı iş akışı `hostinger` adlı bir dala da derlenmiş site yazar.
+Aynı iş akışı `site` adlı bir dala da derlenmiş site yazar.
 
 ## 5. Eski yöntemler (zip yükleme ve Git)
 
@@ -81,7 +81,7 @@ Aynı iş akışı `hostinger` adlı bir dala da derlenmiş site yazar.
 1. hPanel → **Websites** → alan adınız → **File Manager** (Dosya Yöneticisi).
 2. Sağ üstteki ayarlardan **gizli dosyaları göster** seçeneğini açın (`.htaccess` gizli dosyadır).
 3. `public_html` içindeki varsayılan dosyaları (ör. `default.php`) silin.
-4. Üstteki **Upload** ile `kiracim-hostinger.zip` dosyasını `public_html` içine yükleyin.
+4. Üstteki **Upload** ile `anahtar-hostinger.zip` dosyasını `public_html` içine yükleyin.
 5. Zip'e sağ tık → **Extract** (içeriği doğrudan `public_html` köküne çıkarın; `index.html` ve `.htaccess` kökte olmalı).
 6. Zip dosyasını silin.
 
@@ -90,11 +90,11 @@ Her güncellemede 3. bölümden yeni zip'i alıp aynısını tekrarlayın (eski 
 ### Yol B: Git ile otomatik (bir kez kurulur, sonra kendiliğinden güncellenir)
 
 1. hPanel → **Advanced → Git**.
-2. *Repository*: depo adresiniz (`https://github.com/fahricankuz/keys.git`); *Branch*: **`hostinger`**; *Directory*: boş bırakın (`public_html`).
+2. *Repository*: depo adresiniz (`https://github.com/fahricankuz/keys.git`); *Branch*: **`site`**; *Directory*: boş bırakın (`public_html`).
    Depo özelse Hostinger'ın gösterdiği **SSH anahtarını** GitHub → depo → Settings → **Deploy keys**'e (yalnızca okuma) ekleyin ve SSH adresini kullanın.
 3. **Create** → ilk çekmeyi **Deploy** ile yapın.
 4. Hostinger'ın verdiği **Auto Deployment (webhook) adresini** GitHub → depo → Settings → **Webhooks** → *Add webhook* → Payload URL olarak ekleyin (Content type: `application/json`, olay: *Just the push event*).
-   Böylece `hostinger` dalı her güncellenince site kendiliğinden yenilenir.
+   Böylece `site` dalı her güncellenince site kendiliğinden yenilenir.
 
 ## 6. Alan adı ve SSL
 
