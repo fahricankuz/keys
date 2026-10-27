@@ -6,6 +6,7 @@ import SignedIn from './SignedIn';
 import { t } from '../domain/i18n';
 import { PressScale, Text } from '../ui/kit';
 import { fonts, radius, useColors } from '../ui/theme';
+import { Icon } from '../app-ui/blocks';
 
 /** Giriş ve kayıt için ilk adım: kiracı mı, mülk sahibi mi. */
 export default function RolePicker({ mode }: { mode: 'giris' | 'kayit' }) {
@@ -14,17 +15,25 @@ export default function RolePicker({ mode }: { mode: 'giris' | 'kayit' }) {
   const { user, ready, live } = useAuth();
   if (ready && user) return <SignedIn user={user} />;
   const login = mode === 'giris';
-  const cards: [string, string, string, string][] = [
-    [login ? t('Kiracı girişi') : t('Kiracı olarak kayıt ol'), t('Kiramı öder, taleplerimi takip ederim.'), login ? '/giris/kiraci' : '/kayit/kiraci', c.sage],
-    [login ? t('Mülk sahibi girişi') : t('Mülk sahibi olarak kayıt ol'), t('Mülklerimi ve kiracılarımı yönetirim.'), login ? '/giris/mulk-sahibi' : '/kayit/mulk-sahibi', c.butter]
+  // Marka paleti: kiracı Gül Kurusu (açık, sıcak), mülk sahibi Baca Karası (koyu, krem yazı) — soldaki koyu panel ve
+  // fiyatlardaki Portföy kartıyla aynı dil.
+  const cards: [string, string, string, string, boolean][] = [
+    [login ? t('Kiracı girişi') : t('Kiracı olarak kayıt ol'), t('Kiramı öder, taleplerimi takip ederim.'), login ? '/giris/kiraci' : '/kayit/kiraci', c.peach, false],
+    [login ? t('Mülk sahibi girişi') : t('Mülk sahibi olarak kayıt ol'), t('Mülklerimi ve kiracılarımı yönetirim.'), login ? '/giris/mulk-sahibi' : '/kayit/mulk-sahibi', c.deepA, true]
   ];
   return (
     <AuthShell title={login ? t('Giriş yap') : t('Kayıt ol')} lead={login ? t('Hesap türünü seç.') : t('Kiracılar ücretsiz. Mülk sahipleri 1 ay ücretsiz dener.')}>
       <View style={{ gap: 12 }}>
-        {cards.map(([title, sub, href, bg]) => (
-          <PressScale key={href} onPress={() => router.push(href as any)} accessibilityRole="link" style={{ padding: 20, borderRadius: radius.lg, backgroundColor: bg, gap: 4 }}>
-            <Text v="h3" style={{ fontFamily: fonts.siteBold }}>{title}</Text>
-            <Text v="small">{sub}</Text>
+        {cards.map(([title, sub, href, bg, dark]) => (
+          <PressScale key={href} onPress={() => router.push(href as any)} accessibilityRole="link" scaleTo={0.98} hoverScale={1.015}
+            style={{ padding: 20, borderRadius: radius.lg, backgroundColor: bg, borderWidth: 1, borderColor: dark ? c.line6 : 'transparent', flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text v="h3" color={dark ? c.heroInk : c.ink} style={{ fontFamily: fonts.siteBold }}>{title}</Text>
+              <Text v="small" color={dark ? c.heroMuted : c.ink}>{sub}</Text>
+            </View>
+            <View style={{ width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: dark ? c.accent : c.surface }}>
+              <View style={{ transform: [{ rotate: '180deg' }] }}><Icon name="back" size={16} color={dark ? '#fff' : c.accentText} /></View>
+            </View>
           </PressScale>
         ))}
       </View>

@@ -14,6 +14,7 @@ import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 import { Card, Empty, H2, Muted, Row, Seg, Stack } from './blocks';
 import { Overview, Subscriptions, Support } from './admin-extra';
 import { AdminShell, PageHead } from './admin-ui';
+import OpenSplash from './OpenSplash';
 import { planLabel } from '../domain/plans';
 
 type Data = Awaited<ReturnType<typeof loadAdmin>>;
@@ -57,6 +58,7 @@ export default function AdminPanel() {
   const cur = SECTIONS.find((x) => x[0] === tab) || SECTIONS[0];
   const items = SECTIONS.map(([key, label, icon]) => ({ key, label, icon, badge: key === 'queue' ? data?.stats.pending || 0 : undefined }));
   return (
+    <>
     <AdminShell items={items} active={tab} onPick={setTab} email={user?.email} onReload={load} busy={busy}
       onSignOut={async () => { await signOut(); router.replace('/giris/yonetici'); }}>
       {err ? <Card><Text v="small" color={c.badInk}>{err}</Text></Card> : null}
@@ -77,6 +79,8 @@ export default function AdminPanel() {
         )
       ) : null}
     </AdminShell>
+    <OpenSplash />
+    </>
   );
 }
 
