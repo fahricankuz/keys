@@ -35,6 +35,6 @@
     "@fontsource-variable/bricolage-grotesque": "^5.3.0",
     "@fontsource-variable/manrope": "^5.3.0",
     "@revenuecat/purchases-capacitor": "^13.6.0",
-    "@supabase/supabase-js": "^2.117.0"
+    "@supabase/supabase-js": "^2.118.0"
   }
 }
