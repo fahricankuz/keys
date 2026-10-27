@@ -388,7 +388,7 @@ test('yönetici yazışmaları listeler, okur ve uygunsuz mesajı siler; her iş
   expect((await db(page)).tables.messages.map((m) => m.id)).toEqual(['m2']);
 
   await page.getByRole('button', { name: 'Geri' }).click();
-  await page.getByRole('button', { name: 'Kayıt', exact: true }).click();
+  await page.getByRole('button', { name: 'İşlem kaydı', exact: true }).click();
   await expect(page.getByText('Mesaj silindi')).toBeVisible();
   await expect(page.getByText('Yazışma okundu').first()).toBeVisible();
   const log = (await db(page)).tables.admin_audit.map((a) => a.action);
@@ -428,7 +428,7 @@ test('yönetici hesabı gerekçeyle yasaklar; yasaklı giriş yapamaz; yasak kal
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
 
   await login(page, 'admin@ornek.com');
-  await page.getByRole('button', { name: 'Kayıt', exact: true }).click();
+  await page.getByRole('button', { name: 'İşlem kaydı', exact: true }).click();
   await expect(page.getByText('Hesap yasaklandı')).toBeVisible();
   await expect(page.getByText('Yasak kaldırıldı')).toBeVisible();
 });
@@ -464,4 +464,41 @@ test('yönetici genel bakışı: üyelik, gelir, kullanım göstergeleri ve akti
   await expect(page.getByText(/^1\. Kayıt olan mülk sahibi$/)).toBeVisible();
   await expect(page.getByText(/^1 · 100%$/).first()).toBeVisible();
   await page.screenshot({ path: 'test-results/yonetici-genel-bakis.png', fullPage: true });
+});
+
+test('İngilizce: üst menüden dil değişir; fiyatlar dolar; site, uygulama ve yönetici panelinde çevrilmemiş metin kalmaz', async ({ page }) => {
+  test.setTimeout(120_000);
+  // Türkçe ana sayfadan "EN" düğmesiyle İngilizceye geçilir.
+  await page.goto(url('/'));
+  await page.getByRole('button', { name: 'English' }).first().click();
+  await expect(page.getByText('to renting.').first()).toBeVisible();
+  await expect(page.getByText('$4.99').first()).toBeVisible();
+  await expect(page.getByText('$19.99').first()).toBeVisible();
+  await page.getByRole('tab', { name: /Yearly/ }).click();
+  await expect(page.getByText('$49.90').first()).toBeVisible();
+  await expect(page.getByText('$199.90').first()).toBeVisible();
+  await expect(page.getByText('₺249,99')).toHaveCount(0);
+  // Ekranlar İngilizce gezilir; sözlükte karşılığı olmayan metin toplanır.
+  const missing = new Set();
+  const sweep = async () => { await page.waitForTimeout(800); (await page.evaluate(() => [...(globalThis.__i18nMissing || [])])).forEach((x) => missing.add(x)); };
+  await sweep();
+  const enLogin = async (email, path) => {
+    await page.goto(url(path));
+    await page.evaluate(() => { const d = JSON.parse(localStorage.getItem('__fakedb')); d.session = null; localStorage.setItem('__fakedb', JSON.stringify(d)); });
+    await page.goto(url(path));
+    await page.getByLabel('Email').fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(PW);
+    await page.getByRole('button', { name: 'Log in' }).click();
+    await page.waitForURL(/\/(uygulama|admin)/);
+    await sweep();
+  };
+  for (const p of ['/kayit/kiraci', '/kayit/mulk-sahibi', '/sifre']) { await page.goto(url(p)); await sweep(); }
+  await enLogin('kiraci@ornek.com', '/giris/kiraci');
+  for (const p of ['/uygulama/odemeler', '/uygulama/talepler', '/uygulama/belgeler']) { await page.goto(url(p)); await sweep(); }
+  await enLogin('ev@ornek.com', '/giris/mulk-sahibi');
+  for (const p of ['/uygulama/mulk?pid=p1', '/uygulama/mulk?pid=p1&sub=odeme', '/uygulama/mulk?pid=p1&sub=gider', '/uygulama/rapor', '/uygulama/takvim']) { await page.goto(url(p)); await sweep(); }
+  await enLogin('admin@ornek.com', '/giris/yonetici');
+  await expect(page.getByText('Overview').first()).toBeVisible();
+  for (const tab of ['Subscriptions', 'Review', 'Payments', 'Users', 'Activity log']) { await page.getByRole('button', { name: tab, exact: true }).first().click(); await sweep(); }
+  expect([...missing]).toEqual([]);
 });

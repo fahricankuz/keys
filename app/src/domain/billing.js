@@ -12,7 +12,7 @@ import { S, ui } from './state.js';
 import { live } from './backend.js';
 import { tiers, FEATURES } from './plans.js';
 
-export { PLAN_LABEL, planLabel, tiers, unitsText, priceText, tierPoints, FEATURES } from './plans.js';
+export { PLAN_LABEL, planLabel, tiers, unitsText, priceText, monthlyEquivalent, tierPoints, FEATURES } from './plans.js';
 
 const DAY = 86400000;
 export const TRIAL_DAYS = 30;

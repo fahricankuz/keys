@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text as RNText, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
-import { t } from '../domain/i18n';
+import { t, getLang, setLang } from '../domain/i18n';
 import { useAuth } from '../auth/auth';
 import { Button, Container, PressScale, Text } from '../ui/kit';
 import { Wordmark } from '../ui/Wordmark';
@@ -74,7 +74,9 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
   }, []);
   const links: [string, string][] = [['nasil', t('Nasıl çalışır')], ['fiyat', t('Fiyatlar')], ['sss', t('SSS')]];
   const glass: any = { backgroundColor: c.bg + 'B8', backdropFilter: 'saturate(180%) blur(22px)', WebkitBackdropFilter: 'saturate(180%) blur(22px)' };
-  const btn = { minHeight: phone ? 40 : 44, paddingHorizontal: phone ? 12 : 20 };
+  // Telefonda logo, dil, giriş ve kayıt tek satıra sığsın diye düğmeler sıkı.
+  const btn = { minHeight: phone ? 40 : 44, paddingHorizontal: phone ? 8 : 20 };
+  const narrow = useBreakpoint().width < 380;
   // Oturum açıksa giriş / kayıt yerine panele dönüş gösterilir.
   const signedIn = ready && !!user;
   return (
@@ -87,7 +89,7 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
       <Container style={{ zIndex: 20 }}>
         <View style={{ position: 'relative' }}>
           <View style={{ minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <Wordmark size={phone ? 24 : 28} animate />
+            <Wordmark size={phone ? (narrow ? 17 : 21) : 28} animate />
             {!phone && (
               <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
                 <Pressable onPress={() => setOpen((x) => !x)} accessibilityRole="button" accessibilityState={{ expanded: open }} aria-expanded={open} accessibilityLabel={t('Özellikler')}
@@ -102,7 +104,13 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
                 ))}
               </View>
             )}
-            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', gap: phone ? (narrow ? 3 : 4) : 6, alignItems: 'center' }}>
+              {/* Dil: tek dokunuşla Türkçe ↔ English (sayfa seçilen dilde yeniden açılır). */}
+              <PressScale onPress={() => { setLang(getLang() === 'en' ? 'tr' : 'en'); if (typeof location !== 'undefined') location.reload(); }}
+                accessibilityRole="button" accessibilityLabel={getLang() === 'en' ? 'Türkçe' : 'English'} scaleTo={0.94}
+                style={{ minWidth: phone ? 40 : 44, minHeight: phone ? 40 : 44, paddingHorizontal: phone ? 6 : 8, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.line, backgroundColor: c.surface }}>
+                <Text v="small" style={{ fontFamily: fonts.bodyBold, fontSize: 13 }}>{getLang() === 'en' ? 'TR' : 'EN'}</Text>
+              </PressScale>
               {signedIn ? (
                 <Button kind="primary" title={t('Panele git')} onPress={() => go(user!.admin ? '/admin' : '/uygulama')} style={btn} />
               ) : (

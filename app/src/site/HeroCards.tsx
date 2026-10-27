@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Text as RNText, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeOut, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withTiming } from 'react-native-reanimated';
 import { t } from '../domain/i18n';
+import { demo } from './money';
 import { fonts, radius, shadows, useColors } from '../ui/theme';
 import { Icon, Steps } from '../app-ui/blocks';
 
@@ -89,19 +90,19 @@ export function useHeroCards(w = CARD_W, k = 1) {
   const cards = (k: string) => ({
     odeme: <FloatCard key={k} w={w} tag={t('Ödemeler')} tone={c.butter} delay={0} scenes={[
       <View style={{ gap: 6 }}><Line a={t('Eylül')} b={t('Ödendi')} tone="ok" /><Line a={t('Ekim')} b={t('Ödendi')} tone="ok" /><Line a={t('Kasım')} b={t('Onay bekliyor')} tone="warn" /></View>,
-      <Big icon="check" title={t('Ödeme onaylandı')} sub="₺30.000 · Kasım" />
+      <Big icon="check" title={t('Ödeme onaylandı')} sub={demo(demo('₺30.000', '$1,150'), '$1,150') + ' · ' + t('Kasım')} />
     ]} />,
     talep: <FloatCard key={k} w={w} tag={t('Talepler')} tone={c.sky} delay={500} scenes={[
       <View style={{ backgroundColor: c.surface, borderRadius: 16, padding: 12, gap: 10 }}><RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 13, color: c.ink }}>{t('Kombi basıncı düşüyor')}</RNText><Steps status={2} labels={[]} /><RNText style={{ fontFamily: fonts.body, fontSize: 12, color: c.muted }}>{t('Durum')}: <RNText style={{ fontFamily: fonts.bodyXBold, color: c.ink }}>{t('İşlemde')}</RNText></RNText></View>,
-      <View style={{ gap: 6 }}><Line a={t('Usta teklifi')} b="₺1.850" /><Line a={t('Fatura')} b={t('Gidere işlendi')} tone="ok" /></View>
+      <View style={{ gap: 6 }}><Line a={t('Usta teklifi')} b={demo(demo('₺1.850', '$70'), '$70')} /><Line a={t('Fatura')} b={t('Gidere işlendi')} tone="ok" /></View>
     ]} />,
     yazisma: <FloatCard key={k} w={w} tag={t('Yazışma')} tone={c.sage} delay={900} scenes={[
       <View style={{ gap: 8 }}><Bubble icon="cam" text={t('Kombi basıncı düşüyor')} /><Bubble mine text={t('Gördüm, yarın servis arayacak.')} /></View>,
       <View style={{ gap: 8 }}><Bubble text={t('Dekontu yükledim')} /><Bubble mine icon="check" text={t('Onayladım, teşekkürler')} /></View>
     ]} />,
     depozito: <FloatCard key={k} w={w} tag={t('Depozito')} tone={c.peach} delay={1300} scenes={[
-      <View style={{ gap: 6 }}><Line a={t('Depozito')} b="₺65.000" /><Line a={t('Kesintiler')} b="− ₺4.200" tone="warn" /><Line a={t('İade edilecek')} b="₺60.800" tone="ok" /></View>,
-      <View style={{ gap: 6 }}><Line a={t('Yasal üst sınır')} b={t('TÜFE %33')} /><Line a={t('Yeni kira')} b="₺39.900" tone="ok" /></View>
+      <View style={{ gap: 6 }}><Line a={t('Depozito')} b={demo(demo('₺65.000', '$2,500'), '$2,500')} /><Line a={t('Kesintiler')} b={'− ' + demo(demo('₺4.200', '$160'), '$160')} tone="warn" /><Line a={t('İade edilecek')} b={demo(demo('₺60.800', '$2,340'), '$2,340')} tone="ok" /></View>,
+      <View style={{ gap: 6 }}><Line a={t('Yasal üst sınır')} b={t('TÜFE %33')} /><Line a={t('Yeni kira')} b={demo(demo('₺39.900', '$1,530'), '$1,530')} tone="ok" /></View>
     ]} />
   });
   return mk;

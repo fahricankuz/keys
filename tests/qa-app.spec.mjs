@@ -170,8 +170,8 @@ test('erişilebilirlik (axe): oturum açmış kiracı ve mülk sahibi ekranları
 test('erişilebilirlik (axe): yönetici paneli', async ({ page }) => {
   await login(page, 'admin@ornek.com');
   await expect(page.getByText('Yönetici', { exact: true }).first()).toBeVisible();
-  for (const tab of ['Denetim', 'Ödemeler', 'Bağlantılar', 'Mesajlar', 'Kullanıcılar', 'Kayıt']) {
-    await page.getByRole('button', { name: tab, exact: tab === 'Kayıt' }).first().click();
+  for (const tab of ['Denetim', 'Ödemeler', 'Bağlantılar', 'Mesajlar', 'Kullanıcılar', 'İşlem kaydı', 'Genel bakış']) {
+    await page.getByRole('button', { name: tab, exact: true }).first().click();
     await page.waitForTimeout(400);
   }
   const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();

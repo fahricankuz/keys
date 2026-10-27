@@ -3,6 +3,7 @@
    sıfırlama isteği doğrulama olmadan sunucuda reddedilir. Anahtar yoksa hiçbir şey çizilmez. */
 import { createElement, useEffect, useRef } from 'react';
 import { Platform, View } from 'react-native';
+import { getLang } from '../domain/i18n';
 
 export const CAPTCHA_KEY = process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY || '';
 const ON = !!CAPTCHA_KEY && Platform.OS === 'web';
@@ -41,7 +42,7 @@ export function Captcha() {
     loadScript().then((ts) => {
       if (dead || !host.current) return;
       widgetId = ts.render(host.current, {
-        sitekey: CAPTCHA_KEY, theme: 'auto', language: 'tr',
+        sitekey: CAPTCHA_KEY, theme: 'auto', language: getLang(),
         callback: (x: string) => { token = x; },
         'expired-callback': () => { token = null; },
         'error-callback': () => { token = null; }

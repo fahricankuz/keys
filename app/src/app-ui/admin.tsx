@@ -5,7 +5,7 @@ import { Image, Linking, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../auth/auth';
 import { loadAdmin, decide, previewUrl, humanError, setBan, loadThreads, loadMessages, deleteMessage, loadAudit } from '../domain/admin';
-import { t } from '../domain/i18n';
+import { t, locale } from '../domain/i18n';
 import { tl } from '../domain/util';
 import { Button, Chip, Field, PressScale, Text } from '../ui/kit';
 import { Wordmark } from '../ui/Wordmark';
@@ -13,6 +13,7 @@ import { Loader } from '../ui/Loader';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 import { Card, Empty, H2, Muted, Row, Seg, Stack } from './blocks';
 import { Overview, Subscriptions, Support } from './admin-extra';
+import { AdminShell, PageHead } from './admin-ui';
 import { planLabel } from '../domain/plans';
 
 type Data = Awaited<ReturnType<typeof loadAdmin>>;
@@ -21,8 +22,8 @@ const PAY: Record<string, [string, 'ok' | 'warn' | 'bad' | 'neutral']> = {
   approved: ['Onaylandı', 'ok'], review: ['Onay bekliyor', 'warn'], partial: ['Kısmi', 'warn'], rejected: ['Reddedildi', 'bad']
 };
 const REV: Record<string, [string, 'ok' | 'warn' | 'bad']> = { approved: ['Onaylı', 'ok'], pending: ['İncelemede', 'warn'], rejected: ['Reddedildi', 'bad'] };
-const monthLabel = (m: string) => { const [y, mo] = String(m).split('-').map(Number); return new Date(y, (mo || 1) - 1, 1).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' }); };
-const day = (s?: string) => (s ? new Date(s).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+const monthLabel = (m: string) => { const [y, mo] = String(m).split('-').map(Number); return new Date(y, (mo || 1) - 1, 1).toLocaleDateString(locale(), { month: 'long', year: 'numeric' }); };
+const day = (s?: string) => (s ? new Date(s).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 
 export default function AdminPanel() {
   const { user, signOut } = useAuth();
@@ -41,71 +42,41 @@ export default function AdminPanel() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  // Bölümler: yan menü sırası, simge ve başlık / açıklama.
+  const SECTIONS: [string, string, string, string][] = [
+    ['kpi', t('Genel bakış'), 'grid', ''],
+    ['subs', t('Abonelikler'), 'card', t('Mülk sahiplerinin deneme ve paket durumu; deneme uzatma ve elle paket verme.')],
+    ['support', t('Talepler'), 'chat', t('“Bize ulaş” formundan gelen kurumsal, içe aktarma ve genel talepler.')],
+    ['queue', t('Denetim'), 'doc', t('Yüklenen dekont, belge ve faturalar: onaylanınca karşı tarafa görünür.')],
+    ['pay', t('Ödemeler'), 'chart', t('Tüm kira ödemeleri ve durumları.')],
+    ['conn', t('Bağlantılar'), 'landlord', t('Mülk sahibi → mülk → kiracı ağacı.')],
+    ['msgs', t('Mesajlar'), 'send', t('Yazışmaları okuma ve gerektiğinde silme (her işlem kayda düşer).')],
+    ['users', t('Kullanıcılar'), 'key', t('Tüm hesaplar; yasaklama ve yasak kaldırma.')],
+    ['audit', t('İşlem kaydı'), 'flag', t('Yönetici işlemlerinin değiştirilemez kaydı.')]
+  ];
+  const cur = SECTIONS.find((x) => x[0] === tab) || SECTIONS[0];
+  const items = SECTIONS.map(([key, label, icon]) => ({ key, label, icon, badge: key === 'queue' ? data?.stats.pending || 0 : undefined }));
   return (
-    <View style={{ flex: 1, backgroundColor: c.cream }}>
-      <ScrollView contentContainerStyle={{ padding: desktop ? 32 : 16, paddingBottom: 60, alignItems: 'center' }}>
-        <View style={{ width: '100%', maxWidth: 1100, gap: 18 }}>
-          <Row between wrap>
-            <Row gap={12}>
-              <Wordmark size={26} />
-              <Chip tone="accent" label={t('Yönetici')} />
-            </Row>
-            <Row gap={8}>
-              <Muted>{user?.email}</Muted>
-              <Button kind="ghost" title={t('Yenile')} onPress={load} loading={busy} />
-              <Button kind="ghost" title={t('Çıkış yap')} onPress={async () => { await signOut(); router.replace('/giris/yonetici'); }} />
-            </Row>
-          </Row>
-
-          {err ? <Card><Text v="small" color={c.badInk}>{err}</Text></Card> : null}
-          {!data && !err ? <View style={{ alignItems: 'center', paddingVertical: 40 }}><Loader size={96} /></View> : null}
-
-          {data ? (
-            <>
-              <Stats d={data} />
-              <Seg scroll value={tab} onChange={setTab} options={[
-                ['kpi', t('Genel bakış')], ['subs', t('Abonelikler')], ['support', t('Talepler')],
-                ['queue', t('Denetim') + (data.stats.pending ? ' (' + data.stats.pending + ')' : '')],
-                ['pay', t('Ödemeler')], ['conn', t('Bağlantılar')], ['msgs', t('Mesajlar')], ['users', t('Kullanıcılar')], ['audit', t('Kayıt')]
-              ]} />
-              {tab === 'kpi' && <Overview />}
-              {tab === 'subs' && <Subscriptions />}
-              {tab === 'support' && <Support />}
-              {tab === 'queue' && <Queue d={data} reload={load} />}
-              {tab === 'pay' && <Payments d={data} />}
-              {tab === 'conn' && <Landlords d={data} />}
-              {tab === 'msgs' && <Messages d={data} reload={load} />}
-              {tab === 'users' && <Users d={data} reload={load} />}
-              {tab === 'audit' && <Audit />}
-            </>
-          ) : null}
-        </View>
-      </ScrollView>
-    </View>
-  );
-}
-
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  const c = useColors();
-  return (
-    <View style={{ flexGrow: 1, flexBasis: 150, backgroundColor: c.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: c.line, padding: 18, gap: 4 }}>
-      <Text v="small" muted>{label}</Text>
-      <Text v="h2" style={{ fontFamily: fonts.siteBold, fontSize: 30 }}>{value}</Text>
-      {sub ? <Text v="small" muted>{sub}</Text> : null}
-    </View>
-  );
-}
-
-function Stats({ d }: { d: Data }) {
-  const s = d.stats;
-  return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-      <Stat label={t('Mülk sahibi')} value={String(s.landlords)} sub={s.subscribed + ' ' + t('abone')} />
-      <Stat label={t('Kiracı')} value={String(s.tenants)} sub={s.props + ' ' + t('mülk')} />
-      <Stat label={t('Denetim bekleyen')} value={String(s.pending)} />
-      <Stat label={t('Askıdaki hesap')} value={String(s.banned || 0)} />
-      <Stat label={t('Bu ay onaylı kira')} value={tl(s.approvedThisMonth)} sub={tl(s.reviewThisMonth) + ' ' + t('bekliyor')} />
-    </View>
+    <AdminShell items={items} active={tab} onPick={setTab} email={user?.email} onReload={load} busy={busy}
+      onSignOut={async () => { await signOut(); router.replace('/giris/yonetici'); }}>
+      {err ? <Card><Text v="small" color={c.badInk}>{err}</Text></Card> : null}
+      {!data && !err ? <View style={{ alignItems: 'center', paddingVertical: 40 }}><Loader size={96} /></View> : null}
+      {data ? (
+        tab === 'kpi' ? <Overview ops={{ pending: data.stats.pending, banned: data.stats.banned }} /> : (
+          <Stack>
+            <PageHead label={t('Yönetici')} title={cur[1]} sub={cur[3]} />
+            {tab === 'subs' && <Subscriptions />}
+            {tab === 'support' && <Support />}
+            {tab === 'queue' && <Queue d={data} reload={load} />}
+            {tab === 'pay' && <Payments d={data} />}
+            {tab === 'conn' && <Landlords d={data} />}
+            {tab === 'msgs' && <Messages d={data} reload={load} />}
+            {tab === 'users' && <Users d={data} reload={load} />}
+            {tab === 'audit' && <Audit />}
+          </Stack>
+        )
+      ) : null}
+    </AdminShell>
   );
 }
 
@@ -397,7 +368,7 @@ function Msg({ m, d, reload, removed }: { m: any; d: Data; reload: () => void; r
     <View style={{ gap: 6, backgroundColor: sys ? 'transparent' : m.from_role === 'landlord' ? c.rose : c.peach, borderRadius: radius.md, padding: sys ? 4 : 14 }}>
       <Row between wrap>
         <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{sys ? t('Sistem') : (m.by_name || '—') + ' · ' + (m.from_role === 'landlord' ? t('Mülk sahibi') : t('Kiracı'))}</Text>
-        <Muted>{new Date(m.at).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</Muted>
+        <Muted>{new Date(m.at).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</Muted>
       </Row>
       {m.body ? <Text v="small" selectable>{m.body}</Text> : null}
       {m.image_path ? (
@@ -442,7 +413,7 @@ function Audit() {
         <Card key={a.id} gap={4}>
           <Row between wrap>
             <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{t(ACT[a.action] || a.action)}</Text>
-            <Muted>{new Date(a.at).toLocaleString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</Muted>
+            <Muted>{new Date(a.at).toLocaleString(locale(), { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</Muted>
           </Row>
           <Muted>{a.admin_name || '—'} · {a.target}{a.detail?.reason ? ' · ' + a.detail.reason : ''}{a.detail?.note ? ' · ' + a.detail.note : ''}{a.action === 'plan.set' ? ' · ' + (a.detail?.plan ? planLabel(a.detail.plan) : t('paket kaldırıldı')) : ''}{a.action === 'trial.extend' ? ' · +' + t('{n} gün', { n: a.detail?.days }) : ''}</Muted>
         </Card>

@@ -1,7 +1,7 @@
 /* Mülk sahibi paketleri: adlar, mülk sınırı metni, fiyat ve paketlere göre özellikler.
    Kiracı hesapları her zaman ücretsizdir. Her paket 1 ay ücretsiz denemeyle başlar. */
 
-import { t } from './i18n.js';
+import { t, getLang } from './i18n.js';
 import { CONFIG } from './config.js';
 
 export const PLAN_LABEL = {
@@ -19,11 +19,22 @@ export function unitsText(units){
   return units == null ? t('5’ten fazla mülk') : units === 1 ? t('1 mülk') : t('{n} mülke kadar', { n: units });
 }
 
-/** Paket fiyatı; `yearly` doğruysa yıllık fiyat. */
+const usd = () => getLang() === 'en';
+const money = (v) => usd()
+  ? '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  : '₺' + Number(v).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** Paket fiyatı; `yearly` doğruysa yıllık fiyat. Türkçede TL, İngilizcede dolar. */
 export function priceText(tier, yearly = false){
-  const v = yearly ? tier.yearly : tier.price;
-  if (v != null) return '₺' + Number(v).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const v = usd() ? (yearly ? tier.usdYearly : tier.usd) : (yearly ? tier.yearly : tier.price);
+  if (v != null) return money(v);
   return tier.id === 'kurumsal' ? t('Teklif alın') : t('Fiyat yakında');
+}
+
+/** Yıllık paketin aylığa denk gelen tutarı (ör. "₺208,33" / "$4.16"); yıllık fiyat yoksa boş. */
+export function monthlyEquivalent(tier){
+  const y = usd() ? tier.usdYearly : tier.yearly;
+  return y != null ? money(Math.round((y / 12) * 100) / 100) : '';
 }
 
 /** Paketlere göre açılan özellikler. Başlangıç'ta olmayanlar Portföy ve Kurumsal'da açıktır;

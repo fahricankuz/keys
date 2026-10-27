@@ -6,7 +6,7 @@ import * as Crypto from 'expo-crypto';
 import { hydrate, storage } from '../domain/storage';
 import { LIVE, CONFIG } from '../domain/config';
 import { closeLocal, openLocal, ui } from '../domain/state';
-import { t } from '../domain/i18n';
+import { t, getLang } from '../domain/i18n';
 import { account } from '../domain/billing';
 import * as backend from '../domain/backend';
 
@@ -138,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (LIVE) {
         if (captchaPending()) return t('Güvenlik doğrulaması bitsin, sonra tekrar dene.');
         const c = await backend.client();
-        const { data, error } = await c.auth.signUp({ email, password, options: { data: { name, role, lang: 'tr' }, captchaToken: captchaToken() ?? undefined } });
+        const { data, error } = await c.auth.signUp({ email, password, options: { data: { name, role, lang: getLang() }, captchaToken: captchaToken() ?? undefined } });
         captchaSpent();
         if (error) return t('Hesap oluşturulamadı: {m}', { m: backend.humanError(error) });
         if (!data.session) return 'CONFIRM';

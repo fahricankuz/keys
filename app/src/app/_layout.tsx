@@ -19,9 +19,19 @@ export default function Root() {
   useEffect(() => {
     // Web'de sunucu HTML'i Türkçe üretilir; kayıtlı dil, hidrasyon bittikten sonra uygulanır
     // (aksi halde metinler sunucu çıktısıyla uyuşmaz).
+    // Sabit bir bekleme yetmez: sayfa bölümleri ayrı yüklenir; dil, içerik React'e bağlanmadan değişirse
+    // "hydration" hatası olur. Bu yüzden sayfadaki son öğe React'e bağlanınca (en fazla 3 sn) uygulanır.
     hydrate().then(() => {
       const apply = () => { initLang(); boot(); setStored(true); };
-      if (Platform.OS === 'web') setTimeout(apply, 80); else apply();
+      if (Platform.OS !== 'web' || typeof document === 'undefined') { apply(); return; }
+      const t0 = Date.now();
+      const hydrated = () => {
+        const all = (document.getElementById('root') || document.body).getElementsByTagName('*');
+        const last = all[all.length - 1];
+        return !last || Object.keys(last).some((k) => k.startsWith('__reactFiber'));
+      };
+      const wait = () => { if (hydrated() || Date.now() - t0 > 3000) requestAnimationFrame(() => setTimeout(apply, 0)); else setTimeout(wait, 30); };
+      wait();
     });
   }, []);
   // Eski uygulamanın servis çalışıcısı ve önbelleği telefonlarda kalmış olabilir ("bazen eski uygulama açılıyor"):

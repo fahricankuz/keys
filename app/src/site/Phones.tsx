@@ -4,6 +4,7 @@
 import { ReactNode } from 'react';
 import { Platform, Text as RNText, View } from 'react-native';
 import { t } from '../domain/i18n';
+import { demo } from './money';
 import { Icon } from '../app-ui/blocks';
 import { dark as DARK, fonts, light as LIGHT, radius, shadows, useColors } from '../ui/theme';
 
@@ -62,7 +63,7 @@ function PayScreen({ pal, u }: { pal: Pal; u: number }) {
           <RNText style={{ fontFamily: fonts.body, fontSize: 11 * u, color: pal.muted }}>{t('Kasım 2026 kirası')}</RNText>
           <Pill pal={pal} u={u} tone="warn" label={t('3 gün kaldı')} />
         </View>
-        <RNText style={{ fontFamily: fonts.display, fontSize: 34 * u, lineHeight: 38 * u, color: pal.ink, letterSpacing: -1 * u, fontVariant: ['tabular-nums'] }}>₺32.500</RNText>
+        <RNText style={{ fontFamily: fonts.display, fontSize: 34 * u, lineHeight: 38 * u, color: pal.ink, letterSpacing: -1 * u, fontVariant: ['tabular-nums'] }}>{demo('₺32.500', '$1,250')}</RNText>
         <Tiles pal={pal} u={u} onDark marks={['✓', '✓', '✓', '✓', '✓', '✓', '✓', '✓', '½', '✓', '–', '–']} />
         <View style={{ backgroundColor: pal.accent, borderRadius: radius.pill, minHeight: 34 * u, alignItems: 'center', justifyContent: 'center', marginTop: 2 * u }}>
           <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 12 * u, color: pal.accentInk }}>{t('Dekont yükle')}</RNText>
@@ -84,9 +85,9 @@ function PayScreen({ pal, u }: { pal: Pal; u: number }) {
 
 function OwnerScreen({ pal, u }: { pal: Pal; u: number }) {
   const props: [string, string, string[]][] = [
-    [t('Moda 3+1'), '₺32.500', ['✓', '✓', '✓', '✓', '✓', '…']],
-    [t('Levent ofis'), '₺58.000', ['✓', '✓', '✓', '½', '✓', '✓']],
-    [t('Kadıköy 2+1'), '₺24.000', ['✓', '✓', '✓', '✓', '–', '–']]
+    [t('Moda 3+1'), demo('₺32.500', '$1,250'), ['✓', '✓', '✓', '✓', '✓', '…']],
+    [t('Levent ofis'), demo('₺58.000', '$2,200'), ['✓', '✓', '✓', '½', '✓', '✓']],
+    [t('Kadıköy 2+1'), demo('₺24.000', '$950'), ['✓', '✓', '✓', '✓', '–', '–']]
   ];
   return (
     <View style={{ gap: 12 * u }}>
@@ -96,7 +97,7 @@ function OwnerScreen({ pal, u }: { pal: Pal; u: number }) {
       </View>
       <View style={{ gap: 2 * u }}>
         <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 12 * u, color: pal.ink }}>{t('Portföyüm')}</RNText>
-        <RNText style={{ fontFamily: fonts.display, fontSize: 30 * u, lineHeight: 34 * u, color: pal.ink, letterSpacing: -1 * u }}>₺114.500<RNText style={{ color: pal.muted }}>,00</RNText></RNText>
+        <RNText style={{ fontFamily: fonts.display, fontSize: 30 * u, lineHeight: 34 * u, color: pal.ink, letterSpacing: -1 * u }}>{demo('₺114.500', '$4,400')}<RNText style={{ color: pal.muted }}>{demo(',00', '.00')}</RNText></RNText>
         <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 10.5 * u, color: pal.okInk }}>%96 {t('tahsil edildi')} <RNText style={{ color: pal.muted, fontFamily: fonts.body }}>· {t('Bu ay')}</RNText></RNText>
       </View>
       <View style={{ flexDirection: 'row', gap: 6 * u }}>

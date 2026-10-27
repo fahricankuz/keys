@@ -1,5 +1,5 @@
 import { t } from '../domain/i18n';
-import { tiers, planLabel, priceText, unitsText, tierPoints } from '../domain/plans';
+import { tiers, planLabel, priceText, monthlyEquivalent, unitsText, tierPoints } from '../domain/plans';
 
 /** Tanıtım metinleri: yalnızca uygulamada bulunan özellikler (README → "Ne yapabiliyor"). */
 
@@ -74,7 +74,7 @@ export const plans = (yearly = false) => tiers().map((x: any) => ({
   name: planLabel(x.id),
   price: priceText(x, yearly),
   per: x.price != null ? (yearly ? t('/ yıl') : t('/ ay')) : '',
-  monthlyEq: yearly && x.yearly != null ? priceText({ price: Math.round((x.yearly / 12) * 100) / 100 }) : '',
+  monthlyEq: yearly ? monthlyEquivalent(x) : '',
   units: unitsText(x.units),
   points: tierPoints(x.id),
   best: x.id === 'bes'

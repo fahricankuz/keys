@@ -4,14 +4,15 @@ import { Linking, View } from 'react-native';
 import { extendTrial, humanError, loadKpis, loadSubscriptions, loadSupport, setPlan, setSupportStatus } from '../domain/admin';
 import { CONFIG } from '../domain/config';
 import { planLabel } from '../domain/plans';
-import { t } from '../domain/i18n';
+import { t, locale } from '../domain/i18n';
 import { tl } from '../domain/util';
 import { Button, Chip, Field, Text } from '../ui/kit';
 import { Loader } from '../ui/Loader';
-import { fonts, radius, useColors } from '../ui/theme';
-import { Card, Empty, H2, Muted, Row, Seg, Stack } from './blocks';
+import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
+import { Card, Empty, H2, Hero, Label, Muted, Row, Seg, Stack } from './blocks';
+import { GroupTitle, Kpi, KpiGrid, PageHead } from './admin-ui';
 
-const day = (v: any) => (v ? new Date(v).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+const day = (v: any) => (v ? new Date(v).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) + '%' : '—');
 const delta = (a: number, b: number) => (b ? (a >= b ? '+' : '−') + Math.abs(Math.round(((a - b) / b) * 100)) + '%' : '');
 
@@ -58,11 +59,11 @@ function Signups({ series }: { series: any[] }) {
           ? day(cur.d) + ' · ' + t('{n} kayıt', { n: totals[hover!] }) + ' (' + t('{a} mülk sahibi, {b} kiracı/ekip', { a: cur.landlords, b: cur.tenants }) + ')'
           : t('En yüksek: {n}', { n: max })}</Muted>
       </Row>
-      <View style={{ height: 120, flexDirection: 'row', alignItems: 'flex-end', gap: 2, borderBottomWidth: 1, borderBottomColor: c.line }}>
+      <View style={{ height: 140, flexDirection: 'row', alignItems: 'flex-end', gap: 3 }}>
         {totals.map((n, i) => (
           <View key={series[i].d} {...({ onMouseEnter: () => setHover(i), onMouseLeave: () => setHover(null) } as any)} onTouchStart={() => setHover(i)}
-            accessible accessibilityLabel={day(series[i].d) + ': ' + n} style={{ flex: 1, height: '100%', justifyContent: 'flex-end' }}>
-            <View style={{ height: Math.max(n ? 3 : 0, (n / max) * 112), backgroundColor: hover === i ? c.ink : c.accent, borderTopLeftRadius: 4, borderTopRightRadius: 4 }} />
+            accessible accessibilityRole="image" accessibilityLabel={day(series[i].d) + ': ' + n} style={{ flex: 1, height: '100%', justifyContent: 'flex-end' }}>
+            <View style={{ height: Math.max(n ? 4 : 2, (n / max) * 132), backgroundColor: hover === i ? c.ink : n ? c.accent : c.surface2, borderRadius: 4 }} />
           </View>
         ))}
       </View>
@@ -110,56 +111,82 @@ function Funnel({ f }: { f: any }) {
   );
 }
 
-export function Overview() {
+/** Genel bakış: koyu özet kartı ve Büyüme / Gelir / Kullanım / Operasyon gösterge grupları.
+    `ops`: panelin yüklediği özet (denetim bekleyen, askıdaki hesap). */
+export function Overview({ ops }: { ops?: { pending?: number; banned?: number } }) {
   const c = useColors();
+  const { desktop } = useBreakpoint();
   const [days, setDays] = useState('30');
   const { data: k, err } = useLoad<any>(() => loadKpis(Number(days)), [days]);
-  if (err) return <Text v="small" color={c.badInk}>{err}</Text>;
-  if (!k) return <Spin />;
+  const head = <PageHead label={t('Yönetici')} title={t('Genel bakış')} sub={t('anahtar’ın büyümesi, geliri ve kullanımı tek ekranda.')}
+    right={<View style={{ minWidth: 260 }}><Seg value={days} onChange={setDays} options={[['7', t('7 gün')], ['30', t('30 gün')], ['90', t('90 gün')]]} /></View>} />;
+  if (err) return <Stack>{head}<Text v="small" color={c.badInk}>{err}</Text></Stack>;
+  if (!k) return <Stack>{head}<Spin /></Stack>;
   const plans = k.plans || {};
   const priced = CONFIG.billing.tiers.filter((x: any) => x.price != null);
   const mrr = priced.length ? priced.reduce((a: number, x: any) => a + Number(plans[x.id] || 0) * Number(x.price), 0) : null;
   const o = k.owners;
+  const extra = !!k.activeUsers;
   return (
-    <Stack>
-      <Seg value={days} onChange={setDays} options={[['7', t('7 gün')], ['30', t('30 gün')], ['90', t('90 gün')]]} />
-      <Grid>
-        <Stat label={t('Üye')} value={String(k.users.total)} sub={t('{a} mülk sahibi · {b} kiracı · {c} ekip', { a: k.users.landlords, b: k.users.tenants, c: k.users.team })} />
-        <Stat label={t('Yeni kayıt ({n} gün)', { n: k.days })} value={String(k.signups.period)} sub={[delta(k.signups.period, k.signups.prev), t('önceki dönem: {n}', { n: k.signups.prev })].filter(Boolean).join(' · ')} />
-        <Stat label={t('Ödeyen mülk sahibi')} value={String(o.paying)} sub={t('Dönüşüm: {p}', { p: pct(o.paying, o.total) })} />
-        <Stat label={t('Aylık gelir (tahmini)')} value={mrr == null ? '—' : tl(mrr)} sub={mrr == null ? t('Fiyatlar tanımlanınca hesaplanır') : t('Fiyatı tanımlı paketlerden')} />
-      </Grid>
-      <Grid>
-        <Stat label={t('Denemede')} value={String(o.trial)} sub={t('{n} tanesi 7 gün içinde bitiyor', { n: o.expiring })} />
-        <Stat label={t('Etkin mülk sahibi (30 gün)')} value={String(o.active)} sub={pct(o.active, o.total) + ' ' + t('mülk sahibi')} />
-        <Stat label={t('Erişimi biten')} value={String(o.lapsed)} sub={t('Deneme ya da abonelik bitmiş')} />
-        <Stat label={t('Ödeme sorunu')} value={String(k.billingIssues)} sub={t('{n} abonelik yenilenmeyecek', { n: k.cancelling })} />
-      </Grid>
-      <Grid>
-        <Stat label={t('Yönetilen mülk')} value={String(k.units.total)} sub={t('{n} mülkte kiracı bağlı', { n: k.units.connected })} />
-        <Stat label={t('Bu ay onaylı kira')} value={tl(k.rent.month)} sub={[delta(k.rent.month, k.rent.prevMonth), t('geçen ay: {v}', { v: tl(k.rent.prevMonth) })].filter(Boolean).join(' · ')} />
-        <Stat label={t('Açık talep')} value={String(k.supportOpen)} sub={t('Kurumsal, içe aktarma, genel')} />
-      </Grid>
-      {/* Kullanım ve sağlık göstergeleri (şema güncel değilse gösterilmez: supabase/schema.sql yeniden çalıştırılmalı). */}
-      {k.activeUsers ? (
+    <Stack gap={16}>
+      {head}
+      {/* Özet: kira kartı tarzında koyu kart. */}
+      <Hero gap={14}>
+        <Label onDark>{t('Bu ay onaylı kira hacmi')}</Label>
+        <Row between align="flex-end" wrap>
+          <View style={{ gap: 4 }}>
+            <Text v="num" color={c.heroInk} style={{ fontSize: 46, lineHeight: 50 }}>{tl(k.rent.month)}</Text>
+            <Muted onDark>{[delta(k.rent.month, k.rent.prevMonth), t('geçen ay: {v}', { v: tl(k.rent.prevMonth) })].filter(Boolean).join(' · ')}</Muted>
+          </View>
+          <Row gap={22} wrap>
+            {[[t('Üye'), String(k.users.total)], [t('Ödeyen'), String(o.paying)], [t('Aylık gelir'), mrr == null ? '—' : tl(mrr)], [t('Yönetilen mülk'), String(k.units.total)]].map(([a, b]) => (
+              <View key={a} style={{ gap: 2 }}><Muted onDark>{a}</Muted><Text v="h3" color={c.heroInk} style={{ fontFamily: fonts.siteBold }}>{b}</Text></View>
+            ))}
+          </Row>
+        </Row>
+      </Hero>
+
+      <GroupTitle>{t('Büyüme')}</GroupTitle>
+      <KpiGrid>
+        <Kpi icon="landlord" tone="peach" label={t('Üye')} value={String(k.users.total)} sub={t('{a} mülk sahibi · {b} kiracı · {c} ekip', { a: k.users.landlords, b: k.users.tenants, c: k.users.team })} />
+        <Kpi icon="plus" tone="butter" label={t('Yeni kayıt ({n} gün)', { n: k.days })} value={String(k.signups.period)} trend={delta(k.signups.period, k.signups.prev) || undefined} sub={t('önceki dönem: {n}', { n: k.signups.prev })} />
+        <Kpi icon="flag" tone="sky" label={t('Denemede')} value={String(o.trial)} sub={t('{n} tanesi 7 gün içinde bitiyor', { n: o.expiring })} />
+        <Kpi icon="check" tone="sage" label={t('Ödeyen mülk sahibi')} value={String(o.paying)} sub={t('Dönüşüm: {p}', { p: pct(o.paying, o.total) })} />
+      </KpiGrid>
+
+      <GroupTitle>{t('Gelir')}</GroupTitle>
+      <KpiGrid>
+        <Kpi icon="chart" tone="sage" label={t('Aylık gelir (tahmini)')} value={mrr == null ? '—' : tl(mrr)} sub={mrr == null ? t('Fiyatlar tanımlanınca hesaplanır') : t('Fiyatı tanımlı paketlerden')} />
+        <Kpi icon="chart" tone="butter" label={t('Yıllık gelir (ARR, tahmini)')} value={mrr == null ? '—' : tl(mrr * 12)} sub={t('Aylık gelirin 12 katı')} />
+        <Kpi icon="card" tone="sky" label={t('Ödeyen başına aylık gelir')} value={mrr == null || !o.paying ? '—' : tl(mrr / o.paying)} sub={t('ARPU')} />
+        <Kpi icon="bell" tone="peach" label={t('Ödeme sorunu')} value={String(k.billingIssues)} sub={t('{n} abonelik yenilenmeyecek', { n: k.cancelling })} />
+      </KpiGrid>
+
+      {extra ? (
         <>
-          <H2>{t('Kullanım')}</H2>
-          <Grid>
-            <Stat label={t('Haftalık etkin kullanıcı')} value={String(k.activeUsers.week)} sub={t('Son 7 günde en az bir işlem')} />
-            <Stat label={t('Aylık etkin kullanıcı')} value={String(k.activeUsers.month)} sub={t('Bağlılık (haftalık / aylık): {p}', { p: pct(k.activeUsers.week, k.activeUsers.month) })} />
-            <Stat label={t('Davet kabul oranı ({n} gün)', { n: k.days })} value={pct(k.invites.accepted, k.invites.created)} sub={t('{a} davet · {b} kabul', { a: k.invites.created, b: k.invites.accepted })} />
-            <Stat label={t('Zamanında ödeme (geçen ay)')} value={pct(k.punctuality.onTime, k.punctuality.onTime + k.punctuality.late)} sub={t('{a} vadesinde · {b} geç', { a: k.punctuality.onTime, b: k.punctuality.late })} />
-          </Grid>
-          <Grid>
-            <Stat label={t('Açık arıza / tadilat talebi')} value={String(k.requests.open)} sub={t('{a} çözüldü · dönemde {b} yeni', { a: k.requests.done, b: k.requests.period })} />
-            <Stat label={t('Yıllık gelir (ARR, tahmini)')} value={mrr == null ? '—' : tl(mrr * 12)} sub={t('Aylık gelirin 12 katı')} />
-            <Stat label={t('Ödeyen başına aylık gelir')} value={mrr == null || !o.paying ? '—' : tl(mrr / o.paying)} sub={t('ARPU')} />
-          </Grid>
-          <Funnel f={k.funnel} />
+          <GroupTitle>{t('Kullanım')}</GroupTitle>
+          <KpiGrid>
+            <Kpi icon="home" tone="peach" label={t('Haftalık etkin kullanıcı')} value={String(k.activeUsers.week)} sub={t('Bağlılık (haftalık / aylık): {p}', { p: pct(k.activeUsers.week, k.activeUsers.month) })} />
+            <Kpi icon="calendar" tone="sky" label={t('Aylık etkin kullanıcı')} value={String(k.activeUsers.month)} sub={t('Son 30 günde en az bir işlem')} />
+            <Kpi icon="send" tone="butter" label={t('Davet kabul oranı ({n} gün)', { n: k.days })} value={pct(k.invites.accepted, k.invites.created)} sub={t('{a} davet · {b} kabul', { a: k.invites.created, b: k.invites.accepted })} />
+            <Kpi icon="key" tone="sage" label={t('Zamanında ödeme (geçen ay)')} value={pct(k.punctuality.onTime, k.punctuality.onTime + k.punctuality.late)} sub={t('{a} vadesinde · {b} geç', { a: k.punctuality.onTime, b: k.punctuality.late })} />
+          </KpiGrid>
         </>
       ) : <Muted>{t('Ek göstergeler için Supabase’de supabase/schema.sql dosyasını yeniden çalıştır.')}</Muted>}
-      <Signups series={k.series} />
-      <PlanBars plans={plans} total={o.paying} />
+
+      <GroupTitle>{t('Operasyon')}</GroupTitle>
+      <KpiGrid>
+        <Kpi icon="doc" tone={ops?.pending ? 'peach' : 'sky'} label={t('Denetim bekleyen')} value={String(ops?.pending ?? 0)} sub={t('Dekont, belge ve fatura')} />
+        {extra ? <Kpi icon="wrench" tone="butter" label={t('Açık arıza / tadilat talebi')} value={String(k.requests.open)} sub={t('{a} çözüldü · dönemde {b} yeni', { a: k.requests.done, b: k.requests.period })} /> : null}
+        <Kpi icon="chat" tone="sky" label={t('Açık destek talebi')} value={String(k.supportOpen)} sub={t('Kurumsal, içe aktarma, genel')} />
+        <Kpi icon="x" tone="peach" label={t('Askıdaki hesap')} value={String(ops?.banned ?? 0)} sub={t('Erişimi biten: {n}', { n: o.lapsed })} />
+      </KpiGrid>
+
+      <View style={{ flexDirection: desktop ? 'row' : 'column', gap: 16, alignItems: 'stretch', marginTop: 8 }}>
+        <View style={{ flex: 1.3 }}><Signups series={k.series} /></View>
+        <View style={{ flex: 1 }}>{extra ? <Funnel f={k.funnel} /> : <PlanBars plans={plans} total={o.paying} />}</View>
+      </View>
+      {extra ? <PlanBars plans={plans} total={o.paying} /> : null}
     </Stack>
   );
 }

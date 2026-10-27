@@ -5,6 +5,7 @@ import { Linking, Platform, ScrollView, Text as RNText, View } from 'react-nativ
 import { useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeInDown, FadeOutUp } from 'react-native-reanimated';
 import { t, getLang, setLang } from '../domain/i18n';
+import { demo } from './money';
 import { CONFIG } from '../domain/config';
 import { Button, Chip, Container, PressScale, Text } from '../ui/kit';
 import { Wordmark } from '../ui/Wordmark';
@@ -194,7 +195,7 @@ function FeatureVisual({ id }: { id: string }) {
       <Frame>
         <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{t('Kombi basıncı düşüyor')}</Text>
         <Steps status={2} labels={[t('Açıldı'), t('Görüldü'), t('İşlemde'), t('Çözüldü')]} />
-        <Line a={t('Usta teklifi')} b="₺1.850" />
+        <Line a={t('Usta teklifi')} b={demo(demo('₺1.850', '$70'), '$70')} />
         <Line a={t('Fatura')} b={t('Gidere işlendi')} tone="ok" />
       </Frame>
     );
@@ -206,20 +207,20 @@ function FeatureVisual({ id }: { id: string }) {
         <Line a="dask-police.pdf" b={t('İncelemede')} tone="warn" />
       </Frame>
     );
-    case 'cikis': return <Frame><Line a={t('Depozito')} b="₺65.000" /><Line a={t('Kesintiler')} b="− ₺4.200" /><Line a={t('İade edilecek')} b="₺60.800" strong /></Frame>;
+    case 'cikis': return <Frame><Line a={t('Depozito')} b={demo(demo('₺65.000', '$2,500'), '$2,500')} /><Line a={t('Kesintiler')} b={'− ' + demo(demo('₺4.200', '$160'), '$160')} /><Line a={t('İade edilecek')} b={demo(demo('₺60.800', '$2,340'), '$2,340')} strong /></Frame>;
     case 'yenileme': return (
       <Frame>
         <View style={{ backgroundColor: c.bg, borderRadius: radius.pill, paddingHorizontal: 18, minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <View style={{ width: 24, height: 24, borderRadius: 8, backgroundColor: c.accent }} />
           <RNText style={{ fontFamily: fonts.siteBold, fontSize: 17, color: c.accentText, letterSpacing: -0.3, flexShrink: 1 }}>{t('Yasal üst sınır: TÜFE')}</RNText>
         </View>
-        <Line a={t('Mevcut kira')} b="₺30.000" />
-        <Line a={t('Yeni kira')} b="₺39.900" strong />
+        <Line a={t('Mevcut kira')} b={demo(demo('₺30.000', '$1,150'), '$1,150')} />
+        <Line a={t('Yeni kira')} b={demo(demo('₺39.900', '$1,530'), '$1,530')} strong />
       </Frame>
     );
     case 'rapor': return (
       <Frame>
-        {[[t('Moda 3+1'), 0.86, '₺312.400'], [t('Levent ofis'), 0.64, '₺238.000'], [t('Bağdat Cd. mağaza'), 0.42, '₺151.900']].map(([n, p, v]) => (
+        {[[t('Moda 3+1'), 0.86, demo('₺312.400', '$12,000')], [t('Levent ofis'), 0.64, demo('₺238.000', '$9,150')], [t('Bağdat Cd. mağaza'), 0.42, demo('₺151.900', '$5,840')]].map(([n, p, v]) => (
           <View key={n as string} style={{ gap: 6 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text v="small" style={{ fontFamily: fonts.bodyBold }}>{n}</Text><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{v}</Text></View>
             <View style={{ height: 10, borderRadius: 5, backgroundColor: c.surface2 }}><View style={{ width: ((p as number) * 100 + '%') as any, height: 10, borderRadius: 5, backgroundColor: c.accent }} /></View>

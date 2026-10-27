@@ -22,9 +22,9 @@ test('paket dosyaları üretilir; CDN bağlantısı kalmaz', () => {
   for (const f of ['vendor/supabase.js', 'assets/fonts/fonts.css', '404.html', '.nojekyll', 'sw.js', 'manifest.webmanifest']) expect(existsSync(OUT + '/' + f)).toBe(true);
   expect(readFileSync(OUT + '/sw.js', 'utf8')).toContain('./vendor/supabase.js');
   const aasa = JSON.parse(readFileSync(OUT + '/.well-known/apple-app-site-association', 'utf8'));
-  expect(aasa.applinks.details[0].appIDs).toEqual(['TEAM123456.online.kiracim.app']);
+  expect(aasa.applinks.details[0].appIDs).toEqual(['TEAM123456.io.anahtar.app']);
   const links = JSON.parse(readFileSync(OUT + '/.well-known/assetlinks.json', 'utf8'));
-  expect(links[0].target).toMatchObject({ package_name:'online.kiracim.app', sha256_cert_fingerprints:['AA:BB'] });
+  expect(links[0].target).toMatchObject({ package_name:'io.anahtar.app', sha256_cert_fingerprints:['AA:BB'] });
 });
 
 test('yasal ve destek sayfaları sitede; uygulama adı Kiracım', async ({ page }) => {
