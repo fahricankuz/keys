@@ -769,7 +769,6 @@ export const EN_EXTRA = {
   'Neden anahtar?': 'Why anahtar?',
   'Yıllık · 2 ay bedava': 'Yearly · 2 months free',
   'aylık {price}’ye denk gelir': 'equals {price} a month',
-  'Diğer paketler için kaydır': 'Swipe for other plans',
   'Davet kodları sunucuya bağlı kurulumda çalışır. Site sunucuya bağlanınca kodunla mülküne bağlanabilirsin.': 'Invite codes work when the site is connected to the server. You can join your property with your code once it is connected.',
   'FIRSAT': 'OFFER'
 };
