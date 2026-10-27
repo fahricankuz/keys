@@ -72,7 +72,7 @@ Dağıtım bitince `https://anahtar.io/giris/kiraci` adresini doğrudan aç; aç
 
 Depo → **Actions** → **Hostinger paketi** → **Run workflow** → bitince alttaki **anahtar-hostinger** paketini indir.
 (Değişkenler: depo Settings → Secrets and variables → Actions → Variables: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, isteğe bağlı `TURNSTILE_SITE_KEY`.)
-Aynı iş akışı `site` adlı bir dala da derlenmiş site yazar.
+Aynı iş akışı `site` adlı bir dala da derlenmiş site yazar. Bu dalda bir `package.json` da vardır; Hostinger sihirbazında bu dal seçilirse: Kök dizin boş, Framework **Other**, Derleme `npm run build`, Çıktı `dist`.
 
 ## 5. Eski yöntemler (zip yükleme ve Git)
 

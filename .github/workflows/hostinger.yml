@@ -55,6 +55,26 @@ jobs:
       - name: site dalına yaz (Hostinger Git dağıtımı bu dalı çeker)
         run: |
           cd hostinger-site
+          # Hostinger'ın "GitHub'dan içe aktar" (Node.js) sihirbazı package.json ister:
+          # Framework Other, derleme `npm run build`, çıktı `dist`. Bağımlılık yok; site dosyaları dist/'e kopyalanır.
+          cat > package.json <<'JSON'
+          {
+            "name": "anahtar-site",
+            "version": "1.0.0",
+            "private": true,
+            "description": "anahtar: derlenmiş statik site. Derleme çıktısı: dist/",
+            "scripts": { "build": "node build.mjs" },
+            "engines": { "node": ">=18" }
+          }
+          JSON
+          cat > build.mjs <<'JS'
+          // Site dosyalarını (.htaccess dahil) dist/ klasörüne kopyalar; package.json ve build.mjs hariç.
+          import { cpSync, readdirSync, rmSync } from 'node:fs';
+          const skip = new Set(['dist', 'node_modules', '.git', 'package.json', 'package-lock.json', 'build.mjs']);
+          rmSync('dist', { recursive: true, force: true });
+          for (const f of readdirSync('.')) if (!skip.has(f)) cpSync(f, `dist/${f}`, { recursive: true });
+          console.log('Site hazır: dist/');
+          JS
           git init -q -b site
           git config user.name "anahtar-bot"
           git config user.email "bot@users.noreply.github.com"
