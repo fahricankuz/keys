@@ -2090,3 +2090,87 @@ begin
   execute 'drop policy if exists not_banned on public.support_requests';
   execute 'create policy not_banned on public.support_requests as restrictive for all to authenticated using (not public.is_banned()) with check (not public.is_banned())';
 end $$;
+
+-- ---------------------------------------------------------------------
+-- 13. Aylık ve yıllık rapor e-postası (Kurumsal)
+-- ---------------------------------------------------------------------
+-- `report` Edge Function'ı her ayın 1'inde (ve 1 Ocak'ta yıllık) bu iki fonksiyonu
+-- service_role ile çağırır; uygulama kullanıcıları çağıramaz.
+
+/** Raporu alacak mülk sahipleri: Kurumsal (ya da deneme) paketinde ve ayarı kapatmamış olanlar. */
+create or replace function public.report_recipients(period text)
+returns table (user_id uuid, email text, name text, lang text)
+language sql stable security definer set search_path = public as $$
+  select p.id, u.email::text, p.name, p.lang
+    from public.profiles p join auth.users u on u.id = p.id
+   where p.role = 'landlord'
+     and not exists (select 1 from public.bans b where b.user_id = p.id)
+     and (public.access_state(p.id) ->> 'plan') in ('kurumsal', 'pro', 'trial')
+     and coalesce((p.settings ->> case when period = 'year' then 'reportYearly' else 'reportMonthly' end)::boolean, true)
+     and exists (select 1 from public.properties x where x.owner_id = p.id)
+$$;
+
+/** Bir mülk sahibinin dönem özeti. period: 'month' (ref'in ayı) | 'year' (ref'in yılı). */
+create or replace function public.owner_report(uid uuid, period text, ref date)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare
+  d0 date := case when period = 'year' then date_trunc('year', ref)::date else date_trunc('month', ref)::date end;
+  d1 date := case when period = 'year' then (date_trunc('year', ref) + interval '1 year')::date else (date_trunc('month', ref) + interval '1 month')::date end;
+  months text[];
+  props jsonb;
+begin
+  select array_agg(to_char(m, 'YYYY-MM')) into months from generate_series(d0, d1 - 1, interval '1 month') m;
+  with pr as (
+    select p.*,
+           -- Dönemde kiralı olduğu ay sayısı: sözleşme aralığıyla kesişen aylar.
+           (select count(*) from unnest(months) mm where to_date(mm, 'YYYY-MM') >= date_trunc('month', p.start_date)
+                                                   and to_date(mm, 'YYYY-MM') <= p.contract_end) as active_months,
+           exists (select 1 from public.memberships m where m.property_id = p.id and m.role = 'tenant') as has_tenant
+      from public.properties p where p.owner_id = uid
+  ), pay as (
+    select pr.id, coalesce(sum(y.amount) filter (where y.status in ('approved', 'partial')), 0) as collected,
+           count(*) filter (where y.status = 'approved') as paid_months
+      from pr left join public.payments y on y.property_id = pr.id and y.month = any (months)
+     group by pr.id
+  ), exp as (
+    select pr.id, coalesce(sum(e.amount), 0) as spent
+      from pr left join public.expenses e on e.property_id = pr.id and e.spent_on >= d0 and e.spent_on < d1
+     group by pr.id
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'name', pr.name, 'rent', pr.rent, 'expected', pr.rent * pr.active_months,
+           'collected', pay.collected, 'spent', exp.spent, 'paidMonths', pay.paid_months,
+           'activeMonths', pr.active_months, 'hasTenant', pr.has_tenant, 'contractEnd', pr.contract_end)
+         order by pr.name), '[]'::jsonb)
+    into props
+    from pr join pay on pay.id = pr.id join exp on exp.id = pr.id;
+
+  return jsonb_build_object(
+    'period', period, 'from', d0, 'to', d1 - 1,
+    'properties', props,
+    'units', jsonb_array_length(props),
+    'occupied', (select count(*) from jsonb_array_elements(props) x where (x ->> 'hasTenant')::boolean),
+    'expected', (select coalesce(sum((x ->> 'expected')::numeric), 0) from jsonb_array_elements(props) x),
+    'collected', (select coalesce(sum((x ->> 'collected')::numeric), 0) from jsonb_array_elements(props) x),
+    'spent', (select coalesce(sum((x ->> 'spent')::numeric), 0) from jsonb_array_elements(props) x),
+    'requests', jsonb_build_object(
+      'opened', (select count(*) from public.requests r join public.properties p on p.id = r.property_id
+                  where p.owner_id = uid and r.req_date >= d0 and r.req_date < d1),
+      'done', (select count(*) from public.requests r join public.properties p on p.id = r.property_id
+                where p.owner_id = uid and r.status = 3 and r.updated_at >= d0 and r.updated_at < d1),
+      'open', (select count(*) from public.requests r join public.properties p on p.id = r.property_id
+                where p.owner_id = uid and r.status < 3)),
+    'renewals', (select count(*) from public.properties p where p.owner_id = uid
+                   and p.contract_end >= d1 and p.contract_end < d1 + 90)
+  );
+end $$;
+
+revoke execute on function public.report_recipients(text) from public, anon, authenticated;
+revoke execute on function public.owner_report(uuid, text, date) from public, anon, authenticated;
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    grant execute on function public.report_recipients(text) to service_role;
+    grant execute on function public.owner_report(uuid, text, date) to service_role;
+  end if;
+end $$;

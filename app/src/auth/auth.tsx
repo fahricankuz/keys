@@ -1,6 +1,6 @@
 /* Oturum. Supabase kuruluysa gerçek hesap; değilse bu cihaza özel yerel hesap.
    Uygulama (/uygulama) yalnızca oturumla açılır. */
-import { captchaPending, captchaSpent, captchaToken } from './captcha';
+import { CAPTCHA_KEY, captchaPending, captchaSpent, captchaToken } from './captcha';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import * as Crypto from 'expo-crypto';
 import { hydrate, storage } from '../domain/storage';
@@ -12,7 +12,7 @@ import * as backend from '../domain/backend';
 
 export type Role = 'tenant' | 'landlord' | 'team';
 export type Entry = 'tenant' | 'landlord' | 'admin';
-export type User = { id: string; email: string; name: string; role: Role; createdAt?: number; admin?: boolean };
+export type User = { id: string; email: string; name: string; role: Role; createdAt?: number; admin?: boolean; phone?: string };
 
 /** Görünüm rolü: ekip üyeleri mülk sahibi arayüzünü (yetkileri kadar) kullanır. */
 const viewRole = (r: Role): 'tenant' | 'landlord' => (r === 'tenant' ? 'tenant' : 'landlord');
@@ -36,6 +36,11 @@ type Ctx = {
   deleteAccount(): Promise<void>;
   /** Davet koduyla mülke bağlan (gerçek hesap, kiracı). */
   join(code: string): Promise<string | null>;
+  /** Ayarlar: ad ve telefon. */
+  saveProfile(a: { name: string; phone: string }): Promise<string | null>;
+  /** Yeni e-posta; gerçek hesapta onay bağlantısı gönderilir ('CONFIRM' döner). */
+  changeEmail(email: string): Promise<string | null>;
+  changePassword(current: string, next: string): Promise<string | null>;
 };
 const AuthCtx = createContext<Ctx>(null as unknown as Ctx);
 export const useAuth = () => useContext(AuthCtx);
@@ -68,7 +73,7 @@ function wrongEntry(u: User, as: Entry): string | null {
 async function enterLive(au: { id: string; email?: string }): Promise<User> {
   const res: any = await backend.openSession({ id: au.id, email: au.email });
   const p = backend.live.profile || {};
-  const u: User = { id: au.id, email: au.email || '', name: p.name || '', role: (p.role as Role) || 'tenant', admin: !!res.admin };
+  const u: User = { id: au.id, email: au.email || '', name: p.name || '', phone: p.phone || '', role: (p.role as Role) || 'tenant', admin: !!res.admin };
   if (!u.admin) {
     ui.role = viewRole(u.role);
     const code = storage.getItem(INVITE);
@@ -96,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           const id = storage.getItem(SESSION);
           const a = id && readAccounts().find((x) => x.id === id);
-          if (a) { const u = { id: a.id, email: a.email, name: a.name, role: a.role, createdAt: a.createdAt }; enter(u); setUser(u); }
+          if (a) { const u = { id: a.id, email: a.email, name: a.name, phone: a.phone, role: a.role, createdAt: a.createdAt }; enter(u); setUser(u); }
         }
       } catch {}
       setReady(true);
@@ -123,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!a || a.hash !== (await hashPw(password, a.salt))) return t('E-posta ya da şifre yanlış.');
       if (as && viewRole(a.role) !== as) return wrongEntry({ ...a, admin: false }, as);
       storage.setItem(SESSION, a.id);
-      const u = { id: a.id, email: a.email, name: a.name, role: a.role, createdAt: a.createdAt };
+      const u = { id: a.id, email: a.email, name: a.name, phone: a.phone, role: a.role, createdAt: a.createdAt };
       enter(u); setUser(u); return null;
     } catch (e: any) {
       if (e?.banned !== undefined) return t('Hesabın askıya alındı: {m}', { m: e.banned || t('gerekçe belirtilmedi') }) + ' ' + t('Bilgi için info@anahtar.io adresine yaz.');
@@ -195,6 +200,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try { await backend.acceptInvite(code); storage.removeItem(INVITE); return null; } catch (e) { return backend.humanError(e); }
   }, []);
 
-  const value = useMemo(() => ({ user, ready, live: LIVE, signIn, signUp, reset, signOut, deleteAccount, join }), [user, ready, signIn, signUp, reset, signOut, deleteAccount, join]);
+  /** Yerel hesabın kaydını günceller. */
+  const patchLocal = (id: string, patch: Partial<Account>) =>
+    storage.setItem(ACCOUNTS, JSON.stringify(readAccounts().map((x) => (x.id === id ? { ...x, ...patch } : x))));
+
+  const saveProfile = useCallback(async ({ name, phone }: { name: string; phone: string }) => {
+    name = name.trim(); phone = phone.trim();
+    if (!user) return t('Önce giriş yap.');
+    if (!name) return t('Adını yaz.');
+    try {
+      if (LIVE) await backend.updateProfile({ name, phone });
+      else patchLocal(user.id, { name, phone });
+      setUser({ ...user, name, phone }); return null;
+    } catch (e) { return backend.humanError(e); }
+  }, [user]);
+
+  const changeEmail = useCallback(async (email: string) => {
+    email = email.trim().toLowerCase();
+    if (!user) return t('Önce giriş yap.');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return t('Geçerli bir e-posta adresi yaz.');
+    if (email === user.email) return t('Bu zaten şu anki e-posta adresin.');
+    try {
+      if (LIVE) {
+        const c = await backend.client();
+        const { error } = await c.auth.updateUser({ email }, { emailRedirectTo: CONFIG.publicUrl });
+        return error ? backend.humanError(error) : 'CONFIRM';
+      }
+      if (readAccounts().some((x) => x.email === email && x.id !== user.id)) return t('Bu e-posta ile bir hesap zaten var.');
+      patchLocal(user.id, { email });
+      setUser({ ...user, email }); return null;
+    } catch (e) { return backend.humanError(e); }
+  }, [user]);
+
+  const changePassword = useCallback(async (current: string, next: string) => {
+    if (!user) return t('Önce giriş yap.');
+    if (next.length < 8) return t('Yeni şifre en az 8 karakter olmalı.');
+    if (next === current) return t('Yeni şifre eskisiyle aynı olamaz.');
+    try {
+      if (LIVE) {
+        const c = await backend.client();
+        // Mevcut şifre doğrulanır; bot koruması açıkken giriş isteği jeton ister, o durumda oturum yeterli sayılır.
+        if (!CAPTCHA_KEY) {
+          const { error } = await c.auth.signInWithPassword({ email: user.email, password: current });
+          if (error) return t('Mevcut şifren yanlış.');
+        }
+        const { error } = await c.auth.updateUser({ password: next });
+        return error ? backend.humanError(error) : null;
+      }
+      const a = readAccounts().find((x) => x.id === user.id);
+      if (!a || a.hash !== (await hashPw(current, a.salt))) return t('Mevcut şifren yanlış.');
+      const salt = Crypto.randomUUID();
+      patchLocal(user.id, { salt, hash: await hashPw(next, salt) });
+      return null;
+    } catch (e) { return backend.humanError(e); }
+  }, [user]);
+
+  const value = useMemo(() => ({ user, ready, live: LIVE, signIn, signUp, reset, signOut, deleteAccount, join, saveProfile, changeEmail, changePassword }),
+    [user, ready, signIn, signUp, reset, signOut, deleteAccount, join, saveProfile, changeEmail, changePassword]);
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }

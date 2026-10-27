@@ -27,6 +27,12 @@ Sahip: 👤 = sizin yapmanız gereken (hesap, sözleşme, karar) · 🤖 = kodda
 - [ ] 👤 Uçtan uca canlı deneme (iki kişi, iki cihaz): mülk sahibi kaydı → mülk → davet bağlantısı → kiracı kaydı →
       dekont → yönetici onayı → mülk sahibi görür → hesap silme. (Aynı akış testte sahte sunucuyla geçiyor; gerçek sunucuda bir kez elle doğrulanmalı.)
 
+- [ ] 👤 **Kurumsal rapor e-postası** (`supabase/functions/report`): `supabase functions deploy report`;
+      gizli değişkenler `REPORT_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM` (ör. `anahtar <rapor@anahtar.io>`), `APP_URL=https://anahtar.io`.
+      Supabase → Integrations → **Cron** → iki iş: Edge Function `report`, POST, başlık `x-anahtar-secret: <REPORT_SECRET>`;
+      aylık `0 6 1 * *` gövde `{"period":"month"}`, yıllık `30 6 1 1 *` gövde `{"period":"year"}`.
+      Deneme: gövdeye `"only":"<kullanıcı id>"` ekleyip bir kez elle çalıştırın.
+
 ## Faz 1 — Güvenlik ve hukuk (1–2 hafta, Faz 0 ile paralel)
 
 - [ ] 👤 **KVKK**: aydınlatma metni ve gizlilik politikasını avukata kontrol ettirin; VERBİS kayıt yükümlülüğünü değerlendirin;

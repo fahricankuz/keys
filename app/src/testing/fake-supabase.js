@@ -231,10 +231,12 @@ export function createClient(url, key, opts){
         emit('SIGNED_IN', db.session);
         return { data:{ session:db.session, user:db.session.user, redirectType: code.startsWith('recovery') ? 'recovery' : null }, error:null };
       },
-      async updateUser({ password }){
+      async updateUser({ password, email }, o){
         const db = load();
         const u = db.users.find(x => x.id === db.session?.user.id);
         if (u && password) u.password = password;
+        // Gerçek sunucu gibi: yeni e-posta onay bağlantısına tıklanınca geçerli olur.
+        if (email) client._calls.push({ emailChange:email, redirectTo:o && o.emailRedirectTo });
         persist(db);
         return { data:{ user: db.session?.user }, error:null };
       }

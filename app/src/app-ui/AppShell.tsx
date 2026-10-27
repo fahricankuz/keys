@@ -17,6 +17,7 @@ import { renderSheet } from './sheets';
 import { useAuth } from '../auth/auth';
 
 type Item = { label: string; icon: string; path: string; badge?: number };
+const SETTINGS = '/uygulama/ayarlar';
 
 function items(): { tabs: Item[]; extra: Item[] } {
   if (ui.role === 'tenant') {
@@ -93,8 +94,18 @@ function SideNav({ list }: { list: Item[] }) {
         );
       })}
       <View style={{ flex: 1 }} />
-      <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{user?.name}</Text>
-      <Text v="small" muted>{isTeam() ? (S.order.length ? roleLabel(memberRole(S.order[0])) : t('Ekip üyesi')) : ui.role === 'landlord' ? t('Mülk sahibi') : t('Kiracı')}</Text>
+      {/* Hesap kartı: ad, rol ve ayarlar (kiracı, mülk sahibi ve ekip üyesi için aynı). */}
+      <PressScale onPress={() => router.push('/uygulama/ayarlar' as any)} accessibilityRole="link" accessibilityLabel={t('Ayarlar')} accessibilityState={{ selected: active(SETTINGS) }} scaleTo={0.98}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 20, backgroundColor: active(SETTINGS) ? c.accentSoft : c.tile }}>
+        <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
+          <Text v="small" color={c.accentInk} style={{ fontFamily: fonts.bodyXBold, fontSize: 15 }}>{(user?.name || user?.email || '?').trim().charAt(0).toLocaleUpperCase('tr')}</Text>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text v="small" numberOfLines={1} style={{ fontFamily: fonts.bodyXBold }}>{user?.name || user?.email}</Text>
+          <Text v="small" muted numberOfLines={1} style={{ fontSize: 12.5 }}>{isTeam() ? (S.order.length ? roleLabel(memberRole(S.order[0])) : t('Ekip üyesi')) : ui.role === 'landlord' ? t('Mülk sahibi') : t('Kiracı')}</Text>
+        </View>
+        <Icon name="gear" size={18} color={active(SETTINGS) ? c.accent : c.muted} />
+      </PressScale>
     </View>
   );
 }
@@ -108,7 +119,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <OverlayProvider renderSheet={renderSheet}>
       <View style={{ flex: 1, flexDirection: 'row', backgroundColor: c.bg }}>
-        {desktop && <SideNav list={[...tabs, ...extra]} />}
+        {desktop && <SideNav list={[...tabs, ...extra, { label: t('Ayarlar'), icon: 'gear', path: SETTINGS }]} />}
         <View style={{ flex: 1 }}>
           <View style={{ flex: 1 }}>{children}</View>
           {!desktop && <TabBar list={tabs} />}

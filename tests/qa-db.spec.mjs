@@ -224,3 +224,31 @@ test('hatırlatma: yeni eklenen mülk için vade başlangıçtan önceye düşme
   const late = (await q(`select distinct property_id from public.notifications where title like '%gecikti%' and property_id in ('p-yeni','p-gelecek','p-eski')`)).map(r => r.property_id);
   expect(late).toEqual(['p-eski']);
 });
+
+/* ---------------------------------------------------------------- rapor e-postası (Kurumsal) */
+
+test('rapor e-postası: dönem özeti doğru; alıcı listesi paket ve ayara bakar; kullanıcılar çağıramaz', async () => {
+  const R = '00000000-0000-0000-0000-0000000000c1';
+  await as(null);
+  await db.query(`insert into auth.users (id, email, raw_user_meta_data) values ($1, 'rapor@ornek.com', '{"name":"Rapor","role":"landlord"}')`, [R]);
+  await as(R);
+  await db.query(`insert into public.properties (id, owner_id, name, rent, start_date, contract_end) values ('pr1', $1, 'Kadıköy', 30000, '2026-01-01', '2027-01-01')`, [R]);
+  expect(await tryCall(db, `select public.owner_report($1, 'month', current_date)`, [R])).toMatch(/permission denied/);
+  expect(await tryCall(db, `select * from public.report_recipients('month')`)).toMatch(/permission denied/);
+  await as(null);
+  await db.query(`insert into public.payments (property_id, month, status, amount) values ('pr1', '2026-03', 'approved', 30000), ('pr1', '2026-04', 'partial', 10000)`);
+  await db.query(`insert into public.expenses (id, property_id, cat, amount, spent_on) values ('e-r1', 'pr1', 'Tadilat', 2500, '2026-03-12')`);
+  const [{ r: m }] = await q(`select public.owner_report($1, 'month', '2026-03-20') r`, [R]);
+  expect(m).toMatchObject({ period:'month', from:'2026-03-01', to:'2026-03-31', units:1, occupied:0, expected:30000, collected:30000, spent:2500 });
+  expect(m.properties[0]).toMatchObject({ name:'Kadıköy', paidMonths:1, activeMonths:1, hasTenant:false });
+  const [{ r: y }] = await q(`select public.owner_report($1, 'year', '2026-06-01') r`, [R]);
+  expect(y).toMatchObject({ from:'2026-01-01', to:'2026-12-31', expected:360000, collected:40000, spent:2500 });
+
+  // Deneme süresindeki mülk sahipleri alır; ayarı kapatan ve kiracılar almaz.
+  const who = async (p) => (await q(`select email from public.report_recipients($1) order by 1`, [p])).map(r => r.email);
+  expect(await who('month')).toContain('rapor@ornek.com');
+  expect(await who('month')).not.toContain('kiraci@ornek.com');
+  await db.query(`update public.profiles set settings = settings || '{"reportMonthly":false}' where id = $1`, [R]);
+  expect(await who('month')).not.toContain('rapor@ornek.com');
+  expect(await who('year')).toContain('rapor@ornek.com');
+});

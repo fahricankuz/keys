@@ -383,3 +383,57 @@ test('uygunluk: para ve tarih Türkçe biçimde (₺25.000, 5 Kasım)', async ({
   const body = await page.locator('body').innerText();
   expect(body).not.toMatch(/\$|NaN|undefined|null|\[object/);
 });
+
+/* =================================================================== AYARLAR ve RAPOR E-POSTASI */
+
+test('ayarlar: yan menüden açılır; ad/telefon kaydedilir, e-posta onayla değişir, şifre değişince yeni şifreyle girilir', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await login(page, 'kiraci@ornek.com');
+  await expect(page).toHaveURL(/\/uygulama/);
+  await page.getByRole('link', { name: 'Ayarlar' }).first().click();
+  await expect(page).toHaveURL(/\/uygulama\/ayarlar/);
+
+  await page.getByLabel('Ad soyad').fill('Mehmet Yılmaz');
+  await page.getByLabel('Telefon').fill('05001112233');
+  await page.getByRole('button', { name: 'Kaydet' }).click();
+  await expect(page.getByText('Profilin güncellendi.')).toBeVisible();
+  const d1 = await db(page);
+  expect(d1.tables.profiles.find(p => p.id.endsWith('b'))).toMatchObject({ name: 'Mehmet Yılmaz', phone: '05001112233' });
+  expect(d1.tables.memberships.find(m => m.user_id.endsWith('b'))).toMatchObject({ display_name: 'Mehmet Yılmaz', phone: '05001112233' });
+
+  await page.getByLabel('Yeni e-posta').fill('yeni@ornek.com');
+  await page.getByRole('button', { name: 'E-postayı değiştir' }).click();
+  await expect(page.getByText(/Onay bağlantısını yeni adresine gönderdik/)).toBeVisible();
+
+  await page.getByLabel('Mevcut şifre').fill('yanlis-sifre');
+  await page.getByLabel('Yeni şifre').fill('yepyeni-sifre-9');
+  await page.getByRole('button', { name: 'Şifreyi değiştir' }).click();
+  await expect(page.getByText('Mevcut şifren yanlış.')).toBeVisible();
+  await page.getByLabel('Mevcut şifre').fill(PW);
+  await page.getByRole('button', { name: 'Şifreyi değiştir' }).click();
+  await expect(page.getByText('Şifren değişti.')).toBeVisible();
+  expect((await db(page)).users.find(u => u.email === 'kiraci@ornek.com').password).toBe('yepyeni-sifre-9');
+
+  // Bildirim sekmesi: e-posta seçeneği varsayılan açık.
+  await page.getByRole('button', { name: 'Bildirimler', exact: true }).click();
+  await expect(page.getByRole('switch', { name: 'E-posta' })).toHaveAttribute('aria-checked', 'true');
+});
+
+test('ayarlar: telefonda üst çubuktaki dişliden açılır; mülk sahibi rapor e-postası örneğini görür', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page, 'ev@ornek.com');
+  await expect(page).toHaveURL(/\/uygulama/);
+  await page.getByRole('button', { name: 'Ayarlar' }).first().click();
+  await expect(page).toHaveURL(/\/uygulama\/ayarlar/);
+  await page.getByRole('button', { name: 'Bildirimler', exact: true }).click();
+  // Deneme süresinde tüm özellikler açık: aylık / yıllık rapor anahtarları görünür.
+  const monthly = page.getByRole('switch', { name: /Aylık rapor/ });
+  await expect(monthly).toHaveAttribute('aria-checked', 'true');
+  await monthly.click();
+  await expect(monthly).toHaveAttribute('aria-checked', 'false');
+  await page.getByRole('button', { name: /Örnek e-postayı gör/ }).click();
+  await expect(page.getByLabel('E-posta önizlemesi')).toBeVisible();
+  await expect(page.getByText('Tahsilat oranı')).toBeVisible();
+  await expect(page.getByText('Moda Dairesi').last()).toBeVisible();
+});

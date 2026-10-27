@@ -27,6 +27,7 @@ import { useStore } from './hooks';
 import { useSheet } from './overlays';
 import { PayButton } from '../ui/motion';
 import { host } from '../domain/host';
+import { MailPreviewSheet, MailReportSettings } from './report-mail';
 
 const propOf = (pid?: string) => (pid && (S as any).props[pid] ? P(pid) : P((S as any).myHome));
 const reqOf = (p: any, id: string) => p.requests.find((r: any) => r.id === id);
@@ -92,8 +93,59 @@ function OnOff({ label, k, defaultOn = true }: { label: string; k: string; defau
   return <Toggle label={label} on={on} onChange={(b) => act('setSetting', { k, v: b, bool: true })} />;
 }
 
-/** Ayarlar: dört sekme, her sekmede yalnız gerekli seçenekler. Gün eşikleri "Hatırlatma zamanları" altında gizli. */
-function SettingsSheet({ close }: { close: () => void }) {
+/** Ayarlar > Hesap: ad, telefon, e-posta ve şifre değişikliği. */
+function ProfileForm() {
+  const { user, saveProfile, changeEmail, changePassword } = useAuth();
+  const c = useColors();
+  const [name, setName] = useState(user?.name || '');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [email, setEmail] = useState('');
+  const [cur, setCur] = useState('');
+  const [next, setNext] = useState('');
+  const [busy, setBusy] = useState('');
+  const [msg, setMsg] = useState<Record<string, { ok: boolean; text: string }>>({});
+  const run = async (k: string, fn: () => Promise<string | null>, ok: string, after?: () => void) => {
+    setBusy(k);
+    const e = await fn();
+    setBusy('');
+    if (e && e !== 'CONFIRM') { setMsg({ ...msg, [k]: { ok: false, text: e } }); return; }
+    setMsg({ ...msg, [k]: { ok: true, text: e === 'CONFIRM' ? t('Onay bağlantısını yeni adresine gönderdik. Bağlantıya tıklayınca e-postan değişir.') : ok } });
+    after?.();
+  };
+  const Out = ({ k }: { k: string }) => msg[k] ? <Text v="small" color={msg[k].ok ? c.okInk : c.badInk} accessibilityLiveRegion="polite">{msg[k].text}</Text> : null;
+  return (
+    <Stack>
+      <Card gap={14}>
+        <H2>{t('Profil')}</H2>
+        <Field label={t('Ad soyad')} value={name} onChangeText={setName} autoComplete="name" />
+        <Field label={t('Telefon')} value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" placeholder="05xx xxx xx xx" />
+        <Out k="profil" />
+        <Button title={t('Kaydet')} loading={busy === 'profil'}
+          onPress={() => run('profil', () => saveProfile({ name, phone }), t('Profilin güncellendi.'))} />
+      </Card>
+      <Card gap={14}>
+        <H2>{t('E-posta adresi')}</H2>
+        <Muted>{t('Şu anki adresin')}: {user?.email}</Muted>
+        <Field label={t('Yeni e-posta')} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
+        <Out k="eposta" />
+        <Button kind="ghost" title={t('E-postayı değiştir')} loading={busy === 'eposta'} disabled={!email.trim()}
+          onPress={() => run('eposta', () => changeEmail(email), t('E-posta adresin güncellendi.'), () => setEmail(''))} />
+      </Card>
+      <Card gap={14}>
+        <H2>{t('Şifre')}</H2>
+        <Field label={t('Mevcut şifre')} value={cur} onChangeText={setCur} secureTextEntry autoComplete="current-password" />
+        <Field label={t('Yeni şifre')} hint={t('En az 8 karakter')} value={next} onChangeText={setNext} secureTextEntry autoComplete="new-password" />
+        <Out k="sifre" />
+        <Button kind="ghost" title={t('Şifreyi değiştir')} loading={busy === 'sifre'} disabled={!cur || !next}
+          onPress={() => run('sifre', () => changePassword(cur, next), t('Şifren değişti.'), () => { setCur(''); setNext(''); })} />
+      </Card>
+    </Stack>
+  );
+}
+
+/** Ayarlar: dört sekme, her sekmede yalnız gerekli seçenekler. Gün eşikleri "Hatırlatma zamanları" altında gizli.
+    Hem yan menüdeki Ayarlar sayfasında (`page`) hem de eski bağlantılar için sayfa olarak açılır. */
+export function SettingsBody({ close, page }: { close: () => void; page?: boolean }) {
   useStore();
   const { open } = useSheet();
   const { user, signOut, deleteAccount } = useAuth();
@@ -108,7 +160,7 @@ function SettingsSheet({ close }: { close: () => void }) {
   const link = (title: string, url: string) => <LI key={title} title={title} onPress={() => Linking.openURL(url).catch(() => {})} right={<Muted>›</Muted>} />;
   return (
     <Stack>
-      <Title>{t('Ayarlar')}</Title>
+      {page ? null : <Title>{t('Ayarlar')}</Title>}
       <Seg scroll value={tab} onChange={(v: any) => setTab(v)} options={[['hesap', t('Hesap')], ['bildirim', t('Bildirimler')], ['gorunum', t('Görünüm')], ['yardim', t('Yardım')]]} />
 
       {tab === 'hesap' ? (
@@ -123,6 +175,7 @@ function SettingsSheet({ close }: { close: () => void }) {
               <Row between><Text v="body" style={{ fontFamily: fonts.bodyBold }}>{subSummary()}</Text><Muted>›</Muted></Row>
             </PressScale>
           ) : null}
+          <ProfileForm />
           <Button kind="ghost" block title={t('Çıkış yap')} onPress={async () => { close(); await signOut(); router.replace('/'); }} />
           <Button kind="quiet" block title={t('Hesabı sil')} onPress={async () => {
             if (!await host.ask({ title: t('Hesabın silinsin mi?'), body: t('Hesabın ve tüm verilerin kalıcı olarak silinir. Önce verini Yardım sekmesinden indirebilirsin.'), ok: t('Hesabı sil'), danger: true })) return;
@@ -145,8 +198,14 @@ function SettingsSheet({ close }: { close: () => void }) {
           <Label>{t('Nereden haber alayım?')}</Label>
           <Card gap={4}>
             <OnOff label={t('Telefon ve tarayıcı bildirimi')} k="push" />
-            <OnOff label={t('E-posta')} k="email" defaultOn={false} />
+            <OnOff label={t('E-posta')} k="email" />
           </Card>
+          {owner ? (
+            <>
+              <Label>{t('Rapor e-postası')}</Label>
+              <Card gap={4}><MailReportSettings /></Card>
+            </>
+          ) : null}
           <PressScale onPress={() => setTiming(!timing)} accessibilityRole="button" aria-expanded={timing}>
             <Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyBold }}>{timing ? t('Hatırlatma zamanlarını gizle') : t('Hatırlatma zamanlarını değiştir')}</Text>
           </PressScale>
@@ -759,7 +818,7 @@ export function renderSheet(name: string, p: any, close: () => void): ReactNode 
   switch (name) {
     case 'arama': return <SearchSheet close={close} />;
     case 'bildirim': return <InboxSheet close={close} />;
-    case 'ayarlar': return <SettingsSheet close={close} />;
+    case 'ayarlar': return <SettingsBody close={close} />;
     case 'harita': return <MapSheet close={close} />;
     case 'metin': return <TextSheet />;
     case 'yeni-talep': return <NewReqSheet pid={p.pid} close={close} />;
@@ -781,6 +840,7 @@ export function renderSheet(name: string, p: any, close: () => void): ReactNode 
     case 'kesinti': return <DeductionSheet pid={p.pid} close={close} />;
     case 'iade': return <RefundSheet pid={p.pid} close={close} />;
     case 'abonelik': return <SubscriptionSheet />;
+    case 'rapor-eposta': return <MailPreviewSheet />;
     case 'paket': return <UpgradeSheet need={p.need} suggest={p.suggest} />;
     case 'destek-talebi': return <SupportSheet kind={p.kind} units={p.units} close={close} />;
     case 'ekip-davet': return <TeamInviteSheet close={close} />;

@@ -90,11 +90,11 @@ Deno.serve(async (req) => {
     }
   }
 
-  // 3. E-posta (kullanıcı açtıysa ve Resend yapılandırıldıysa)
+  // 3. E-posta (varsayılan açık; kullanıcı kapatmadıysa ve Resend yapılandırıldıysa)
   let mailed = false;
   if (env('RESEND_API_KEY') && env('EMAIL_FROM')) {
     const { data: profile } = await admin.from('profiles').select('settings').eq('id', n.user_id).single();
-    if (profile?.settings?.email === true) {
+    if (profile?.settings?.email !== false) {
       const { data: user } = await admin.auth.admin.getUserById(n.user_id);
       const to = user?.user?.email;
       if (to) {

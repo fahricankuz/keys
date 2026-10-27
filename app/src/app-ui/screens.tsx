@@ -22,6 +22,7 @@ import {
 import { Toggle } from './forms';
 import { useStore } from './hooks';
 import { useSheet } from './overlays';
+import { MailReportCard } from './report-mail';
 import {
   AgendaBody, AgendaSection, InspectTabs, RenewalCard, RentHero, SecDocs, SecExpenses, SecInspect, SecMoveOut, SecMsg, SecPay, SecReq, ReqCard, stopajLine, useGo
 } from './sections';
@@ -46,7 +47,7 @@ export function Page({ title, sub, back, children }: { title: string; sub?: stri
         <Row gap={8}>
           <IconBtn name="search" label={t('Ara')} onPress={() => open('arama')} />
           <IconBtn name="bell" label={t('Bildirimler ve hatırlatmalar')} badge={n} onPress={() => open('bildirim')} />
-          <IconBtn name="gear" label={t('Ayarlar')} onPress={() => open('ayarlar')} />
+          <IconBtn name="gear" label={t('Ayarlar')} onPress={() => go('/uygulama/ayarlar')} />
         </Row>
       </Row>
       <Animated.View entering={FadeIn.duration(280)} style={{ gap: 16, marginTop: 18 }}>{children}</Animated.View>
@@ -527,6 +528,7 @@ export function Report() {
         ))}
       </Card>
       <TaxCard year={year} yn={yn} />
+      {isTeam() ? null : <MailReportCard />}
       <Row>
         <Card style={{ flex: 1 }} gap={4}><Label>{t('Tutulan depozito')}</Label><Text v="h3">{tl(dep)}</Text></Card>
         <Card style={{ flex: 1 }} gap={4}><Label>{t('Aylık toplam kira')}</Label><Text v="h3">{tl(monthly)}</Text></Card>

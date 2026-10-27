@@ -56,7 +56,7 @@ export const categories = (): Category[] => [
       { title: t('Gider defteri'), body: t('Vergi, aidat, sigorta ve tamir kayıtları.') },
       { title: t('Net getiri'), body: t('Mülk başına yıllık net getiri ve oran.') },
       { title: t('Excel ve CSV'), body: t('Ödemeler ve giderler ayrı sayfalarda.') },
-      { title: t('Takvim ve hatırlatma'), body: t('Vade, yenileme ve sigorta tarihleri tek takvimde.') }
+      { title: t('Rapor e-postası'), body: t('Kurumsal’da her ay ve yıl sonunda genel durum e-postana gelir.') }
     ] },
   { id: 'ekip', icon: 'landlord', title: t('Ekip ve portföy'),
     lead: t('Emlakçını, muhasebecini ya da personelini davet et; her biri yalnızca rolünün izin verdiğini görür. Mülklerini Excel ile tek seferde ekle.'),
@@ -84,7 +84,7 @@ export const faq = () => [
   { q: t('Anahtar nedir?'), a: t('Kiracı ve mülk sahibinin aynı veriye iki taraftan baktığı bir kira yönetimi uygulamasıdır: kira ödemeleri, talepler, belgeler, giriş ve çıkış tutanağı, depozito iadesi, giderler ve sözleşme yenileme tek akışta.') },
   { q: t('Kiracı için ücretli mi?'), a: t('Hayır. Kiracı hesabı her zaman ücretsizdir; dekont yükleyebilir, talep açabilir, mesajlaşabilir ve belgelerine bakabilirsin.') },
   { q: t('Ücretsiz deneme nasıl işliyor?'), a: t('Her paket 1 ay ücretsiz denemeyle başlar; deneme süresince 5 mülke kadar ekleyebilir, bütün özellikleri kullanabilirsin. Süre bitince kayıtların silinmez, salt okunur olur; okuma ve mesajlaşma açık kalır, kiracının işleri etkilenmez.') },
-  { q: t('Paketler arasındaki fark ne?'), a: t('Başlangıç tek mülk içindir ve ödeme, talep, belge ve hatırlatmaları kapsar. Portföy 5 mülke kadar çıkar; ekip üyeleri, Excel ile toplu aktarma, yıllık rapor ve vergi tahmini ekler. Kurumsal sınırsız mülk, öncelikli destek ve kurulum yardımı içerir.') },
+  { q: t('Paketler arasındaki fark ne?'), a: t('Başlangıç tek mülk içindir ve ödeme, talep, belge ve hatırlatmaları kapsar. Portföy 5 mülke kadar çıkar; ekip üyeleri, Excel ile toplu aktarma, yıllık rapor ve vergi tahmini ekler. Kurumsal sınırsız mülk, aylık ve yıllık rapor e-postası, öncelikli destek ve kurulum yardımı içerir.') },
   { q: t('Davet kodum yok, ne yapmalıyım?'), a: t('Kayıt olurken kodu boş bırakabilirsin. Hesabını açtıktan sonra ev sahibinden kodu isteyip panelden girersin; ev sahibin henüz anahtar kullanmıyorsa uygulamadan ona WhatsApp ile öneri gönderebilirsin.') },
   { q: t('Yüklediğim dekont ve belgeleri kim görür?'), a: t('Yüklenen dekont, belge ve faturalar anahtar ekibince kontrol edilir; onaylanınca yalnızca o evin kiracısı ve mülk sahibine görünür. Reddedilirse gerekçesiyle haber alırsın.') },
   { q: t('Hangi mülk tiplerini destekliyor?'), a: t('Konut, ofis, mağaza ve depo. Tutanak alanları, talep önerileri ve belge kategorileri mülk tipine göre gelir.') },

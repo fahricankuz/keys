@@ -42,7 +42,8 @@ export function monthlyEquivalent(tier){
 export const FEATURES = {
   team: ['bes', 'kurumsal', 'trial', 'pro'],      // ekip üyeleri (emlakçı, muhasebeci, personel)
   import: ['bes', 'kurumsal', 'trial', 'pro'],    // Excel / CSV ile toplu içe aktarma
-  report: ['bes', 'kurumsal', 'trial', 'pro']     // yıllık rapor, Excel dışa aktarma, vergi tahmini
+  report: ['bes', 'kurumsal', 'trial', 'pro'],    // yıllık rapor, Excel dışa aktarma, vergi tahmini
+  mailReport: ['kurumsal', 'trial', 'pro']        // aylık ve yıllık rapor e-postası (supabase/functions/report)
 };
 
 /** Paket kartlarında gösterilen maddeler. */
@@ -65,6 +66,7 @@ export function tierPoints(id){
   return [
     t('Portföy’deki her şey'),
     t('Sınırsız mülk ve ekip üyesi'),
+    t('Aylık ve yıllık rapor e-postası'),
     t('Öncelikli destek'),
     t('Kurulum ve veri taşıma yardımı'),
     t('Kuruma özel sözleşme ve fatura')

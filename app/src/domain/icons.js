@@ -15,6 +15,7 @@ export const I = {
   chat:     svg('<path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-5 4z"/><circle fill="{RING}" stroke="none" cx="12" cy="10.5" r="1.8"/>'),
   doc:      svg('<path d="M6 3h8l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 11h7M8 15h4"/><circle fill="{RING}" stroke="none" cx="16" cy="15.2" r="1.36"/><path fill="{RING}" stroke="none" d="M15.2 15.84 L14.88 18.08 H17.12 L16.8 15.84Z"/>'),
   chart:    svg('<path d="M4 18 9.5 12.5l3.5 3 3.2-4.2"/>' + R(18.6, 8, 1.9)),
+  mail:     svg('<rect x="3" y="5.5" width="18" height="13" rx="3"/><path d="m4 7.5 8 6 8-6"/><circle fill="{RING}" stroke="none" cx="19" cy="6" r="2.2"/>'),
   bell:     svg('<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 21h4"/><circle fill="{RING}" stroke="none" cx="17.5" cy="6" r="2.2"/>'),
   phone:    svg('<path d="M21 16.9v2.6a2 2 0 0 1-2.2 2A18.6 18.6 0 0 1 2.5 5.2 2 2 0 0 1 4.5 3h2.6a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 10.7a15 15 0 0 0 5.2 5.2l1.2-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>' + R(18, 6, 1.5)),
   plus:     svg('<path d="M12 5v14M5 12h14"/>'),

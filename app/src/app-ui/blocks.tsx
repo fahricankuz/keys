@@ -12,7 +12,7 @@ import { fileUrl, mediaSrc, reviewOf } from '../domain/backend';
 import { useStore } from './hooks';
 import { useRoll } from '../ui/motion';
 import { tl, monthYear, parse, t0, mkey, addM } from '../domain/util';
-import { fonts, radius, useColors } from '../ui/theme';
+import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 
 export function Icon({ name, size = 18, color }: { name: string; size?: number; color?: string }) {
   const c = useColors();
@@ -153,6 +153,7 @@ export function Items<T>({ data, render }: { data: T[]; render: (x: T, last: boo
 
 export function Seg({ options, value, onChange, scroll }: { options: [string, string][]; value: string; onChange: (v: string) => void; scroll?: boolean }) {
   const c = useColors();
+  const { phone } = useBreakpoint();
   const items = options.map(([v, l]) => {
     const on = v === value;
     return (
@@ -162,7 +163,9 @@ export function Seg({ options, value, onChange, scroll }: { options: [string, st
       </PressScale>
     );
   });
-  if (scroll) return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{items}</ScrollView>;
+  // Telefonda yatay kaydırılır (son sekme tam görünsün diye sağda pay); daha genişte sığmayan sekmeler alt satıra geçer.
+  if (scroll && phone) return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>{items}</ScrollView>;
+  if (scroll) return <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{items}</View>;
   return <View style={{ flexDirection: 'row', gap: 8 }}>{items}</View>;
 }
 
