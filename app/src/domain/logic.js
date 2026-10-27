@@ -369,7 +369,7 @@ export function agendaItems(p){
 /** Ayarlardaki eşiklere göre öne çıkan hatırlatmalar. */
 export function reminders(){
   const out = [], s = S.settings;
-  const ids = ui.role === 'tenant' ? [S.myHome] : S.order;
+  const ids = ui.role === 'tenant' ? [S.myHome].filter(Boolean) : S.order;
 
   ids.forEach(id => {
     const p = P(id);
@@ -459,7 +459,7 @@ export function unreadCount(){
 /** Rol bazlı genel arama: evler, talepler, belgeler, mesajlar. */
 export function search(q){
   if (!q || q.trim().length < 2) return [];
-  const ids = ui.role === 'tenant' ? [S.myHome] : S.order;
+  const ids = ui.role === 'tenant' ? [S.myHome].filter(Boolean) : S.order;
   const out = [];
 
   ids.forEach(id => {

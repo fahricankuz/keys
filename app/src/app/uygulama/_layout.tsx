@@ -13,8 +13,7 @@ export default function Gate() {
   if (!ready) return <FullLoader />;
   if (!user) return <Redirect href="/giris" />;
   if (user.admin) return <Redirect href="/admin" />;
-  // Kiracı yalnızca mülk sahibinin davetiyle (kod ya da bağlantı) bir mülke bağlanır; bağlanana kadar kod ekranı açılır.
-  if (user.role === 'tenant' && !S.myHome) return <JoinCode />;
+  // Kiracı davet kodu olmadan da paneli açar; bağlanana kadar her sayfanın üstünde kod alanı görünür (Page → JoinBanner).
   // Henüz hiçbir mülke atanmamış ekip üyesi davet kodu ekranını görür.
   if (live && user.role === 'team' && !S.order.length) return <JoinCode team />;
   return <AppShell><Slot /></AppShell>;

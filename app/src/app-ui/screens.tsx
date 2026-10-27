@@ -23,6 +23,7 @@ import { Toggle } from './forms';
 import { useStore } from './hooks';
 import { useSheet } from './overlays';
 import { MailReportCard } from './report-mail';
+import { JoinBanner } from './JoinCode';
 import {
   AgendaBody, AgendaSection, InspectTabs, RenewalCard, RentHero, SecDocs, SecExpenses, SecInspect, SecMoveOut, SecMsg, SecPay, SecReq, ReqCard, stopajLine, useGo
 } from './sections';
@@ -50,7 +51,10 @@ export function Page({ title, sub, back, children }: { title: string; sub?: stri
           <IconBtn name="gear" label={t('Ayarlar')} onPress={() => go('/uygulama/ayarlar')} />
         </Row>
       </Row>
-      <Animated.View entering={FadeIn.duration(280)} style={{ gap: 16, marginTop: 18 }}>{children}</Animated.View>
+      <Animated.View entering={FadeIn.duration(280)} style={{ gap: 16, marginTop: 18 }}>
+        {ui.role === 'tenant' && !S.myHome ? <JoinBanner /> : null}
+        {children}
+      </Animated.View>
     </ScrollView>
   );
 }
@@ -93,7 +97,7 @@ export function TenantPanel() {
   const go = useGo();
   const colors = useColors();
   const p = P(S.myHome);
-  if (!p) return <Page title={t('Panel')}><Empty>{t('Henüz bağlı bir mülk yok.')}</Empty></Page>;
+  if (!p) return <Page title={t('Panel')}><Empty>{t('Davet koduyla mülküne bağlandığında kira durumu, talepler ve belgeler burada görünür.')}</Empty></Page>;
   const o = p.landlord;
   const me = meTenant(p);
   const mates = p.tenants.filter((x: any) => x.id !== me?.id);

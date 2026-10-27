@@ -1,6 +1,6 @@
 /* Alt sayfalar (sheet). Her biri tek bir form ya da görünüm; kayıt işlemleri services.js'te. */
 import { ReactNode, useEffect, useState } from 'react';
-import { Image, Linking, Pressable, Share, TextInput, View } from 'react-native';
+import { Image, Linking, Pressable, Share, Text as RNText, TextInput, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import {
@@ -28,6 +28,8 @@ import { useSheet } from './overlays';
 import { PayButton } from '../ui/motion';
 import { host } from '../domain/host';
 import { MailPreviewSheet, MailReportSettings } from './report-mail';
+import { PlanCard } from '../site/PlanCard';
+import { plans as sitePlans } from '../site/content';
 
 const propOf = (pid?: string) => (pid && (S as any).props[pid] ? P(pid) : P((S as any).myHome));
 const reqOf = (p: any, id: string) => p.requests.find((r: any) => r.id === id);
@@ -741,23 +743,70 @@ function pickTier(id: string, units: number | null, open: (n: string, p?: any) =
   else act('buy', { tier: id });
 }
 
+/** Paketler: ana sayfadaki fiyat kartlarının aynısı; aylık / yıllık seçimi, mevcut paket işaretli. */
 function SubscriptionSheet() {
   useStore();
   const { open } = useSheet();
+  const c = useColors();
+  const [yearly, setYearly] = useState(false);
   const a: any = access();
   const limit = unitLimit(a);
+  const mine = a.subscribed ? a.plan : undefined;
+  const list = sitePlans(yearly);
+  const days = trialDaysLeft(a);
+  const total = a.trialDays || 30;
   const status = a.subscribed
-    ? <Card gap={6}><Row between><H2>{planLabel(a.plan || a.productId)}</H2><Chip tone="ok" label={t('Aktif')} /></Row><Muted>{unitsText(limit)}</Muted>{a.expiresAt ? <Muted>{t('{date} tarihinde yenilenir', { date: fmtFull(new Date(a.expiresAt)) })}</Muted> : null}</Card>
-    : a.inTrial ? <Note>{t('Deneme sürümündesin: {n} gün kaldı. Denemede {units} mülke kadar ekleyebilirsin. Deneme bitince kayıtların silinmez; abone olana kadar salt okunur olur.', { n: trialDaysLeft(a), units: limit ?? '∞' })}</Note>
-    : <Note warn>{t('Deneme süren bitti. Kayıtların duruyor; okuyabilir ve mesajlaşabilirsin. Değiştirmek için abone ol.')}</Note>;
+    ? { title: t('{plan} paketi', { plan: planLabel(a.plan || a.productId) }), body: unitsText(limit) + (a.expiresAt ? ' · ' + t('{date} tarihinde yenilenir', { date: fmtFull(new Date(a.expiresAt)) }) : ''), chip: <Chip tone="ok" label={t('Aktif')} />, pct: null as number | null }
+    : a.inTrial
+      ? { title: t('Ücretsiz deneme · {n} gün kaldı', { n: days }), body: t('Denemede {units} mülke kadar ekleyebilirsin. Deneme bitince kayıtların silinmez; abone olana kadar salt okunur olur.', { units: limit ?? CONFIG.billing.trialUnits ?? 5 }), chip: <Chip tone="warn" label={t('Deneme')} />, pct: Math.max(0, Math.min(100, (days / total) * 100)) }
+      : { title: t('Deneme süren bitti'), body: t('Kayıtların duruyor; okuyabilir ve mesajlaşabilirsin. Değiştirmek için abone ol.'), chip: <Chip tone="bad" label={t('Salt okunur')} />, pct: 0 };
+  const cta = (id: string) => mine === id
+    ? { title: t('Mevcut paketin'), onPress: () => {}, disabled: true }
+    : id === 'kurumsal' ? { title: t('Bize ulaşın'), onPress: () => pickTier(id, null, open) }
+    : { title: t('Paketi seç'), onPress: () => pickTier(id, null, open) };
   return (
-    <Stack>
-      <Title>{t('Mülk sahibi paketleri')}</Title>
-      {status}
-      {paused() ? <Note>{t('Ödeme sistemimizi güncelliyoruz. Paket satın alma kısa süre içinde açılacak; fiyatlar kesinleşince burada görünür.')}</Note> : null}
-      <TierPicker current={a.subscribed ? a.plan : undefined} onPick={(id) => pickTier(id, null, open)} />
-      <Muted>{t('Kiracıların ve ekip üyelerin her zaman ücretsiz. Her paket 1 ay ücretsiz denemeyle başlar.')}</Muted>
-      <Row wrap><Button kind="quiet" title={t('Kullanım koşulları')} onPress={() => Linking.openURL(CONFIG.legal.terms)} /><Button kind="quiet" title={t('Gizlilik politikası')} onPress={() => Linking.openURL(CONFIG.legal.privacy)} /></Row>
+    <Stack gap={16}>
+      <View style={{ gap: 4 }}>
+        <Text v="label" color={c.accentText}>{t('Paketler')}</Text>
+        <RNText style={{ fontFamily: fonts.siteBold, fontSize: 32, lineHeight: 35, letterSpacing: -1, color: c.ink }}>{t('Portföyüne göre seç')}</RNText>
+      </View>
+      <View style={{ backgroundColor: c.deepA, borderRadius: 22, padding: 18, gap: 8 }}>
+        <Row between align="flex-start">
+          <Text v="body" color={c.heroInk} style={{ flex: 1, fontFamily: fonts.bodyXBold }}>{status.title}</Text>
+          {status.chip}
+        </Row>
+        {status.pct != null ? <View style={{ height: 6, borderRadius: 3, backgroundColor: 'rgba(250,245,240,0.14)', overflow: 'hidden' }}><View style={{ width: status.pct + '%' as any, height: 6, backgroundColor: c.lemon }} /></View> : null}
+        <Text v="small" color={c.heroMuted}>{status.body}</Text>
+      </View>
+      {paused() ? (
+        <Row gap={10} align="flex-start" style={{ paddingHorizontal: 4 }}>
+          <Icon name="bell" size={16} color={c.muted} />
+          <Muted style={{ flex: 1 }}>{t('Ödeme sistemimizi güncelliyoruz. Paket satın alma kısa süre içinde açılacak; fiyatlar kesinleşince burada görünür.')}</Muted>
+        </Row>
+      ) : null}
+      <View accessibilityRole="tablist" style={{ alignSelf: 'center', flexDirection: 'row', backgroundColor: c.surface, borderRadius: radius.pill, padding: 4, borderWidth: 1, borderColor: c.line }}>
+        {([[false, t('Aylık')], [true, t('Yıllık · 2 ay ücretsiz')]] as const).map(([k, label]) => {
+          const on = yearly === k;
+          return (
+            <PressScale key={String(k)} onPress={() => setYearly(k)} accessibilityRole="tab" accessibilityState={{ selected: on }} scaleTo={0.97}
+              style={{ paddingHorizontal: 18, minHeight: 40, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: on ? c.ink : 'transparent' }}>
+              <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 14, color: on ? c.bg : c.ink }}>{label}</RNText>
+            </PressScale>
+          );
+        })}
+      </View>
+      {list.map((p) => (
+        <PlanCard key={p.id} p={p} compact cta={cta(p.id)}
+          badge={mine === p.id ? <Chip tone="ok" label={t('Paketin')} /> : undefined} />
+      ))}
+      <Row gap={8} align="flex-start" style={{ paddingHorizontal: 4 }}>
+        <Icon name="check" size={16} color={c.okInk} />
+        <Muted style={{ flex: 1 }}>{t('Kiracıların ve ekip üyelerin her zaman ücretsiz. Her paket 1 ay ücretsiz denemeyle başlar.')}</Muted>
+      </Row>
+      <Row gap={16} style={{ justifyContent: 'center' }}>
+        <PressScale onPress={() => Linking.openURL(CONFIG.legal.terms)} accessibilityRole="link"><Text v="small" color={c.muted} style={{ textDecorationLine: 'underline' }}>{t('Kullanım koşulları')}</Text></PressScale>
+        <PressScale onPress={() => Linking.openURL(CONFIG.legal.privacy)} accessibilityRole="link"><Text v="small" color={c.muted} style={{ textDecorationLine: 'underline' }}>{t('Gizlilik politikası')}</Text></PressScale>
+      </Row>
       {LIVE ? null : (
         <Card gap={8}><Label>{t('Demo: durumu dene')}</Label>
           <Row wrap gap={6}>{[['trial', t('Deneme'), ''], ['expired', t('Süresi bitti'), ''], ['subscribed', planLabel('tek'), 'tek'], ['subscribed', planLabel('bes'), 'bes'], ['subscribed', planLabel('kurumsal'), 'kurumsal']].map(([v, l, pl]) =>

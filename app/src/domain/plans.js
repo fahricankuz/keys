@@ -59,7 +59,7 @@ export function tierPoints(id){
     t('Başlangıç’taki her şey'),
     t('Ekip üyeleri: emlakçı, muhasebeci, personel'),
     t('Excel / CSV ile toplu mülk aktarma'),
-    t('Yıllık rapor, Excel dışa aktarma ve vergi tahmini'),
+    t('Yıllık rapor, Excel ve vergi tahmini'),
     t('Gider defteri ve mülk başına net getiri')
   ];
   if (id === 'bes') return pro;

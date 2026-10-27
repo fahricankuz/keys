@@ -9,6 +9,7 @@ import { closeLocal, openLocal, ui } from '../domain/state';
 import { t, getLang } from '../domain/i18n';
 import { account } from '../domain/billing';
 import * as backend from '../domain/backend';
+import { playOnNextOpen } from '../app-ui/OpenSplash';
 
 export type Role = 'tenant' | 'landlord' | 'team';
 export type Entry = 'tenant' | 'landlord' | 'admin';
@@ -121,7 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const u = await enterLive(data.user);
         const wrong = as && wrongEntry(u, as);
         if (wrong) { await backend.closeSession(); closeLocal(); leave(); return wrong; }
-        setUser(u); return null;
+        playOnNextOpen(); setUser(u); return null;
       }
       if (as === 'admin') return t('Yönetici girişi yalnızca sunucuya bağlı kurulumda çalışır.');
       const a = readAccounts().find((x) => x.email === email);
@@ -129,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (as && viewRole(a.role) !== as) return wrongEntry({ ...a, admin: false }, as);
       storage.setItem(SESSION, a.id);
       const u = { id: a.id, email: a.email, name: a.name, phone: a.phone, role: a.role, createdAt: a.createdAt };
-      enter(u); setUser(u); return null;
+      playOnNextOpen(); enter(u); setUser(u); return null;
     } catch (e: any) {
       if (e?.banned !== undefined) return t('Hesabın askıya alındı: {m}', { m: e.banned || t('gerekçe belirtilmedi') }) + ' ' + t('Bilgi için info@anahtar.io adresine yaz.');
       return t('Bağlantı kurulamadı. Biraz sonra yeniden dene.');
@@ -147,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         captchaSpent();
         if (error) return t('Hesap oluşturulamadı: {m}', { m: backend.humanError(error) });
         if (!data.session) return 'CONFIRM';
-        setUser(await enterLive(data.user!)); return null;
+        playOnNextOpen(); setUser(await enterLive(data.user!)); return null;
       }
       if (role === 'team') return t('Ekip hesapları yalnızca sunucuya bağlı kurulumda açılır.');
       const list = readAccounts();
@@ -159,7 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       storage.setItem(ACCOUNTS, JSON.stringify(list));
       storage.setItem(SESSION, id);
       const u = { id, email, name, role, createdAt };
-      enter(u); setUser(u); return null;
+      playOnNextOpen(); enter(u); setUser(u); return null;
     } catch { return t('Bağlantı kurulamadı. Biraz sonra yeniden dene.'); }
   }, []);
 

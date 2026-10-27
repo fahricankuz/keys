@@ -1,6 +1,6 @@
 /* Panele giriş: ekran tuğla rengi, ortada kireç rengi "a". "a"nın gözü anahtar deliğidir; içinden sıcak bir ışık
    sızar, sonra kamera deliğe doğru hızlanarak ilerler ve delik ekranı kaplayınca panel arkasında görünür.
-   Yaklaşık 1,7 sn; web'de oturum başına bir kez, cihazda her açılışta. Hareketi azaltma tercihinde gösterilmez.
+   Yaklaşık 1,7 sn; her girişte ve sekmenin ilk açılışında. Hareketi azaltma tercihinde yalnızca kısa bir solma.
    Yakınlaştırma CSS ölçeği yerine SVG geometrisiyle yapılır: 60 kat büyümede de kenarlar keskin kalır. */
 import { useEffect, useState } from 'react';
 import { Platform, useWindowDimensions, View } from 'react-native';
@@ -9,11 +9,16 @@ import Svg, { Defs, G, Path, RadialGradient, Stop } from 'react-native-svg';
 import { MONO } from '../ui/Wordmark';
 
 const SEEN = 'anahtar-acilis';
+const LOGIN = 'anahtar-acilis-giris';
+/** Giriş ya da kayıt başarılı olunca çağrılır: panel açılırken geçiş oynar. */
+export function playOnNextOpen() { try { sessionStorage.setItem(LOGIN, '1'); } catch {} }
 const KIREC = '#FAF5F0';
 /** Anahtar deliği (MONO çizim birimleri): üstte daire, altta yamuk. */
 const HOLE = { ax: 506.5, bx: 552.7, y: 696.9, r: 80, cx: 562.6, dx: 496.6, by: 764.3, mid: { x: 529.6, y: 680 } };
 
 const INTRO = 520, HOLD = 260, ZOOM = 920;
+/** Hareketi azaltma tercihinde: yakınlaşma yok, logo görünür ve ekran yumuşakça solar. */
+const FADE = 900;
 const clamp = (v: number) => Math.max(0, Math.min(1, v));
 const outCubic = (p: number) => 1 - Math.pow(1 - p, 3);
 
@@ -26,21 +31,24 @@ function hole(tx: number, ty: number, s: number) {
 export default function OpenSplash() {
   const reduced = useReducedMotion();
   const { width: w, height: h } = useWindowDimensions();
+  // Her girişte (giriş/kayıt işareti bırakır) ve sekmede ilk açılışta oynar; sayfa yenilemelerinde tekrarlanmaz.
   const [show, setShow] = useState(() => {
     if (Platform.OS !== 'web') return true;
-    try { if (sessionStorage.getItem(SEEN)) return false; sessionStorage.setItem(SEEN, '1'); } catch {}
-    return true;
+    try {
+      const fresh = sessionStorage.getItem(LOGIN) || !sessionStorage.getItem(SEEN);
+      sessionStorage.removeItem(LOGIN); sessionStorage.setItem(SEEN, '1');
+      return !!fresh;
+    } catch { return true; }
   });
   const [ms, setMs] = useState(0);
 
   useEffect(() => {
     if (!show) return;
-    if (reduced) { setShow(false); return; }
     let raf = 0;
     const t0 = Date.now();
     const tick = () => {
       const t = Date.now() - t0;
-      if (t >= INTRO + HOLD + ZOOM) { setShow(false); return; }
+      if (t >= (reduced ? FADE : INTRO + HOLD + ZOOM)) { setShow(false); return; }
       setMs(t);
       raf = requestAnimationFrame(tick);
     };
@@ -59,8 +67,9 @@ export default function OpenSplash() {
   const gx = ox + k * 180, gy = oy + k * 190, gs = k * 0.64;
   const kx = gx + gs * HOLE.mid.x, ky = gy + gs * HOLE.mid.y;
 
-  const intro = outCubic(clamp(ms / INTRO));
-  const zp = clamp((ms - INTRO - HOLD) / ZOOM);
+  const intro = reduced ? 1 : outCubic(clamp(ms / INTRO));
+  const zp = reduced ? 0 : clamp((ms - INTRO - HOLD) / ZOOM);
+  const fade = reduced ? 1 - clamp((ms - 450) / (FADE - 450)) : 1;
   // Delik ekranın en uzak köşesini aşana kadar büyür; ölçek logaritmik ilerler (hız hissi sabit, sonda ivmelenir).
   const far = Math.max(Math.hypot(kx, ky), Math.hypot(w - kx, ky), Math.hypot(kx, h - ky), Math.hypot(w - kx, h - ky));
   const end = (far / (HOLE.r * gs)) * 1.15;
@@ -73,7 +82,7 @@ export default function OpenSplash() {
 
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}>
+      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999, opacity: fade }}>
       <Svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
         <Defs>
           <RadialGradient id="op-bg" cx="50%" cy="46%" r="75%">

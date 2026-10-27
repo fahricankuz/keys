@@ -17,6 +17,7 @@ import { PhoneStage } from './Phones';
 import { Icon, Steps } from '../app-ui/blocks';
 import { useLangTick } from '../app-ui/hooks';
 import { categories, faq, plans } from './content';
+import { PlanCard } from './PlanCard';
 import { Nav, TopBar } from './Navbar';
 
 const EASE = 'cubic-bezier(0.32,0.72,0,1)';
@@ -333,7 +334,7 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
     tenant: [
       ['chat', t('Davet kodunu al'), t('Ev sahibin mülkü anahtar’a ekleyince sana bir davet kodu ya da bağlantı gönderir.')],
       ['key', t('Ücretsiz hesap aç'), t('Kayıt olurken kodu gir. Kodun henüz yoksa sonra da girebilirsin.')],
-      ['card', t('Kiranı ve talebini takip et'), t('Dekontunu yükle, arıza bildir, belgelerine bak. Her adım iki tarafta aynı görünür.')],
+      ['card', t('Kiranı takip et'), t('Dekontunu yükle, arıza bildir, belgelerine bak. Her adım iki tarafta aynı görünür.')],
       ['bell', t('Hatırlatma al'), t('Kira günü, sözleşme yenileme ve tutanak onayı için zamanında haber alırsın.')]
     ]
   };
@@ -354,7 +355,8 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
             );
           })}
         </Reveal>
-        <Animated.View key={who} entering={FadeIn.duration(260)} style={{ flexDirection: desktop ? 'row' : 'column', gap: desktop ? 0 : 0 }}>
+        {/* İki sekmede de aynı yükseklik: geçişte bölüm zıplamaz, başlık ve metinler aynı satırlardan başlar. */}
+        <Animated.View key={who} entering={FadeIn.duration(260)} style={{ flexDirection: desktop ? 'row' : 'column', minHeight: desktop ? 196 : undefined }}>
           {list.map(([icon, title, body], i) => {
             const last = i === list.length - 1;
             return (
@@ -367,9 +369,9 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
                   {!last ? <View style={desktop ? { flex: 1, height: 2, backgroundColor: c.line, marginHorizontal: 10 } : { width: 2, flex: 1, minHeight: 16, backgroundColor: c.line, marginVertical: 6 }} /> : null}
                 </View>
                 <View style={{ flex: 1, gap: 6, paddingRight: desktop ? 28 : 0, paddingBottom: desktop || last ? 0 : 16 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: desktop ? 28 : undefined }}>
                     <Icon name={icon} size={18} color={c.accentText} />
-                    <Display size={phone ? 17 : 23}>{title}</Display>
+                    <Display size={phone ? 17 : 23} style={{ flexShrink: 1 }}>{title}</Display>
                   </View>
                   <Text v="body" muted style={{ fontSize: phone ? 15 : 16, lineHeight: phone ? 22 : 24 }}>{body}</Text>
                 </View>
@@ -379,7 +381,7 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
         </Animated.View>
         <Reveal style={{ alignItems: 'center', gap: 14 }}>
           <View style={{ alignSelf: 'center' }}><Button kind="primary" title={cta[0]} onPress={() => go(cta[1])} /></View>
-          <Text v="small" muted style={{ textAlign: 'center', maxWidth: 560 }}>{t('Yüklenen dekont, belge ve faturalar anahtar ekibince kontrol edilir; onaylanınca karşı tarafa görünür.')}</Text>
+          <Text v="small" muted style={{ textAlign: 'center', maxWidth: 560 }}>{t('Yüklenen dekont, belge ve faturalar mülk sahibince kontrol edilir ve onaylanır.')}</Text>
         </Reveal>
       </Container>
     </View>
@@ -390,44 +392,10 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
 
 /** Fiyat kartı: üstte paket ve fiyat, altında ince çizgilerle ayrılmış özellikler, en altta düğme.
     Önerilen paket (Portföy) koyu zemin, krem yazı ve sarı vurgularla öne çıkar; diğerleri açık zeminlidir. */
-function PlanCard({ p, go }: { p: any; go: (path: string) => void }) {
-  const c = useColors();
-  const { phone } = useBreakpoint();
-  const dark = p.best;
-  const ink = dark ? c.heroInk : c.ink, soft = dark ? c.heroMuted : c.muted;
-  const rule = dark ? 'rgba(250,245,240,0.14)' : c.line;
-  const cta = p.id === 'kurumsal'
-    ? <Button kind="primary" block title={t('Bize ulaşın')} onPress={() => Linking.openURL('mailto:' + CONFIG.supportEmail + '?subject=' + encodeURIComponent(t('Kurumsal paket'))).catch(() => {})} />
-    : <Button kind="primary" block title={t('Paketi seç')} onPress={() => go('/kayit/mulk-sahibi')} />;
-  return (
-    <View style={[{ borderRadius: 26, backgroundColor: dark ? c.deepA : c.surface, borderWidth: dark ? 0 : 1, borderColor: c.line, padding: phone ? 20 : 26, gap: phone ? 12 : 14 }, phone ? { alignSelf: 'stretch' } : { flex: 1 }]}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text v="label" color={soft} style={{ fontSize: 13 }}>{p.units}</Text>
-          <Display size={phone ? 21 : 26} color={ink}>{p.name}</Display>
-        </View>
-        {dark ? <Chip tone="warn" label={t('En çok tercih edilen')} /> : null}
-      </View>
-      <View style={{ gap: 2 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-          <Display size={p.per ? (phone ? 30 : 40) : (phone ? 26 : 30)} color={ink}>{p.price}</Display>
-          {p.per ? <Text v="small" color={soft}>{p.per}</Text> : null}
-        </View>
-        {p.monthlyEq ? <Text v="small" color={soft}>{t('aylık {price}’ye denk gelir', { price: p.monthlyEq })}</Text> : null}
-      </View>
-      <Text v="small" color={dark ? c.lemon : c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('1 ay ücretsiz deneme')}</Text>
-      <View>
-        {p.points.map((x: string, k: number) => (
-          <View key={x} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start', paddingVertical: phone ? 8 : 10, borderTopWidth: 1, borderTopColor: rule, borderBottomWidth: k === p.points.length - 1 ? 1 : 0, borderBottomColor: rule }}>
-            <View style={{ marginTop: 1 }}><Icon name="check" size={16} color={dark ? c.lemon : c.okInk} /></View>
-            <Text v="small" color={dark ? c.heroInk : c.ink} style={{ flex: 1, fontSize: 14, lineHeight: 20, opacity: dark ? 0.9 : 1 }}>{x}</Text>
-          </View>
-        ))}
-      </View>
-      {phone ? null : <View style={{ flex: 1, minHeight: 4 }} />}
-      {cta}
-    </View>
-  );
+function PlanCta(p: any, go: (path: string) => void) {
+  return p.id === 'kurumsal'
+    ? { title: t('Bize ulaşın'), onPress: () => { Linking.openURL('mailto:' + CONFIG.supportEmail + '?subject=' + encodeURIComponent(t('Kurumsal paket'))).catch(() => {}); } }
+    : { title: t('Paketi seç'), onPress: () => go('/kayit/mulk-sahibi') };
 }
 
 function Pricing({ go, anchor }: { go: (p: string) => void; anchor: (el: any) => void }) {
@@ -453,7 +421,7 @@ function Pricing({ go, anchor }: { go: (p: string) => void; anchor: (el: any) =>
         </Reveal>
         {/* Masaüstünde yan yana, telefonda ve tablette alt alta; her kart tam genişlikte. */}
         <Reveal style={{ flexDirection: desktop ? 'row' : 'column', gap: phone ? 12 : 16, alignItems: 'stretch', width: '100%', maxWidth: desktop ? undefined : 560, alignSelf: 'center' }}>
-          {list.map((p) => <PlanCard key={p.id} p={p} go={go} />)}
+          {list.map((p) => <PlanCard key={p.id} p={p} cta={PlanCta(p, go)} side={desktop} eqLine={list.some((x) => !!x.monthlyEq)} />)}
         </Reveal>
         <Reveal style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'center' }}>
           {phone ? null : <Icon name="check" size={16} color={c.okInk} />}
