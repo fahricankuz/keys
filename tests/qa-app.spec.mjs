@@ -476,3 +476,15 @@ test('kurumsal başvuru: fiyatlardaki "Bize ulaşın" formu açar; başvuru yön
   await expect(page.getByText('Ayşe Yılmaz · Yılmaz Emlak')).toBeVisible();
   await expect(page.getByText('Web formu')).toBeVisible();
 });
+
+test('kurumsal: sektör sayfası açık temada; "Teklif al" formu sektör seçili açar', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.goto(url('/kurumsal/avm'));
+  await expect(page.locator('h1')).toContainText('AVM');
+  // Cihaz koyu temada olsa da statik sayfalar marka renginde (kireç) açılır.
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(250, 245, 240)');
+  await page.locator('.sector-hero a', { hasText: 'Teklif al' }).click();
+  await expect(page).toHaveURL(/\/kurumsal\?sektor=AVM/);
+  await expect(page.getByRole('radio', { name: 'AVM' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('link', { name: 'GYO' })).toBeVisible();
+});

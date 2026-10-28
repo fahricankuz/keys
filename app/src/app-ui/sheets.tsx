@@ -234,7 +234,6 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
           <Seg value={S.theme === 'dark' ? 'dark' : 'light'} onChange={(v) => act('theme', { v })} options={[['light', t('Açık')], ['dark', t('Koyu')]]} />
           <H2>{t('Dil')}</H2>
           <Seg value={getLang()} onChange={(v) => act('lang', { v })} options={LANGS as any} />
-          <Card gap={4}><OnOff label={t('Panele girerken kilit sesi')} k="openSound" /></Card>
         </Stack>
       ) : null}
 

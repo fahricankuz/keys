@@ -1,6 +1,6 @@
 /* Kurumsal paket başvuru formu: sitedeki /kurumsal sayfası ve uygulamadaki paket penceresi kullanır.
    Başvuru yönetici panelindeki Talepler bölümüne düşer, info@anahtar.io'ya e-postalanır (supabase/functions/lead-mail). */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, View } from 'react-native';
 import { t } from '../domain/i18n';
 import { CONFIG } from '../domain/config';
@@ -11,7 +11,7 @@ import { Area } from '../app-ui/forms';
 import { Icon } from '../app-ui/blocks';
 
 const TYPES = ['Konut', 'Ofis', 'Mağaza', 'Depo', 'Arsa', 'Diğer'];
-const ROLES = ['Mülk sahibi / yatırımcı', 'Emlak ofisi', 'Site / bina yönetimi', 'Şirket', 'Diğer'];
+const ROLES = ['Mülk sahibi / yatırımcı', 'Emlak ofisi', 'Site / bina yönetimi', 'AVM', 'GYO', 'Şirket', 'Diğer'];
 const WHEN = ['Hemen', '1–3 ay içinde', 'Araştırıyorum'];
 
 function Chips({ label, options, value, multi, onChange }: { label: string; options: string[]; value: string[]; multi?: boolean; onChange: (v: string[]) => void }) {
@@ -36,12 +36,14 @@ function Chips({ label, options, value, multi, onChange }: { label: string; opti
   );
 }
 
-export function EnterpriseForm({ onDone, email: email0 = '', name: name0 = '' }: { onDone?: () => void; email?: string; name?: string }) {
+export function EnterpriseForm({ onDone, email: email0 = '', name: name0 = '', role: role0 = '' }: { onDone?: () => void; email?: string; name?: string; role?: string }) {
   const c = useColors();
   const [v, setV] = useState<Record<string, string>>({ name: name0, company: '', email: email0, phone: '', units: '', city: '', message: '' });
   const set = (k: string, x: string) => setV((s) => ({ ...s, [k]: x }));
   const [types, setTypes] = useState<string[]>([]);
+  // Sektör sayfasından gelen seçim çizimden sonra uygulanır: sayfa önceden derlendiği için ilk çizim boş seçimle eşleşmeli.
   const [role, setRole] = useState<string[]>([]);
+  useEffect(() => { if (ROLES.includes(role0)) setRole((r) => (r.length ? r : [role0])); }, [role0]);
   const [when, setWhen] = useState<string[]>([]);
   const [consent, setConsent] = useState(false);
   const [err, setErr] = useState<string | null>(null);

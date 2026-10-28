@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { POSTS, CATEGORIES } from './posts.mjs';
 import { destekPage } from './destek.mjs';
 import { kiraArtisPage } from './kira-artis.mjs';
+import { SECTORS, sectorPage } from './sectors.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUB = join(HERE, '../../public');
@@ -40,8 +41,8 @@ ${noindex ? '<meta name="robots" content="noindex"/>' : '<meta name="robots" con
 <link rel="icon" href="/favicon.ico"/>
 <link rel="stylesheet" href="/site.css"/>
 <link rel="alternate" type="application/rss+xml" title="anahtar blog" href="${SITE}/blog/rss.xml"/>
-<meta name="theme-color" content="#FAF5F0" media="(prefers-color-scheme: light)"/>
-<meta name="theme-color" content="#1D1A19" media="(prefers-color-scheme: dark)"/>
+<meta name="theme-color" content="#FAF5F0"/>
+<meta name="color-scheme" content="light"/>
 <meta property="og:site_name" content="anahtar"/>
 <meta property="og:type" content="${type}"/>
 <meta property="og:title" content="${esc(title.replace(/ \| anahtar$/, ''))}"/>
@@ -70,7 +71,7 @@ export function bar(active) {
 export function foot() {
   return `<footer class="foot"><div class="wrap">
 <span>© ${new Date().getFullYear()} anahtar · Kiracı ile mülk sahibi aynı sayfada.</span>
-<nav aria-label="Alt bağlantılar"><a href="/">Ana sayfa</a><a href="/kira-artis-hesaplama">Kira artış hesaplama</a><a href="/blog/">Blog</a><a href="/destek/">Destek</a><a href="/gizlilik/">Gizlilik ve KVKK</a><a href="/kosullar/">Kullanım koşulları</a><a href="mailto:info@anahtar.io">info@anahtar.io</a></nav>
+<nav aria-label="Alt bağlantılar"><a href="/">Ana sayfa</a><a href="/kira-artis-hesaplama">Kira artış hesaplama</a><a href="/blog/">Blog</a><a href="/destek/">Destek</a><a href="/kurumsal">Kurumsal</a><a href="/gizlilik/">Gizlilik ve KVKK</a><a href="/kosullar/">Kullanım koşulları</a><a href="mailto:info@anahtar.io">info@anahtar.io</a></nav>
 </div></footer>`;
 }
 
@@ -193,13 +194,14 @@ ${sorted.map(item).join('\n')}
 
 function sitemap() {
   const file = join(PUB, 'sitemap.xml');
-  const keep = readFileSync(file, 'utf8').split('\n').filter((l) => l.includes('<url>') && !l.includes('/blog/') && !l.includes('/kira-artis-hesaplama'));
+  const keep = readFileSync(file, 'utf8').split('\n').filter((l) => l.includes('<url>') && !l.includes('/blog/') && !l.includes('/kira-artis-hesaplama') && !l.includes('/kurumsal/'));
   const last = [...POSTS].map((p) => p.updated || p.date).sort().pop();
   const lines = [
     ...keep,
     `  <url><loc>${SITE}/kira-artis-hesaplama</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod><changefreq>monthly</changefreq></url>`,
     `  <url><loc>${SITE}/blog/</loc><lastmod>${last}</lastmod></url>`,
-    ...POSTS.map((p) => `  <url><loc>${SITE}/blog/${p.slug}</loc><lastmod>${p.updated || p.date}</lastmod></url>`)
+    ...POSTS.map((p) => `  <url><loc>${SITE}/blog/${p.slug}</loc><lastmod>${p.updated || p.date}</lastmod></url>`),
+    ...SECTORS.map((x) => `  <url><loc>${SITE}/kurumsal/${x.slug}</loc></url>`)
   ];
   writeFileSync(file, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${lines.join('\n')}\n</urlset>\n`);
 }
@@ -215,6 +217,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   write('blog/rss.xml', rss());
   write('destek/index.html', destekPage({ head, bar, foot }));
   write('kira-artis-hesaplama.html', kiraArtisPage({ head, bar, foot }));
+  for (const x of SECTORS) write(`kurumsal/${x.slug}.html`, sectorPage(x, { head, bar, foot }));
   sitemap();
   const og = POSTS.filter((p) => !existsSync(join(PUB, 'blog/og', p.slug + '.jpg')));
   console.log(`blog: ${POSTS.length} yazı yazıldı` + (og.length ? `; kapak görseli eksik: ${og.map((p) => p.slug).join(', ')} (node scripts/blog/og.mjs)` : ''));

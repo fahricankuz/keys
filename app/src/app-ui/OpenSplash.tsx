@@ -8,39 +8,7 @@ import { Platform, useWindowDimensions, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import Svg, { Defs, G, Path, RadialGradient, Stop } from 'react-native-svg';
 import { MONO } from '../ui/Wordmark';
-import { S } from '../domain/state';
 
-/** Kilit sesi: anahtar dönerken iki kısa metalik tık ve açılışta tok bir "klak" (ses dosyası yok, Web Audio ile üretilir).
-    Tarayıcı ses izni yoksa (kullanıcı henüz sayfaya dokunmadıysa) sessiz geçer. Ayarlar → Görünüm'den kapatılır. */
-function playLock(atOpen: number) {
-  try {
-    const AC = (globalThis as any).AudioContext || (globalThis as any).webkitAudioContext;
-    if (!AC) return;
-    const ctx = new AC();
-    if (ctx.state === 'suspended') ctx.resume?.();
-    const noise = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
-    const ch = noise.getChannelData(0);
-    for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / ch.length, 3);
-    const tick = (at: number, freq: number, gain: number) => {
-      const src = ctx.createBufferSource(); src.buffer = noise;
-      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = 6;
-      const g = ctx.createGain(); g.gain.value = gain;
-      src.connect(bp).connect(g).connect(ctx.destination); src.start(ctx.currentTime + at);
-    };
-    const thump = (at: number) => {
-      const o = ctx.createOscillator(); o.type = 'triangle';
-      const g = ctx.createGain(); const t0 = ctx.currentTime + at;
-      o.frequency.setValueAtTime(150, t0); o.frequency.exponentialRampToValueAtTime(55, t0 + 0.12);
-      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.5, t0 + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
-      o.connect(g).connect(ctx.destination); o.start(t0); o.stop(t0 + 0.2);
-    };
-    tick(atOpen - 0.32, 3200, 0.35);          // anahtar dişleri
-    tick(atOpen - 0.2, 2600, 0.4);
-    tick(atOpen, 1800, 0.9);                  // dil geri çekilir
-    thump(atOpen + 0.01);
-    setTimeout(() => ctx.close?.(), (atOpen + 1) * 1000);
-  } catch { /* ses yoksa sessiz */ }
-}
 
 const SEEN = 'anahtar-acilis';
 const LOGIN = 'anahtar-acilis-giris';
@@ -81,7 +49,6 @@ export default function OpenSplash() {
     if (!show) return;
     let raf = 0;
     const t0 = Date.now();
-    if (!reduced && Platform.OS === 'web' && (S as any).settings?.openSound !== false) playLock((INTRO + HOLD + ZOOM) / 1000);
     const tick = () => {
       const t = Date.now() - t0;
       if (t >= (reduced ? FADE : TOTAL)) { setShow(false); return; }
