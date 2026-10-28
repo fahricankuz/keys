@@ -24,7 +24,7 @@ export default function JoinCode({ team = false }: { team?: boolean }) {
     <AuthShell
       title={team ? t('Ekibe katıl') : t('Mülküne bağlan')}
       lead={team
-        ? t('Mülk sahibinden aldığın ekip davet kodunu gir. Kodu mülk sahibi anahtar’da “Ekip” ekranından oluşturur.')
+        ? t('Mülk sahibinden ya da kurumundan aldığın davet kodunu gir. Kodu mülk sahibi “Ekip”, kurum yöneticisi “Kurum” ekranından oluşturur.')
         : t('Mülk sahibinden aldığın davet kodunu gir. Kodu mülk sahibin anahtar’da “Kiracı ekle” ile oluşturur.')}>
       <Text v="small" muted>{user?.name ? t('Merhaba') + ' ' + user.name : t('Hoş geldin')}</Text>
       <Field label={t('Davet kodu')} value={code} onChangeText={(v) => setCode(v.toUpperCase())} autoCapitalize="characters" maxLength={12} onSubmitEditing={submit} error={err} />

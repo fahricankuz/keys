@@ -1891,7 +1891,10 @@ begin
   plan := case when subscribed then public.plan_of(s.product_id) when now() < trial_end then 'trial' else null end;
   return jsonb_build_object(
     'role', p.role,
-    'access', p.role in ('tenant','team') or subscribed or now() < trial_end,
+    -- Etkin bir kurumun yöneticisi kurumun sözleşmesiyle erişir (16. bölüm).
+    'access', p.role in ('tenant','team') or subscribed or now() < trial_end
+              or exists (select 1 from public.org_members m join public.organizations o on o.id = m.org_id
+                         where m.user_id = uid and o.status = 'active' and (o.contract_until is null or o.contract_until >= current_date)),
     'subscribed', subscribed,
     'inTrial', not subscribed and now() < trial_end,
     'trialEnds', trial_end,
@@ -2273,3 +2276,409 @@ begin
   perform public.audit('cpi.set', m, jsonb_build_object('rate', rate));
 end $$;
 grant execute on function public.admin_set_cpi(text, numeric) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 16. Kurumlar (kurumsal müşteri hesabı) — yol planı Faz 0
+-- ---------------------------------------------------------------------
+-- Kurum: site yönetimi, AVM, GYO, depo, emlak ofisi, family office gibi kurumsal müşteri.
+-- Bireysel kullanıcılar kurum kullanmaz (properties.org_id boş kalır); onlar için hiçbir şey değişmez.
+-- Bir kurumun tek bir master yöneticisi vardır; diğer yöneticilerin yetkisi kurumun rollerinden gelir.
+-- Roller ve yetkileri master yönetici düzenler. Kurumu ve master yöneticiyi anahtar yöneticisi açar.
+-- Yetki ve modül listeleri uygulamadaki domain/org.js ile aynıdır.
+
+create table if not exists public.organizations (
+  id             uuid primary key default gen_random_uuid(),
+  name           text not null check (length(btrim(name)) between 2 and 160),
+  sector         text not null check (sector in ('site','avm','gyo','depo','emlak','family','diger')),
+  modules        text[] not null default '{}',
+  status         text not null default 'active' check (status in ('active','paused')),
+  units          int check (units is null or units between 1 and 1000000),
+  contract_until date,
+  billing        jsonb not null default '{}'::jsonb,
+  note           text not null default '' check (length(note) <= 4000),
+  lead_id        uuid references public.support_requests(id) on delete set null,
+  created_by     uuid references public.profiles(id) on delete set null default auth.uid(),
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+create table if not exists public.org_roles (
+  id         uuid primary key default gen_random_uuid(),
+  org_id     uuid not null references public.organizations(id) on delete cascade,
+  name       text not null check (length(btrim(name)) between 1 and 60),
+  perms      text[] not null default '{}',
+  position   int not null default 0,
+  created_at timestamptz not null default now(),
+  unique (org_id, name)
+);
+
+create table if not exists public.org_members (
+  org_id     uuid not null references public.organizations(id) on delete cascade,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  role_id    uuid references public.org_roles(id) on delete set null,
+  is_master  boolean not null default false,
+  created_at timestamptz not null default now(),
+  primary key (org_id, user_id)
+);
+create unique index if not exists org_members_one_master on public.org_members (org_id) where is_master;
+create index if not exists org_members_user on public.org_members (user_id);
+
+create table if not exists public.org_invites (
+  code        text primary key default ('K' || upper(substr(md5(gen_random_uuid()::text), 1, 7))),
+  org_id      uuid not null references public.organizations(id) on delete cascade,
+  role_id     uuid references public.org_roles(id) on delete cascade,
+  master      boolean not null default false,
+  email       text not null default '',
+  created_by  uuid references public.profiles(id) on delete set null default auth.uid(),
+  created_at  timestamptz not null default now(),
+  expires_at  timestamptz not null default now() + interval '14 days',
+  accepted_by uuid references public.profiles(id) on delete set null,
+  accepted_at timestamptz
+);
+
+-- Birim kuruma bağlıysa org_id dolu (Faz 2'de site/blok/daire burada kurulacak).
+alter table public.properties add column if not exists org_id uuid references public.organizations(id) on delete set null;
+create index if not exists properties_org on public.properties (org_id);
+
+/** Yetki kataloğu (domain/org.js → PERMS). */
+create or replace function public.org_perm_list()
+returns text[] language sql immutable as $$
+  select array['org.settings','org.members','units.manage','residents.manage','charges.manage','payments.approve',
+               'expenses.manage','requests.manage','announce','documents.manage','reports.view']
+$$;
+
+/** Modül kataloğu (domain/org.js → MODULES) ve sektöre göre varsayılan modüller. */
+create or replace function public.org_module_list()
+returns text[] language sql immutable as $$
+  select array['kira','aidat','gider_dagitim','duyuru','ciro_kira','ortak_gider','endeksleme','doluluk','onay_akisi','rapor','api']
+$$;
+create or replace function public.sector_modules(sec text)
+returns text[] language sql immutable as $$
+  select case sec
+    when 'site'   then array['aidat','gider_dagitim','duyuru','rapor']
+    when 'avm'    then array['kira','ortak_gider','ciro_kira','doluluk','rapor']
+    when 'depo'   then array['kira','ortak_gider','endeksleme','rapor']
+    when 'gyo'    then array['kira','ortak_gider','doluluk','onay_akisi','rapor','api']
+    else array['kira','rapor'] end
+$$;
+
+create or replace function public.is_org_member(oid uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.org_members where org_id = oid and user_id = auth.uid())
+$$;
+create or replace function public.is_org_master(oid uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.org_members where org_id = oid and user_id = auth.uid() and is_master)
+$$;
+
+/** Kurumda bu yetki var mı? Master her şeyi yapar; diğerleri rolünün yetkileriyle. Askıdaki kurumda kimse yazamaz. */
+create or replace function public.org_can(oid uuid, perm text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.org_members m
+    join public.organizations o on o.id = m.org_id and o.status = 'active'
+    left join public.org_roles r on r.id = m.role_id
+    where m.org_id = oid and m.user_id = auth.uid() and not public.is_banned()
+      and (m.is_master or perm = any(coalesce(r.perms, '{}'))))
+$$;
+grant execute on function public.is_org_member(uuid), public.is_org_master(uuid), public.org_can(uuid, text) to authenticated;
+
+alter table public.organizations enable row level security;
+alter table public.org_roles     enable row level security;
+alter table public.org_members   enable row level security;
+alter table public.org_invites   enable row level security;
+drop policy if exists org_read on public.organizations;
+create policy org_read on public.organizations for select to authenticated using (public.is_org_member(id) or public.is_admin());
+drop policy if exists org_roles_read on public.org_roles;
+create policy org_roles_read on public.org_roles for select to authenticated using (public.is_org_member(org_id) or public.is_admin());
+drop policy if exists org_members_read on public.org_members;
+create policy org_members_read on public.org_members for select to authenticated using (public.is_org_member(org_id) or public.is_admin());
+drop policy if exists org_invites_read on public.org_invites;
+create policy org_invites_read on public.org_invites for select to authenticated
+  using (public.org_can(org_id, 'org.members') or public.is_admin());
+-- Yazma yalnızca aşağıdaki işlevlerle (yetki ve tutarlılık denetimi orada).
+revoke insert, update, delete on public.organizations, public.org_roles, public.org_members, public.org_invites from anon, authenticated;
+
+/** Yeni kurumun hazır rolleri (master sonradan düzenler). */
+create or replace function public.org_seed_roles(oid uuid, sec text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.org_roles (org_id, name, perms, position)
+  select oid, x.n, x.p, x.i from (values
+    (case when sec = 'site' then 'Muhasebe' else 'Muhasebe ve finans' end,
+       array['charges.manage','payments.approve','expenses.manage','reports.view'], 1),
+    (case when sec = 'site' then 'Teknik ekip' else 'Operasyon ve teknik' end,
+       array['requests.manage','documents.manage','units.manage'], 2),
+    (case when sec = 'site' then 'Güvenlik ve resepsiyon' else 'Kiracı ilişkileri' end,
+       array['requests.manage','announce','residents.manage'], 3),
+    (case when sec = 'site' then 'Yönetim kurulu' else 'Salt okunur' end,
+       array['reports.view'], 4)
+  ) as x(n, p, i)
+  on conflict (org_id, name) do nothing;
+end $$;
+revoke execute on function public.org_seed_roles(uuid, text) from public, anon, authenticated;
+
+/** Oturumdaki kişinin kurumları: kurum bilgisi, master mı, rolü ve yetkileri. */
+create or replace function public.my_orgs()
+returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', o.id, 'name', o.name, 'sector', o.sector, 'modules', to_jsonb(o.modules), 'status', o.status, 'units', o.units,
+    'master', m.is_master, 'role', case when r.id is null then null else jsonb_build_object('id', r.id, 'name', r.name) end,
+    'perms', to_jsonb(case when m.is_master then public.org_perm_list() else coalesce(r.perms, '{}') end)
+  ) order by o.name), '[]'::jsonb)
+  from public.org_members m join public.organizations o on o.id = m.org_id left join public.org_roles r on r.id = m.role_id
+  where m.user_id = auth.uid()
+$$;
+grant execute on function public.my_orgs() to authenticated;
+
+/** Kurum ayrıntısı: roller, yöneticiler; yönetici ekleme yetkisi olana açık davetler. */
+create or replace function public.org_detail(oid uuid)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare o public.organizations;
+begin
+  if not (public.is_org_member(oid) or public.is_admin()) then raise exception 'Bu kurumda yetkin yok' using errcode = '42501'; end if;
+  select * into o from public.organizations where id = oid;
+  return jsonb_build_object(
+    'org', to_jsonb(o) - 'note' - 'billing' - 'lead_id' || case when public.is_admin() or public.org_can(oid, 'org.settings')
+                                                           then jsonb_build_object('billing', o.billing) else '{}'::jsonb end,
+    'roles', coalesce((select jsonb_agg(jsonb_build_object('id', r.id, 'name', r.name, 'perms', to_jsonb(r.perms),
+                         'count', (select count(*) from public.org_members x where x.role_id = r.id)) order by r.position, r.name)
+                       from public.org_roles r where r.org_id = oid), '[]'::jsonb),
+    'members', coalesce((select jsonb_agg(jsonb_build_object('user_id', m.user_id, 'name', p.name, 'email', u.email,
+                           'role_id', m.role_id, 'master', m.is_master, 'since', m.created_at) order by m.is_master desc, p.name)
+                         from public.org_members m join public.profiles p on p.id = m.user_id left join auth.users u on u.id = m.user_id
+                         where m.org_id = oid), '[]'::jsonb),
+    'invites', case when public.is_admin() or public.org_can(oid, 'org.members') then
+                 coalesce((select jsonb_agg(jsonb_build_object('code', i.code, 'role_id', i.role_id, 'master', i.master, 'email', i.email,
+                             'expires_at', i.expires_at) order by i.created_at desc)
+                           from public.org_invites i where i.org_id = oid and i.accepted_by is null and i.expires_at > now()), '[]'::jsonb)
+               else '[]'::jsonb end);
+end $$;
+grant execute on function public.org_detail(uuid) to authenticated;
+
+/** Rol ekler ya da düzenler (yalnızca master ya da anahtar yöneticisi). */
+create or replace function public.org_role_save(oid uuid, rid uuid, nm text, perms text[])
+returns uuid language plpgsql security definer set search_path = public as $$
+declare out_id uuid;
+begin
+  if not (public.is_org_master(oid) and public.org_can(oid, 'org.members') or public.is_admin()) then
+    raise exception 'Rolleri yalnızca master yönetici düzenler' using errcode = '42501';
+  end if;
+  nm := btrim(coalesce(nm, ''));
+  if length(nm) not between 1 and 60 then raise exception 'Rol adını yaz' using errcode = '22023'; end if;
+  if exists (select 1 from unnest(coalesce(perms, '{}')) x where x <> all(public.org_perm_list())) then
+    raise exception 'Geçersiz yetki' using errcode = '22023';
+  end if;
+  perms := array(select distinct x from unnest(coalesce(perms, '{}')) x order by 1);
+  if exists (select 1 from public.org_roles where org_id = oid and lower(name) = lower(nm) and id is distinct from rid) then
+    raise exception 'Bu adla bir rol var' using errcode = '23505';
+  end if;
+  if rid is null then
+    insert into public.org_roles (org_id, name, perms, position)
+    values (oid, nm, perms, coalesce((select max(position) from public.org_roles where org_id = oid), 0) + 1)
+    returning id into out_id;
+  else
+    update public.org_roles set name = nm, perms = org_role_save.perms where id = rid and org_id = oid returning id into out_id;
+    if out_id is null then raise exception 'Rol bulunamadı' using errcode = 'P0002'; end if;
+  end if;
+  if public.is_admin() then perform public.audit('org.role', oid::text, jsonb_build_object('role', nm, 'perms', perms)); end if;
+  return out_id;
+end $$;
+grant execute on function public.org_role_save(uuid, uuid, text, text[]) to authenticated;
+
+create or replace function public.org_role_delete(rid uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare oid uuid := (select org_id from public.org_roles where id = rid);
+begin
+  if oid is null then raise exception 'Rol bulunamadı' using errcode = 'P0002'; end if;
+  if not (public.is_org_master(oid) and public.org_can(oid, 'org.members') or public.is_admin()) then
+    raise exception 'Rolleri yalnızca master yönetici düzenler' using errcode = '42501';
+  end if;
+  delete from public.org_roles where id = rid;   -- bu roldeki yöneticiler rolsüz (yetkisiz) kalır
+end $$;
+grant execute on function public.org_role_delete(uuid) to authenticated;
+
+/** Yönetici davet kodu üretir. Rol verilmezse yetkisiz katılır; master daveti yalnızca anahtar yöneticisi üretir. */
+create or replace function public.org_invite_create(oid uuid, rid uuid, mail text default '')
+returns text language plpgsql security definer set search_path = public as $$
+declare c text;
+begin
+  if not (public.org_can(oid, 'org.members') or public.is_admin()) then
+    raise exception 'Yönetici davet etme yetkin yok' using errcode = '42501';
+  end if;
+  if rid is not null and not exists (select 1 from public.org_roles where id = rid and org_id = oid) then
+    raise exception 'Rol bu kuruma ait değil' using errcode = '22023';
+  end if;
+  insert into public.org_invites (org_id, role_id, email) values (oid, rid, left(lower(btrim(coalesce(mail, ''))), 200))
+  returning code into c;
+  return c;
+end $$;
+grant execute on function public.org_invite_create(uuid, uuid, text) to authenticated;
+
+create or replace function public.org_invite_delete(c text)
+returns void language plpgsql security definer set search_path = public as $$
+declare oid uuid := (select org_id from public.org_invites where code = c);
+begin
+  if oid is null then return; end if;
+  if not (public.org_can(oid, 'org.members') or public.is_admin()) then raise exception 'Yetki yok' using errcode = '42501'; end if;
+  delete from public.org_invites where code = c;
+end $$;
+grant execute on function public.org_invite_delete(text) to authenticated;
+
+/** Kurum davetini kabul eder (her hesap türü katılabilir). */
+create or replace function public.accept_org_invite(invite_code text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  inv public.org_invites;
+  me uuid := auth.uid();
+begin
+  if me is null then raise exception 'Oturum açılmamış' using errcode = '42501'; end if;
+  if public.is_banned() then raise exception 'Hesap askıya alındı' using errcode = '42501'; end if;
+  select * into inv from public.org_invites where code = upper(btrim(invite_code)) for update;
+  if inv.code is null then raise exception 'Davet kodu bulunamadı' using errcode = 'P0002'; end if;
+  if inv.accepted_by is not null and inv.accepted_by <> me then raise exception 'Bu davet kullanılmış' using errcode = '22023'; end if;
+  if inv.expires_at < now() then raise exception 'Davetin süresi dolmuş' using errcode = '22023'; end if;
+  if inv.master then
+    update public.org_members set is_master = false where org_id = inv.org_id and is_master and user_id <> me;
+    insert into public.org_members (org_id, user_id, role_id, is_master) values (inv.org_id, me, null, true)
+    on conflict (org_id, user_id) do update set is_master = true, role_id = null;
+  else
+    insert into public.org_members (org_id, user_id, role_id) values (inv.org_id, me, inv.role_id)
+    on conflict (org_id, user_id) do update set role_id = case when public.org_members.is_master then null else excluded.role_id end;
+  end if;
+  update public.org_invites set accepted_by = me, accepted_at = now() where code = inv.code;
+  return inv.org_id;
+end $$;
+grant execute on function public.accept_org_invite(text) to authenticated;
+
+/** Yöneticinin rolünü değiştirir (master'ın rolü olmaz; master değiştirilemez). */
+create or replace function public.org_member_set(oid uuid, member uuid, rid uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not (public.org_can(oid, 'org.members') or public.is_admin()) then raise exception 'Yönetici düzenleme yetkin yok' using errcode = '42501'; end if;
+  if rid is not null and not exists (select 1 from public.org_roles where id = rid and org_id = oid) then
+    raise exception 'Rol bu kuruma ait değil' using errcode = '22023';
+  end if;
+  if exists (select 1 from public.org_members where org_id = oid and user_id = member and is_master) then
+    raise exception 'Master yöneticinin rolü değiştirilemez' using errcode = '22023';
+  end if;
+  update public.org_members set role_id = rid where org_id = oid and user_id = member;
+  if not found then raise exception 'Bu kişi kurumda değil' using errcode = 'P0002'; end if;
+end $$;
+grant execute on function public.org_member_set(uuid, uuid, uuid) to authenticated;
+
+/** Kurumdan çıkarır ya da kişi kendisi ayrılır. Master çıkarılamaz, önce devretmeli. */
+create or replace function public.org_member_remove(oid uuid, member uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not (member = auth.uid() or public.org_can(oid, 'org.members') or public.is_admin()) then
+    raise exception 'Yönetici çıkarma yetkin yok' using errcode = '42501';
+  end if;
+  if exists (select 1 from public.org_members where org_id = oid and user_id = member and is_master) then
+    raise exception 'Master yönetici çıkarılamaz; önce master yetkisini devret' using errcode = '22023';
+  end if;
+  delete from public.org_members where org_id = oid and user_id = member;
+end $$;
+grant execute on function public.org_member_remove(uuid, uuid) to authenticated;
+
+/** Master yetkisini kurumdaki başka bir yöneticiye devreder (master ya da anahtar yöneticisi). */
+create or replace function public.org_transfer_master(oid uuid, member uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not (public.is_org_master(oid) or public.is_admin()) then raise exception 'Yalnızca master yönetici devredebilir' using errcode = '42501'; end if;
+  if not exists (select 1 from public.org_members where org_id = oid and user_id = member) then
+    raise exception 'Bu kişi kurumda değil' using errcode = 'P0002';
+  end if;
+  update public.org_members set is_master = false where org_id = oid and is_master;
+  update public.org_members set is_master = true, role_id = null where org_id = oid and user_id = member;
+  if public.is_admin() then perform public.audit('org.master', oid::text, jsonb_build_object('user', member)); end if;
+end $$;
+grant execute on function public.org_transfer_master(uuid, uuid) to authenticated;
+
+-- ---- Yönetici (anahtar ekibi): kurum açma ve yönetme ---------------
+create or replace function public.admin_orgs()
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'Yönetici yetkisi gerekli' using errcode = '42501'; end if;
+  return coalesce((select jsonb_agg(to_jsonb(o) || jsonb_build_object(
+      'members', (select count(*) from public.org_members m where m.org_id = o.id),
+      'unit_count', (select count(*) from public.properties p where p.org_id = o.id),
+      'master', (select jsonb_build_object('id', m.user_id, 'name', p.name, 'email', u.email)
+                 from public.org_members m join public.profiles p on p.id = m.user_id left join auth.users u on u.id = m.user_id
+                 where m.org_id = o.id and m.is_master),
+      'master_invite', (select i.code from public.org_invites i where i.org_id = o.id and i.master and i.accepted_by is null
+                        and i.expires_at > now() order by i.created_at desc limit 1))
+    order by o.created_at desc) from public.organizations o), '[]'::jsonb);
+end $$;
+grant execute on function public.admin_orgs() to authenticated;
+
+/** Kurum açar ya da günceller. p: {id?, name, sector, modules?, status?, units?, contract_until?, billing?, note?, lead_id?}.
+    Yeni kurumda modüller verilmezse sektörün varsayılanları, roller sektörün hazır rolleri olur; bağlı başvuru kapanır. */
+create or replace function public.admin_org_save(p jsonb)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  oid uuid := nullif(p ->> 'id', '')::uuid;
+  sec text := coalesce(p ->> 'sector', '');
+  mods text[];
+  lead uuid := nullif(p ->> 'lead_id', '')::uuid;
+begin
+  if not public.is_admin() then raise exception 'Yönetici yetkisi gerekli' using errcode = '42501'; end if;
+  if sec not in ('site','avm','gyo','depo','emlak','family','diger') then raise exception 'Sektör seç' using errcode = '22023'; end if;
+  if length(btrim(coalesce(p ->> 'name', ''))) < 2 then raise exception 'Kurum adını yaz' using errcode = '22023'; end if;
+  mods := case when p ? 'modules' then array(select distinct x from jsonb_array_elements_text(p -> 'modules') x order by 1)
+               else public.sector_modules(sec) end;
+  if exists (select 1 from unnest(mods) x where x <> all(public.org_module_list())) then
+    raise exception 'Geçersiz modül' using errcode = '22023';
+  end if;
+  if oid is null then
+    insert into public.organizations (name, sector, modules, status, units, contract_until, billing, note, lead_id)
+    values (btrim(p ->> 'name'), sec, mods, coalesce(nullif(p ->> 'status', ''), 'active'), nullif(p ->> 'units', '')::int,
+            nullif(p ->> 'contract_until', '')::date, coalesce(p -> 'billing', '{}'::jsonb), coalesce(p ->> 'note', ''), lead)
+    returning id into oid;
+    perform public.org_seed_roles(oid, sec);
+    if lead is not null then update public.support_requests set status = 'done' where id = lead; end if;
+    perform public.audit('org.create', oid::text, jsonb_build_object('name', p ->> 'name', 'sector', sec));
+  else
+    update public.organizations set name = btrim(p ->> 'name'), sector = sec, modules = mods,
+      status = coalesce(nullif(p ->> 'status', ''), status), units = nullif(p ->> 'units', '')::int,
+      contract_until = nullif(p ->> 'contract_until', '')::date, billing = coalesce(p -> 'billing', billing),
+      note = coalesce(p ->> 'note', note), updated_at = now()
+    where id = oid;
+    if not found then raise exception 'Kurum bulunamadı' using errcode = 'P0002'; end if;
+    perform public.audit('org.update', oid::text, jsonb_build_object('name', p ->> 'name', 'sector', sec, 'status', p ->> 'status'));
+  end if;
+  return oid;
+end $$;
+grant execute on function public.admin_org_save(jsonb) to authenticated;
+
+/** Master yöneticiyi belirler: e-postayla kayıtlı hesap varsa doğrudan atanır, yoksa master davet kodu üretilir. */
+create or replace function public.admin_org_set_master(oid uuid, mail text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid;
+  c text;
+begin
+  if not public.is_admin() then raise exception 'Yönetici yetkisi gerekli' using errcode = '42501'; end if;
+  if not exists (select 1 from public.organizations where id = oid) then raise exception 'Kurum bulunamadı' using errcode = 'P0002'; end if;
+  mail := lower(btrim(coalesce(mail, '')));
+  if mail !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then raise exception 'Geçerli bir e-posta adresi yaz.' using errcode = '22023'; end if;
+  select id into uid from auth.users where lower(email) = mail;
+  if uid is not null and exists (select 1 from public.profiles where id = uid) then
+    update public.org_members set is_master = false where org_id = oid and is_master and user_id <> uid;
+    insert into public.org_members (org_id, user_id, role_id, is_master) values (oid, uid, null, true)
+    on conflict (org_id, user_id) do update set is_master = true, role_id = null;
+    perform public.audit('org.master', oid::text, jsonb_build_object('user', uid, 'email', mail));
+    return jsonb_build_object('status', 'set', 'user', uid);
+  end if;
+  delete from public.org_invites where org_id = oid and master and accepted_by is null;
+  insert into public.org_invites (org_id, master, email) values (oid, true, mail) returning code into c;
+  perform public.audit('org.master_invite', oid::text, jsonb_build_object('email', mail));
+  return jsonb_build_object('status', 'invited', 'code', c);
+end $$;
+grant execute on function public.admin_org_set_master(uuid, text) to authenticated;
+
+do $$
+begin
+  execute 'drop policy if exists not_banned on public.org_members';
+  execute 'create policy not_banned on public.org_members as restrictive for all to authenticated using (not public.is_banned()) with check (not public.is_banned())';
+end $$;

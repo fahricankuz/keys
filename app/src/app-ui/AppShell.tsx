@@ -6,6 +6,7 @@ import { P, openReqs, newReqs, unreadMessages } from '../domain/logic';
 import { can, canAny, isTeam, memberRole, roleLabel } from '../domain/team';
 import { t } from '../domain/i18n';
 import { toApp } from '../domain/nav';
+import { myOrgs } from '../domain/org';
 import { PressScale, Text } from '../ui/kit';
 import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
 import { Icon } from './blocks';
@@ -19,6 +20,9 @@ import { useAuth } from '../auth/auth';
 type Item = { label: string; icon: string; path: string; badge?: number };
 const SETTINGS = '/uygulama/ayarlar';
 
+// Kurum yöneticisi (her hesap türü olabilir) menüde kurumunu görür.
+const orgItem = (): Item[] => (myOrgs().length ? [{ label: t('Kurum'), icon: 'office', path: '/uygulama/kurum' }] : []);
+
 function items(): { tabs: Item[]; extra: Item[] } {
   if (ui.role === 'tenant') {
     const home = P(S.myHome);
@@ -31,7 +35,7 @@ function items(): { tabs: Item[]; extra: Item[] } {
         { label: t('Mesajlar'), icon: 'chat', path: '/uygulama/mesajlar', badge: unreadMessages() },
         { label: t('Belgeler'), icon: 'doc', path: '/uygulama/belgeler' }
       ],
-      extra: [{ label: t('Takvim'), icon: 'calendar', path: '/uygulama/takvim' }]
+      extra: [{ label: t('Takvim'), icon: 'calendar', path: '/uygulama/takvim' }, ...orgItem()]
     };
   }
   const n = S.order.reduce((a: number, id: string) => a + newReqs(P(id)).length, 0);
@@ -44,7 +48,7 @@ function items(): { tabs: Item[]; extra: Item[] } {
   if (!team || canAny(S.order, 'message')) tabs.push({ label: t('Mesajlar'), icon: 'chat', path: '/uygulama/mesajlar', badge: unreadMessages(can) });
   tabs.push({ label: t('Takvim'), icon: 'calendar', path: '/uygulama/takvim' });
   if (!team || canAny(S.order, 'expense_read')) tabs.push({ label: t('Rapor'), icon: 'chart', path: '/uygulama/rapor' });
-  return { tabs, extra: team ? [] : [{ label: t('Ekip'), icon: 'landlord', path: '/uygulama/ekip' }] };
+  return { tabs, extra: [...(team ? [] : [{ label: t('Ekip'), icon: 'landlord', path: '/uygulama/ekip' }]), ...orgItem()] };
 }
 
 function useActive() {

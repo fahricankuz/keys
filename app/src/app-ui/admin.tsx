@@ -14,6 +14,7 @@ import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 import { Card, Empty, H2, Muted, Row, Seg, Stack } from './blocks';
 import { CpiRates, Overview, Subscriptions, Support } from './admin-extra';
 import { AdminShell, PageHead } from './admin-ui';
+import { OrgDraft, Orgs, sectorFromRole } from './admin-orgs';
 import OpenSplash from './OpenSplash';
 import { planLabel } from '../domain/plans';
 
@@ -35,6 +36,7 @@ export default function AdminPanel() {
   const [data, setData] = useState<Data | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [orgDraft, setOrgDraft] = useState<OrgDraft | null>(null);
 
   const load = useCallback(async () => {
     setBusy(true); setErr(null);
@@ -47,6 +49,7 @@ export default function AdminPanel() {
   const SECTIONS: [string, string, string, string][] = [
     ['kpi', t('Genel bakış'), 'grid', ''],
     ['subs', t('Abonelikler'), 'card', t('Mülk sahiplerinin deneme ve paket durumu; deneme uzatma ve elle paket verme.')],
+    ['orgs', t('Kurumlar'), 'office', t('Kurumsal müşteriler: sektör ve modüller, sözleşme, master yönetici, yöneticiler ve roller.')],
     ['cpi', t('Kira artış oranları'), 'chart', t('TÜFE 12 aylık ortalama: sitedeki hesaplayıcı ve uygulamadaki yenileme bu tablodan okur.')],
     ['support', t('Talepler'), 'chat', t('“Bize ulaş” formundan gelen kurumsal, içe aktarma ve genel talepler.')],
     ['queue', t('Denetim'), 'doc', t('Yüklenen dekont, belge ve faturalar: onaylanınca karşı tarafa görünür.')],
@@ -69,7 +72,12 @@ export default function AdminPanel() {
           <Stack>
             <PageHead label={t('Yönetici')} title={cur[1]} sub={cur[3]} />
             {tab === 'subs' && <Subscriptions />}
-            {tab === 'support' && <Support />}
+            {tab === 'orgs' && <Orgs draft={orgDraft} clearDraft={() => setOrgDraft(null)} />}
+            {tab === 'support' && <Support onConvert={(r: any) => {
+              setOrgDraft({ name: r.company || r.name, sector: sectorFromRole(r.details?.role), units: r.units, lead_id: r.id, email: r.email,
+                note: [r.name, r.email, r.phone].filter(Boolean).join(' · ') });
+              setTab('orgs');
+            }} />}
             {tab === 'cpi' && <CpiRates />}
             {tab === 'queue' && <Queue d={data} reload={load} />}
             {tab === 'pay' && <Payments d={data} />}

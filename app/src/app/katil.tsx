@@ -4,6 +4,7 @@ import AuthShell from '../auth/AuthShell';
 import { keepInvite, useAuth } from '../auth/auth';
 import { t } from '../domain/i18n';
 import { invitePreview } from '../domain/backend';
+import { isOrgCode } from '../domain/org';
 import { roleLabel } from '../domain/team';
 import { Button, Text } from '../ui/kit';
 import { View } from 'react-native';
@@ -26,13 +27,17 @@ export default function Katil() {
     if (!mounted) return;
     if (!code) { router.replace('/giris'); return; }
     keepInvite(code);
-    if (live) invitePreview(code).then(setInfo).catch(() => {});
+    if (live && !isOrgCode(code)) invitePreview(code).then(setInfo).catch(() => {});
     if (ready && live && user && !user.admin) join(code).then(() => router.replace('/uygulama'));
   }, [mounted, code, ready, live, user, join, router]);
 
-  const team = !!info && info.role !== 'tenant';
-  const title = team ? t('Ekibe davet edildin') : t('Kiraladığın mülke davet edildin');
-  const lead = team
+  // Kurum yöneticisi daveti ("K" ile başlayan kod): ücretsiz ekip hesabıyla ya da mevcut hesapla katılınır.
+  const org = isOrgCode(code);
+  const team = org || (!!info && info.role !== 'tenant');
+  const title = org ? t('Kurum yöneticisi olarak davet edildin') : team ? t('Ekibe davet edildin') : t('Kiraladığın mülke davet edildin');
+  const lead = org
+    ? t('Kurumun seni anahtar’da yönetici olarak davet etti. Ücretsiz hesabını oluştur ya da giriş yap; kuruma otomatik katılacaksın.')
+    : team
     ? t('{owner} seni {role} olarak ekibine davet etti. Ücretsiz ekip hesabını oluştur ya da giriş yap; ekibe otomatik katılacaksın.',
       { owner: info!.owner, role: roleLabel(info!.role).toLocaleLowerCase('tr') })
     : t('Mülk sahibin seni anahtar’a davet etti. Hesabını oluştur ya da giriş yap; kiraladığın mülke otomatik bağlanacaksın.');
@@ -47,7 +52,7 @@ export default function Katil() {
       ) : null}
       {team ? (
         <>
-          <Button kind="primary" block title={t('Ekip hesabı oluştur')} onPress={() => router.push('/kayit/ekip')} />
+          <Button kind="primary" block title={org ? t('Hesap oluştur') : t('Ekip hesabı oluştur')} onPress={() => router.push('/kayit/ekip')} />
           <Button block kind="ghost" title={t('Hesabım var, giriş yap')} onPress={() => router.push('/giris/mulk-sahibi')} />
         </>
       ) : (

@@ -5,7 +5,8 @@
 
 const KEY = '__fakedb';
 const TABLES = ['profiles','properties','property_shared','memberships','invites','payments','rent_history',
-                'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit'];
+                'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
+                'organizations','org_roles','org_members','org_invites'];
 
 function load(){
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d){ TABLES.forEach(t => d.tables[t] = d.tables[t] || []); return d; } } catch(e){}
@@ -100,7 +101,8 @@ function accessOf(db, uid){
   const subscribed = !!(s && s.active && (!s.expires_at || Date.parse(s.expires_at) > Date.now()));
   const trialEnds = new Date(Date.parse(p.created_at || now()) + TRIAL_DAYS * 86400000).toISOString();
   const inTrial = !subscribed && Date.now() < Date.parse(trialEnds);
-  return { role:p.role, access: p.role === 'tenant' || subscribed || inTrial, subscribed, inTrial, trialEnds, trialDays:TRIAL_DAYS,
+  const org = (db.tables.org_members || []).some(m => m.user_id === uid && (db.tables.organizations.find(o => o.id === m.org_id) || {}).status === 'active');
+  return { role:p.role, access: p.role === 'tenant' || p.role === 'team' || subscribed || inTrial || org, subscribed, inTrial, trialEnds, trialDays:TRIAL_DAYS,
     expiresAt: s?.expires_at || null, store: s?.store || null, productId: s?.product_id || null, willRenew: !!s?.will_renew, billingIssue: !!s?.billing_issue };
 }
 const GATED = ['properties','payments','rent_history','requests','documents','expenses','property_shared','invites'];
@@ -275,6 +277,121 @@ export function createClient(url, key, opts){
           message:p.message || '', company:p.company || '', source:'web', details:{ types:p.types || [], role:p.role || '', city:p.city || '', timeline:p.timeline || '' }, status:'open', created_at:now() });
         persist(db);
         return { data:id, error:null };
+      }
+      // Kurumlar: schema.sql 16. bölüm ile aynı kurallar (özet).
+      if (/^(my_orgs|org_|accept_org_invite|admin_org)/.test(name)){
+        const T = db.tables, A = args || {};
+        const PERMS = ['org.settings','org.members','units.manage','residents.manage','charges.manage','payments.approve','expenses.manage','requests.manage','announce','documents.manage','reports.view'];
+        const MODS = ['kira','aidat','gider_dagitim','duyuru','ciro_kira','ortak_gider','endeksleme','doluluk','onay_akisi','rapor','api'];
+        const SECMOD = { site:['aidat','gider_dagitim','duyuru','rapor'], avm:['kira','ortak_gider','ciro_kira','doluluk','rapor'], depo:['kira','ortak_gider','endeksleme','rapor'], gyo:['kira','ortak_gider','doluluk','onay_akisi','rapor','api'] };
+        const err = (message, code = '42501') => ({ data:null, error:{ message, code } });
+        const ok = (data) => { persist(db); return { data, error:null }; };
+        const adm = isAdmin(db, me);
+        const mem = (oid, uid = me) => T.org_members.find(m => m.org_id === oid && m.user_id === uid);
+        const master = (oid) => !!(mem(oid) || {}).is_master;
+        const can = (oid, perm) => { const m = mem(oid), o = T.organizations.find(x => x.id === oid); if (!m || !o || o.status !== 'active') return false;
+          return m.is_master || ((T.org_roles.find(r => r.id === m.role_id) || {}).perms || []).includes(perm); };
+        const code = () => 'K' + Math.random().toString(16).slice(2, 9).toUpperCase().padEnd(7, '0');
+        const pname = id => (T.profiles.find(p => p.id === id) || {}).name || '';
+        const pmail = id => (db.users.find(u => u.id === id) || {}).email || '';
+        const setMaster = (oid, uid) => { T.org_members.forEach(m => { if (m.org_id === oid && m.is_master && m.user_id !== uid) m.is_master = false; });
+          const m = mem(oid, uid); if (m) Object.assign(m, { is_master:true, role_id:null }); else T.org_members.push({ org_id:oid, user_id:uid, role_id:null, is_master:true, created_at:now() }); };
+        if (name === 'my_orgs') return ok(T.org_members.filter(m => m.user_id === me).map(m => {
+          const o = T.organizations.find(x => x.id === m.org_id), r = T.org_roles.find(x => x.id === m.role_id);
+          return { id:o.id, name:o.name, sector:o.sector, modules:o.modules, status:o.status, units:o.units ?? null, master:m.is_master,
+                   role: r ? { id:r.id, name:r.name } : null, perms: m.is_master ? PERMS : (r ? r.perms : []) };
+        }).sort((a, b) => a.name.localeCompare(b.name)));
+        if (name === 'org_detail'){
+          if (!mem(A.oid) && !adm) return err('Bu kurumda yetkin yok');
+          const o = T.organizations.find(x => x.id === A.oid);
+          return ok({ org:o, roles: T.org_roles.filter(r => r.org_id === A.oid).sort((a, b) => a.position - b.position).map(r => ({ id:r.id, name:r.name, perms:r.perms, count:T.org_members.filter(m => m.role_id === r.id).length })),
+            members: T.org_members.filter(m => m.org_id === A.oid).map(m => ({ user_id:m.user_id, name:pname(m.user_id), email:pmail(m.user_id), role_id:m.role_id, master:m.is_master, since:m.created_at }))
+              .sort((a, b) => (b.master - a.master) || a.name.localeCompare(b.name)),
+            invites: (adm || can(A.oid, 'org.members')) ? T.org_invites.filter(i => i.org_id === A.oid && !i.accepted_by).map(i => ({ code:i.code, role_id:i.role_id, master:i.master, email:i.email, expires_at:i.expires_at })) : [] });
+        }
+        if (name === 'org_role_save'){
+          if (!(master(A.oid) && can(A.oid, 'org.members')) && !adm) return err('Rolleri yalnızca master yönetici düzenler');
+          const nm = String(A.nm || '').trim();
+          if (!nm) return err('Rol adını yaz', '22023');
+          if ((A.perms || []).some(x => !PERMS.includes(x))) return err('Geçersiz yetki', '22023');
+          if (T.org_roles.some(r => r.org_id === A.oid && r.name.toLowerCase() === nm.toLowerCase() && r.id !== A.rid)) return err('Bu adla bir rol var', '23505');
+          const perms = [...new Set(A.perms || [])].sort();
+          if (A.rid){ const r = T.org_roles.find(x => x.id === A.rid && x.org_id === A.oid); if (!r) return err('Rol bulunamadı', 'P0002'); Object.assign(r, { name:nm, perms }); return ok(r.id); }
+          const id = uuid(); T.org_roles.push({ id, org_id:A.oid, name:nm, perms, position:T.org_roles.filter(r => r.org_id === A.oid).length + 1 }); return ok(id);
+        }
+        if (name === 'org_role_delete'){
+          const r = T.org_roles.find(x => x.id === A.rid); if (!r) return err('Rol bulunamadı', 'P0002');
+          if (!(master(r.org_id) && can(r.org_id, 'org.members')) && !adm) return err('Rolleri yalnızca master yönetici düzenler');
+          T.org_roles = T.org_roles.filter(x => x.id !== A.rid); T.org_members.forEach(m => { if (m.role_id === A.rid) m.role_id = null; }); return ok(null);
+        }
+        if (name === 'org_invite_create'){
+          if (!can(A.oid, 'org.members') && !adm) return err('Yönetici davet etme yetkin yok');
+          if (A.rid && !T.org_roles.some(r => r.id === A.rid && r.org_id === A.oid)) return err('Rol bu kuruma ait değil', '22023');
+          const c = code(); T.org_invites.push({ code:c, org_id:A.oid, role_id:A.rid || null, master:false, email:A.mail || '', expires_at:new Date(Date.now() + 14 * 864e5).toISOString(), accepted_by:null }); return ok(c);
+        }
+        if (name === 'org_invite_delete'){ const i = T.org_invites.find(x => x.code === A.c); if (i && !can(i.org_id, 'org.members') && !adm) return err('Yetki yok'); T.org_invites = T.org_invites.filter(x => x.code !== A.c); return ok(null); }
+        if (name === 'accept_org_invite'){
+          const i = T.org_invites.find(x => x.code === String(A.invite_code).trim().toUpperCase());
+          if (!i) return err('Davet kodu bulunamadı', 'P0002');
+          if (i.accepted_by && i.accepted_by !== me) return err('Bu davet kullanılmış', '22023');
+          if (i.master) setMaster(i.org_id, me);
+          else { const m = mem(i.org_id); if (m){ if (!m.is_master) m.role_id = i.role_id; } else T.org_members.push({ org_id:i.org_id, user_id:me, role_id:i.role_id, is_master:false, created_at:now() }); }
+          i.accepted_by = me; return ok(i.org_id);
+        }
+        if (name === 'org_member_set'){
+          if (!can(A.oid, 'org.members') && !adm) return err('Yönetici düzenleme yetkin yok');
+          const m = mem(A.oid, A.member); if (!m) return err('Bu kişi kurumda değil', 'P0002');
+          if (m.is_master) return err('Master yöneticinin rolü değiştirilemez', '22023');
+          m.role_id = A.rid || null; return ok(null);
+        }
+        if (name === 'org_member_remove'){
+          if (A.member !== me && !can(A.oid, 'org.members') && !adm) return err('Yönetici çıkarma yetkin yok');
+          if ((mem(A.oid, A.member) || {}).is_master) return err('Master yönetici çıkarılamaz; önce master yetkisini devret', '22023');
+          T.org_members = T.org_members.filter(m => !(m.org_id === A.oid && m.user_id === A.member)); return ok(null);
+        }
+        if (name === 'org_transfer_master'){
+          if (!master(A.oid) && !adm) return err('Yalnızca master yönetici devredebilir');
+          if (!mem(A.oid, A.member)) return err('Bu kişi kurumda değil', 'P0002');
+          setMaster(A.oid, A.member); return ok(null);
+        }
+        if (!adm) return err('Yönetici yetkisi gerekli');
+        const audit = (action, target, detail) => T.admin_audit.push({ id:T.admin_audit.length + 1, admin_id:me, action, target, detail:detail || {}, at:now() });
+        if (name === 'admin_orgs') return ok(T.organizations.slice().reverse().map(o => {
+          const mm = T.org_members.find(m => m.org_id === o.id && m.is_master), inv = T.org_invites.find(i => i.org_id === o.id && i.master && !i.accepted_by);
+          return Object.assign({}, o, { members:T.org_members.filter(m => m.org_id === o.id).length, unit_count:T.properties.filter(p => p.org_id === o.id).length,
+            master: mm ? { id:mm.user_id, name:pname(mm.user_id), email:pmail(mm.user_id) } : null, master_invite: inv ? inv.code : null });
+        }));
+        if (name === 'admin_org_save'){
+          const p = A.p || {};
+          if (!['site','avm','gyo','depo','emlak','family','diger'].includes(p.sector)) return err('Sektör seç', '22023');
+          if (String(p.name || '').trim().length < 2) return err('Kurum adını yaz', '22023');
+          const mods = p.modules ? [...new Set(p.modules)].sort() : (SECMOD[p.sector] || ['kira','rapor']);
+          if (mods.some(x => !MODS.includes(x))) return err('Geçersiz modül', '22023');
+          const fields = { name:String(p.name).trim(), sector:p.sector, modules:mods, units:p.units ? Number(p.units) : null, contract_until:p.contract_until || null, billing:p.billing || {}, note:p.note || '' };
+          if (!p.id){
+            const id = uuid();
+            T.organizations.push(Object.assign({ id, status:p.status || 'active', lead_id:p.lead_id || null, created_at:now() }, fields));
+            const site = p.sector === 'site';
+            [[site ? 'Muhasebe' : 'Muhasebe ve finans', ['charges.manage','payments.approve','expenses.manage','reports.view']],
+             [site ? 'Teknik ekip' : 'Operasyon ve teknik', ['requests.manage','documents.manage','units.manage']],
+             [site ? 'Güvenlik ve resepsiyon' : 'Kiracı ilişkileri', ['requests.manage','announce','residents.manage']],
+             [site ? 'Yönetim kurulu' : 'Salt okunur', ['reports.view']]].forEach(([n, pp], i) => T.org_roles.push({ id:uuid(), org_id:id, name:n, perms:pp, position:i + 1 }));
+            if (p.lead_id){ const l = (T.support_requests || []).find(r => r.id === p.lead_id); if (l) l.status = 'done'; }
+            audit('org.create', id, { name:fields.name, sector:p.sector });
+            return ok(id);
+          }
+          const o = T.organizations.find(x => x.id === p.id); if (!o) return err('Kurum bulunamadı', 'P0002');
+          Object.assign(o, fields, { status:p.status || o.status }); audit('org.update', o.id, { name:o.name }); return ok(o.id);
+        }
+        if (name === 'admin_org_set_master'){
+          const mail = String(A.mail || '').trim().toLowerCase();
+          if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) return err('Geçerli bir e-posta adresi yaz.', '22023');
+          const u = db.users.find(x => x.email.toLowerCase() === mail);
+          if (u){ setMaster(A.oid, u.id); audit('org.master', A.oid, { email:mail }); return ok({ status:'set', user:u.id }); }
+          T.org_invites = T.org_invites.filter(i => !(i.org_id === A.oid && i.master && !i.accepted_by));
+          const c = code(); T.org_invites.push({ code:c, org_id:A.oid, role_id:null, master:true, email:mail, expires_at:new Date(Date.now() + 14 * 864e5).toISOString(), accepted_by:null });
+          audit('org.master_invite', A.oid, { email:mail }); return ok({ status:'invited', code:c });
+        }
       }
       if (name === 'is_admin') return { data: !!me && isAdmin(db, me), error:null };
       if (name === 'admin_users'){
