@@ -164,23 +164,53 @@ function ReqScreen({ pal, u }: { pal: Pal; u: number }) {
   );
 }
 
-/** Tek telefon gövdesi: çerçeve, durum çubuğu, ada ve ekran. Yükseklik iPhone oranındadır. */
+/** Tek telefon gövdesi: titanyum çerçeve (parlak kenar), siyah çerçeve payı, yan tuşlar, dinamik ada (ön kamera ile),
+    durum çubuğu ve ekran. Yükseklik iPhone oranındadır. */
 function Phone({ w, pal, screen }: { w: number; pal: Pal; screen: Screen }) {
   const u = w / 300;
-  const h = Math.round(w * 2.06), r = w * 0.15, bezel = w * 0.03;
+  const h = Math.round(w * 2.06), r = w * 0.165, rim = Math.max(2, w * 0.011), bezel = w * 0.026;
   const body: ReactNode = screen === 'pay' ? <PayScreen pal={pal} u={u} /> : screen === 'owner' ? <OwnerScreen pal={pal} u={u} /> : <ReqScreen pal={pal} u={u} />;
+  const web = Platform.OS === 'web';
+  // Titanyum kenar: ışık sol üstten gelir; köşelerde parlak, kenarlarda koyu bantlar.
+  const metal: any = web
+    ? { backgroundImage: 'linear-gradient(135deg, #CFC8C2 0%, #5B5550 16%, #1B1816 34%, #7A736D 52%, #1B1816 70%, #4A4440 86%, #B9B2AC 100%)' }
+    : { backgroundColor: '#4A4440' };
+  const glare: any = web ? { backgroundImage: 'linear-gradient(115deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.03) 28%, rgba(255,255,255,0) 42%)' } : {};
+  const btn = (top: number, height: number, side: 'left' | 'right') => (
+    <View key={side + top} style={{ position: 'absolute', top: h * top, height: h * height, width: Math.max(2.5, w * 0.012), [side]: -Math.max(2, w * 0.009),
+      borderRadius: 2, backgroundColor: '#2A2522', borderWidth: 0.5, borderColor: '#6B645F' } as any} />
+  );
   return (
-    <View style={{ width: w, height: h, padding: bezel, borderRadius: r, backgroundColor: '#141110', borderWidth: 1.5, borderColor: '#3A3330', boxShadow: shadows.lift }}>
-      <View style={{ flex: 1, borderRadius: r - bezel, backgroundColor: pal.bg, overflow: 'hidden' }}>
-        <View style={{ height: 42 * u, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22 * u }}>
-          <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 12 * u, color: pal.ink }}>12:35</RNText>
-          <View style={{ width: 80 * u, height: 22 * u, borderRadius: 11 * u, backgroundColor: '#141110' }} />
-          <View style={{ flexDirection: 'row', gap: 3 * u, alignItems: 'center' }}>
-            {[5, 7, 9, 11].map((x) => <View key={x} style={{ width: 3 * u, height: x * u, borderRadius: 1, backgroundColor: pal.ink }} />)}
-            <View style={{ width: 19 * u, height: 9 * u, borderRadius: 3 * u, backgroundColor: pal.ink, marginLeft: 3 * u }} />
+    <View style={{ width: w, height: h }}>
+      {btn(0.13, 0.035, 'left')}{btn(0.2, 0.07, 'left')}{btn(0.29, 0.07, 'left')}{btn(0.24, 0.11, 'right')}
+      <View style={[{ flex: 1, padding: rim, borderRadius: r, boxShadow: '0 1px 0 rgba(255,255,255,0.18) inset, ' + shadows.lift } as any, metal]}>
+        <View style={{ flex: 1, padding: bezel, borderRadius: r - rim, backgroundColor: '#050505' }}>
+          <View style={{ flex: 1, borderRadius: r - rim - bezel, backgroundColor: pal.bg, overflow: 'hidden' }}>
+            <View style={{ height: 44 * u, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22 * u, paddingTop: 4 * u }}>
+              <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 12.5 * u, color: pal.ink, minWidth: 54 * u }}>12:35</RNText>
+              {/* Dinamik ada: ön kamera merceği sağda. */}
+              <View style={{ width: 88 * u, height: 25 * u, borderRadius: 13 * u, backgroundColor: '#000', justifyContent: 'center', alignItems: 'flex-end', paddingRight: 9 * u }}>
+                <View style={{ width: 9 * u, height: 9 * u, borderRadius: 5 * u, backgroundColor: '#0E1722', borderWidth: 1.2 * u, borderColor: '#1F2C3D', alignItems: 'flex-start', justifyContent: 'flex-start' }}>
+                  <View style={{ width: 2.4 * u, height: 2.4 * u, borderRadius: 2 * u, backgroundColor: 'rgba(160,190,255,0.55)', margin: 1.2 * u }} />
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 3 * u, alignItems: 'center', minWidth: 54 * u, justifyContent: 'flex-end' }}>
+                <View style={{ flexDirection: 'row', gap: 1.5 * u, alignItems: 'flex-end' }}>
+                  {[4, 6, 8, 10].map((x) => <View key={x} style={{ width: 2.6 * u, height: x * u, borderRadius: 1, backgroundColor: pal.ink }} />)}
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 3 * u }}>
+                  <View style={{ width: 20 * u, height: 10 * u, borderRadius: 3.2 * u, borderWidth: 1 * u, borderColor: pal.ink, opacity: 0.95, padding: 1.2 * u }}>
+                    <View style={{ flex: 1, width: '78%', borderRadius: 1.8 * u, backgroundColor: pal.ink }} />
+                  </View>
+                  <View style={{ width: 1.6 * u, height: 4 * u, borderTopRightRadius: 1 * u, borderBottomRightRadius: 1 * u, backgroundColor: pal.ink, opacity: 0.6, marginLeft: 0.8 * u }} />
+                </View>
+              </View>
+            </View>
+            <View style={{ flex: 1, paddingHorizontal: 16 * u, paddingTop: 6 * u }}>{body}</View>
+            {/* Ekran camındaki ışık yansıması. */}
+            <View pointerEvents="none" style={[{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }, glare]} />
           </View>
         </View>
-        <View style={{ flex: 1, paddingHorizontal: 16 * u, paddingTop: 6 * u }}>{body}</View>
       </View>
     </View>
   );
