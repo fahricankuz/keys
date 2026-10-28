@@ -14,7 +14,8 @@ export function derive({ users, props, members, invites, payments, reviews }){
 
   const pays = payments.map(p => {
     const prop = propBy[p.property_id] || {};
-    const review = reviewBy[reviewKey('payment', p.property_id, p.month)] || null;
+    // Denetim anahtarı: kira için ay, aidat için "aidat:ay" (schema.sql → pay_ref).
+    const review = reviewBy[reviewKey('payment', p.property_id, p.kind === 'aidat' ? 'aidat:' + p.month : p.month)] || null;
     return Object.assign({}, p, {
       propName: prop.name || '—',
       landlordId: prop.owner_id,

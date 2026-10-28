@@ -40,13 +40,15 @@ export function buildProperty(d){
     pending: true, code: i.code
   }));
 
-  const pay = {};
+  // Tahakkuk kalemleri: kira (pay) ve aidat (aidatPay) aynı ay anahtarıyla ayrı tutulur.
+  const pay = {}, aidatPay = {};
   (d.payments || []).forEach(r => {
-    pay[r.month] = clean({
+    (r.kind === 'aidat' ? aidatPay : pay)[r.month] = clean({
       status: r.status, date: r.paid_on || null, amount: num(r.amount), receipt: r.receipt_name || '',
       photo: r.receipt_path ? SB + r.receipt_path : undefined,
       note: r.note || undefined, rejectReason: r.reject_reason || undefined,
-      approvedAt: r.approved_at ? ms(r.approved_at) : undefined
+      approvedAt: r.approved_at ? ms(r.approved_at) : undefined,
+      method: r.method && r.method !== 'dekont' ? r.method : undefined
     });
   });
 
@@ -64,7 +66,7 @@ export function buildProperty(d){
     startDate: pr.start_date, contractEnd: pr.contract_end, dask: pr.dask || null,
     value: num(pr.value),
     bills: (pr.bills || []).map(b => Object.assign({}, b, { who: owner(b.who) })),
-    pay,
+    pay, aidatPay,
     rentHistory: (d.history || []).map(h => ({ from: h.from_date, amount: num(h.amount), note: h.note || '' }))
       .sort((a, b) => a.from < b.from ? -1 : 1),
     requests: (d.requests || []).map(r => ({
@@ -116,9 +118,9 @@ export function sharedRow(p){
   return { property_id: p.id, inspect: p.inspect, move_out: p.moveOut || null, renewal: p.renewal || null };
 }
 
-export function paymentRow(pid, month, r){
+export function paymentRow(pid, month, r, kind = 'kira'){
   return {
-    property_id: pid, month, status: r.status, amount: Number(r.amount) || 0,
+    property_id: pid, month, kind, method: r.method || 'dekont', status: r.status, amount: Number(r.amount) || 0,
     paid_on: r.date || null, receipt_name: r.receipt || '', receipt_path: storedPath(r.photo),
     note: r.note || null, reject_reason: r.rejectReason || null,
     approved_at: r.approvedAt ? isoTs(r.approvedAt) : null
@@ -153,7 +155,7 @@ export function expenseRow(pid, e){
 /* Fark                                                                */
 /* ------------------------------------------------------------------ */
 
-const EMPTY = { pay:{}, requests:[], msgs:[], docs:[], expenses:[], rentHistory:[], inspect:null, moveOut:null, renewal:null };
+const EMPTY = { pay:{}, aidatPay:{}, requests:[], msgs:[], docs:[], expenses:[], rentHistory:[], inspect:null, moveOut:null, renewal:null };
 
 /**
  * Bir evin önceki ve sonraki halinden yazma işlemlerini çıkarır.
@@ -198,11 +200,11 @@ export function diffProperty(before, after, ctx){
     }
   }
 
-  // Ödemeler (ay anahtarlı).
-  const payRows = Object.keys(after.pay || {})
-    .filter(k => !same(b.pay && b.pay[k] && paymentRow(pid, k, b.pay[k]), paymentRow(pid, k, after.pay[k])))
-    .map(k => paymentRow(pid, k, after.pay[k]));
-  if (payRows.length) ops.push({ table:'payments', kind:'upsert', rows:payRows, onConflict:'property_id,month' });
+  // Ödemeler (ay anahtarlı; kira ve aidat ayrı kalem).
+  const payRows = [['pay', 'kira'], ['aidatPay', 'aidat']].flatMap(([field, kind]) => Object.keys(after[field] || {})
+    .filter(k => !same(b[field] && b[field][k] && paymentRow(pid, k, b[field][k], kind), paymentRow(pid, k, after[field][k], kind)))
+    .map(k => paymentRow(pid, k, after[field][k], kind)));
+  if (payRows.length) ops.push({ table:'payments', kind:'upsert', rows:payRows, onConflict:'property_id,month,kind' });
 
   // Kira tutarı geçmişi: yalnızca sahibi (kabul edilen yenileme sunucuda yazılır).
   if (owner) collection(ops, 'rent_history', b.rentHistory, after.rentHistory, h => h.from, h => historyRow(pid, h), true);
@@ -249,7 +251,7 @@ function omit(o, keys){
 export function pendingMedia(p){
   const out = [];
   const visit = (obj, key) => { if (typeof obj[key] === 'string' && obj[key].startsWith('data:')) out.push({ obj, key }); };
-  Object.values(p.pay || {}).forEach(r => visit(r, 'photo'));
+  [...Object.values(p.pay || {}), ...Object.values(p.aidatPay || {})].forEach(r => visit(r, 'photo'));
   (p.requests || []).forEach(r => (r.shots || []).forEach((_, i) => visit(r.shots, i)));
   (p.inspect?.rooms || []).forEach(r => (r.shots || []).forEach((_, i) => visit(r.shots, i)));
   (p.moveOut?.rooms || []).forEach(r => (r.shots || []).forEach((_, i) => visit(r.shots, i)));
@@ -261,7 +263,7 @@ export function pendingMedia(p){
 export function storedPaths(p){
   const out = new Set();
   const add = v => { const s = storedPath(v); if (s) out.add(s); };
-  Object.values(p.pay || {}).forEach(r => add(r.photo));
+  [...Object.values(p.pay || {}), ...Object.values(p.aidatPay || {})].forEach(r => add(r.photo));
   (p.requests || []).forEach(r => (r.shots || []).forEach(add));
   (p.inspect?.rooms || []).forEach(r => (r.shots || []).forEach(add));
   (p.moveOut?.rooms || []).forEach(r => (r.shots || []).forEach(add));

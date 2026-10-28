@@ -4,7 +4,7 @@
 import { Platform } from 'react-native';
 import { S, ui, save, reset as resetState, replaceState, setTheme, VERSION, STEPS, AREA_TEMPLATES, TENANT_KINDS } from './state.js';
 import {
-  P, ST, period, remaining, rentAt, expectedAt, normalize, tenantsLabel, meTenant, senderName, unpaid, moveOutSummary, yearNumbers
+  P, ST, period, remaining, rentAt, expectedAt, normalize, tenantsLabel, meTenant, senderName, unpaid, moveOutSummary, yearNumbers, payMap, dueOf
 } from './logic.js';
 import { estimate } from './tax.js';
 import { migrate } from './migrate.js';
@@ -234,16 +234,16 @@ export const A = {
   },
 
   approvePay: d => {
-    const p = P(d.pid), rec = p.pay[d.key];
+    const p = P(d.pid), aidat = d.kind === 'aidat', rec = payMap(p, d.kind)[d.key];
     if (!rec) return;
     rec.status = 'approved';
     rec.approvedAt = Date.now();
     delete rec.rejectReason;
-    sysMsg(p, monthYear(d.key)+(' '+t('kirası onaylandı')));
+    sysMsg(p, monthYear(d.key)+(' '+(aidat ? t('aidatı onaylandı') : t('kirası onaylandı'))));
     save(); host.closeSheet();
     host.haptic();
     host.celebrate({ title:t('Ödeme onaylandı') });
-    notify({ title:t('Ödeme onaylandı'), body:p.name+' · '+monthYear(d.key)+(' '+t('kirası. Kiracıya bildirildi.')), icon:'card' });
+    notify({ title:t('Ödeme onaylandı'), body:p.name+' · '+monthYear(d.key)+(' '+(aidat ? t('aidatı. Kiracıya bildirildi.') : t('kirası. Kiracıya bildirildi.'))), icon:'card' });
   },
   nudge: d => {
     const p = P(d.pid), per = period(p);
@@ -597,27 +597,31 @@ export async function submit(type, v){
   }
 
   if (type === 'pay'){
-    const key = v.key;
+    const key = v.key, kind = v.kind === 'aidat' ? 'aidat' : 'kira', map = payMap(p, kind);
     const file = files[0];
-    if (!file) return false;
+    // Kendi ödediği aidatı mülk sahibi dekontsuz da kaydedebilir; kiracı her zaman dekont yükler.
+    const own = kind === 'aidat' && ui.role === 'landlord';
+    if (!file && !own) return false;
     const amount = Math.max(0, Number(fd.get('amount')) || 0);
-    const prev = p.pay[key];
+    const prev = map[key];
     const already = prev && prev.status === 'partial' ? Number(prev.amount) || 0 : 0;
     const total = already + amount;
-    const due = expectedAt(p, key);
+    const due = dueOf(p, kind, key);
     const rec = {
-      status: total < due ? 'partial' : 'review',
+      status: total < due ? 'partial' : own ? 'approved' : 'review',
       date: String(fd.get('date') || iso(t0())),
       amount: total,
-      receipt: fileName(p.name, 'dekont', key, Object.values(p.pay).map(x => x.receipt).filter(Boolean), file),
+      receipt: file ? fileName(p.name, kind === 'aidat' ? 'aidat' : 'dekont', key, Object.values(map).map(x => x.receipt).filter(Boolean), file) : '',
       note: String(fd.get('note') || '').trim() || undefined
     };
-    const stored = await keep(p.id, file);
+    if (own && rec.status === 'approved') rec.approvedAt = Date.now();
+    if (own && !file) rec.method = 'havale';               // dekontsuz kayıt: havale / EFT ile ödendi sayılır
+    const stored = file ? await keep(p.id, file) : null;
     if (stored) rec.photo = stored;
-    p.pay[key] = rec;
-    sysMsg(p, monthYear(key)+(' '+t('kirası için dekont yüklendi'))+(rec.status === 'partial' ? (' '+t('(kısmi:')+' ')+tl(total)+')' : ''));
+    map[key] = rec;
+    sysMsg(p, monthYear(key)+(' '+(kind === 'aidat' ? t('aidatı için dekont yüklendi') : t('kirası için dekont yüklendi')))+(rec.status === 'partial' ? (' '+t('(kısmi:')+' ')+tl(total)+')' : ''));
     save(); if (!v.keepOpen) host.closeSheet();
-    notify({
+    notify(own && rec.status === 'approved' ? { title:t('Aidat kaydedildi'), body:p.name+' · '+monthYear(key), icon:'card' } : {
       title: rec.status === 'partial' ? t('Kısmi ödeme kaydedildi') : t('Dekont yüklendi'),
       body: rec.status === 'partial'
         ? tl(due - total)+(' '+t('bakiye görünüyor; kalanı yükleyince onaya gider.'))
@@ -628,7 +632,7 @@ export async function submit(type, v){
   }
 
   if (type === 'reject'){
-    const key = v.key, rec = p.pay[key];
+    const key = v.key, rec = payMap(p, v.kind)[key];
     if (!rec) return false;
     const note = String(fd.get('note') || '').trim();
     rec.status = 'rejected';

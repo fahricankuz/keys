@@ -117,6 +117,29 @@ create table if not exists public.payments (
   primary key (property_id, month)
 );
 
+-- Tahakkuk kalemi (kurumsal yol planı Faz 1): bir mülkün aynı ayda birden çok kalemi olabilir (kira, aidat).
+-- due: o ayın tahakkuk tutarı (boşsa mülkteki kira/aidat); method: ödeme yolu (bugün dekont; ileride sanal POS).
+alter table public.payments add column if not exists kind   text not null default 'kira';
+alter table public.payments add column if not exists due    numeric check (due is null or due >= 0);
+alter table public.payments add column if not exists method text not null default 'dekont';
+alter table public.payments drop constraint if exists payments_kind_check;
+alter table public.payments add constraint payments_kind_check check (kind in ('kira','aidat'));
+alter table public.payments drop constraint if exists payments_method_check;
+alter table public.payments add constraint payments_method_check check (method in ('dekont','havale','nakit','pos'));
+do $$
+begin
+  if (select array_agg(a.attname::text order by a.attname) from pg_index i
+        join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey)
+       where i.indrelid = 'public.payments'::regclass and i.indisprimary) <> array['kind','month','property_id'] then
+    alter table public.payments drop constraint payments_pkey;
+    alter table public.payments add primary key (property_id, month, kind);
+  end if;
+end $$;
+
+/** Denetim kaydındaki ödeme anahtarı: kira için ay ("2026-10"), diğer kalemler için "aidat:2026-10". */
+create or replace function public.pay_ref(k text, m text)
+returns text language sql immutable as $$ select case when coalesce(k, 'kira') = 'kira' then m else k || ':' || m end $$;
+
 create table if not exists public.rent_history (
   id          text primary key,
   property_id text not null references public.properties(id) on delete cascade,
@@ -386,12 +409,12 @@ create policy invites_owner on public.invites for all to authenticated
 create policy payments_select on public.payments for select to authenticated
   using (public.is_admin()
          or (public.is_member(property_id)
-             and (public.member_role(property_id) = 'tenant' or public.review_ok('payment', property_id, month))));
+             and (public.member_role(property_id) = 'tenant' or public.review_ok('payment', property_id, public.pay_ref(kind, month)))));
 create policy payments_insert on public.payments for insert to authenticated
   with check (public.is_member(property_id));
 create policy payments_update on public.payments for update to authenticated
   using (public.is_member(property_id)
-         and (public.member_role(property_id) = 'tenant' or public.review_ok('payment', property_id, month)))
+         and (public.member_role(property_id) = 'tenant' or public.review_ok('payment', property_id, public.pay_ref(kind, month))))
   with check (public.is_member(property_id));
 
 -- kira tutarı geçmişi: üyeler okur, sahibi yazar
@@ -722,7 +745,7 @@ begin
   -- Dekont geldi bildirimi, yönetici onayladıktan sonra gider (bkz. on_review_change).
   if new.status = 'approved' and (tg_op = 'INSERT' or old.status is distinct from 'approved') then
     perform public.notify_members(new.property_id, 'tenant', 'Ödemen onaylandı',
-      new.month || ' kirası onaylandı.', '#/kiraci/odemeler', lurl);
+      new.month || case when new.kind = 'aidat' then ' aidatı' else ' kirası' end || ' onaylandı.', '#/kiraci/odemeler', lurl);
   elsif new.status = 'rejected' and (tg_op = 'INSERT' or old.status is distinct from 'rejected') then
     perform public.notify_members(new.property_id, 'tenant', 'Dekont reddedildi',
       coalesce(new.reject_reason, 'Mülk sahibi dekontu onaylamadı.'), '#/kiraci/odemeler', lurl);
@@ -842,7 +865,7 @@ begin
     due := make_date(extract(year from today)::int, extract(month from today)::int, p.due_day);
     -- İlk ayda vade, sözleşme başlangıcından önceye düşmez (yeni eklenen mülk için "kira gecikti" gitmez).
     if to_char(p.start_date, 'YYYY-MM') = mkey and p.start_date > due then due := p.start_date; end if;
-    select status into paid from public.payments where property_id = p.id and month = mkey;
+    select status into paid from public.payments where property_id = p.id and month = mkey and kind = 'kira';
 
     for mb in select * from public.memberships where property_id = p.id loop
       select settings into s from public.profiles where id = mb.user_id;
@@ -1001,7 +1024,7 @@ begin
      or new.receipt_path is distinct from old.receipt_path
      or new.receipt_name is distinct from old.receipt_name
      or new.amount is distinct from old.amount then
-    perform public.upsert_review('payment', new.property_id, new.month, auth.uid(), new.receipt_name, new.receipt_path, new.amount);
+    perform public.upsert_review('payment', new.property_id, public.pay_ref(new.kind, new.month), auth.uid(), new.receipt_name, new.receipt_path, new.amount);
   end if;
   return new;
 end $$;
@@ -1074,12 +1097,13 @@ begin
   if new.kind = 'payment' then
     if new.status = 'approved' then
       perform public.notify_members(new.property_id, 'landlord', pname || ': dekont geldi',
-        new.ref_id || ' kirası için ' || public.fmt_tl(coalesce(new.amount, 0)) || ' ödendi.',
+        case when new.ref_id like 'aidat:%' then substr(new.ref_id, 7) || ' aidatı' else new.ref_id || ' kirası' end
+          || ' için ' || public.fmt_tl(coalesce(new.amount, 0)) || ' ödendi.',
         '#/kiraci/odemeler', '#/mulk-sahibi/mulk/' || new.property_id || '/odeme', null);
     else
       -- Reddedilen dekont kiracıya gerekçesiyle döner; kiracı yeniden yükleyebilir.
       update public.payments set status = 'rejected', reject_reason = 'Denetim: ' || new.note
-       where property_id = new.property_id and month = new.ref_id and status in ('review','partial');
+       where property_id = new.property_id and public.pay_ref(kind, month) = new.ref_id and status in ('review','partial');
     end if;
 
   elsif new.kind = 'document' then
@@ -1245,7 +1269,7 @@ insert into public.reviews (kind, property_id, ref_id, uploader, label, path, am
 select 'document', property_id, id, uploaded_by, name, public.storage_path(path), null, 'approved', null from public.documents
 on conflict do nothing;
 insert into public.reviews (kind, property_id, ref_id, uploader, label, path, amount, status, note)
-select 'payment', property_id, month, null, receipt_name, receipt_path, amount, 'approved', null
+select 'payment', property_id, public.pay_ref(kind, month), null, receipt_name, receipt_path, amount, 'approved', null
 from public.payments where status in ('review','partial','approved','rejected') and (receipt_path is not null or receipt_name <> '')
 on conflict do nothing;
 insert into public.reviews (kind, property_id, ref_id, uploader, label, path, amount, status, note)
@@ -1500,7 +1524,7 @@ create policy payments_insert on public.payments for insert to authenticated
 drop policy if exists payments_update on public.payments;
 create policy payments_update on public.payments for update to authenticated
   using (public.member_can(property_id, 'pay')
-         and (public.member_role(property_id) = 'tenant' or public.review_ok('payment', property_id, month)))
+         and (public.member_role(property_id) = 'tenant' or public.review_ok('payment', property_id, public.pay_ref(kind, month))))
   with check (public.member_can(property_id, 'pay'));
 
 drop policy if exists requests_insert on public.requests;
@@ -1540,6 +1564,9 @@ declare r text := public.member_role(new.property_id);
 begin
   if auth.uid() is null or r in ('landlord','agent') or public.is_admin() then return new; end if;
   if r <> 'tenant' then raise exception 'Bu rol ödeme kaydı değiştiremez' using errcode = '42501'; end if;
+  if new.kind = 'aidat' and (select aidat_payer from public.properties where id = new.property_id) is distinct from 'Kiracı' then
+    raise exception 'Bu mülkün aidatını mülk sahibi öder' using errcode = '42501';
+  end if;
   if new.status in ('approved','rejected') and (tg_op = 'INSERT' or old.status is distinct from new.status) then
     raise exception 'Ödemeyi yalnızca mülk sahibi onaylayabilir ya da reddedebilir' using errcode = '42501';
   end if;
@@ -2010,8 +2037,8 @@ begin
     'units', jsonb_build_object('total', (select count(*) from public.properties),
                                 'connected', (select count(distinct property_id) from public.memberships where role = 'tenant')),
     'rent', jsonb_build_object(
-       'month', (select coalesce(sum(amount), 0) from public.payments where status in ('approved','partial') and month = to_char(now(), 'YYYY-MM')),
-       'prevMonth', (select coalesce(sum(amount), 0) from public.payments where status in ('approved','partial') and month = to_char(now() - interval '1 month', 'YYYY-MM'))),
+       'month', (select coalesce(sum(amount), 0) from public.payments where kind = 'kira' and status in ('approved','partial') and month = to_char(now(), 'YYYY-MM')),
+       'prevMonth', (select coalesce(sum(amount), 0) from public.payments where kind = 'kira' and status in ('approved','partial') and month = to_char(now() - interval '1 month', 'YYYY-MM'))),
     'supportOpen', (select count(*) from public.support_requests where status = 'open'),
     -- Aktivasyon hunisi: mülk sahibi → mülk ekledi → kiracı bağlandı → onaylı ödeme aldı.
     'funnel', (select jsonb_build_object(
@@ -2040,7 +2067,7 @@ begin
        'onTime', count(*) filter (where pa.paid_on <= make_date(split_part(pa.month, '-', 1)::int, split_part(pa.month, '-', 2)::int, least(greatest(pr.due_day, 1), 28))),
        'late', count(*) filter (where pa.paid_on > make_date(split_part(pa.month, '-', 1)::int, split_part(pa.month, '-', 2)::int, least(greatest(pr.due_day, 1), 28))))
        from public.payments pa join public.properties pr on pr.id = pa.property_id
-       where pa.status in ('approved','partial') and pa.paid_on is not null and pa.month = to_char(now() - interval '1 month', 'YYYY-MM')),
+       where pa.kind = 'kira' and pa.status in ('approved','partial') and pa.paid_on is not null and pa.month = to_char(now() - interval '1 month', 'YYYY-MM')),
     'series', (select coalesce(jsonb_agg(jsonb_build_object('d', g::date,
                  'landlords', (select count(*) from public.profiles where role = 'landlord' and created_at::date = g::date),
                  'tenants', (select count(*) from public.profiles where role <> 'landlord' and created_at::date = g::date)) order by g), '[]'::jsonb)
@@ -2153,7 +2180,7 @@ begin
   ), pay as (
     select pr.id, coalesce(sum(y.amount) filter (where y.status in ('approved', 'partial')), 0) as collected,
            count(*) filter (where y.status = 'approved') as paid_months
-      from pr left join public.payments y on y.property_id = pr.id and y.month = any (months)
+      from pr left join public.payments y on y.property_id = pr.id and y.month = any (months) and y.kind = 'kira'
      group by pr.id
   ), exp as (
     select pr.id, coalesce(sum(e.amount), 0) as spent

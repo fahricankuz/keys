@@ -327,7 +327,7 @@ test('yönetici özeti (KPI): huni, etkin kullanıcı, davet, talep ve vade gös
   await db.query(`insert into public.payments (property_id, month, status, amount, paid_on)
     values ('p1', to_char(now() - interval '1 month', 'YYYY-MM'), 'approved', 30000,
             make_date(extract(year from now() - interval '1 month')::int, extract(month from now() - interval '1 month')::int, 3))
-    on conflict (property_id, month) do update set status = 'approved', paid_on = excluded.paid_on`);
+    on conflict (property_id, month, kind) do update set status = 'approved', paid_on = excluded.paid_on`);
   await as(L);
   await db.query(`insert into public.requests (id, property_id, cat, title) values ('kpi-r1', 'p1', 'Arıza', 'Kombi')`);
 

@@ -7,7 +7,7 @@ import { useRouter } from 'expo-router';
 import {
   S, ui, setTheme, CATS, COST_OPTS, STEPS, EXPENSE_CATS, DEDUCTION_PRESETS, PROP_TYPES, DEPOSIT_KINDS, TENANT_KINDS, REQ_SUGGEST, isCommercial, docCatsFor
 } from '../domain/state';
-import { P, period, statusOf, remaining, ST, reminders, rentAt, expectedAt, moveOutSummary, search, otherPerson } from '../domain/logic';
+import { P, period, statusOf, remaining, ST, reminders, rentAt, expectedAt, moveOutSummary, search, otherPerson, payMap, statusFor, dueOf, aidatByTenant, METHOD } from '../domain/logic';
 import { t, LANGS, getLang } from '../domain/i18n';
 import { CONFIG, LIVE } from '../domain/config';
 import { inviteLink, mediaSrc } from '../domain/backend';
@@ -427,58 +427,63 @@ function InvoiceSheet({ pid, id, close }: { pid?: string; id: string; close: () 
 
 /* ---------------- ödeme ---------------- */
 
-function ReceiptSheet({ pid, k, close }: { pid?: string; k: string; close: () => void }) {
+function ReceiptSheet({ pid, k, kind, close }: { pid?: string; k: string; kind?: string; close: () => void }) {
   useStore();
   const { open } = useSheet();
   const p = propOf(pid);
-  const rc = p.pay[k] || {};
-  const st = statusOf(p, k);
+  const aidat = kind === 'aidat';
+  const rc = payMap(p, kind)[k] || {};
+  const st = statusFor(p, kind, k);
+  const due = dueOf(p, kind, k);
   return (
     <Stack>
-      <Title>{monthYear(k)} {t('dekontu')}</Title>
-      <ReviewChip kind="payment" pid={p.id} id={k} />
-      {rc.photo && /\.pdf$/i.test(rc.photo) ? <FileLink path={rc.photo} label={rc.receipt || t('Dekontu aç')} /> : rc.photo ? <Thumbs size={190} srcs={[rc.photo]} /> : <Card><Muted>{rc.receipt || t('Dekont yok')}</Muted></Card>}
-      <KV k={t('Tutar')} v={tl(rc.amount != null ? rc.amount : expectedAt(p, k))} />
-      <KV k={t('Beklenen')} v={tl(expectedAt(p, k))} />
-      {p.stopaj ? <Muted>{stopajLine(p, k)}</Muted> : null}
+      <Title>{monthYear(k)} {aidat ? t('aidat dekontu') : t('dekontu')}</Title>
+      <ReviewChip kind="payment" pid={p.id} id={aidat ? 'aidat:' + k : k} />
+      {rc.photo && /\.pdf$/i.test(rc.photo) ? <FileLink path={rc.photo} label={rc.receipt || t('Dekontu aç')} /> : rc.photo ? <Thumbs size={190} srcs={[rc.photo]} /> : <Card><Muted>{rc.receipt || (rc.method ? t('Dekontsuz kayıt') + ' · ' + t((METHOD as any)[rc.method] || rc.method) : t('Dekont yok'))}</Muted></Card>}
+      <KV k={t('Tutar')} v={tl(rc.amount != null ? rc.amount : due)} />
+      <KV k={t('Beklenen')} v={tl(due)} />
+      {p.stopaj && !aidat ? <Muted>{stopajLine(p, k)}</Muted> : null}
       <KV k={t('Ödeme tarihi')} v={rc.date ? fmtFull(parse(rc.date)) : '—'} />
       <KV k={t('Durum')} v={((ST as any)[st] || (ST as any).pending)[0]} />
       {rc.note ? <KV k={t('Not')} v={rc.note} /> : null}
       {rc.rejectReason ? <Note warn>{t('Red gerekçesi:')} {rc.rejectReason}</Note> : null}
       {ui.role === 'landlord' && can(p.id, 'decide') && (st === 'review' || st === 'partial')
-        ? <Row><Button title={t('Onayla')} style={{ flex: 1 }} onPress={() => act('approvePay', { pid: p.id, key: k })} /><Button kind="ghost" title={t('Reddet')} style={{ flex: 1 }} onPress={() => open('red', { pid: p.id, key: k })} /></Row> : null}
-      {ui.role === 'tenant' && (st === 'rejected' || st === 'late' || st === 'pending')
-        ? <Button block title={t('Dekont yükle')} onPress={() => open('odeme', { pid: p.id, key: k })} /> : null}
+        ? <Row><Button title={t('Onayla')} style={{ flex: 1 }} onPress={() => act('approvePay', { pid: p.id, key: k, kind })} /><Button kind="ghost" title={t('Reddet')} style={{ flex: 1 }} onPress={() => open('red', { pid: p.id, key: k, kind })} /></Row> : null}
+      {ui.role === 'tenant' && (st === 'rejected' || st === 'late' || st === 'pending' || st === 'partial') && (!aidat || aidatByTenant(p))
+        ? <Button block title={t('Dekont yükle')} onPress={() => open('odeme', { pid: p.id, key: k, kind })} /> : null}
     </Stack>
   );
 }
 
-function PayFormSheet({ pid, k, close }: { pid?: string; k?: string; close: () => void }) {
+function PayFormSheet({ pid, k, kind, close }: { pid?: string; k?: string; kind?: string; close: () => void }) {
   const p = propOf(pid);
+  const aidat = kind === 'aidat';
+  // Aidatı mülk sahibi ödüyorsa kendi kaydını girer; dekont isteğe bağlıdır.
+  const own = aidat && ui.role === 'landlord';
   const key = k || (period(p) as any).key;
-  const rec = p.pay[key] || {};
+  const rec = payMap(p, kind)[key] || {};
   const paid = rec.status === 'partial' ? Number(rec.amount) || 0 : 0;
-  const due = expectedAt(p, key);
+  const due = dueOf(p, kind, key);
   const { v, set } = useVals({ amount: String(Math.max(0, due - paid)), date: iso(t0()), note: '' });
   const [files, setFiles] = useState<any[]>([]);
   const [err, setErr] = useState('');
   return (
     <Stack>
-      <Title>{monthYear(key)} {t('ödemesi')}</Title>
-      <KV k={p.stopaj ? t('Hesaba yatacak tutar') : t('Bu ayın kirası')} v={tl(due)} />
-      {p.stopaj ? <Muted>{stopajLine(p, key)}</Muted> : null}
+      <Title>{monthYear(key)} {aidat ? t('aidatı') : t('ödemesi')}</Title>
+      <KV k={aidat ? t('Bu ayın aidatı') : p.stopaj ? t('Hesaba yatacak tutar') : t('Bu ayın kirası')} v={tl(due)} />
+      {p.stopaj && !aidat ? <Muted>{stopajLine(p, key)}</Muted> : null}
       {paid ? <KV k={t('Şimdiye kadar ödenen')} v={tl(paid)} /> : null}
       <NumField label={t('Ödenen tutar (₺)')} v={v} set={set} k="amount" />
       <DateField label={t('Ödeme tarihi')} v={v} set={set} k="date" max={iso(t0())} />
-      <FileField label={t('Dekont (görsel ya da PDF)')} files={files} setFiles={setFiles} camera />
+      <FileField label={own ? t('Dekont (isteğe bağlı)') : t('Dekont (görsel ya da PDF)')} files={files} setFiles={setFiles} camera />
       <Text2 label={t('Not (isteğe bağlı)')} v={v} set={set} k="note" maxLength={120} placeholder={t('Ör. havale açıklaması')} />
-      <Muted>{t('Tutar kiranın altındaysa ödeme kısmi olarak işaretlenir ve kalan bakiye takip edilir.')}</Muted>
+      <Muted>{aidat ? t('Tutar aidatın altındaysa ödeme kısmi olarak işaretlenir ve kalan bakiye takip edilir.') : t('Tutar kiranın altındaysa ödeme kısmi olarak işaretlenir ve kalan bakiye takip edilir.')}</Muted>
       {err ? <Text v="small" color="#A8231F">{err}</Text> : null}
       <Row>
         <Button kind="ghost" title={t('Vazgeç')} onPress={close} style={{ flex: 1 }} />
-        <PayButton title={t('Gönder')} doneTitle={t('Gönderildi')} style={{ flex: 1 }} onPress={async () => {
-          if (!files.length) { setErr(t('Dekont dosyası seç.')); return false; }
-          const ok = await submit('pay', { ...v, pid: p.id, key, files, keepOpen: true });
+        <PayButton title={own ? t('Kaydet') : t('Gönder')} doneTitle={own ? t('Kaydedildi') : t('Gönderildi')} style={{ flex: 1 }} onPress={async () => {
+          if (!files.length && !own) { setErr(t('Dekont dosyası seç.')); return false; }
+          const ok = await submit('pay', { ...v, pid: p.id, key, kind, files, keepOpen: true });
           if (ok) setTimeout(close, 900);
           return ok;
         }} />
@@ -487,7 +492,7 @@ function PayFormSheet({ pid, k, close }: { pid?: string; k?: string; close: () =
   );
 }
 
-function RejectSheet({ pid, k, close }: { pid?: string; k: string; close: () => void }) {
+function RejectSheet({ pid, k, kind, close }: { pid?: string; k: string; kind?: string; close: () => void }) {
   const p = propOf(pid);
   const { v, set } = useVals({ reason: 'Tutar eksik', note: '' });
   return (
@@ -496,7 +501,7 @@ function RejectSheet({ pid, k, close }: { pid?: string; k: string; close: () => 
       <Muted>{t('Kiracıya gerekçe iletilir; ödeme yeniden yüklenebilir.')}</Muted>
       <Choice label={t('Gerekçe')} options={['Tutar eksik', 'Dekont okunmuyor', 'Farklı hesaba yatmış', 'Tarih uyuşmuyor', 'Diğer']} v={v} set={set} k="reason" render={t} />
       <Text2 label={t('Açıklama (isteğe bağlı)')} v={v} set={set} k="note" maxLength={120} />
-      <Actions onCancel={close} danger submitLabel={t('Reddet')} onSubmit={() => submit('reject', { ...v, pid: p.id, key: k })} />
+      <Actions onCancel={close} danger submitLabel={t('Reddet')} onSubmit={() => submit('reject', { ...v, pid: p.id, key: k, kind })} />
     </Stack>
   );
 }
@@ -915,9 +920,9 @@ export function renderSheet(name: string, p: any, close: () => void): ReactNode 
     case 'talep': return <ReqSheet pid={p.pid} id={p.id} close={close} />;
     case 'teklif': return <QuoteSheet pid={p.pid} id={p.id} close={close} />;
     case 'fatura': return <InvoiceSheet pid={p.pid} id={p.id} close={close} />;
-    case 'dekont': return <ReceiptSheet pid={p.pid} k={p.key} close={close} />;
-    case 'odeme': return <PayFormSheet pid={p.pid} k={p.key} close={close} />;
-    case 'red': return <RejectSheet pid={p.pid} k={p.key} close={close} />;
+    case 'dekont': return <ReceiptSheet pid={p.pid} k={p.key} kind={p.kind} close={close} />;
+    case 'odeme': return <PayFormSheet pid={p.pid} k={p.key} kind={p.kind} close={close} />;
+    case 'red': return <RejectSheet pid={p.pid} k={p.key} kind={p.kind} close={close} />;
     case 'yenileme': return <RenewalSheet pid={p.pid} close={close} />;
     case 'ev-ekle': return <AddPropGate close={close} />;
     case 'ev-duzenle': return <EditPropSheet pid={p.pid} close={close} />;

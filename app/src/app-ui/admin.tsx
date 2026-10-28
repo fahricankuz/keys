@@ -25,6 +25,8 @@ const PAY: Record<string, [string, 'ok' | 'warn' | 'bad' | 'neutral']> = {
 };
 const REV: Record<string, [string, 'ok' | 'warn' | 'bad']> = { approved: ['Onaylı', 'ok'], pending: ['İncelemede', 'warn'], rejected: ['Reddedildi', 'bad'] };
 const monthLabel = (m: string) => { const [y, mo] = String(m).split('-').map(Number); return new Date(y, (mo || 1) - 1, 1).toLocaleDateString(locale(), { month: 'long', year: 'numeric' }); };
+/** Ödeme denetim anahtarı: "2026-10" (kira) ya da "aidat:2026-10". */
+const refLabel = (ref: string) => (String(ref).startsWith('aidat:') ? monthLabel(ref.slice(6)) + ' · ' + t('Aidat') : monthLabel(ref) + ' · ' + t('Kira'));
 const day = (s?: string) => (s ? new Date(s).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 
 export default function AdminPanel() {
@@ -145,7 +147,7 @@ function ReviewCard({ r, reload }: { r: any; reload: () => void }) {
           {r.amount != null ? <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{tl(r.amount)}</Text> : null}
           <Muted>{r.propName} · {t('Mülk sahibi')}: {r.landlord}</Muted>
           <Muted>{t('Yükleyen')}: {r.uploaderName}{r.uploaderRole ? ' (' + (r.uploaderRole === 'landlord' ? t('Mülk sahibi') : t('Kiracı')) + ')' : ''}</Muted>
-          {r.kind === 'payment' ? <Muted>{t('Dönem')}: {monthLabel(r.ref_id)}</Muted> : null}
+          {r.kind === 'payment' ? <Muted>{t('Dönem')}: {refLabel(r.ref_id)}</Muted> : null}
           {r.note ? <Text v="small" color={c.badInk}>{t('Red gerekçesi')}: {r.note}</Text> : null}
           {url ? <PressScale onPress={() => Linking.openURL(url)} accessibilityRole="link"><Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyXBold, textDecorationLine: 'underline' }}>{t('Dosyayı aç')}</Text></PressScale> : null}
         </View>
@@ -186,7 +188,7 @@ function Payments({ d }: { d: Data }) {
       {list.length ? list.map((p: any) => {
         const [pt, tone] = PAY[p.status] || ['—', 'neutral'];
         return (
-          <Card key={p.property_id + p.month} gap={6}>
+          <Card key={p.property_id + p.month + (p.kind || '')} gap={6}>
             <Row between wrap>
               <H2>{p.tenants.join(', ') || t('Kiracı yok')} → {p.landlord}</H2>
               <Text v="h3" style={{ fontFamily: fonts.siteBold }}>{tl(p.amount)}</Text>
@@ -194,6 +196,7 @@ function Payments({ d }: { d: Data }) {
             <Muted>{p.propName} · {monthLabel(p.month)}{p.paid_on ? ' · ' + t('Ödeme tarihi') + ' ' + day(p.paid_on) : ''}</Muted>
             <Row wrap>
               <Chip tone={tone} label={t(pt)} />
+              <Chip tone={p.kind === 'aidat' ? 'accent' : 'neutral'} label={p.kind === 'aidat' ? t('Aidat') : t('Kira')} />
               {p.review ? <Chip tone={REV[p.review.status]?.[1] || 'warn'} label={t('Denetim') + ': ' + t(REV[p.review.status]?.[0] || '—')} /> : null}
             </Row>
             {p.reject_reason ? <Text v="small" color={c.badInk}>{p.reject_reason}</Text> : null}

@@ -31,7 +31,11 @@ Ekranlar sektörün diliyle konuşur (sitede *aidat*, *sakin*, *daire*; AVM'de *
       roller ve yetkiler, kurum davet kodları (`K…`), yönetici paneli → **Kurumlar** (kurumsal başvurudan "Kuruma çevir",
       master atama, askıya alma), uygulamada **Kurum** ekranı. Etkin kurumun yöneticisi kurumun sözleşmesiyle erişir.
       Şema: `supabase/schema.sql` 16. bölüm · istemci: `app/src/domain/org.js`, `app/src/app-ui/org.tsx`, `app/src/app-ui/admin-orgs.tsx`.
-- [ ] **Faz 1 — Tahakkuk kalemleri.** Kira ve aidat ayrı izlenir; aidat birim bazında isteğe bağlı; mevcut ödemeler "kira" kalemi olarak taşınır.
+- [x] **Faz 1 — Tahakkuk kalemleri.** `payments` tablosuna kalem türü (`kind`: kira | aidat), ay tahakkuku (`due`) ve ödeme yolu
+      (`method`: dekont | havale | nakit | pos) eklendi; anahtar `(property_id, month, kind)`. Mevcut ödemeler kendiliğinden "kira" sayılır.
+      Aidat mülkte tanımlıysa (tutar > 0) Ödemeler ekranında ayrı kartta izlenir: aidatı kiracı ödüyorsa kiracı dekont yükler, anahtar ekibi
+      denetler, mülk sahibi onaylar; mülk sahibi ödüyorsa kendisi kaydeder (dekont isteğe bağlı). Kira hatırlatmaları, tahsilat özetleri ve
+      raporlar yalnız kirayı sayar. Denetim anahtarı kira için ay, aidat için `aidat:ay` (`pay_ref`).
 - [ ] **Faz 2 — Site yönetimi.** Blok/daire hiyerarşisi, malik ve sakin rolleri, toplu aidat tahakkuku, gider dağıtımı
       (eşit, m², arsa payı), borçlu listesi ve gecikme tazminatı, duyurular, yönetim kurulu raporu; sakin–kiracı bağlantısı ve birleşik "Evim".
 - [ ] **Faz 3 — AVM ve depo.** Ciroya bağlı kira ve ciro bildirimi, ortak alan gideri dağıtımı, m² ve döviz/endeks bazlı kira, doluluk.
@@ -51,6 +55,8 @@ depo → kira, ortak gider, endeksleme, rapor · GYO → kira, ortak gider, dolu
 
 ## Canlıya alırken
 
-- Supabase SQL Editor'de `supabase/schema.sql`'i yeniden çalıştırın (16. bölüm eklenir; tekrar çalıştırmak güvenlidir).
+- Supabase SQL Editor'de `supabase/schema.sql`'i yeniden çalıştırın (16. bölüm ve ödeme kalemleri eklenir; tekrar çalıştırmak güvenlidir).
+  **Sıra:** önce site yeni sürümle yayına girsin, sonra şema çalıştırılsın. Ödeme anahtarı değiştiği için açık kalmış eski sekmeler
+  sayfa yenilenene kadar ödeme kaydedemez.
 - Yeni kurum: yönetici paneli → Talepler → kurumsal başvuru → **Kuruma çevir** (ya da Kurumlar → Yeni kurum) → **Master belirle**.
   Master'ın hesabı yoksa davet bağlantısı (`anahtar.io/katil?kod=K…`) gönderilir; kişi ücretsiz hesap açınca master olur.

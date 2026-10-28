@@ -94,6 +94,44 @@ export function grossOf(p, key, net){
   return { gross, withheld: gross - net };
 }
 
+/* ---- Aidat (tahakkuk kalemi) ------------------------------------
+   Kira ile aynı ay anahtarı, ayrı kayıt (p.aidatPay). Aidat ay içinde ödenir: vade ayın son günüdür.
+   Aidatı kiracı ödüyorsa kiracı dekont yükler, mülk sahibi onaylar; mülk sahibi ödüyorsa kendisi işaretler. */
+
+/** Kalem haritası: 'kira' → p.pay, 'aidat' → p.aidatPay. */
+export function payMap(p, kind){
+  if (kind !== 'aidat') return p.pay;
+  if (!p.aidatPay) p.aidatPay = {};
+  return p.aidatPay;
+}
+export const aidatOn = (p) => !!p && Number(p.aidat) > 0;
+export const aidatByTenant = (p) => aidatOn(p) && (p.aidatPayer || 'Kiracı') === 'Kiracı';
+export function aidatDue(p, key){
+  const d = parse(key + '-01');
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+}
+export function aidatStatus(p, key){
+  const rec = (p.aidatPay || {})[key];
+  if (rec) return rec.status;
+  return t0() > aidatDue(p, key) ? 'late' : 'pending';
+}
+/** Son n ay (yeniden eskiye), sözleşme başından önceye gitmez. */
+export function aidatMonths(p, n = 6){
+  const today = t0(), out = [];
+  const start = p.startDate ? mkey(parse(p.startDate)) : '';
+  for (let i = 0; i < n; i++){
+    const key = mkey(addM(new Date(today.getFullYear(), today.getMonth(), 1), -i));
+    if (start && key < start) break;
+    out.push({ key, status: aidatStatus(p, key), rec: (p.aidatPay || {})[key] || null });
+  }
+  return out;
+}
+/** Ödeme yolu adları (bugün dekont; sanal POS geldiğinde "pos"). */
+export const METHOD = { dekont:'Dekont', havale:'Havale / EFT', nakit:'Nakit', pos:'Kartla ödeme' };
+/** Kalemin o ayki beklenen tutarı. */
+export const dueOf = (p, kind, key) => (kind === 'aidat' ? Number(p.aidat) || 0 : expectedAt(p, key));
+export const statusFor = (p, kind, key) => (kind === 'aidat' ? aidatStatus(p, key) : statusOf(p, key));
+
 /** Kısmi ödemede kalan bakiye. */
 export function remaining(p, key){
   const rec = p.pay[key];
@@ -403,6 +441,17 @@ export function reminders(){
         out.push({ t:pre+t('yeni talep'), b: t('{n} talep yanıt bekliyor.', { n: newReqs(p).length }), go:'/mulk-sahibi/mulk/'+id+'/talep', w:1 });
       if (s.remindIns !== false && p.dask && daysTo(p.dask) <= s.insDays)
         out.push({ t:pre+t('DASK yenileme'), b: t('Poliçe {date} tarihinde bitiyor.', { date: fmtFull(parse(p.dask)) }), go:docGo, w:2 });
+    }
+
+    // Aidat: geçen ay kapanmadıysa ödeyene, kiracının yüklediği dekont onay bekliyorsa mülk sahibine.
+    if (aidatOn(p)){
+      const prevKey = mkey(addM(new Date(t0().getFullYear(), t0().getMonth(), 1), -1));
+      const ast = aidatStatus(p, prevKey), mine = ui.role === 'tenant' ? aidatByTenant(p) : !aidatByTenant(p);
+      if (mine && s.lateNotice !== false && (ast === 'late' || ast === 'rejected'))
+        out.push({ t: pre ? pre+t('aidat ödenmedi') : t('Aidat ödenmedi'), b: t('{month} aidatı kaydedilmedi.', { month: monthYear(prevKey) }), go:payGo, w:1 });
+      const waiting = ui.role === 'landlord' && aidatByTenant(p) ? Object.keys(p.aidatPay || {}).filter(k => p.aidatPay[k].status === 'review') : [];
+      if (waiting.length)
+        out.push({ t:pre+t('aidat dekontu onay bekliyor'), b: waiting.map(k => monthYear(k)).join(', '), go:payGo, w:2 });
     }
 
     const rd = daysTo(p.contractEnd);

@@ -406,7 +406,7 @@ export function saveLocal(){
       Object.values(slim.props).forEach(p => {
         p.inspect.rooms.forEach(r => { r.shots = []; });
         p.requests.forEach(r => { r.shots = []; });
-        Object.values(p.pay).forEach(rec => { delete rec.photo; });
+        [...Object.values(p.pay), ...Object.values(p.aidatPay || {})].forEach(rec => { delete rec.photo; });
       });
       storage.setItem(storageKey, JSON.stringify(slim));
       S = slim;

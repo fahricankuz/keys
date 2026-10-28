@@ -9,7 +9,7 @@ const TABLES = ['profiles','properties','property_shared','memberships','invites
                 'organizations','org_roles','org_members','org_invites'];
 
 function load(){
-  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d){ TABLES.forEach(t => d.tables[t] = d.tables[t] || []); return d; } } catch(e){}
+  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d){ TABLES.forEach(t => d.tables[t] = d.tables[t] || []); d.tables.payments.forEach(r => { r.kind = r.kind || 'kira'; }); return d; } } catch(e){}
   const d = { users:[], session:null, storage:{}, tables:{} };
   TABLES.forEach(t => d.tables[t] = []);
   return d;
@@ -21,7 +21,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 const KEYS = {
   profiles:['id'], properties:['id'], property_shared:['property_id'], memberships:['property_id','user_id'],
-  invites:['code'], payments:['property_id','month'], rent_history:['id'], requests:['id'], messages:['id'],
+  invites:['code'], payments:['property_id','month','kind'], rent_history:['id'], requests:['id'], messages:['id'],
   documents:['id'], expenses:['id'], notifications:['id'], push_subscriptions:['endpoint'], subscriptions:['user_id'], device_tokens:['token'],
   admins:['user_id'], reviews:['kind','property_id','ref_id'], bans:['user_id'], admin_audit:['id']
 };
@@ -29,6 +29,7 @@ const KEYS = {
 function defaults(table, row, db){
   const r = Object.assign({}, row);
   if (table === 'properties'){ r.id = r.id || uuid(); r.created_at = r.created_at || now(); }
+  if (table === 'payments'){ r.kind = r.kind || 'kira'; r.method = r.method || 'dekont'; }
   if (table === 'invites'){ r.code = r.code || Math.random().toString(36).slice(2, 10).toUpperCase(); r.created_at = now(); r.accepted_by = null; }
   if (table === 'messages'){ r.at = r.at || now(); if (r.by_user === undefined) r.by_user = db.session?.user.id || null; }
   if (table === 'notifications'){ r.id = (db.tables.notifications.reduce((m, x) => Math.max(m, x.id), 0) || 0) + 1; r.created_at = now(); r.read_at = null; }
@@ -46,6 +47,8 @@ function afterInsert(table, row, db){
 }
 
 /* Denetim: schema.sql → track_*_review / upsert_review / on_review_change ile aynı kural. */
+/** Denetim anahtarı (schema.sql → pay_ref): kira için ay, aidat için "aidat:ay". */
+const payRef = (row) => ((row.kind || 'kira') === 'kira' ? row.month : row.kind + ':' + row.month);
 const isAdmin = (db, uid) => db.tables.admins.some(a => a.user_id === uid);
 const roleIn = (db, uid, pid) => (db.tables.memberships.find(m => m.property_id === pid && m.user_id === uid) || {}).role;
 const stripSb = v => (v ? String(v).replace(/^sb:/, '') : null);
@@ -65,7 +68,7 @@ function trackReviews(db, table, row, before, actor){
   if (!actor || isAdmin(db, actor)) return;
   if (table === 'payments' && roleIn(db, actor, row.property_id) !== 'landlord' && ['review','partial'].includes(row.status)){
     if (!before || before.receipt_path !== row.receipt_path || before.receipt_name !== row.receipt_name || before.amount !== row.amount)
-      upsertReview(db, 'payment', row.property_id, row.month, actor, row.receipt_name, stripSb(row.receipt_path), row.amount);
+      upsertReview(db, 'payment', row.property_id, payRef(row), actor, row.receipt_name, stripSb(row.receipt_path), row.amount);
   }
   if (table === 'documents' && (!before || before.path !== row.path || before.name !== row.name))
     upsertReview(db, 'document', row.property_id, row.id, row.uploaded_by || actor, row.name, stripSb(row.path), null);
@@ -76,7 +79,7 @@ function trackReviews(db, table, row, before, actor){
 /* Okuma kuralı: karşı taraf, yönetici onaylayana kadar yüklemeyi görmez. */
 function visible(db, table, row, actor){
   if (!actor || isAdmin(db, actor)) return true;
-  if (table === 'payments') return roleIn(db, actor, row.property_id) === 'tenant' || reviewOk(db, 'payment', row.property_id, row.month);
+  if (table === 'payments') return roleIn(db, actor, row.property_id) === 'tenant' || reviewOk(db, 'payment', row.property_id, payRef(row));
   if (table === 'documents') return row.uploaded_by === actor || reviewOk(db, 'document', row.property_id, row.id);
   if (table === 'reviews') return row.uploader === actor;
   return true;
@@ -86,7 +89,7 @@ function decideEffects(db, r, was){
   if (r.status === was || r.status === 'pending') return;
   if (r.kind === 'payment'){
     if (r.status === 'approved') db.tables.memberships.filter(m => m.property_id === r.property_id && m.role === 'landlord').forEach(m => notify(db, m.user_id, 'Dekont geldi', r.ref_id + ' kirası için ödeme yapıldı.'));
-    else { const p = db.tables.payments.find(x => x.property_id === r.property_id && x.month === r.ref_id && ['review','partial'].includes(x.status)); if (p){ p.status = 'rejected'; p.reject_reason = 'Denetim: ' + r.note; } }
+    else { const p = db.tables.payments.find(x => x.property_id === r.property_id && payRef(x) === r.ref_id && ['review','partial'].includes(x.status)); if (p){ p.status = 'rejected'; p.reject_reason = 'Denetim: ' + r.note; } }
   } else if (r.status === 'rejected' && r.uploader){
     notify(db, r.uploader, r.kind === 'invoice' ? 'Faturan kabul edilmedi' : 'Belgen kabul edilmedi', r.label + ': ' + r.note);
   }
@@ -455,7 +458,7 @@ export function createClient(url, key, opts){
         const owners = T.profiles.filter(p => p.role === 'landlord');
         const ownsWith = (o, f) => T.properties.some(pr => pr.owner_id === o.id && f(pr));
         const month = new Date().toISOString().slice(0, 7), prev = new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 7);
-        const sum = m => T.payments.filter(x => ['approved','partial'].includes(x.status) && x.month === m).reduce((a, x) => a + Number(x.amount || 0), 0);
+        const sum = m => T.payments.filter(x => (x.kind || 'kira') === 'kira' && ['approved','partial'].includes(x.status) && x.month === m).reduce((a, x) => a + Number(x.amount || 0), 0);
         const paying = owners.filter(o => accessOf(db, o.id).subscribed).length;
         const series = Array.from({ length: d }, (_, i) => {
           const dd = new Date(t0 - (d - 1 - i) * day).toISOString().slice(0, 10);

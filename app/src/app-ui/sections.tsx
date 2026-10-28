@@ -6,7 +6,8 @@ import { S, ui, STEPS, CONDITIONS, docCatsFor, isCommercial } from '../domain/st
 import { estimate, stopajRate } from '../domain/tax';
 import {
   P, period, remaining, openReqs, otherPerson, otherLabel, rentAt, expectedAt, tenantsLabel, meTenant, senderName,
-  expensesIn, sum, moveOutSummary, unpaid, yearNumbers, agendaItems, chip, rentDuesIn, isMineMsg
+  expensesIn, sum, moveOutSummary, unpaid, yearNumbers, agendaItems, chip, rentDuesIn, isMineMsg,
+  aidatOn, aidatByTenant, aidatMonths, aidatDue
 } from '../domain/logic';
 import { can, isOwnerOf, memberRole } from '../domain/team';
 import { t, locale } from '../domain/i18n';
@@ -148,10 +149,8 @@ export function SecPay({ p }: { p: any }) {
     <Stack>
       <RentHero p={p} />
       <RenewalCard p={p} />
-      <Row>
-        <Card style={{ flex: 1 }} gap={4}><Label>{t('Aidat')}</Label><Text v="h3">{tl(p.aidat)} {t('/ ay')}</Text><Muted>{t(p.aidatPayer)} {t('öder')}</Muted></Card>
-        <Card style={{ flex: 1 }} gap={4}><Label>{t('Depozito')}</Label><Text v="h3">{depositText(p)}</Text><Muted>{p.depositNote}</Muted></Card>
-      </Row>
+      <AidatCard p={p} />
+      <Card gap={4}><Label>{t('Depozito')}</Label><Text v="h3">{depositText(p)}</Text><Muted>{p.depositNote}</Muted></Card>
       <Stack gap={8}>
         <H2>{t('Faturalar kimin adına?')}</H2>
         {p.bills.length
@@ -170,6 +169,58 @@ export function SecPay({ p }: { p: any }) {
           : <Empty>{t('Henüz ödeme kaydı yok.')}</Empty>}
       </Stack>
     </Stack>
+  );
+}
+
+/** Aidat: kiradan ayrı izlenen kalem. Kiracı ödüyorsa kiracı dekont yükler, mülk sahibi onaylar;
+    mülk sahibi ödüyorsa kendi ödemesini kaydeder. Son altı ayın durumu listelenir. */
+export function AidatCard({ p }: { p: any }) {
+  const { open } = useSheet();
+  const c = useColors();
+  if (!aidatOn(p)) {
+    return <Card gap={4}><Label>{t('Aidat')}</Label><Muted>{t('Bu mülk için aidat tanımlı değil.')}</Muted></Card>;
+  }
+  const byTenant = aidatByTenant(p);
+  const tenant = ui.role === 'tenant';
+  // Ödemeyi kim kaydeder: aidatı kiracı ödüyorsa kiracı, mülk sahibi ödüyorsa mülk sahibi (ya da ödeme yetkili ekip üyesi).
+  const payer = tenant ? byTenant : !byTenant && can(p.id, 'pay');
+  if (tenant && !byTenant) {
+    return <Card gap={4}><Label>{t('Aidat')}</Label><Text v="h3">{tl(p.aidat)} {t('/ ay')}</Text><Muted>{t('Aidatı mülk sahibi öder.')}</Muted></Card>;
+  }
+  const months = aidatMonths(p, 6);
+  const cur = months[0];
+  const curOpen = cur && !['approved', 'review'].includes(cur.status);
+  const record = (key: string) => open('odeme', { pid: p.id, key, kind: 'aidat' });
+  return (
+    <Card gap={12}>
+      <Row between align="flex-start">
+        <View style={{ flex: 1, gap: 2 }}>
+          <Label>{t('Aidat')}</Label>
+          <Text v="h3">{tl(p.aidat)} {t('/ ay')}</Text>
+          <Muted>{byTenant
+            ? (tenant ? t('Aidatı sen ödüyorsun. Dekontu yükle; mülk sahibin görsün.') : t('Aidatı kiracı öder. Dekontu yükleyince onaylarsın.'))
+            : t('Aidatı sen ödüyorsun. Ödedikçe kaydet; geçmişi burada durur.')}</Muted>
+        </View>
+        <Chip tone="neutral" label={t(p.aidatPayer || 'Kiracı') + ' ' + t('öder')} />
+      </Row>
+      {payer && curOpen ? (
+        <Button block kind={cur.status === 'late' ? 'primary' : 'ghost'}
+          title={tenant ? t('{month} aidat dekontunu yükle', { month: monthYear(cur.key) }) : t('{month} aidatını kaydet', { month: monthYear(cur.key) })}
+          onPress={() => record(cur.key)} />
+      ) : null}
+      <View>
+        {months.map((m: any, i: number) => {
+          const r = m.rec;
+          const tap = r ? () => open('dekont', { pid: p.id, key: m.key, kind: 'aidat' }) : payer ? () => record(m.key) : undefined;
+          return (
+            <LI key={m.key} last={i === months.length - 1} onPress={tap} title={monthYear(m.key)}
+              sub={r ? [r.receipt, r.date ? fmtFull(parse(r.date)) : '', r.status === 'partial' ? tl(r.amount) : ''].filter(Boolean).join(' · ')
+                : t('Son gün {date}', { date: fmtFull(aidatDue(p, m.key)) })}
+              right={<StatusChip st={m.status} />} />
+          );
+        })}
+      </View>
+    </Card>
   );
 }
 

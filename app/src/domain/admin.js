@@ -17,7 +17,7 @@ export async function loadAdmin(){
     c.from('properties').select('id, owner_id, name, addr, rent, due_day, prop_type, created_at'),
     c.from('memberships').select('property_id, user_id, role, display_name, phone, email'),
     c.from('invites').select('code, property_id, name, email, phone, accepted_by, expires_at'),
-    c.from('payments').select('property_id, month, status, amount, paid_on, receipt_name, receipt_path, reject_reason, updated_at'),
+    c.from('payments').select('property_id, month, kind, status, amount, paid_on, receipt_name, receipt_path, reject_reason, updated_at'),
     c.from('reviews').select('kind, property_id, ref_id, uploader, label, path, amount, status, note, reviewed_at, created_at')
   ].map(p => p.then(must)));
   return derive({ users, props, members, invites, payments, reviews });
