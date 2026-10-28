@@ -477,17 +477,24 @@ test('kurumsal başvuru: fiyatlardaki "Bize ulaşın" formu açar; başvuru yön
   await expect(page.getByText('Web formu')).toBeVisible();
 });
 
-test('çözümler: ana sayfadaki seçimden sektör sayfasına, oradan sektör seçili teklif formuna gidilir; statik sayfalar açık temada', async ({ page }) => {
+test('çözümler: üst menüdeki açılır listeden sektör sayfasına, oradan sektör seçili teklif formuna gidilir; statik sayfalar açık temada', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.goto(url('/destek/'));
   // Cihaz koyu temada olsa da statik sayfalar marka renginde (kireç) açılır.
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(250, 245, 240)');
   await page.emulateMedia({ colorScheme: 'light' });
   await page.goto(url('/'));
+  // Ana sayfada ayrı bir seçim bölümü yok; seçim üst menüdeki açılır listede.
+  await expect(page.getByText('Seni en iyi ne tanımlar?')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Çözümler' }).click();
   await expect(page.getByText('Seni en iyi ne tanımlar?').first()).toBeVisible();
   await page.getByRole('link', { name: /^AVM/ }).first().click();
   await expect(page).toHaveURL(/\/cozumler\/avm/);
   await expect(page.getByText('Mağaza kiralarını').first()).toBeVisible();
+  // Sol üstteki logo ana sayfaya döner.
+  await page.getByRole('link', { name: 'Ana sayfa' }).first().click();
+  await expect(page).toHaveURL(/\/$/);
+  await page.goto(url('/cozumler/avm'));
   await page.getByRole('button', { name: 'Teklif al' }).first().click();
   await expect(page).toHaveURL(/\/kurumsal\?sektor=AVM/);
   await expect(page.getByRole('radio', { name: 'AVM' })).toHaveAttribute('aria-checked', 'true');

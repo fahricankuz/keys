@@ -81,7 +81,7 @@ function SideNav({ list }: { list: Item[] }) {
   const active = useActive();
   return (
     <View style={{ width: 272, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 32, margin: 14, padding: 22, gap: 6 }}>
-      <View style={{ marginBottom: 18 }}><Wordmark size={30} /></View>
+      <PressScale onPress={() => router.push('/' as any)} accessibilityRole="link" accessibilityLabel={t('Ana sayfa')} style={{ marginBottom: 18, alignSelf: 'flex-start' }}><Wordmark size={30} /></PressScale>
       {list.map((it) => {
         const on = active(it.path);
         return (

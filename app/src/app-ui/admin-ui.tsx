@@ -2,6 +2,7 @@
    renkli simgeli gösterge kutusu ve grup başlığı. */
 import { ReactNode } from 'react';
 import { ScrollView, Text as RNText, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { t } from '../domain/i18n';
 import { Button, Chip, PressScale, Text } from '../ui/kit';
 import { Wordmark } from '../ui/Wordmark';
@@ -16,6 +17,7 @@ export function AdminShell({ items, active, onPick, email, onReload, onSignOut, 
   onReload: () => void; onSignOut: () => void; busy?: boolean; children: ReactNode;
 }) {
   const c = useColors();
+  const router = useRouter();
   const { desktop } = useBreakpoint();
   if (!desktop) {
     return (
@@ -23,7 +25,7 @@ export function AdminShell({ items, active, onPick, email, onReload, onSignOut, 
         <View style={{ backgroundColor: c.deepA, paddingTop: 14, paddingBottom: 10, gap: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Wordmark size={22} variant="cream" bg={c.deepA} />
+              <PressScale onPress={() => router.push('/' as any)} accessibilityRole="link" accessibilityLabel={t('Ana sayfa')} style={{ alignSelf: 'flex-start' }}><Wordmark size={22} variant="cream" bg={c.deepA} /></PressScale>
               <Chip tone="warn" label={t('Yönetici')} />
             </View>
             <Button kind="onDark" title={t('Çıkış yap')} onPress={onSignOut} style={{ minHeight: 38, paddingHorizontal: 14 }} />
@@ -51,7 +53,7 @@ export function AdminShell({ items, active, onPick, email, onReload, onSignOut, 
       <View style={{ width: 260, backgroundColor: c.deepA, paddingVertical: 26, paddingHorizontal: 16, justifyContent: 'space-between' }}>
         <View style={{ gap: 26 }}>
           <View style={{ gap: 10, paddingHorizontal: 8 }}>
-            <Wordmark size={26} variant="cream" bg={c.deepA} />
+            <PressScale onPress={() => router.push('/' as any)} accessibilityRole="link" accessibilityLabel={t('Ana sayfa')} style={{ alignSelf: 'flex-start' }}><Wordmark size={26} variant="cream" bg={c.deepA} /></PressScale>
             <View style={{ alignSelf: 'flex-start' }}><Chip tone="warn" label={t('Yönetici paneli')} /></View>
           </View>
           <View style={{ gap: 4 }} role="navigation" aria-label={t('Yönetici bölümleri')}>

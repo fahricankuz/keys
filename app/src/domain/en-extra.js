@@ -1185,5 +1185,6 @@ export const EN_EXTRA = {
   'Mayıs': 'May',
   'Haziran': 'June',
   'Temmuz': 'July',
-  'Aralık': 'December'
+  'Aralık': 'December',
+  'Tüm çözümler': 'All solutions'
 };

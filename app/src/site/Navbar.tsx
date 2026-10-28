@@ -12,6 +12,8 @@ import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
 import { Icon } from '../app-ui/blocks';
 import { categories } from './content';
 import { CONFIG } from '../domain/config';
+import { segments } from './segments';
+import { TONE } from './SegmentParts';
 
 /** Üst duyuru şeridi: kira kartının kahverengisinden kırmızıya akan hareketli geçiş, altta kırmızı ışıma,
     soldan sağa geçen parıltı ve "Fırsat" etiketi. Hareketi azaltmayı seçen kullanıcıda geçiş durağandır. */
@@ -72,10 +74,12 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
   const c = useColors();
   const { phone } = useBreakpoint();
   const { user, ready } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [menu, setMenu] = useState<'ozellik' | 'cozum' | null>(null);
+  const open = menu !== null;
+  const setOpen = (_: false) => setMenu(null);
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(null); };
     document.addEventListener('keydown', esc);
     return () => document.removeEventListener('keydown', esc);
   }, []);
@@ -96,22 +100,18 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
       <Container style={{ zIndex: 20 }}>
         <View style={{ position: 'relative' }}>
           <View style={{ minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <Wordmark size={phone ? (narrow ? 17 : 21) : 28} animate />
+            <PressScale onPress={() => { setOpen(false); scrollTo('top'); }} accessibilityRole="link" accessibilityLabel={t('Ana sayfa')}>
+              <Wordmark size={phone ? (narrow ? 17 : 21) : 28} animate />
+            </PressScale>
             {!phone && (
               <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
-                <Pressable onPress={() => setOpen((x) => !x)} accessibilityRole="button" accessibilityState={{ expanded: open }} aria-expanded={open} accessibilityLabel={t('Özellikler')}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: open ? c.surface2 : 'transparent' }}>
-                  <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{t('Özellikler')}</Text>
-                  <View style={{ transform: [{ rotate: open ? '90deg' : '-90deg' }] }}><Icon name="back" size={13} /></View>
-                </Pressable>
+                <MenuButton label={t('Özellikler')} on={menu === 'ozellik'} onPress={() => setMenu((m) => (m === 'ozellik' ? null : 'ozellik'))} />
                 {links.map(([k, label]) => (
                   <PressScale key={k} onPress={() => { setOpen(false); scrollTo(k); }} accessibilityRole="link" style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
                     <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{label}</Text>
                   </PressScale>
                 ))}
-                <PressScale onPress={() => { setOpen(false); go('/cozumler'); }} accessibilityRole="link" style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
-                  <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{t('Çözümler')}</Text>
-                </PressScale>
+                <MenuButton label={t('Çözümler')} on={menu === 'cozum'} onPress={() => setMenu((m) => (m === 'cozum' ? null : 'cozum'))} />
                 <PressScale onPress={() => { setOpen(false); go('/kira-artis-hesaplama'); }} accessibilityRole="link" style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
                   <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{t('Kira artışı hesapla')}</Text>
                 </PressScale>
@@ -129,9 +129,58 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
               )}
             </View>
           </View>
-          {open && !phone && <FeatureMenu go={go} signedIn={signedIn} onPick={(id) => { setOpen(false); openFeature(id); }} />}
+          {menu === 'ozellik' && !phone && <FeatureMenu go={go} signedIn={signedIn} onPick={(id) => { setOpen(false); openFeature(id); }} />}
+          {menu === 'cozum' && !phone && <SolutionMenu onPick={(p) => { setOpen(false); go(p); }} />}
         </View>
       </Container>
+    </View>
+  );
+}
+
+/** Üst menüde açılır panel düğmesi (Özellikler, Çözümler). */
+function MenuButton({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+  const c = useColors();
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ expanded: on }} aria-expanded={on} accessibilityLabel={label}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: on ? c.surface2 : 'transparent' }}>
+      <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{label}</Text>
+      <View style={{ transform: [{ rotate: on ? '90deg' : '-90deg' }] }}><Icon name="back" size={13} /></View>
+    </Pressable>
+  );
+}
+
+/** Açılır çözümler menüsü: "Seni en iyi ne tanımlar?" seçenekleri; her biri kendi sayfasına gider. */
+function SolutionMenu({ onPick }: { onPick: (path: string) => void }) {
+  const c = useColors();
+  const { desktop } = useBreakpoint();
+  return (
+    <View style={{ position: 'absolute', top: 66, left: 0, right: 0, zIndex: 60 }}>
+      <Animated.View entering={FadeInDown.duration(200)} exiting={FadeOut.duration(120)}
+        style={{ backgroundColor: c.surface, borderRadius: 32, borderWidth: 1, borderColor: c.line, padding: 22, gap: 16, boxShadow: shadows.lift }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6 }}>
+          <RNText style={{ fontFamily: fonts.siteBold, fontSize: 20, letterSpacing: -0.4, color: c.ink }}>{t('Seni en iyi ne tanımlar?')}</RNText>
+          <PressScale onPress={() => onPick('/cozumler')} accessibilityRole="link">
+            <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 14, color: c.accentText }}>{t('Tüm çözümler')} ›</RNText>
+          </PressScale>
+        </View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: 4 }}>
+          {segments().map((s) => {
+            const [bg, fg] = TONE[s.tone];
+            return (
+              <Pressable key={s.slug} onPress={() => onPick('/cozumler/' + s.slug)} accessibilityRole="link" accessibilityLabel={s.name + ' · ' + s.sub}
+                style={({ hovered }: any) => ({ width: desktop ? '33.33%' : '50%', flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 18, backgroundColor: hovered ? c.surface2 : 'transparent' })}>
+                <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name={s.icon} size={19} color={fg} />
+                </View>
+                <View style={{ flex: 1, gap: 1 }}>
+                  <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 15, color: c.ink }}>{s.name}</RNText>
+                  <RNText style={{ fontFamily: fonts.body, fontSize: 13, color: c.muted }}>{s.sub}</RNText>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Animated.View>
     </View>
   );
 }

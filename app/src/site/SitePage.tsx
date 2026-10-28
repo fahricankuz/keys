@@ -16,7 +16,7 @@ export default function SitePage({ children }: { children: ReactNode }) {
   const [top, setTop] = useState(false);
   const go = (p: string) => router.push(p as any);
   const home = (k: string) => {
-    if (typeof window !== 'undefined' && window.location) window.location.assign('/#' + k);
+    if (typeof window !== 'undefined' && window.location) window.location.assign(k === 'top' ? '/' : '/#' + k);
     else router.push('/' as any);
   };
   return (

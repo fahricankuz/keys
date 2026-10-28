@@ -18,7 +18,6 @@ import { Icon, Steps } from '../app-ui/blocks';
 import { useLangTick } from '../app-ui/hooks';
 import { categories, faq, plans } from './content';
 import { PlanCard } from './PlanCard';
-import { SegmentGrid } from './SegmentParts';
 import { Nav, TopBar, openPage } from './Navbar';
 
 const EASE = 'cubic-bezier(0.32,0.72,0,1)';
@@ -498,17 +497,6 @@ function Contact({ anchor }: { anchor: (el: any) => void }) {
   );
 }
 
-/** "Seni en iyi ne tanımlar?" — her seçenek kendi sayfasına (/cozumler/…) gider. */
-function Segments({ go }: { go: (p: string) => void }) {
-  const { phone } = useBreakpoint();
-  return (
-    <Container style={{ paddingTop: phone ? 44 : 112, gap: phone ? 18 : 32, maxWidth: 1080 }}>
-      <SectionHead compact label={t('Çözümler')} title={t('Seni en iyi ne tanımlar?')} />
-      <Reveal><SegmentGrid go={go} compact={phone} /></Reveal>
-    </Container>
-  );
-}
-
 /** Ücretsiz kira artış hesaplayıcısına yönlendiren bant (ayrı, SEO'ya açık sayfa). */
 function CalcBand() {
   const c = useColors();
@@ -547,7 +535,7 @@ export function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
       <Container style={{ paddingTop: phone ? 56 : 88, paddingBottom: 28, gap: phone ? 40 : 64 }}>
         <View style={{ flexDirection: phone ? 'column' : 'row', justifyContent: 'space-between', gap: phone ? 36 : 48 }}>
           <View style={{ gap: 14, maxWidth: 300 }}>
-            <Wordmark size={28} color={c.heroInk} />
+            <PressScale onPress={() => scrollTo('top')} accessibilityRole="link" accessibilityLabel={t('Ana sayfa')} style={{ alignSelf: 'flex-start' }}><Wordmark size={28} color={c.heroInk} /></PressScale>
             <Text v="small" color={c.heroMuted} style={{ lineHeight: 21 }}>{t('Kira işinin anahtarı.')}</Text>
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: phone ? 32 : 72 }}>
@@ -602,6 +590,7 @@ export default function Landing() {
   /** Bölüme kaydırır. Konum tıklama anında ölçülür; üstteki içerik sonradan büyüse de doğru yere gider. */
   const scrollTo = (k: string) => {
     const sv = scroll.current, el = at.current[k];
+    if (sv && k === 'top') { sv.scrollTo({ y: 0, animated: true }); return; }
     if (!sv || !el) return;
     const node = sv.getScrollableNode ? sv.getScrollableNode() : null;
     if (node && el.getBoundingClientRect) {
@@ -628,7 +617,6 @@ export default function Landing() {
         <Hero go={go} scrollTo={scrollTo} />
         <Rotator go={go} scrollTo={scrollTo} />
         <Manifesto />
-        <Segments go={go} />
         <Features active={feature} setActive={setFeature} anchor={mark('ozellikler')} go={go} />
         <HowItWorks go={go} anchor={mark('nasil')} />
         <Pricing go={go} anchor={mark('fiyat')} />
