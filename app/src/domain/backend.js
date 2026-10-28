@@ -18,6 +18,7 @@ import { host } from './host.js';
 import { storage } from './storage.js';
 import { uid } from './util.js';
 import { refreshOrgs, isOrgCode, acceptOrgInvite } from './org.js';
+import { refreshSiteUnits, isSiteCode, acceptSiteInvite } from './site.js';
 
 /** @type {any} */
 export const live = {
@@ -28,7 +29,8 @@ export const live = {
   status: 'idle',      // idle | syncing | synced | offline | error
   loaded: false,
   access: null,        // my_access(): rol, deneme, abonelik (bkz. billing.js)
-  orgs: null           // my_orgs(): yöneticisi olduğu kurumlar (bkz. org.js)
+  orgs: null,          // my_orgs(): yöneticisi olduğu kurumlar (bkz. org.js)
+  siteUnits: null      // my_site_units(): malik ya da kiracısı olduğu site daireleri (bkz. site.js)
 };
 
 const DEFAULT_SETTINGS = { rentDays:3, renewDays:60, insDays:30, evictDays:90, reqUpdates:true, lateNotice:true };
@@ -141,7 +143,7 @@ export async function closeSession(){
   try { await live.client?.auth.signOut(); } catch(e){}
   if (uidWas){ storage.removeItem('kiracim-live:' + uidWas); storage.removeItem(BASE(uidWas)); }
   synced = {};
-  live.user = null; live.profile = null; live.access = null; live.orgs = null; live.loaded = false; live.isAdmin = false;
+  live.user = null; live.profile = null; live.access = null; live.orgs = null; live.siteUnits = null; live.loaded = false; live.isAdmin = false;
   hooks.afterSave = null;
   useStorageKey(null);
 }
@@ -153,7 +155,7 @@ export async function refreshAccess(redraw = true){
   } catch(e){
     console.warn('Erişim durumu okunamadı', e);
   }
-  await refreshOrgs(false);
+  await Promise.all([refreshOrgs(false), refreshSiteUnits(false)]);
   if (redraw) emit();
   return live.access;
 }
@@ -632,6 +634,7 @@ export async function removeMember(pid, userId){
 
 export async function acceptInvite(code){
   if (isOrgCode(code)) return acceptOrgInvite(code);       // kurum yöneticisi daveti
+  if (isSiteCode(code)) return acceptSiteInvite(code);     // site dairesi (malik ya da kiracı) daveti
   const pid = must(await sb().rpc('accept_invite', { invite_code: code }));
   await loadAll();
   subscribe();

@@ -42,15 +42,16 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
     // submit_lead → herkese açık kurumsal başvuru (alan doğrulaması ve sıklık sınırı içinde).
     // Kurumlar: org_* ve my_orgs → çağıranın kurum üyeliği / master'lığı / rol yetkisi; is_org_* ve org_can yalnız çağıranı sorar;
     // accept_org_invite → kodu bilen (süre ve tek kullanım denetimiyle).
-    'accept_invite', 'accept_org_invite', 'activity_feed', 'admin_audit_log', 'admin_delete_message', 'admin_extend_trial', 'admin_kpis', 'admin_messages',
+    // Site: accept_site_invite → kodu bilen (tek kullanım); site_role, is_site_resident, my_site_units, site_folder_ok → yalnız çağıranı sorar.
+    'accept_invite', 'accept_org_invite', 'accept_site_invite', 'activity_feed', 'admin_audit_log', 'admin_delete_message', 'admin_extend_trial', 'admin_kpis', 'admin_messages',
     'admin_org_save', 'admin_org_set_master', 'admin_orgs',
     'admin_set_ban', 'admin_set_cpi', 'admin_set_plan', 'admin_subscriptions', 'admin_threads', 'admin_users',
     'delete_my_account', 'file_review_ok', 'has_access', 'import_properties', 'invite_preview', 'is_admin', 'is_banned', 'is_member',
-    'is_org_master', 'is_org_member', 'is_owner',
-    'member_can', 'member_role', 'msg_side', 'my_access', 'my_orgs',
+    'is_org_master', 'is_org_member', 'is_owner', 'is_site_resident',
+    'member_can', 'member_role', 'msg_side', 'my_access', 'my_orgs', 'my_site_units',
     'org_can', 'org_detail', 'org_invite_create', 'org_invite_delete', 'org_member_remove', 'org_member_set', 'org_role_delete', 'org_role_save',
     'org_transfer_master',
-    'review_ok', 'shares_property', 'submit_lead', 'team_list', 'team_remove', 'team_set'
+    'review_ok', 'shares_property', 'site_folder_ok', 'site_role', 'submit_lead', 'team_list', 'team_remove', 'team_set'
   ]);
 });
 

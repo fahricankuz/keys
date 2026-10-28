@@ -5,6 +5,7 @@ import { keepInvite, useAuth } from '../auth/auth';
 import { t } from '../domain/i18n';
 import { invitePreview } from '../domain/backend';
 import { isOrgCode } from '../domain/org';
+import { isSiteCode } from '../domain/site';
 import { roleLabel } from '../domain/team';
 import { Button, Text } from '../ui/kit';
 import { View } from 'react-native';
@@ -27,15 +28,19 @@ export default function Katil() {
     if (!mounted) return;
     if (!code) { router.replace('/giris'); return; }
     keepInvite(code);
-    if (live && !isOrgCode(code)) invitePreview(code).then(setInfo).catch(() => {});
+    if (live && !isOrgCode(code) && !isSiteCode(code)) invitePreview(code).then(setInfo).catch(() => {});
     if (ready && live && user && !user.admin) join(code).then(() => router.replace('/uygulama'));
   }, [mounted, code, ready, live, user, join, router]);
 
   // Kurum yöneticisi daveti ("K" ile başlayan kod): ücretsiz ekip hesabıyla ya da mevcut hesapla katılınır.
   const org = isOrgCode(code);
+  // Site dairesi daveti ("S" ile başlar): malik ya da kiracı ücretsiz hesapla katılır.
+  const site = isSiteCode(code);
   const team = org || (!!info && info.role !== 'tenant');
-  const title = org ? t('Kurum yöneticisi olarak davet edildin') : team ? t('Ekibe davet edildin') : t('Kiraladığın mülke davet edildin');
-  const lead = org
+  const title = site ? t('Sitene davet edildin') : org ? t('Kurum yöneticisi olarak davet edildin') : team ? t('Ekibe davet edildin') : t('Kiraladığın mülke davet edildin');
+  const lead = site
+    ? t('Site yönetimin seni anahtar’a davet etti. Ücretsiz hesabını oluştur ya da giriş yap; aidatını, duyuruları ve taleplerini buradan izleyeceksin.')
+    : org
     ? t('Kurumun seni anahtar’da yönetici olarak davet etti. Ücretsiz hesabını oluştur ya da giriş yap; kuruma otomatik katılacaksın.')
     : team
     ? t('{owner} seni {role} olarak ekibine davet etti. Ücretsiz ekip hesabını oluştur ya da giriş yap; ekibe otomatik katılacaksın.',
@@ -50,7 +55,12 @@ export default function Katil() {
           {info && !info.valid ? <Text v="small" color={c.badInk}>{t('Bu davet kullanılmış ya da süresi dolmuş. Mülk sahibinden yeni kod iste.')}</Text> : null}
         </View>
       ) : null}
-      {team ? (
+      {site ? (
+        <>
+          <Button kind="primary" block title={t('Ücretsiz hesap oluştur')} onPress={() => router.push('/kayit/kiraci')} />
+          <Button block kind="ghost" title={t('Hesabım var, giriş yap')} onPress={() => router.push('/giris')} />
+        </>
+      ) : team ? (
         <>
           <Button kind="primary" block title={org ? t('Hesap oluştur') : t('Ekip hesabı oluştur')} onPress={() => router.push('/kayit/ekip')} />
           <Button block kind="ghost" title={t('Hesabım var, giriş yap')} onPress={() => router.push('/giris/mulk-sahibi')} />

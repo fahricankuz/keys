@@ -6,7 +6,8 @@
 const KEY = '__fakedb';
 const TABLES = ['profiles','properties','property_shared','memberships','invites','payments','rent_history',
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
-                'organizations','org_roles','org_members','org_invites'];
+                'organizations','org_roles','org_members','org_invites',
+                'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests'];
 
 function load(){
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d){ TABLES.forEach(t => d.tables[t] = d.tables[t] || []); d.tables.payments.forEach(r => { r.kind = r.kind || 'kira'; }); return d; } } catch(e){}
@@ -30,6 +31,11 @@ function defaults(table, row, db){
   const r = Object.assign({}, row);
   if (table === 'properties'){ r.id = r.id || uuid(); r.created_at = r.created_at || now(); }
   if (table === 'payments'){ r.kind = r.kind || 'kira'; r.method = r.method || 'dekont'; }
+  if (table.startsWith('site_')){ r.id = r.id || uuid(); r.created_at = r.created_at || now(); }
+  if (table === 'site_residents'){ r.code = r.code || 'S' + Math.random().toString(16).slice(2, 9).toUpperCase().padEnd(7, '0'); r.user_id = r.user_id || null; r.lives_here = r.lives_here !== false; }
+  if (table === 'site_units'){ r.payer = r.payer || 'kiraci'; r.block = r.block || ''; }
+  if (table === 'site_charges'){ r.status = r.status || 'open'; r.paid_amount = r.paid_amount || 0; r.title = r.title || ''; r.method = r.method || 'dekont'; }
+  if (table === 'site_requests'){ r.status = r.status || 0; r.reply = r.reply || ''; }
   if (table === 'invites'){ r.code = r.code || Math.random().toString(36).slice(2, 10).toUpperCase(); r.created_at = now(); r.accepted_by = null; }
   if (table === 'messages'){ r.at = r.at || now(); if (r.by_user === undefined) r.by_user = db.session?.user.id || null; }
   if (table === 'notifications'){ r.id = (db.tables.notifications.reduce((m, x) => Math.max(m, x.id), 0) || 0) + 1; r.created_at = now(); r.read_at = null; }
@@ -82,6 +88,17 @@ function visible(db, table, row, actor){
   if (table === 'payments') return roleIn(db, actor, row.property_id) === 'tenant' || reviewOk(db, 'payment', row.property_id, payRef(row));
   if (table === 'documents') return row.uploaded_by === actor || reviewOk(db, 'document', row.property_id, row.id);
   if (table === 'reviews') return row.uploader === actor;
+  // Site: yönetim (kurum üyesi) hepsini, sakin yalnız kendi dairesini ve kendi taleplerini görür (schema.sql 17. bölüm).
+  if (table.startsWith('site_') && row.org_id){
+    if ((db.tables.org_members || []).some(m => m.org_id === row.org_id && m.user_id === actor)) return true;
+    const mine = db.tables.site_residents.filter(r => r.user_id === actor);
+    if (table === 'site_units') return mine.some(r => r.unit_id === row.id);
+    if (table === 'site_charges') return mine.some(r => r.unit_id === row.unit_id);
+    if (table === 'site_residents') return row.user_id === actor;
+    if (table === 'site_announcements') return mine.some(r => r.org_id === row.org_id);
+    if (table === 'site_requests') return row.user_id === actor;
+    return false;
+  }
   return true;
 }
 
@@ -395,6 +412,20 @@ export function createClient(url, key, opts){
           const c = code(); T.org_invites.push({ code:c, org_id:A.oid, role_id:null, master:true, email:mail, expires_at:new Date(Date.now() + 14 * 864e5).toISOString(), accepted_by:null });
           audit('org.master_invite', A.oid, { email:mail }); return ok({ status:'invited', code:c });
         }
+      }
+      if (name === 'my_site_units'){
+        const T = db.tables;
+        return { data: T.site_residents.filter(r => r.user_id === me).map(r => {
+          const u = T.site_units.find(x => x.id === r.unit_id) || {}, o = (T.organizations || []).find(x => x.id === u.org_id) || {};
+          return { unit_id:u.id, org_id:o.id, org:o.name, block:u.block || '', no:u.no, area:u.area ?? null, aidat:u.aidat ?? null, payer:u.payer || 'kiraci', role:r.role, lives_here:r.lives_here };
+        }), error:null };
+      }
+      if (name === 'accept_site_invite'){
+        const r = db.tables.site_residents.find(x => x.code === String(args.invite_code).trim().toUpperCase());
+        if (!r) return { data:null, error:{ message:'Davet kodu bulunamadı', code:'P0002' } };
+        if (r.user_id && r.user_id !== me) return { data:null, error:{ message:'Bu davet kullanılmış', code:'22023' } };
+        r.user_id = me; persist(db);
+        return { data:r.unit_id, error:null };
       }
       if (name === 'is_admin') return { data: !!me && isAdmin(db, me), error:null };
       if (name === 'admin_users'){

@@ -3,6 +3,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Image, Linking, Pressable, Share, Text as RNText, TextInput, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { myOrgs } from '../domain/org';
+import { mySiteUnits } from '../domain/site';
 import { useRouter } from 'expo-router';
 import {
   S, ui, setTheme, CATS, COST_OPTS, STEPS, EXPENSE_CATS, DEDUCTION_PRESETS, PROP_TYPES, DEPOSIT_KINDS, TENANT_KINDS, REQ_SUGGEST, isCommercial, docCatsFor
@@ -180,6 +181,18 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
             <PressScale onPress={() => open('abonelik')} accessibilityRole="button" scaleTo={0.99} style={{ padding: 16, borderRadius: radius.lg, backgroundColor: c.tile, gap: 2 }}>
               <Label>{t('Paketin')}</Label>
               <Row between><Text v="body" style={{ fontFamily: fonts.bodyBold }}>{subSummary()}</Text><Muted>›</Muted></Row>
+            </PressScale>
+          ) : null}
+          {mySiteUnits().length ? (
+            <PressScale onPress={() => { if (!page) close(); router.push('/uygulama/sitem' as any); }} accessibilityRole="link" scaleTo={0.99} style={{ padding: 16, borderRadius: radius.lg, backgroundColor: c.tile, gap: 2 }}>
+              <Label>{t('Sitem')}</Label>
+              <Row between><Text v="body" style={{ fontFamily: fonts.bodyBold }}>{t('Aidat, duyurular ve yönetime talep')}</Text><Muted>›</Muted></Row>
+            </PressScale>
+          ) : null}
+          {myOrgs().some((o: any) => o.sector === 'site') ? (
+            <PressScale onPress={() => { if (!page) close(); router.push('/uygulama/site' as any); }} accessibilityRole="link" scaleTo={0.99} style={{ padding: 16, borderRadius: radius.lg, backgroundColor: c.tile, gap: 2 }}>
+              <Label>{t('Site yönetimi')}</Label>
+              <Row between><Text v="body" style={{ fontFamily: fonts.bodyBold }}>{t('Daireler, tahakkuk, giderler, duyurular')}</Text><Muted>›</Muted></Row>
             </PressScale>
           ) : null}
           {myOrgs().length ? (

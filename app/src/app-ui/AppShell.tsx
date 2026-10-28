@@ -7,6 +7,7 @@ import { can, canAny, isTeam, memberRole, roleLabel } from '../domain/team';
 import { t } from '../domain/i18n';
 import { toApp } from '../domain/nav';
 import { myOrgs } from '../domain/org';
+import { mySiteUnits } from '../domain/site';
 import { PressScale, Text } from '../ui/kit';
 import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
 import { Icon } from './blocks';
@@ -21,7 +22,12 @@ type Item = { label: string; icon: string; path: string; badge?: number };
 const SETTINGS = '/uygulama/ayarlar';
 
 // Kurum yöneticisi (her hesap türü olabilir) menüde kurumunu görür.
-const orgItem = (): Item[] => (myOrgs().length ? [{ label: t('Kurum'), icon: 'office', path: '/uygulama/kurum' }] : []);
+// Site yöneticisi "Site", sitede dairesi olan (malik ya da kiracı) "Sitem" ekranını görür.
+const orgItem = (): Item[] => [
+  ...(myOrgs().some((o: any) => o.sector === 'site') ? [{ label: t('Site'), icon: 'grid', path: '/uygulama/site' }] : []),
+  ...(myOrgs().length ? [{ label: t('Kurum'), icon: 'office', path: '/uygulama/kurum' }] : []),
+  ...(mySiteUnits().length ? [{ label: t('Sitem'), icon: 'home', path: '/uygulama/sitem' }] : [])
+];
 
 function items(): { tabs: Item[]; extra: Item[] } {
   if (ui.role === 'tenant') {

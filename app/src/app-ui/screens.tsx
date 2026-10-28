@@ -24,6 +24,7 @@ import { useStore } from './hooks';
 import { useSheet } from './overlays';
 import { MailReportCard } from './report-mail';
 import { JoinBanner } from './JoinCode';
+import { SiteTeaser } from './site';
 import {
   AgendaBody, AgendaSection, InspectTabs, RenewalCard, RentHero, SecDocs, SecExpenses, SecInspect, SecMoveOut, SecMsg, SecPay, SecReq, ReqCard, stopajLine, useGo
 } from './sections';
@@ -97,7 +98,7 @@ export function TenantPanel() {
   const go = useGo();
   const colors = useColors();
   const p = P(S.myHome);
-  if (!p) return <Page title={t('Panel')}><Empty>{t('Davet koduyla mülküne bağlandığında kira durumu, talepler ve belgeler burada görünür.')}</Empty></Page>;
+  if (!p) return <Page title={t('Panel')}><SiteTeaser go={go} /><Empty>{t('Davet koduyla mülküne bağlandığında kira durumu, talepler ve belgeler burada görünür.')}</Empty></Page>;
   const o = p.landlord;
   const me = meTenant(p);
   const mates = p.tenants.filter((x: any) => x.id !== me?.id);
@@ -114,6 +115,7 @@ export function TenantPanel() {
         {mates.map((x: any) => <PersonRow key={x.id} abbr={initials(x.name)} name={x.name} sub={t('Diğer kiracı')} />)}
       </Card>
       <RentHero p={p} />
+      <SiteTeaser go={go} />
       <RenewalCard p={p} />
       {p.moveOut && !p.moveOut.refunded ? <MoveOutTeaser p={p} to="/kiraci/belgeler/cikis" /> : null}
       <Row wrap gap={10}>

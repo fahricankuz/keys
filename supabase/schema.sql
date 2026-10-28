@@ -2709,3 +2709,308 @@ begin
   execute 'drop policy if exists not_banned on public.org_members';
   execute 'create policy not_banned on public.org_members as restrictive for all to authenticated using (not public.is_banned()) with check (not public.is_banned())';
 end $$;
+
+-- ---------------------------------------------------------------------
+-- 17. Site yönetimi (kurumsal yol planı Faz 2)
+-- ---------------------------------------------------------------------
+-- Sektörü "site" olan kurum: bloklar ve daireler (site_units), her dairenin malik ve kiracıları (site_residents),
+-- aylık tahakkuklar (site_charges: aidat, yakıt, demirbaş, özel toplama), ortak giderler, duyurular ve yönetime talepler.
+-- Yönetim tarafı kurumun rol yetkileriyle (org_can), sakin tarafı dairedeki kaydıyla erişir. Sakin dekontu yönetim onaylar.
+-- Aidatı varsayılan olarak kiracı öder (daire bazında değişir); malik dairesinin tahakkuklarını her zaman görür.
+
+create table if not exists public.site_units (
+  id         uuid primary key default gen_random_uuid(),
+  org_id     uuid not null references public.organizations(id) on delete cascade,
+  block      text not null default '' check (length(block) <= 40),
+  no         text not null check (length(btrim(no)) between 1 and 20),
+  area       numeric check (area is null or area > 0),
+  share      numeric check (share is null or share > 0),
+  aidat      numeric check (aidat is null or aidat >= 0),
+  payer      text not null default 'kiraci' check (payer in ('kiraci','malik')),
+  note       text not null default '' check (length(note) <= 500),
+  created_at timestamptz not null default now(),
+  unique (org_id, block, no)
+);
+
+create table if not exists public.site_residents (
+  id         uuid primary key default gen_random_uuid(),
+  org_id     uuid not null references public.organizations(id) on delete cascade,
+  unit_id    uuid not null references public.site_units(id) on delete cascade,
+  user_id    uuid references public.profiles(id) on delete set null,
+  role       text not null check (role in ('malik','kiraci')),
+  name       text not null default '' check (length(name) <= 120),
+  phone      text not null default '' check (length(phone) <= 30),
+  email      text not null default '' check (length(email) <= 200),
+  lives_here boolean not null default true,
+  code       text not null unique default ('S' || upper(substr(md5(gen_random_uuid()::text), 1, 7))),
+  created_at timestamptz not null default now()
+);
+create index if not exists site_residents_user on public.site_residents (user_id);
+create index if not exists site_residents_unit on public.site_residents (unit_id);
+
+create table if not exists public.site_charges (
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null references public.organizations(id) on delete cascade,
+  unit_id       uuid not null references public.site_units(id) on delete cascade,
+  month         text not null check (month ~ '^\d{4}-(0[1-9]|1[0-2])$'),
+  kind          text not null default 'aidat' check (kind in ('aidat','yakit','demirbas','ozel')),
+  title         text not null default '' check (length(title) <= 120),
+  amount        numeric not null check (amount >= 0),
+  status        text not null default 'open' check (status in ('open','review','partial','paid','rejected')),
+  paid_amount   numeric not null default 0 check (paid_amount >= 0),
+  paid_on       date,
+  receipt_name  text not null default '',
+  receipt_path  text,
+  note          text,
+  reject_reason text,
+  method        text not null default 'dekont' check (method in ('dekont','havale','nakit','pos')),
+  paid_by       uuid references public.profiles(id) on delete set null,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+  unique (unit_id, month, kind, title)
+);
+create index if not exists site_charges_org on public.site_charges (org_id, month);
+
+create table if not exists public.site_expenses (
+  id         uuid primary key default gen_random_uuid(),
+  org_id     uuid not null references public.organizations(id) on delete cascade,
+  cat        text not null check (length(cat) between 1 and 60),
+  amount     numeric not null check (amount >= 0),
+  spent_on   date not null default current_date,
+  note       text not null default '' check (length(note) <= 500),
+  created_by uuid references public.profiles(id) on delete set null default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.site_announcements (
+  id         uuid primary key default gen_random_uuid(),
+  org_id     uuid not null references public.organizations(id) on delete cascade,
+  title      text not null check (length(btrim(title)) between 2 and 120),
+  body       text not null default '' check (length(body) <= 4000),
+  created_by uuid references public.profiles(id) on delete set null default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.site_requests (
+  id         uuid primary key default gen_random_uuid(),
+  org_id     uuid not null references public.organizations(id) on delete cascade,
+  unit_id    uuid references public.site_units(id) on delete set null,
+  user_id    uuid references public.profiles(id) on delete set null default auth.uid(),
+  cat        text not null default 'genel' check (cat in ('ariza','aidat','genel')),
+  title      text not null check (length(btrim(title)) between 2 and 120),
+  body       text not null default '' check (length(body) <= 4000),
+  status     int not null default 0 check (status between 0 and 3),
+  reply      text not null default '' check (length(reply) <= 4000),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+/** Oturumdaki kişi bu dairenin maliki ya da kiracısı mı? (rolü döner) */
+create or replace function public.site_role(unit uuid)
+returns text language sql stable security definer set search_path = public as $$
+  select case when bool_or(role = 'malik') then 'malik' when bool_or(role = 'kiraci') then 'kiraci' end
+  from public.site_residents where unit_id = unit and user_id = auth.uid()
+$$;
+/** Oturumdaki kişi bu sitede oturan ya da daire sahibi mi? */
+create or replace function public.is_site_resident(oid uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.site_residents where org_id = oid and user_id = auth.uid())
+$$;
+grant execute on function public.site_role(uuid), public.is_site_resident(uuid) to authenticated;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists not_banned on public.%I', t);
+    execute format('create policy not_banned on public.%I as restrictive for all to authenticated using (not public.is_banned()) with check (not public.is_banned())', t);
+  end loop;
+end $$;
+
+drop policy if exists su_read on public.site_units;
+create policy su_read on public.site_units for select to authenticated
+  using (public.is_org_member(org_id) or public.site_role(id) is not null or public.is_admin());
+drop policy if exists su_write on public.site_units;
+create policy su_write on public.site_units for all to authenticated
+  using (public.org_can(org_id, 'units.manage')) with check (public.org_can(org_id, 'units.manage'));
+
+drop policy if exists sr_read on public.site_residents;
+create policy sr_read on public.site_residents for select to authenticated
+  using (public.is_org_member(org_id) or user_id = auth.uid() or public.is_admin());
+drop policy if exists sr_write on public.site_residents;
+create policy sr_write on public.site_residents for all to authenticated
+  using (public.org_can(org_id, 'residents.manage'))
+  with check (public.org_can(org_id, 'residents.manage') and exists (select 1 from public.site_units u where u.id = unit_id and u.org_id = site_residents.org_id));
+
+drop policy if exists sc_read on public.site_charges;
+create policy sc_read on public.site_charges for select to authenticated
+  using (public.is_org_member(org_id) or public.site_role(unit_id) is not null or public.is_admin());
+drop policy if exists sc_insert on public.site_charges;
+create policy sc_insert on public.site_charges for insert to authenticated
+  with check (public.org_can(org_id, 'charges.manage') and exists (select 1 from public.site_units u where u.id = unit_id and u.org_id = site_charges.org_id));
+drop policy if exists sc_update on public.site_charges;
+create policy sc_update on public.site_charges for update to authenticated
+  using (public.org_can(org_id, 'charges.manage') or public.org_can(org_id, 'payments.approve') or public.site_role(unit_id) is not null)
+  with check (public.org_can(org_id, 'charges.manage') or public.org_can(org_id, 'payments.approve') or public.site_role(unit_id) is not null);
+drop policy if exists sc_delete on public.site_charges;
+create policy sc_delete on public.site_charges for delete to authenticated
+  using (public.org_can(org_id, 'charges.manage') and status = 'open');
+
+/** Tahakkuk koruması: sakin yalnızca ödeme bilgisini girip onaya gönderir; onay ve tutar yönetimin yetkisindedir. */
+create or replace function public.guard_site_charges()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  approve boolean := public.org_can(new.org_id, 'payments.approve');
+  manage boolean := public.org_can(new.org_id, 'charges.manage');
+begin
+  new.updated_at := now();
+  if auth.uid() is null or public.is_admin() then return new; end if;
+  if new.org_id <> old.org_id or new.unit_id <> old.unit_id then raise exception 'Tahakkuk taşınamaz' using errcode = '42501'; end if;
+  if not manage and (new.amount <> old.amount or new.kind <> old.kind or new.title <> old.title or new.month <> old.month) then
+    raise exception 'Tahakkuku yalnızca yönetim değiştirebilir' using errcode = '42501';
+  end if;
+  if approve then return new; end if;
+  if manage and new.status = old.status and new.paid_amount = old.paid_amount then return new; end if;
+  -- Sakin: ödenmiş tahakkuku değiştiremez, yalnızca dekontla onaya gönderir.
+  if old.status = 'paid' then raise exception 'Ödenmiş tahakkuk değiştirilemez' using errcode = '42501'; end if;
+  if new.status <> 'review' then raise exception 'Ödemeyi yalnızca yönetim onaylayabilir' using errcode = '42501'; end if;
+  if new.paid_amount <= 0 then raise exception 'Ödenen tutarı yaz' using errcode = '22023'; end if;
+  new.paid_by := auth.uid();
+  new.reject_reason := null;
+  new.method := 'dekont';
+  return new;
+end $$;
+drop trigger if exists guard_site_charges on public.site_charges;
+create trigger guard_site_charges before update on public.site_charges for each row execute function public.guard_site_charges();
+
+drop policy if exists se_read on public.site_expenses;
+create policy se_read on public.site_expenses for select to authenticated
+  using (public.org_can(org_id, 'expenses.manage') or public.org_can(org_id, 'reports.view') or public.is_admin());
+drop policy if exists se_write on public.site_expenses;
+create policy se_write on public.site_expenses for all to authenticated
+  using (public.org_can(org_id, 'expenses.manage')) with check (public.org_can(org_id, 'expenses.manage'));
+
+drop policy if exists sa_read on public.site_announcements;
+create policy sa_read on public.site_announcements for select to authenticated
+  using (public.is_org_member(org_id) or public.is_site_resident(org_id) or public.is_admin());
+drop policy if exists sa_write on public.site_announcements;
+create policy sa_write on public.site_announcements for all to authenticated
+  using (public.org_can(org_id, 'announce')) with check (public.org_can(org_id, 'announce') and created_by = auth.uid());
+
+drop policy if exists sq_read on public.site_requests;
+create policy sq_read on public.site_requests for select to authenticated
+  using (public.is_org_member(org_id) or user_id = auth.uid() or public.is_admin());
+drop policy if exists sq_insert on public.site_requests;
+create policy sq_insert on public.site_requests for insert to authenticated
+  with check (user_id = auth.uid() and status = 0 and reply = ''
+              and exists (select 1 from public.site_residents r where r.org_id = site_requests.org_id and r.user_id = auth.uid()
+                          and (site_requests.unit_id is null or r.unit_id = site_requests.unit_id)));
+drop policy if exists sq_update on public.site_requests;
+create policy sq_update on public.site_requests for update to authenticated
+  using (public.org_can(org_id, 'requests.manage')) with check (public.org_can(org_id, 'requests.manage'));
+
+/** Kurum yönetiminde bu yetkisi olanlar (bildirim alıcıları). */
+create or replace function public.org_people(oid uuid, perm text)
+returns setof uuid language sql stable security definer set search_path = public as $$
+  select m.user_id from public.org_members m left join public.org_roles r on r.id = m.role_id
+  where m.org_id = oid and (m.is_master or perm = any(coalesce(r.perms, '{}')))
+$$;
+revoke execute on function public.org_people(uuid, text) from public, anon, authenticated;
+
+create or replace function public.unit_label(unit uuid)
+returns text language sql stable security definer set search_path = public as $$
+  select case when block <> '' then block || ' Blok ' else '' end || 'No ' || no from public.site_units where id = unit
+$$;
+revoke execute on function public.unit_label(uuid) from public, anon, authenticated;
+
+/** Bildirimler: dekont geldi (yönetime), onay/red (ödeyene), duyuru (sakinlere), talep (yönetime ve talep sahibine). */
+create or replace function public.on_site_charge_change()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare lbl text := public.unit_label(new.unit_id);
+begin
+  if new.status = 'review' and old.status is distinct from 'review' then
+    insert into public.notifications (user_id, title, body, url)
+    select u, lbl || ': dekont geldi', new.month || ' ' || case new.kind when 'aidat' then 'aidatı' else coalesce(nullif(new.title, ''), 'tahakkuk') end
+             || ' için ' || public.fmt_tl(new.paid_amount) || ' ödendi.', '/uygulama/site'
+    from public.org_people(new.org_id, 'payments.approve') u where u is distinct from auth.uid();
+  elsif new.status in ('paid','partial','rejected') and old.status = 'review' and new.paid_by is not null then
+    insert into public.notifications (user_id, title, body, url)
+    values (new.paid_by, case when new.status = 'rejected' then 'Dekont reddedildi' else 'Ödemen onaylandı' end,
+            lbl || ' · ' || new.month || case when new.status = 'rejected' then ': ' || coalesce(new.reject_reason, '') else '' end, '/uygulama/sitem');
+  end if;
+  return new;
+end $$;
+drop trigger if exists on_site_charge_change on public.site_charges;
+create trigger on_site_charge_change after update on public.site_charges for each row execute function public.on_site_charge_change();
+
+create or replace function public.on_site_announcement()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.notifications (user_id, title, body, url)
+  select distinct r.user_id, 'Duyuru: ' || new.title, left(new.body, 240), '/uygulama/sitem'
+  from public.site_residents r where r.org_id = new.org_id and r.user_id is not null;
+  return new;
+end $$;
+drop trigger if exists on_site_announcement on public.site_announcements;
+create trigger on_site_announcement after insert on public.site_announcements for each row execute function public.on_site_announcement();
+
+create or replace function public.on_site_request()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    insert into public.notifications (user_id, title, body, url)
+    select u, coalesce(public.unit_label(new.unit_id) || ': ', '') || 'yeni talep', new.title, '/uygulama/site'
+    from public.org_people(new.org_id, 'requests.manage') u;
+  elsif (new.status <> old.status or new.reply <> old.reply) and new.user_id is not null then
+    insert into public.notifications (user_id, title, body, url)
+    values (new.user_id, 'Talebin güncellendi', new.title || case when new.reply <> '' then ': ' || left(new.reply, 200) else '' end, '/uygulama/sitem');
+  end if;
+  return null;
+end $$;
+drop trigger if exists on_site_request on public.site_requests;
+create trigger on_site_request after insert or update on public.site_requests for each row execute function public.on_site_request();
+
+/** Daire davet kodunu kabul eder: kayıt oturumdaki hesaba bağlanır (malik ya da kiracı olarak). */
+create or replace function public.accept_site_invite(invite_code text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare r public.site_residents;
+begin
+  if auth.uid() is null then raise exception 'Oturum açılmamış' using errcode = '42501'; end if;
+  if public.is_banned() then raise exception 'Hesap askıya alındı' using errcode = '42501'; end if;
+  select * into r from public.site_residents where code = upper(btrim(invite_code)) for update;
+  if r.id is null then raise exception 'Davet kodu bulunamadı' using errcode = 'P0002'; end if;
+  if r.user_id is not null and r.user_id <> auth.uid() then raise exception 'Bu davet kullanılmış' using errcode = '22023'; end if;
+  update public.site_residents set user_id = auth.uid() where id = r.id;
+  return r.unit_id;
+end $$;
+grant execute on function public.accept_site_invite(text) to authenticated;
+
+/** Sakinin daireleri: site, daire, rolü, aidatı kimin ödediği. */
+create or replace function public.my_site_units()
+returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'unit_id', u.id, 'org_id', o.id, 'org', o.name, 'block', u.block, 'no', u.no, 'area', u.area, 'aidat', u.aidat,
+    'payer', u.payer, 'role', r.role, 'lives_here', r.lives_here) order by o.name, u.block, u.no), '[]'::jsonb)
+  from public.site_residents r join public.site_units u on u.id = r.unit_id join public.organizations o on o.id = u.org_id
+  where r.user_id = auth.uid()
+$$;
+grant execute on function public.my_site_units() to authenticated;
+
+-- Dosyalar: site dekontları "site-<kurum>/<dosya>" klasöründe; yönetim ve o sitenin sakinleri erişir.
+create or replace function public.site_folder_ok(folder text)
+returns boolean language plpgsql stable security definer set search_path = public as $$
+declare oid uuid;
+begin
+  if folder is null or folder !~ '^site-[0-9a-f-]{36}$' then return false; end if;
+  oid := substr(folder, 6)::uuid;
+  return public.is_org_member(oid) or public.is_site_resident(oid);
+end $$;
+grant execute on function public.site_folder_ok(text) to authenticated;
+drop policy if exists site_files_read on storage.objects;
+create policy site_files_read on storage.objects for select to authenticated
+  using (bucket_id = 'evim' and public.site_folder_ok((storage.foldername(name))[1]));
+drop policy if exists site_files_write on storage.objects;
+create policy site_files_write on storage.objects for insert to authenticated
+  with check (bucket_id = 'evim' and public.site_folder_ok((storage.foldername(name))[1]));
+
