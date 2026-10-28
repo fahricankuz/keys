@@ -2922,6 +2922,13 @@ create or replace function public.unit_label(unit uuid)
 returns text language sql stable security definer set search_path = public as $$
   select case when block <> '' then block || ' Blok ' else '' end || 'No ' || no from public.site_units where id = unit
 $$;
+
+/** Tahakkuk kaleminin bildirimdeki adı ("Kasım aidatı", "Kasım kirası"…). */
+create or replace function public.charge_word(k text, title text)
+returns text language sql immutable as $$
+  select case k when 'aidat' then 'aidatı' when 'kira' then 'kirası' when 'ortak_gider' then 'ortak gideri' when 'ciro' then 'ciro farkı'
+                when 'yakit' then 'yakıt payı' when 'demirbas' then 'demirbaş payı' else coalesce(nullif(title, ''), 'tahakkuku') end
+$$;
 revoke execute on function public.unit_label(uuid) from public, anon, authenticated;
 
 /** Bildirimler: dekont geldi (yönetime), onay/red (ödeyene), duyuru (sakinlere), talep (yönetime ve talep sahibine). */
@@ -2931,7 +2938,7 @@ declare lbl text := public.unit_label(new.unit_id);
 begin
   if new.status = 'review' and old.status is distinct from 'review' then
     insert into public.notifications (user_id, title, body, url)
-    select u, lbl || ': dekont geldi', new.month || ' ' || case new.kind when 'aidat' then 'aidatı' else coalesce(nullif(new.title, ''), 'tahakkuk') end
+    select u, lbl || ': dekont geldi', new.month || ' ' || public.charge_word(new.kind, new.title)
              || ' için ' || public.fmt_tl(new.paid_amount) || ' ödendi.', '/uygulama/site'
     from public.org_people(new.org_id, 'payments.approve') u where u is distinct from auth.uid();
   elsif new.status in ('paid','partial','rejected') and old.status = 'review' and new.paid_by is not null then
@@ -3134,7 +3141,7 @@ declare before int;
 begin
   select count(*) into before from public.notifications;
   with due as (
-    select c.*, (date_trunc('month', to_date(c.month, 'YYYY-MM')) + interval '1 month' - interval '1 day')::date as last_day,
+    select c.*, coalesce(c.due_on, (date_trunc('month', to_date(c.month, 'YYYY-MM')) + interval '1 month' - interval '1 day')::date) as last_day,
            u.payer, public.unit_label(c.unit_id) as lbl
     from public.site_charges c join public.site_units u on u.id = c.unit_id
     join public.organizations o on o.id = c.org_id and o.status = 'active'
@@ -3159,8 +3166,8 @@ begin
   )
   insert into public.notifications (user_id, title, body, url, tag)
   select distinct on (w.user_id, w.id) w.user_id,
-         case when w.st in ('late','late2') then w.lbl || ': aidat gecikti' else w.lbl || ': aidat günü yaklaşıyor' end,
-         to_char(to_date(w.month, 'YYYY-MM'), 'MM.YYYY') || ' ' || case w.kind when 'aidat' then 'aidatı' else coalesce(nullif(w.title, ''), 'tahakkuk') end
+         w.lbl || case when w.kind = 'kira' then ': kira ' else ': aidat ' end || case when w.st in ('late','late2') then 'gecikti' else 'günü yaklaşıyor' end,
+         to_char(to_date(w.month, 'YYYY-MM'), 'MM.YYYY') || ' ' || public.charge_word(w.kind, w.title)
            || ' ' || public.fmt_tl(w.amount - case when w.status = 'partial' then w.paid_amount else 0 end)
            || case when w.st in ('late','late2') then ', son gün ' || to_char(w.last_day, 'DD.MM.YYYY') || ' idi.' else ', son gün ' || to_char(w.last_day, 'DD.MM.YYYY') || '.' end,
          '/uygulama/sitem', 'aidat-' || w.st || '-' || w.id
@@ -3196,6 +3203,7 @@ begin
   end if;
   return jsonb_build_object(
     'org', (select name from public.organizations where id = oid),
+    'sector', (select sector from public.organizations where id = oid),
     'period', period, 'from', d0, 'to', d1 - 1,
     'units', (select count(*) from public.site_units where org_id = oid),
     'charges', (select coalesce(jsonb_agg(x order by x.kind), '[]'::jsonb) from (
@@ -3225,6 +3233,182 @@ returns table (org_id uuid, user_id uuid, email text, name text, lang text) lang
   from public.organizations o
   cross join lateral public.org_people(o.id, 'reports.view') pp(uid)
   join public.profiles p on p.id = pp.uid join auth.users u on u.id = p.id
-  where o.sector = 'site' and o.status = 'active' and coalesce((p.settings ->> 'siteReport')::boolean, true)
+  where o.sector in ('site','avm','depo','gyo') and o.status = 'active' and coalesce((p.settings ->> 'siteReport')::boolean, true)
 $$;
 revoke execute on function public.site_report_recipients() from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- 19. Ticari portföy: AVM, depo ve GYO (kurumsal yol planı Faz 3)
+-- ---------------------------------------------------------------------
+-- Site altyapısı (birim, sakin, tahakkuk, gider, duyuru, talep) ticari kurumlarda da kullanılır; birime kira sözleşmesi
+-- bilgisi eklenir. Tahakkuk türleri: kira, ortak alan gideri (ortak_gider), ciro farkı (ciro). Döviz kirası tahakkuk anında
+-- girilen kurla TL'ye çevrilir (asıl tutar ve kur saklanır). Ciroya bağlı kira: kiracı aylık cirosunu bildirir, yönetim onaylayınca
+-- "cironun %X'i sabit kirayı aşarsa aradaki fark" tahakkuk edilir. Endeksleme: sözleşme yıldönümünde TÜFE (12 aylık ortalama) ya da
+-- sözleşmedeki sabit oranla artış; her değişiklik site_rent_changes'e yazılır.
+
+alter table public.site_units add column if not exists rent          numeric check (rent is null or rent >= 0);
+alter table public.site_units add column if not exists currency      text not null default 'TRY';
+alter table public.site_units add column if not exists turnover_rate numeric check (turnover_rate is null or (turnover_rate >= 0 and turnover_rate <= 100));
+alter table public.site_units add column if not exists lease_start   date;
+alter table public.site_units add column if not exists lease_end     date;
+alter table public.site_units add column if not exists index_kind    text not null default 'tufe';
+alter table public.site_units add column if not exists index_rate    numeric check (index_rate is null or (index_rate >= 0 and index_rate <= 100));
+alter table public.site_units add column if not exists vat           boolean not null default false;
+alter table public.site_units add column if not exists stopaj        boolean not null default false;
+alter table public.site_units add column if not exists due_day       int check (due_day is null or due_day between 1 and 28);
+alter table public.site_units drop constraint if exists site_units_currency_check;
+alter table public.site_units add constraint site_units_currency_check check (currency in ('TRY','USD','EUR'));
+alter table public.site_units drop constraint if exists site_units_index_kind_check;
+alter table public.site_units add constraint site_units_index_kind_check check (index_kind in ('tufe','sabit','yok'));
+alter table public.site_units drop constraint if exists site_units_tax_check;
+alter table public.site_units add constraint site_units_tax_check check (not (vat and stopaj));
+
+alter table public.site_charges drop constraint if exists site_charges_kind_check;
+alter table public.site_charges add constraint site_charges_kind_check check (kind in ('aidat','yakit','demirbas','ozel','kira','ortak_gider','ciro'));
+alter table public.site_charges add column if not exists currency    text not null default 'TRY';
+alter table public.site_charges add column if not exists fx          numeric check (fx is null or fx > 0);
+alter table public.site_charges add column if not exists orig_amount numeric check (orig_amount is null or orig_amount >= 0);
+alter table public.site_charges add column if not exists due_on      date;
+alter table public.site_charges drop constraint if exists site_charges_currency_check;
+alter table public.site_charges add constraint site_charges_currency_check check (currency in ('TRY','USD','EUR'));
+
+/** Sakin tahakkukun tutar, kur ve vadesini de değiştiremez (18. bölümdeki korumaya ek alanlar). */
+create or replace function public.guard_site_charges()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  approve boolean := public.org_can(new.org_id, 'payments.approve');
+  manage boolean := public.org_can(new.org_id, 'charges.manage');
+begin
+  new.updated_at := now();
+  if auth.uid() is null or public.is_admin() then return new; end if;
+  if new.org_id <> old.org_id or new.unit_id <> old.unit_id then raise exception 'Tahakkuk taşınamaz' using errcode = '42501'; end if;
+  if not manage and (new.amount <> old.amount or new.kind <> old.kind or new.title <> old.title or new.month <> old.month
+                     or new.currency <> old.currency or new.fx is distinct from old.fx or new.orig_amount is distinct from old.orig_amount
+                     or new.due_on is distinct from old.due_on) then
+    raise exception 'Tahakkuku yalnızca yönetim değiştirebilir' using errcode = '42501';
+  end if;
+  if approve then return new; end if;
+  if manage and new.status = old.status and new.paid_amount = old.paid_amount then return new; end if;
+  if old.status = 'paid' then raise exception 'Ödenmiş tahakkuk değiştirilemez' using errcode = '42501'; end if;
+  if new.status <> 'review' then raise exception 'Ödemeyi yalnızca yönetim onaylayabilir' using errcode = '42501'; end if;
+  if new.paid_amount <= 0 then raise exception 'Ödenen tutarı yaz' using errcode = '22023'; end if;
+  new.paid_by := auth.uid();
+  new.reject_reason := null;
+  new.method := 'dekont';
+  return new;
+end $$;
+
+/** Birim etiketi: sitede "A Blok No 3", ticari kurumlarda "Zemin kat · Z-12". */
+create or replace function public.unit_label(unit uuid)
+returns text language sql stable security definer set search_path = public as $$
+  select case when o.sector = 'site' then case when u.block <> '' then u.block || ' Blok ' else '' end || 'No ' || u.no
+              else case when u.block <> '' then u.block || ' · ' else '' end || u.no end
+  from public.site_units u join public.organizations o on o.id = u.org_id where u.id = unit
+$$;
+revoke execute on function public.unit_label(uuid) from public, anon, authenticated;
+
+create table if not exists public.site_rent_changes (
+  id         uuid primary key default gen_random_uuid(),
+  org_id     uuid not null references public.organizations(id) on delete cascade,
+  unit_id    uuid not null references public.site_units(id) on delete cascade,
+  from_date  date not null,
+  old_amount numeric,
+  new_amount numeric not null check (new_amount >= 0),
+  currency   text not null default 'TRY' check (currency in ('TRY','USD','EUR')),
+  reason     text not null default '' check (length(reason) <= 200),
+  created_by uuid references public.profiles(id) on delete set null default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.site_turnovers (
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null references public.organizations(id) on delete cascade,
+  unit_id       uuid not null references public.site_units(id) on delete cascade,
+  month         text not null check (month ~ '^\d{4}-(0[1-9]|1[0-2])$'),
+  amount        numeric not null check (amount >= 0),
+  note          text not null default '' check (length(note) <= 500),
+  status        text not null default 'reported' check (status in ('reported','approved','rejected')),
+  reject_reason text,
+  reported_by   uuid references public.profiles(id) on delete set null default auth.uid(),
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+  unique (unit_id, month)
+);
+
+do $$
+declare t text;
+begin
+  foreach t in array array['site_rent_changes','site_turnovers'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists not_banned on public.%I', t);
+    execute format('create policy not_banned on public.%I as restrictive for all to authenticated using (not public.is_banned()) with check (not public.is_banned())', t);
+  end loop;
+end $$;
+
+drop policy if exists src_read on public.site_rent_changes;
+create policy src_read on public.site_rent_changes for select to authenticated
+  using (public.is_org_member(org_id) or public.site_role(unit_id) is not null or public.is_admin());
+drop policy if exists src_write on public.site_rent_changes;
+create policy src_write on public.site_rent_changes for all to authenticated
+  using (public.org_can(org_id, 'charges.manage')) with check (public.org_can(org_id, 'charges.manage'));
+
+drop policy if exists st_read on public.site_turnovers;
+create policy st_read on public.site_turnovers for select to authenticated
+  using (public.is_org_member(org_id) or public.site_role(unit_id) is not null or public.is_admin());
+drop policy if exists st_insert on public.site_turnovers;
+create policy st_insert on public.site_turnovers for insert to authenticated
+  with check (exists (select 1 from public.site_units u where u.id = unit_id and u.org_id = site_turnovers.org_id)
+              and (public.org_can(org_id, 'charges.manage')
+                   or (public.site_role(unit_id) = 'kiraci' and status = 'reported' and reported_by = auth.uid())));
+drop policy if exists st_update on public.site_turnovers;
+create policy st_update on public.site_turnovers for update to authenticated
+  using (public.org_can(org_id, 'charges.manage') or public.site_role(unit_id) = 'kiraci')
+  with check (public.org_can(org_id, 'charges.manage') or public.site_role(unit_id) = 'kiraci');
+
+/** Ciro koruması: kiracı onaylanmış ciroyu değiştiremez; düzeltme yeniden onaya düşer. Onay/red yönetimde. */
+create or replace function public.guard_site_turnovers()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  new.updated_at := now();
+  if auth.uid() is null or public.is_admin() or public.org_can(new.org_id, 'charges.manage') then return new; end if;
+  if new.unit_id <> old.unit_id or new.month <> old.month or new.org_id <> old.org_id then raise exception 'Ciro kaydı taşınamaz' using errcode = '42501'; end if;
+  if old.status = 'approved' then raise exception 'Onaylanmış ciro değiştirilemez' using errcode = '42501'; end if;
+  new.status := 'reported';
+  new.reject_reason := null;
+  new.reported_by := auth.uid();
+  return new;
+end $$;
+drop trigger if exists guard_site_turnovers on public.site_turnovers;
+create trigger guard_site_turnovers before update on public.site_turnovers for each row execute function public.guard_site_turnovers();
+
+create or replace function public.on_site_turnover()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.status = 'reported' and (tg_op = 'INSERT' or old.status is distinct from 'reported' or old.amount <> new.amount) then
+    insert into public.notifications (user_id, title, body, url)
+    select u, public.unit_label(new.unit_id) || ': ciro bildirildi', new.month || ' cirosu ' || public.fmt_tl(new.amount) || '.', '/uygulama/site'
+    from public.org_people(new.org_id, 'charges.manage') u where u is distinct from auth.uid();
+  elsif tg_op = 'UPDATE' and new.status <> old.status and new.reported_by is not null then
+    insert into public.notifications (user_id, title, body, url)
+    values (new.reported_by, case when new.status = 'approved' then 'Ciro bildirimin onaylandı' else 'Ciro bildirimin reddedildi' end,
+            public.unit_label(new.unit_id) || ' · ' || new.month || coalesce(': ' || new.reject_reason, ''), '/uygulama/sitem');
+  end if;
+  return null;
+end $$;
+drop trigger if exists on_site_turnover on public.site_turnovers;
+create trigger on_site_turnover after insert or update on public.site_turnovers for each row execute function public.on_site_turnover();
+
+/** Sakinin/kiracının birimleri: sektör ve sözleşme özeti de döner (ekran sözcükleri ve ciro bildirimi için). */
+create or replace function public.my_site_units()
+returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'unit_id', u.id, 'org_id', o.id, 'org', o.name, 'sector', o.sector, 'block', u.block, 'no', u.no, 'area', u.area, 'aidat', u.aidat,
+    'payer', u.payer, 'role', l.role, 'rent', u.rent, 'currency', u.currency, 'turnover_rate', u.turnover_rate,
+    'lease_start', u.lease_start, 'lease_end', u.lease_end,
+    'property_id', (select p.id from public.properties p where p.site_unit_id = u.id
+                     and (p.owner_id = auth.uid() or exists (select 1 from public.memberships m where m.property_id = p.id and m.user_id = auth.uid()))
+                     limit 1)) order by o.name, u.block, u.no), '[]'::jsonb)
+  from (select unit_id, case when bool_or(role = 'malik') then 'malik' else 'kiraci' end as role
+          from public.site_links(auth.uid()) group by unit_id) l
+  join public.site_units u on u.id = l.unit_id join public.organizations o on o.id = u.org_id
+$$;

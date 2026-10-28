@@ -7,7 +7,7 @@ const KEY = '__fakedb';
 const TABLES = ['profiles','properties','property_shared','memberships','invites','payments','rent_history',
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
-                'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets'];
+                'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes'];
 
 function load(){
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d){ TABLES.forEach(t => d.tables[t] = d.tables[t] || []); d.tables.payments.forEach(r => { r.kind = r.kind || 'kira'; }); return d; } } catch(e){}
@@ -24,7 +24,7 @@ const KEYS = {
   profiles:['id'], properties:['id'], property_shared:['property_id'], memberships:['property_id','user_id'],
   invites:['code'], payments:['property_id','month','kind'], rent_history:['id'], requests:['id'], messages:['id'],
   documents:['id'], expenses:['id'], notifications:['id'], push_subscriptions:['endpoint'], subscriptions:['user_id'], device_tokens:['token'],
-  site_budgets:['org_id','year'],
+  site_budgets:['org_id','year'], site_turnovers:['unit_id','month'],
   admins:['user_id'], reviews:['kind','property_id','ref_id'], bans:['user_id'], admin_audit:['id']
 };
 
@@ -35,8 +35,9 @@ function defaults(table, row, db){
   if (table.startsWith('site_')){ r.id = r.id || uuid(); r.created_at = r.created_at || now(); }
   if (table === 'site_residents'){ r.code = r.code || 'S' + Math.random().toString(16).slice(2, 9).toUpperCase().padEnd(7, '0'); r.user_id = r.user_id || null; r.lives_here = r.lives_here !== false; }
   if (table === 'site_budgets'){ r.updated_at = now(); }
-  if (table === 'site_units'){ r.payer = r.payer || 'kiraci'; r.block = r.block || ''; }
-  if (table === 'site_charges'){ r.status = r.status || 'open'; r.paid_amount = r.paid_amount || 0; r.title = r.title || ''; r.method = r.method || 'dekont'; }
+  if (table === 'site_turnovers'){ r.status = r.status || 'reported'; r.reported_by = r.reported_by || db.session?.user.id || null; }
+  if (table === 'site_units'){ r.payer = r.payer || 'kiraci'; r.block = r.block || ''; r.currency = r.currency || 'TRY'; r.index_kind = r.index_kind || 'tufe'; r.vat = !!r.vat; r.stopaj = !!r.stopaj; }
+  if (table === 'site_charges'){ r.status = r.status || 'open'; r.paid_amount = r.paid_amount || 0; r.title = r.title || ''; r.method = r.method || 'dekont'; r.currency = r.currency || 'TRY'; }
   if (table === 'site_requests'){ r.status = r.status || 0; r.reply = r.reply || ''; }
   if (table === 'invites'){ r.code = r.code || Math.random().toString(36).slice(2, 10).toUpperCase(); r.created_at = now(); r.accepted_by = null; }
   if (table === 'messages'){ r.at = r.at || now(); if (r.by_user === undefined) r.by_user = db.session?.user.id || null; }
@@ -105,7 +106,7 @@ function visible(db, table, row, actor){
     const mine = siteLinks(db, actor);
     if (table === 'site_budgets') return mine.some(r => r.org_id === row.org_id);
     if (table === 'site_units') return mine.some(r => r.unit_id === row.id);
-    if (table === 'site_charges') return mine.some(r => r.unit_id === row.unit_id);
+    if (table === 'site_charges' || table === 'site_turnovers' || table === 'site_rent_changes') return mine.some(r => r.unit_id === row.unit_id);
     if (table === 'site_residents') return row.user_id === actor;
     if (table === 'site_announcements') return mine.some(r => r.org_id === row.org_id);
     if (table === 'site_requests') return row.user_id === actor;
@@ -431,7 +432,8 @@ export function createClient(url, key, opts){
         return { data: Object.keys(by).map(id => {
           const u = T.site_units.find(x => x.id === id) || {}, o = (T.organizations || []).find(x => x.id === u.org_id) || {};
           const prop = T.properties.find(p => p.site_unit_id === id && (p.owner_id === me || T.memberships.some(m => m.property_id === p.id && m.user_id === me)));
-          return { unit_id:u.id, org_id:o.id, org:o.name, block:u.block || '', no:u.no, area:u.area ?? null, aidat:u.aidat ?? null, payer:u.payer || 'kiraci', role:by[id], property_id: prop ? prop.id : null };
+          return { unit_id:u.id, org_id:o.id, org:o.name, sector:o.sector, block:u.block || '', no:u.no, area:u.area ?? null, aidat:u.aidat ?? null, payer:u.payer || 'kiraci', role:by[id],
+                   rent:u.rent ?? null, currency:u.currency || 'TRY', turnover_rate:u.turnover_rate ?? null, lease_start:u.lease_start || null, lease_end:u.lease_end || null, property_id: prop ? prop.id : null };
         }), error:null };
       }
       if (name === 'link_site_unit'){

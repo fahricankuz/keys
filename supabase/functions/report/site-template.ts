@@ -1,7 +1,7 @@
 // anahtar — site yönetim kurulu raporu e-postası (aylık / yıllık). Saf işlev; görünüm template.ts ile aynı dilde.
 
 export type SiteReport = {
-  org: string; period: 'month' | 'year'; from: string; to: string; units: number;
+  org: string; sector?: string; period: 'month' | 'year'; from: string; to: string; units: number;
   charges: { kind: string; charged: number; collected: number }[];
   expenses: { cat: string; total: number }[];
   budget: { year: number; total: number; approved_on: string | null; items: { cat: string; amount: number }[] } | null;
@@ -12,7 +12,8 @@ export type SiteReport = {
 const C = { tugla: '#C8302E', kirec: '#FAF5F0', kart: '#FFFDFB', baca: '#1D1A19', kahve: '#5C4F4A', duman: '#A39A95',
             kil: '#E8DDD5', fes: '#D5EBD7', fesKoyu: '#2A6B3A', bal: '#F2B544', gul: '#F0CFC8', gulKoyu: '#A8231F' };
 const FONT = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`;
-const KIND: Record<string, string> = { aidat: 'Aidat', yakit: 'Yakıt', demirbas: 'Demirbaş', ozel: 'Özel toplama' };
+const KIND: Record<string, string> = { aidat: 'Aidat', yakit: 'Yakıt', demirbas: 'Demirbaş', ozel: 'Özel toplama',
+  kira: 'Kira', ortak_gider: 'Ortak alan gideri', ciro: 'Ciro farkı' };
 const esc = (s: string) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 const money = (n: number) => '₺' + Math.round(Number(n) || 0).toLocaleString('tr-TR');
 
@@ -24,6 +25,7 @@ export function renderSiteReport(r: SiteReport, o: { name?: string; appUrl: stri
   const spent = r.expenses.reduce((a, x) => a + Number(x.total), 0);
   const pct = charged > 0 ? Math.min(100, Math.round((collected / charged) * 100)) : 0;
   const url = o.appUrl.replace(/\/$/, '') + '/uygulama/site';
+  const site = !r.sector || r.sector === 'site';   // ticari portföyde (AVM, depo, GYO) "birim" ve "portföy" denir
   const row = (a: string, b: string, i: number, color = C.baca) =>
     `<tr><td style="padding:10px 0;${i ? `border-top:1px solid ${C.kil};` : ''}font:600 14px ${FONT};color:${C.baca}">${a}</td>
          <td align="right" style="padding:10px 0;${i ? `border-top:1px solid ${C.kil};` : ''}font:700 14px ${FONT};color:${color}">${b}</td></tr>`;
@@ -44,11 +46,11 @@ export function renderSiteReport(r: SiteReport, o: { name?: string; appUrl: stri
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px">
   <tr><td style="background:${C.tugla};border-radius:28px 28px 0 0;padding:28px 30px 30px">
     <div style="font:800 28px ${FONT};color:${C.kirec};letter-spacing:-1px">anahtar</div>
-    <div style="font:600 13px ${FONT};color:${C.kirec};opacity:.85;margin-top:22px;text-transform:uppercase;letter-spacing:1.2px">${esc(r.org)} · ${r.units} daire</div>
+    <div style="font:600 13px ${FONT};color:${C.kirec};opacity:.85;margin-top:22px;text-transform:uppercase;letter-spacing:1.2px">${esc(r.org)} · ${r.units} ${site ? 'daire' : 'birim'}</div>
     <div style="font:800 32px/1.1 ${FONT};color:${C.kirec};letter-spacing:-1.2px;margin-top:6px">${esc(title.charAt(0).toUpperCase() + title.slice(1))}</div>
   </td></tr>
   <tr><td style="background:${C.kart};border:1px solid ${C.kil};border-top:0;border-radius:0 0 28px 28px;padding:28px 24px 30px">
-    <div style="font:500 16px/1.5 ${FONT};color:${C.baca};padding:0 6px">${o.name ? `Merhaba ${esc(o.name)},` : 'Merhaba,'}<br>Sitenin tahakkuk, tahsilat, gider ve talep özetini hazırladık.</div>
+    <div style="font:500 16px/1.5 ${FONT};color:${C.baca};padding:0 6px">${o.name ? `Merhaba ${esc(o.name)},` : 'Merhaba,'}<br>${site ? 'Sitenin' : 'Portföyün'} tahakkuk, tahsilat, gider ve talep özetini hazırladık.</div>
     <div style="background:${C.baca};border-radius:22px;padding:22px;margin:22px 0 8px">
       <div style="font:600 13px ${FONT};color:${C.duman}">Tahsilat oranı</div>
       <div style="font:800 44px/1.1 ${FONT};color:${C.kirec};letter-spacing:-1.5px;margin-top:4px">%${pct}</div>
@@ -58,13 +60,13 @@ export function renderSiteReport(r: SiteReport, o: { name?: string; appUrl: stri
     ${r.charges.length ? section('Tahakkuk ve tahsilat', r.charges.map((x, i) => row(KIND[x.kind] || esc(x.kind), `${money(x.collected)} / ${money(x.charged)}`, i)).join('')) : ''}
     ${r.expenses.length ? section('Giderler', r.expenses.map((x, i) => row(esc(x.cat), money(x.total), i)).join('')) : ''}
     ${r.budget ? section(`İşletme projesi ${r.budget.year}${r.budget.approved_on ? ' (onaylı)' : ''} · harcanan / öngörülen`, budgetRows) : ''}
-    ${r.debtors.length ? section('Borçlu daireler', r.debtors.map((x, i) => row(esc(x.unit), money(x.unpaid), i, C.gulKoyu)).join('')) : ''}
+    ${r.debtors.length ? section(site ? 'Borçlu daireler' : 'Borçlu birimler', r.debtors.map((x, i) => row(esc(x.unit), money(x.unpaid), i, C.gulKoyu)).join('')) : ''}
     <div style="border:1px solid ${C.kil};border-radius:20px;padding:16px 18px;margin-top:18px;font:500 14px ${FONT};color:${C.kahve}">
       Talepler: <b style="color:${C.baca}">${r.requests.opened}</b> açıldı · <b style="color:${C.baca}">${r.requests.open}</b> açık bekliyor</div>
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:26px auto 0"><tr><td style="background:${C.baca};border-radius:999px">
-      <a href="${esc(url)}" style="display:inline-block;padding:15px 28px;font:700 15px ${FONT};color:${C.kirec};text-decoration:none">Site panelini aç →</a></td></tr></table>
+      <a href="${esc(url)}" style="display:inline-block;padding:15px 28px;font:700 15px ${FONT};color:${C.kirec};text-decoration:none">${site ? 'Site' : 'Portföy'} panelini aç →</a></td></tr></table>
   </td></tr>
-  <tr><td style="padding:22px 20px 0;text-align:center;font:500 12.5px/1.6 ${FONT};color:${C.duman}">Bu e-postayı site yönetiminde “Raporlar” yetkin olduğu için alıyorsun.<br>Ayarlar → Bildirimler bölümünden kapatabilirsin.<br>anahtar · anahtar.io</td></tr>
+  <tr><td style="padding:22px 20px 0;text-align:center;font:500 12.5px/1.6 ${FONT};color:${C.duman}">Bu e-postayı ${site ? 'site yönetiminde' : 'kurumunda'} “Raporlar” yetkin olduğu için alıyorsun.<br>Ayarlar → Bildirimler bölümünden kapatabilirsin.<br>anahtar · anahtar.io</td></tr>
 </table></td></tr></table></body></html>`;
 
   const text = [title, '', `Tahsilat oranı: %${pct} — ${money(charged)} tahakkukun ${money(collected)} tutarı tahsil edildi.`, `Giderler: ${money(spent)}`,

@@ -14,35 +14,47 @@ function must(res){
 }
 const db = async () => client();
 
-/** Tahakkuk türleri. */
-export const KINDS = () => [
-  { key: 'aidat', label: t('Aidat') },
-  { key: 'yakit', label: t('Yakıt') },
-  { key: 'demirbas', label: t('Demirbaş') },
-  { key: 'ozel', label: t('Özel toplama') }
-];
-export const kindLabel = (k, title) => (k === 'ozel' && title ? title : (KINDS().find((x) => x.key === k) || { label: k }).label);
+/** Sitede mi, ticari portföyde mi (AVM, depo, GYO)? Ticari kurumda birimin kira sözleşmesi vardır. */
+export const isCommercial = (sector) => !!sector && sector !== 'site';
 
-/** Dağıtım anahtarları: daire aidatı, sabit tutar, eşit, m², arsa payı. */
-export const MODES = () => [
+const KIND_LABEL = () => ({ aidat: t('Aidat'), yakit: t('Yakıt'), demirbas: t('Demirbaş'), ozel: t('Özel toplama'),
+  kira: t('Kira'), ortak_gider: t('Ortak alan gideri'), ciro: t('Ciro farkı') });
+/** Tahakkuk türleri (sektöre göre). Ciro farkı elle değil, ciro onayıyla tahakkuk edilir. */
+export const KINDS = (sector) => (isCommercial(sector) ? ['kira', 'ortak_gider', 'ozel'] : ['aidat', 'yakit', 'demirbas', 'ozel'])
+  .map((key) => ({ key, label: KIND_LABEL()[key] }));
+export const kindLabel = (k, title) => (k === 'ozel' && title ? title : KIND_LABEL()[k] || k);
+
+/** Dağıtım anahtarları. Sitede: dairenin aidatı, sabit, eşit, m², arsa payı. Ticaride: birimin kirası, ortak gider avansı, sabit, eşit, m². */
+export const MODES = (sector) => (isCommercial(sector) ? [
+  { key: 'rent', label: t('Birimin kirası') },
+  { key: 'unit', label: t('Birimin ortak gider avansı') },
+  { key: 'fixed', label: t('Her birime aynı tutar') },
+  { key: 'equal', label: t('Toplamı eşit böl') },
+  { key: 'area', label: t('Toplamı m²’ye göre böl') }
+] : [
   { key: 'unit', label: t('Dairenin aidatı') },
   { key: 'fixed', label: t('Her daireye aynı tutar') },
   { key: 'equal', label: t('Toplamı eşit böl') },
   { key: 'area', label: t('Toplamı m²’ye göre böl') },
   { key: 'share', label: t('Toplamı arsa payına göre böl') }
-];
+]);
 
-export const unitLabel = (u) => (u.block ? u.block + ' ' + t('Blok') + ' ' : '') + t('No') + ' ' + u.no;
+/** Birim etiketi: sitede "A Blok No 3", ticaride "Zemin kat · Z-12" (schema.sql → unit_label ile aynı). */
+export const unitLabel = (u) => (isCommercial(u.sector)
+  ? (u.block ? u.block + ' · ' : '') + u.no
+  : (u.block ? u.block + ' ' + t('Blok') + ' ' : '') + t('No') + ' ' + u.no);
 export const sortUnits = (a, b) => String(a.block).localeCompare(String(b.block), 'tr', { numeric: true }) || String(a.no).localeCompare(String(b.no), 'tr', { numeric: true });
 
 /**
  * Dağıtım: her daireye düşen tutar (kuruş yuvarlaması son daireye eklenir; toplam korunur).
  * @returns {{unit_id:string, amount:number}[]}
  */
-export function distribute(units, mode, value){
+export function distribute(units, mode, value, fx = {}){
   const list = units.slice().sort(sortUnits);
   if (!list.length) return [];
   const r2 = (x) => Math.round(x * 100) / 100;
+  if (mode === 'rent') return list.filter((u) => Number(u.rent) > 0).map((u) => Object.assign({ unit_id: u.id }, rentCharge(u, fx)))
+    .filter((x) => x.amount > 0);
   if (mode === 'unit') return list.filter((u) => Number(u.aidat) > 0).map((u) => ({ unit_id: u.id, amount: r2(Number(u.aidat)) }));
   if (mode === 'fixed') return list.map((u) => ({ unit_id: u.id, amount: r2(Number(value) || 0) }));
   const weight = (u) => (mode === 'area' ? Number(u.area) || 0 : mode === 'share' ? Number(u.share) || 0 : 1);
@@ -58,12 +70,31 @@ export function distribute(units, mode, value){
 /** Ödenmemiş tutar. */
 export const unpaidOf = (c) => (c.status === 'paid' ? 0 : Math.max(0, Number(c.amount) - (c.status === 'partial' ? Number(c.paid_amount) || 0 : 0)));
 
+/** Birimin bir aylık kira tahakkuku (TL): döviz kirası girilen kurla çevrilir; KDV'li sözleşmede %20 eklenir,
+    stopajlı sözleşmede kiracının keseceği %20 düşülür (kiraya verene yatacak net tutar). */
+export function rentCharge(u, fx = {}){
+  const cur = u.currency || 'TRY';
+  const rate = cur === 'TRY' ? 1 : Number(fx[cur]) || 0;
+  const base = Number(u.rent) || 0;
+  let amount = base * rate;
+  if (u.vat) amount *= 1.2;
+  else if (u.stopaj) amount *= 0.8;
+  return { amount: Math.round(amount * 100) / 100, currency: cur, fx: cur === 'TRY' ? null : rate || null, orig_amount: cur === 'TRY' ? null : base };
+}
+
+/** Vade: tahakkuktaki ödeme günü, yoksa ayın son günü. */
+export function dueOf(c){
+  if (c.due_on) return new Date(c.due_on + 'T23:59:59');
+  const [y, m] = String(c.month).split('-').map(Number);
+  return new Date(y, m, 0, 23, 59, 59);
+}
+export const overdue = (c, today = new Date()) => unpaidOf(c) > 0 && today > dueOf(c);
+
 /** Kat Mülkiyeti Kanunu 20. madde: geciken her ay için ödenmeyen tutarın %5'i (bilgi amaçlı hesap; tahakkuk edilmez). */
 export function lateFee(c, today = new Date()){
   const left = unpaidOf(c);
   if (!left) return 0;
-  const [y, m] = String(c.month).split('-').map(Number);
-  const end = new Date(y, m, 0);                     // ayın son günü vade
+  const end = dueOf(c);
   if (today <= end) return 0;
   const months = (today.getFullYear() - end.getFullYear()) * 12 + (today.getMonth() - end.getMonth());
   return Math.round(left * 0.05 * Math.max(1, months) * 100) / 100;
@@ -75,7 +106,7 @@ export function lateFee(c, today = new Date()){
 export async function loadSiteAdmin(oid){
   const c = await db();
   const since = (() => { const d = new Date(); d.setMonth(d.getMonth() - 12); return d.toISOString().slice(0, 7); })();
-  const [units, residents, charges, expenses, notes, requests, budgets, linked] = await Promise.all([
+  const [units, residents, charges, expenses, notes, requests, budgets, linked, turnovers, rentChanges, orgRow] = await Promise.all([
     c.from('site_units').select('*').eq('org_id', oid),
     c.from('site_residents').select('*').eq('org_id', oid),
     c.from('site_charges').select('*').eq('org_id', oid),
@@ -83,10 +114,16 @@ export async function loadSiteAdmin(oid){
     c.from('site_announcements').select('*').eq('org_id', oid),
     c.from('site_requests').select('*').eq('org_id', oid),
     c.from('site_budgets').select('*').eq('org_id', oid),
-    c.rpc('site_linked_tenants', { oid })
+    c.rpc('site_linked_tenants', { oid }),
+    c.from('site_turnovers').select('*').eq('org_id', oid),
+    c.from('site_rent_changes').select('*').eq('org_id', oid),
+    c.from('organizations').select('sector').eq('id', oid)
   ].map((p) => p.then((r) => (r.error ? [] : r.data || []))));
+  const sector = (orgRow[0] || {}).sector || 'site';
   return {
-    units: units.sort(sortUnits), residents, budgets, linked,
+    sector, units: units.map((u) => Object.assign(u, { sector })).sort(sortUnits), residents, budgets, linked,
+    turnovers: turnovers.sort((a, b) => b.month.localeCompare(a.month)),
+    rentChanges: rentChanges.sort((a, b) => String(b.from_date).localeCompare(String(a.from_date))),
     charges: charges.filter((x) => x.month >= since).sort((a, b) => b.month.localeCompare(a.month)),
     expenses: expenses.sort((a, b) => String(b.spent_on).localeCompare(String(a.spent_on))),
     notes: notes.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))),
@@ -94,10 +131,14 @@ export async function loadSiteAdmin(oid){
   };
 }
 
+const numOrNull = (v) => (v === '' || v == null ? null : Number(String(v).replace(',', '.')));
 export async function saveUnit(oid, u){
   const c = await db();
   const row = { org_id: oid, block: String(u.block || '').trim(), no: String(u.no || '').trim(), area: Number(u.area) || null,
-    share: Number(u.share) || null, aidat: u.aidat === '' || u.aidat == null ? null : Number(u.aidat), payer: u.payer === 'malik' ? 'malik' : 'kiraci', note: u.note || '' };
+    share: Number(u.share) || null, aidat: numOrNull(u.aidat), payer: u.payer === 'malik' ? 'malik' : 'kiraci', note: u.note || '',
+    rent: numOrNull(u.rent), currency: ['USD', 'EUR'].includes(u.currency) ? u.currency : 'TRY', turnover_rate: numOrNull(u.turnover_rate),
+    lease_start: u.lease_start || null, lease_end: u.lease_end || null, index_kind: ['sabit', 'yok'].includes(u.index_kind) ? u.index_kind : 'tufe',
+    index_rate: numOrNull(u.index_rate), vat: !!u.vat, stopaj: !u.vat && !!u.stopaj, due_day: numOrNull(u.due_day) };
   if (u.id) return must(await c.from('site_units').update(row).eq('id', u.id));
   return must(await c.from('site_units').insert(row).select().single());
 }
@@ -107,24 +148,33 @@ export async function deleteUnit(id){ must(await (await db()).from('site_units')
  * Toplu daire ekleme. Her satır: Blok; No; m²; Arsa payı; Aidat; Malik adı; Malik telefonu (sekme, noktalı virgül ya da virgülle ayrılmış).
  * Başlık satırı ve boş satırlar atlanır. Dönen: { units, residents, skipped }.
  */
-export function parseUnits(text){
+export function parseUnits(text, commercial = false){
   const out = [], skipped = [];
   String(text || '').split(/\r?\n/).forEach((line, i) => {
     if (!line.trim()) return;
     const cells = line.split(/\t|;|,(?=\s*\S)/).map((x) => x.trim());
-    if (i === 0 && /blok|block/i.test(cells[0] || '')) return;
-    const [block, no, area, share, aidat, owner, phone] = cells;
+    if (i === 0 && /blok|block|kat/i.test(cells[0] || '') && !/\d/.test(cells[1] || '')) return;
     const num = (v) => (v ? Number(String(v).replace(/\./g, '').replace(',', '.')) || null : null);
-    if (!no){ skipped.push(i + 1); return; }
+    if (!cells[1]){ skipped.push(i + 1); return; }
+    if (commercial){
+      // Ticari: Kat; No; m²; Aylık kira; Para birimi; Kiracı; Telefon
+      const [block, no, area, rent, cur, owner, phone] = cells;
+      const currency = /usd|\$/i.test(cur || '') ? 'USD' : /eur|€/i.test(cur || '') ? 'EUR' : 'TRY';
+      out.push({ block: block || '', no, area: num(area), rent: num(rent), currency, owner: owner || '', phone: phone || '' });
+      return;
+    }
+    const [block, no, area, share, aidat, owner, phone] = cells;
     out.push({ block: block || '', no, area: num(area), share: num(share), aidat: num(aidat), owner: owner || '', phone: phone || '' });
   });
   return { rows: out, skipped };
 }
-export async function importUnits(oid, rows){
+/** Toplu ekleme; sitede satırdaki kişi malik, ticaride kiracı olarak eklenir. */
+export async function importUnits(oid, rows, commercial = false){
   const c = await db();
-  const made = must(await c.from('site_units').insert(rows.map((r) => ({ org_id: oid, block: r.block, no: r.no, area: r.area, share: r.share, aidat: r.aidat }))).select());
-  const owners = rows.map((r, i) => (r.owner ? { org_id: oid, unit_id: made[i].id, role: 'malik', name: r.owner, phone: r.phone || '' } : null)).filter(Boolean);
-  if (owners.length) must(await c.from('site_residents').insert(owners));
+  const made = must(await c.from('site_units').insert(rows.map((r) => Object.assign({ org_id: oid, block: r.block, no: r.no, area: r.area },
+    commercial ? { rent: r.rent, currency: r.currency || 'TRY' } : { share: r.share, aidat: r.aidat }))).select());
+  const people = rows.map((r, i) => (r.owner ? { org_id: oid, unit_id: made[i].id, role: commercial ? 'kiraci' : 'malik', name: r.owner, phone: r.phone || '' } : null)).filter(Boolean);
+  if (people.length) must(await c.from('site_residents').insert(people));
   return made.length;
 }
 
@@ -137,11 +187,16 @@ export async function saveResident(oid, r){
 }
 export async function deleteResident(id){ must(await (await db()).from('site_residents').delete().eq('id', id)); }
 
-/** Toplu tahakkuk: seçilen aya ve türe dağıtılan tutarlar (aynı ay/tür/başlık için daha önce girilmiş daireler atlanır). */
-export async function createCharges(oid, { month, kind, title = '', mode, value, units, existing = [] }){
+/** Vade günü: birimin sözleşmesindeki ödeme günü (yoksa vade ay sonu). */
+const dueOn = (u, month) => (u && Number(u.due_day) ? month + '-' + String(u.due_day).padStart(2, '0') : null);
+
+/** Toplu tahakkuk: seçilen aya ve türe dağıtılan tutarlar (aynı ay/tür/başlık için daha önce girilmiş birimler atlanır). */
+export async function createCharges(oid, { month, kind, title = '', mode, value, units, existing = [], fx = {} }){
   const taken = new Set(existing.filter((x) => x.month === month && x.kind === kind && (x.title || '') === (title || '')).map((x) => x.unit_id));
-  const rows = distribute(units, mode, value).filter((x) => !taken.has(x.unit_id))
-    .map((x) => ({ org_id: oid, unit_id: x.unit_id, month, kind, title: kind === 'ozel' ? title : '', amount: x.amount }));
+  const unitBy = Object.fromEntries(units.map((u) => [u.id, u]));
+  const rows = distribute(units, mode, value, fx).filter((x) => !taken.has(x.unit_id))
+    .map((x) => Object.assign({ org_id: oid, unit_id: x.unit_id, month, kind, title: kind === 'ozel' ? title : '', amount: x.amount,
+      due_on: dueOn(unitBy[x.unit_id], month) }, x.currency && x.currency !== 'TRY' ? { currency: x.currency, fx: x.fx, orig_amount: x.orig_amount } : {}));
   if (!rows.length) return 0;
   must(await (await db()).from('site_charges').insert(rows));
   return rows.length;
@@ -305,5 +360,95 @@ export function siteReport(d, period, ref){
       .sort((a, b) => b.unpaid - a.unpaid).slice(0, 20),
     requests: { opened: d.requests.filter((r) => String(r.created_at).slice(0, 10) >= d0 && String(r.created_at).slice(0, 10) < d1).length,
                 open: d.requests.filter((r) => r.status < 3).length }
+  };
+}
+
+/* ---- Ticari portföy: ciro, kira artışı, doluluk (Faz 3) ----------- */
+
+/** Ciroya bağlı kira farkı (TL): cironun %oranı birimin aylık kirasını (TL karşılığı) aşarsa aradaki fark. */
+export function ciroDiff(u, turnover, fx = {}){
+  const rate = Number(u.turnover_rate) || 0;
+  if (!rate) return 0;
+  const base = rentCharge({ ...u, vat: false, stopaj: false }, fx).amount;
+  return Math.max(0, Math.round((Number(turnover) * rate / 100 - base) * 100) / 100);
+}
+
+/** Kiracı (ya da yönetim) aylık ciroyu bildirir; aynı ay için ikinci bildirim düzeltme sayılır. */
+export async function reportTurnover(u, month, amount, note = ''){
+  must(await (await db()).from('site_turnovers').upsert({ org_id: u.org_id, unit_id: u.unit_id || u.id, month, amount: Number(amount) || 0, note, status: 'reported' },
+    { onConflict: 'unit_id,month' }));
+}
+export async function loadTurnovers(unitId){
+  const r = await (await db()).from('site_turnovers').select('*').eq('unit_id', unitId);
+  return (r.error ? [] : r.data || []).sort((a, b) => b.month.localeCompare(a.month));
+}
+/** Yönetim kararı: onayda ciro farkı (varsa) o ayın "ciro" tahakkuku olarak yazılır. */
+export async function decideTurnover(tv, ok, { unit = null, fx = {}, reason = '' } = {}){
+  const c = await db();
+  if (ok){
+    const diff = ciroDiff(unit, tv.amount, fx);
+    if (diff > 0) must(await c.from('site_charges').insert({ org_id: tv.org_id, unit_id: tv.unit_id, month: tv.month, kind: 'ciro', title: '', amount: diff,
+      due_on: dueOn(unit, tv.month) }));
+    must(await c.from('site_turnovers').update({ status: 'approved', reject_reason: null }).eq('id', tv.id));
+    return diff;
+  }
+  must(await c.from('site_turnovers').update({ status: 'rejected', reject_reason: String(reason || '').trim() || t('Ciro bilgisi uygun değil') }).eq('id', tv.id));
+  return 0;
+}
+
+/**
+ * Sözleşme yıldönümünde kira artışı önerileri: önümüzdeki 30 gün içinde ya da geçmişte uygulanmamış yıldönümleri.
+ * Oran: TÜFE (yıldönümünden önceki ayın 12 aylık ortalaması; rates = { 'YYYY-AA': oran }) ya da sözleşmedeki sabit oran.
+ */
+export function dueIncreases(units, changes, rates, today = new Date()){
+  const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const horizon = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30);
+  const out = [];
+  units.forEach((u) => {
+    if (!u.lease_start || !(Number(u.rent) > 0) || u.index_kind === 'yok') return;
+    const s = new Date(u.lease_start + 'T12:00:00');
+    let ann = null;
+    for (let y = s.getFullYear() + 1; ; y++){
+      const d = new Date(y, s.getMonth(), s.getDate(), 12);
+      if (d > horizon || (u.lease_end && iso(d) > u.lease_end)) break;
+      ann = d;
+    }
+    if (!ann) return;
+    const date = iso(ann);
+    if (changes.some((x) => x.unit_id === u.id && x.from_date >= date)) return;
+    const prev = new Date(ann.getFullYear(), ann.getMonth() - 1, 1);
+    const key = prev.getFullYear() + '-' + String(prev.getMonth() + 1).padStart(2, '0');
+    const rate = u.index_kind === 'sabit' ? Number(u.index_rate) || 0 : rates && rates[key] != null ? Number(rates[key]) : null;
+    out.push({ unit: u, date, rate, source: u.index_kind === 'sabit' ? 'sabit' : key,
+      next: rate == null ? null : Math.round(Number(u.rent) * (1 + rate / 100) * 100) / 100 });
+  });
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
+export async function applyIncrease(oid, inc, amount, reason){
+  const c = await db();
+  const u = inc.unit;
+  must(await c.from('site_rent_changes').insert({ org_id: oid, unit_id: u.id, from_date: inc.date, old_amount: Number(u.rent), new_amount: Number(amount),
+    currency: u.currency || 'TRY', reason: reason || '' }));
+  must(await c.from('site_units').update({ rent: Number(amount) }).eq('id', u.id));
+}
+
+/** Kiracısı olan birim: kiracı kaydı (ya da ev sahibi üzerinden bağlı kiracı) var ve sözleşmesi bitmemiş. */
+export function occupancy(d, today = new Date()){
+  const day = today.toISOString().slice(0, 10);
+  const soon = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 90).toISOString().slice(0, 10);
+  const tenantOf = (u) => d.residents.some((r) => r.unit_id === u.id && r.role === 'kiraci') || (d.linked || []).some((x) => x.unit_id === u.id);
+  const full = (u) => tenantOf(u) && (!u.lease_end || u.lease_end >= day);
+  const units = d.units, occ = units.filter(full);
+  const area = units.reduce((a, u) => a + (Number(u.area) || 0), 0), occArea = occ.reduce((a, u) => a + (Number(u.area) || 0), 0);
+  // WALT: kira ağırlıklı kalan sözleşme süresi (yıl).
+  const leased = occ.filter((u) => u.lease_end && Number(u.rent) > 0);
+  const w = leased.reduce((a, u) => a + Number(u.rent), 0);
+  const walt = w ? leased.reduce((a, u) => a + Number(u.rent) * Math.max(0, (Date.parse(u.lease_end) - today.getTime()) / (365.25 * 864e5)), 0) / w : null;
+  return {
+    total: units.length, occupied: occ.length, area, occArea,
+    rate: units.length ? occ.length / units.length : 0, areaRate: area ? occArea / area : null,
+    vacant: units.filter((u) => !full(u)),
+    expiring: occ.filter((u) => u.lease_end && u.lease_end <= soon).sort((a, b) => a.lease_end.localeCompare(b.lease_end)),
+    walt
   };
 }

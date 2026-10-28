@@ -53,8 +53,16 @@ Ekranlar sektörün diliyle konuşur (sitede *aidat*, *sakin*, *daire*; AVM'de *
         payı hesaplanır, "Daire aidatlarını güncelle" ile dairelere yazılır; malik ve kiracılar Sitem'de görür.
       - *Yönetim kurulu raporu:* Site → Rapor (aylık/yıllık; tahakkuk ve tahsilat, giderler, bütçe karşılaştırması, borçlular, talepler;
         yazdır/PDF) ve `report` fonksiyonuyla aynı zamanlamada "Raporlar" yetkili yöneticilere e-posta (`site_report`).
-- [ ] **Faz 3 — AVM ve depo.** Ciroya bağlı kira ve ciro bildirimi, ortak alan gideri dağıtımı, m² ve döviz/endeks bazlı kira, doluluk.
-- [ ] **Faz 4 — GYO.** Çok portföy, onay akışı, değerleme ve doluluk panosu, yatırımcı raporu, API — ilk GYO müşterisiyle birlikte.
+- [x] **Faz 3 — AVM, depo ve GYO (ticari portföy).** Şema 19. bölüm. Site ekranı ticari kurumlarda "Portföy yönetimi" olarak açılır
+      (sözcükler sektöre göre: mağaza, depo, birim). Birim sözleşmesi: aylık kira ve para birimi (TL/USD/EUR), ciro kirası oranı,
+      başlangıç/bitiş, yıllık artış (TÜFE 12 aylık ortalama / sabit oran / yok), KDV ya da stopaj, ödeme günü, ortak gider avansı.
+      Tahakkuk türleri kira, ortak alan gideri, ciro farkı, özel toplama; kira tahakkukunda döviz kuru girilir (asıl tutar ve kur
+      saklanır), vade sözleşmedeki ödeme günü. Ciro: kiracı "Mağazam" ekranından aylık ciroyu bildirir, yönetim onaylayınca cironun
+      %'si sabit kirayı aşarsa fark o ayın "ciro farkı" tahakkuku olur. Kira artışları: yıldönümü gelen sözleşmeler önerilen tutarla
+      listelenir, uygulanınca `site_rent_changes`'e yazılır. Özet: doluluk (birim ve m²), 90 günde biten sözleşmeler, boş birimler,
+      kira ağırlıklı kalan süre (WALT). Giderler m²'ye göre ortak alan gideri olarak dağıtılır. Hatırlatma, rapor e-postası ve bildirimler
+      ticari kurumlarda da çalışır.
+- [ ] **Faz 4 — GYO'ya özel.** (Temel portföy ekranı Faz 3'te GYO'ya da açıldı.) Çok portföy, onay akışı, değerleme ve doluluk panosu, yatırımcı raporu, API — ilk GYO müşterisiyle birlikte.
 
 ## Yetkiler ve modüller
 

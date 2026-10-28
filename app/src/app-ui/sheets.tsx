@@ -4,6 +4,7 @@ import { Image, Linking, Pressable, Share, Text as RNText, TextInput, View } fro
 import * as Clipboard from 'expo-clipboard';
 import { myOrgs } from '../domain/org';
 import { mySiteUnits } from '../domain/site';
+import { PORTFOLIO_SECTORS, residentTitle } from './site';
 import { useRouter } from 'expo-router';
 import {
   S, ui, setTheme, CATS, COST_OPTS, STEPS, EXPENSE_CATS, DEDUCTION_PRESETS, PROP_TYPES, DEPOSIT_KINDS, TENANT_KINDS, REQ_SUGGEST, isCommercial, docCatsFor
@@ -185,14 +186,14 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
           ) : null}
           {mySiteUnits().length ? (
             <PressScale onPress={() => { if (!page) close(); router.push('/uygulama/sitem' as any); }} accessibilityRole="link" scaleTo={0.99} style={{ padding: 16, borderRadius: radius.lg, backgroundColor: c.tile, gap: 2 }}>
-              <Label>{t('Sitem')}</Label>
-              <Row between><Text v="body" style={{ fontFamily: fonts.bodyBold }}>{t('Aidat, duyurular ve yönetime talep')}</Text><Muted>›</Muted></Row>
+              <Label>{residentTitle(mySiteUnits())}</Label>
+              <Row between><Text v="body" style={{ fontFamily: fonts.bodyBold }}>{t('Tahakkuklar, duyurular ve yönetime talep')}</Text><Muted>›</Muted></Row>
             </PressScale>
           ) : null}
-          {myOrgs().some((o: any) => o.sector === 'site') ? (
+          {myOrgs().some((o: any) => PORTFOLIO_SECTORS.includes(o.sector)) ? (
             <PressScale onPress={() => { if (!page) close(); router.push('/uygulama/site' as any); }} accessibilityRole="link" scaleTo={0.99} style={{ padding: 16, borderRadius: radius.lg, backgroundColor: c.tile, gap: 2 }}>
-              <Label>{t('Site yönetimi')}</Label>
-              <Row between><Text v="body" style={{ fontFamily: fonts.bodyBold }}>{t('Daireler, tahakkuk, giderler, duyurular')}</Text><Muted>›</Muted></Row>
+              <Label>{myOrgs().some((o: any) => o.sector === 'site') ? t('Site yönetimi') : t('Portföy yönetimi')}</Label>
+              <Row between><Text v="body" style={{ fontFamily: fonts.bodyBold }}>{t('Birimler, tahakkuk, giderler, duyurular')}</Text><Muted>›</Muted></Row>
             </PressScale>
           ) : null}
           {myOrgs().length ? (
@@ -229,8 +230,8 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
             <OnOff label={t('SMS (kira, aidat, sözleşme ve sigorta hatırlatmaları)')} k="sms" />
           </Card>
           {!user?.phone ? <Muted>{t('SMS için Hesap sekmesinden telefon numaranı ekle.')}</Muted> : null}
-          {myOrgs().some((o: any) => o.sector === 'site' && (o.perms || []).includes('reports.view')) ? (
-            <Card gap={4}><OnOff label={t('Site yönetim raporu (aylık ve yıllık e-posta)')} k="siteReport" /></Card>
+          {myOrgs().some((o: any) => PORTFOLIO_SECTORS.includes(o.sector) && (o.perms || []).includes('reports.view')) ? (
+            <Card gap={4}><OnOff label={t('Yönetim raporu (aylık ve yıllık e-posta)')} k="siteReport" /></Card>
           ) : null}
           {owner ? (
             <>

@@ -8,6 +8,7 @@ import { t } from '../domain/i18n';
 import { toApp } from '../domain/nav';
 import { myOrgs } from '../domain/org';
 import { mySiteUnits } from '../domain/site';
+import { PORTFOLIO_SECTORS, residentTitle } from './site';
 import { PressScale, Text } from '../ui/kit';
 import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
 import { Icon } from './blocks';
@@ -23,11 +24,14 @@ const SETTINGS = '/uygulama/ayarlar';
 
 // Kurum yöneticisi (her hesap türü olabilir) menüde kurumunu görür.
 // Site yöneticisi "Site", sitede dairesi olan (malik ya da kiracı) "Sitem" ekranını görür.
-const orgItem = (): Item[] => [
-  ...(myOrgs().some((o: any) => o.sector === 'site') ? [{ label: t('Site'), icon: 'grid', path: '/uygulama/site' }] : []),
-  ...(myOrgs().length ? [{ label: t('Kurum'), icon: 'office', path: '/uygulama/kurum' }] : []),
-  ...(mySiteUnits().length ? [{ label: t('Sitem'), icon: 'home', path: '/uygulama/sitem' }] : [])
-];
+const orgItem = (): Item[] => {
+  const port = myOrgs().find((o: any) => PORTFOLIO_SECTORS.includes(o.sector));
+  return [
+    ...(port ? [{ label: port.sector === 'site' ? t('Site') : t('Portföy yönetimi'), icon: 'grid', path: '/uygulama/site' }] : []),
+    ...(myOrgs().length ? [{ label: t('Kurum'), icon: 'office', path: '/uygulama/kurum' }] : []),
+    ...(mySiteUnits().length ? [{ label: residentTitle(mySiteUnits()), icon: 'home', path: '/uygulama/sitem' }] : [])
+  ];
+};
 
 function items(): { tabs: Item[]; extra: Item[] } {
   if (ui.role === 'tenant') {

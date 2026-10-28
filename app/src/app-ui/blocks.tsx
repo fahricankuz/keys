@@ -151,11 +151,12 @@ export function Items<T>({ data, render }: { data: T[]; render: (x: T, last: boo
   return <List>{data.map((x, i) => render(x, i === data.length - 1, i))}</List>;
 }
 
-export function Seg({ options, value, onChange, scroll }: { options: [string, string][]; value: string; onChange: (v: string) => void; scroll?: boolean }) {
+export function Seg({ options, value, onChange, scroll, wrap }: { options: [string, string][]; value: string; onChange: (v: string) => void; scroll?: boolean; wrap?: boolean }) {
   const c = useColors();
   const { phone } = useBreakpoint();
   // Geniş ekranda çok sekmeli satır tek parça bir şeritte durur: sekmeler eşit paylaşır, satır kırılmaz.
-  const track = scroll && !phone;
+  // wrap: sekme çoksa (adlar kesilmesin diye) geniş ekranda sekmeler kendi genişliğinde, gerekirse alt satıra geçer.
+  const track = scroll && !phone && !wrap;
   const items = options.map(([v, l]) => {
     const on = v === value;
     return (
@@ -170,6 +171,7 @@ export function Seg({ options, value, onChange, scroll }: { options: [string, st
   // Telefonda yatay kaydırılır (son sekme tam görünsün diye sağda pay).
   if (scroll && phone) return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>{items}</ScrollView>;
   if (track) return <View style={{ flexDirection: 'row', gap: 2, padding: 4, borderRadius: radius.pill, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line }}>{items}</View>;
+  if (wrap) return <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{items}</View>;
   return <View style={{ flexDirection: 'row', gap: 8 }}>{items}</View>;
 }
 
