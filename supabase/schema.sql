@@ -58,6 +58,10 @@ alter table public.properties add column if not exists area         numeric;
 alter table public.properties add column if not exists company      jsonb;
 alter table public.properties add column if not exists stopaj       boolean not null default false;
 alter table public.properties add column if not exists deposit_kind text not null default 'Nakit';
+-- v8: yapılandırılmış adres {country, city, district, hood, street, no, unit, note}; "addr" tek satırlık hali olarak kalır.
+alter table public.properties add column if not exists address      jsonb;
+alter table public.properties drop constraint if exists properties_address_check;
+alter table public.properties add constraint properties_address_check check (address is null or (jsonb_typeof(address) = 'object' and length(address::text) <= 2000));
 alter table public.properties drop constraint if exists properties_prop_type_check;
 alter table public.properties add constraint properties_prop_type_check check (prop_type in ('Konut','Ofis','Mağaza','Depo'));
 alter table public.properties drop constraint if exists properties_deposit_kind_check;
@@ -843,18 +847,32 @@ begin
     for mb in select * from public.memberships where property_id = p.id loop
       select settings into s from public.profiles where id = mb.user_id;
 
-      -- Kira günü yaklaşıyor (kiracı)
-      if mb.role = 'tenant' and paid is null
+      -- Ayarlardan kapatılan hatırlatma türleri atlanır (varsayılan açık).
+      -- Kira günü yaklaşıyor: kiracıya ve mülk sahibine (ödeme henüz yoksa).
+      if paid is null and coalesce((s ->> 'remindRent')::boolean, true)
          and due - today = coalesce((s ->> 'rentDays')::int, 3) then
         insert into public.notifications (user_id, property_id, title, body, url, tag)
-        values (mb.user_id, p.id, 'Kira günü yaklaşıyor',
-                p.name || ': ' || public.fmt_tl(p.rent) || ', son gün ' || to_char(due, 'DD.MM.YYYY') || '.',
-                '#/kiraci/odemeler', 'rent-soon-' || p.id)
+        values (mb.user_id, p.id,
+                case when mb.role = 'tenant' then 'Kira günü yaklaşıyor' else p.name || ': kira günü yaklaşıyor' end,
+                case when mb.role = 'tenant'
+                     then p.name || ': ' || public.fmt_tl(p.rent) || ', son gün ' || to_char(due, 'DD.MM.YYYY') || '.'
+                     else public.fmt_tl(p.rent) || ' kira ' || to_char(due, 'DD.MM.YYYY') || ' tarihinde ödenecek; henüz dekont yok.' end,
+                case when mb.role = 'tenant' then '#/kiraci/odemeler' else '#/mulk-sahibi/mulk/' || p.id || '/odeme' end,
+                'rent-soon-' || p.id)
         on conflict do nothing;
       end if;
 
-      -- Kira gecikti: vadeden sonraki gün ve ardından haftada bir
-      if (paid is null or paid = 'rejected') and today > due and (today - due) % 7 = 1 then
+      -- Kira günü (kiracı; ödeme henüz yoksa)
+      if mb.role = 'tenant' and paid is null and due = today and coalesce((s ->> 'remindRent')::boolean, true) then
+        insert into public.notifications (user_id, property_id, title, body, url, tag)
+        values (mb.user_id, p.id, 'Bugün kira günü', p.name || ': ' || public.fmt_tl(p.rent) || '. Ödeyince dekontu yükle.',
+                '#/kiraci/odemeler', 'rent-due-' || p.id)
+        on conflict do nothing;
+      end if;
+
+      -- Kira gecikti: vadeden sonraki gün ve ardından haftada bir, iki tarafa
+      if (paid is null or paid = 'rejected') and today > due and (today - due) % 7 = 1
+         and coalesce((s ->> 'lateNotice')::boolean, true) then
         insert into public.notifications (user_id, property_id, title, body, url, tag)
         values (mb.user_id, p.id,
                 case when mb.role = 'tenant' then 'Kira gecikti' else p.name || ': kira gecikti' end,
@@ -865,7 +883,8 @@ begin
       end if;
 
       -- Sözleşme yenileme
-      if p.contract_end - today in (coalesce((s ->> 'renewDays')::int, 60), 30, 7) then
+      if coalesce((s ->> 'remindRenew')::boolean, true)
+         and p.contract_end - today in (coalesce((s ->> 'renewDays')::int, 60), 30, 7) then
         insert into public.notifications (user_id, property_id, title, body, url, tag)
         values (mb.user_id, p.id, p.name || ': sözleşme yenileme',
                 'Sözleşme ' || to_char(p.contract_end, 'DD.MM.YYYY') || ' tarihinde yenileniyor (' || (p.contract_end - today) || ' gün).',
@@ -875,7 +894,7 @@ begin
       end if;
 
       -- DASK (ev sahibi)
-      if mb.role = 'landlord' and p.dask is not null
+      if mb.role = 'landlord' and p.dask is not null and coalesce((s ->> 'remindIns')::boolean, true)
          and p.dask - today in (coalesce((s ->> 'insDays')::int, 30), 7) then
         insert into public.notifications (user_id, property_id, title, body, url, tag)
         values (mb.user_id, p.id, p.name || ': DASK yenileme',
@@ -896,6 +915,7 @@ begin
   join public.memberships m on m.property_id = d.property_id
   left join public.profiles pr on pr.id = m.user_id
   where d.cat = 'Tahliye taahhütnamesi' and d.until is not null
+    and coalesce((pr.settings ->> 'remindEvict')::boolean, true)
     and d.until - today in (coalesce((pr.settings ->> 'evictDays')::int, 90), 30, 7)
   on conflict do nothing;
 
@@ -2221,3 +2241,35 @@ begin
   return rid;
 end $$;
 grant execute on function public.submit_lead(jsonb) to anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- 15. Yasal kira artış oranı (TÜFE 12 aylık ortalamalara göre değişim)
+-- ---------------------------------------------------------------------
+-- month: verinin ait olduğu ay (TÜİK bülteni bir sonraki ayın başında açıklanır). Herkese açık veridir:
+-- sitedeki /kira-artis-hesaplama sayfası oturumsuz okur. Yazma: tufe-sync fonksiyonu (service_role) ya da yönetici.
+create table if not exists public.cpi_rates (
+  month      text primary key check (month ~ '^\d{4}-(0[1-9]|1[0-2])$'),
+  avg12      numeric(7,2) not null check (avg12 > -100 and avg12 < 1000),
+  source     text not null default 'manual' check (source in ('manual','evds')),
+  updated_at timestamptz not null default now()
+);
+alter table public.cpi_rates enable row level security;
+drop policy if exists cpi_read on public.cpi_rates;
+create policy cpi_read on public.cpi_rates for select to anon, authenticated using (true);
+grant select on public.cpi_rates to anon, authenticated;
+revoke insert, update, delete on public.cpi_rates from anon, authenticated;
+
+/** Yönetici: bir ayın oranını girer ya da düzeltir (boş oran satırı siler). */
+create or replace function public.admin_set_cpi(m text, rate numeric)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'Yönetici yetkisi gerekli' using errcode = '42501'; end if;
+  if rate is null then
+    delete from public.cpi_rates where month = m;
+  else
+    insert into public.cpi_rates (month, avg12, source, updated_at) values (m, round(rate, 2), 'manual', now())
+    on conflict (month) do update set avg12 = excluded.avg12, source = 'manual', updated_at = now();
+  end if;
+  perform public.audit('cpi.set', m, jsonb_build_object('rate', rate));
+end $$;
+grant execute on function public.admin_set_cpi(text, numeric) to authenticated;

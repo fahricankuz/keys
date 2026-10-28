@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { POSTS, CATEGORIES } from './posts.mjs';
 import { destekPage } from './destek.mjs';
+import { kiraArtisPage } from './kira-artis.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUB = join(HERE, '../../public');
@@ -62,14 +63,14 @@ export function bar(active) {
   const a = (href, label, key, cls = '') => `<a href="${href}"${cls ? ` class="${cls}"` : ''}${active === key ? ' aria-current="page"' : ''}>${label}</a>`;
   return `<header class="bar"><div class="wrap">
 <a class="logo" href="/" aria-label="anahtar ana sayfa">${logo()}</a>
-<nav aria-label="Site">${a('/blog/', 'Blog', 'blog')}${a('/destek/', 'Destek', 'destek', 'hide-s')}${a('/giris', 'Giriş yap', 'giris', 'hide-s')}${a('/kayit', 'Ücretsiz dene', '', 'btn')}</nav>
+<nav aria-label="Site">${a('/kira-artis-hesaplama', 'Kira artışı hesapla', 'hesap', 'hide-s')}${a('/blog/', 'Blog', 'blog')}${a('/destek/', 'Destek', 'destek', 'hide-s')}${a('/giris', 'Giriş yap', 'giris', 'hide-s')}${a('/kayit', 'Ücretsiz dene', '', 'btn')}</nav>
 </div></header>`;
 }
 
 export function foot() {
   return `<footer class="foot"><div class="wrap">
 <span>© ${new Date().getFullYear()} anahtar · Kiracı ile mülk sahibi aynı sayfada.</span>
-<nav aria-label="Alt bağlantılar"><a href="/">Ana sayfa</a><a href="/blog/">Blog</a><a href="/destek/">Destek</a><a href="/gizlilik/">Gizlilik ve KVKK</a><a href="/kosullar/">Kullanım koşulları</a><a href="mailto:info@anahtar.io">info@anahtar.io</a></nav>
+<nav aria-label="Alt bağlantılar"><a href="/">Ana sayfa</a><a href="/kira-artis-hesaplama">Kira artış hesaplama</a><a href="/blog/">Blog</a><a href="/destek/">Destek</a><a href="/gizlilik/">Gizlilik ve KVKK</a><a href="/kosullar/">Kullanım koşulları</a><a href="mailto:info@anahtar.io">info@anahtar.io</a></nav>
 </div></footer>`;
 }
 
@@ -192,10 +193,11 @@ ${sorted.map(item).join('\n')}
 
 function sitemap() {
   const file = join(PUB, 'sitemap.xml');
-  const keep = readFileSync(file, 'utf8').split('\n').filter((l) => l.includes('<url>') && !l.includes('/blog/'));
+  const keep = readFileSync(file, 'utf8').split('\n').filter((l) => l.includes('<url>') && !l.includes('/blog/') && !l.includes('/kira-artis-hesaplama'));
   const last = [...POSTS].map((p) => p.updated || p.date).sort().pop();
   const lines = [
     ...keep,
+    `  <url><loc>${SITE}/kira-artis-hesaplama</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod><changefreq>monthly</changefreq></url>`,
     `  <url><loc>${SITE}/blog/</loc><lastmod>${last}</lastmod></url>`,
     ...POSTS.map((p) => `  <url><loc>${SITE}/blog/${p.slug}</loc><lastmod>${p.updated || p.date}</lastmod></url>`)
   ];
@@ -212,6 +214,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   }
   write('blog/rss.xml', rss());
   write('destek/index.html', destekPage({ head, bar, foot }));
+  write('kira-artis-hesaplama.html', kiraArtisPage({ head, bar, foot }));
   sitemap();
   const og = POSTS.filter((p) => !existsSync(join(PUB, 'blog/og', p.slug + '.jpg')));
   console.log(`blog: ${POSTS.length} yazı yazıldı` + (og.length ? `; kapak görseli eksik: ${og.map((p) => p.slug).join(', ')} (node scripts/blog/og.mjs)` : ''));

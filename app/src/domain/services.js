@@ -18,6 +18,7 @@ import { toCsv, toXlsx } from './sheet.js';
 import { host } from './host.js';
 import { toApp } from './nav.js';
 import { iso, t0, parse, fmtFull, monthYear, tl, daysTo, uid, percent } from './util.js';
+import { formatAddress } from './address.js';
 
 const go = path => host.go(toApp(path));
 const notify = (n, log) => {
@@ -96,7 +97,7 @@ function newProperty(d){
   const ptype = d.type || 'Konut';
   const p = {
     id: uid('p'), type: ptype, area: d.area ?? null, company: d.company || null, stopaj: !!d.stopaj, depositKind: d.depositKind || 'Nakit',
-    name: d.name, addr: d.addr || '', tenants: d.tenants || [],
+    name: d.name, addr: d.addr || '', address: d.address || null, tenants: d.tenants || [],
     landlord: LIVE ? { name: backend.live.profile?.name || t('Mülk sahibi'), phone: backend.live.profile?.phone || '' } : (S.order.length ? P(S.order[0]).landlord : { name:t('Mülk sahibi'), phone:'' }),
     ownerId: LIVE ? backend.live.user?.id : undefined,
     rent: d.rent || 0, dueDay: d.dueDay || 1,
@@ -674,8 +675,10 @@ export async function submit(type, v){
     const lessee = lesseeFrom(fd);
     const phone = String(fd.get('phone') || '');
     if (!name) return false;
+    const address = fd.get('address') || null;
     const { id } = newProperty({
-      name, type:ptype, addr:String(fd.get('addr') || '').trim(), company:lessee.company, stopaj:lessee.stopaj,
+      name, type:ptype, address, addr: address ? formatAddress(address) : String(fd.get('addr') || '').trim(), area: Number(fd.get('area')) || null,
+      company:lessee.company, stopaj:lessee.stopaj,
       rent: Number(fd.get('rent')) || 0, dueDay: Number(fd.get('due')) || 1,
       dask: ptype === 'Konut' ? nextYear : null,
       tenants: LIVE ? [] : [{ id:uid('t'), name:'Davet bekleniyor', phone, email:'' }]
@@ -812,7 +815,9 @@ export async function submit(type, v){
 
   if (type === 'editProp'){
     p.name = String(fd.get('name') || '').trim();
-    p.addr = String(fd.get('addr') || '').trim();
+    const address = fd.get('address');
+    if (address){ p.address = address; p.addr = formatAddress(address) || address.note || ''; }
+    else p.addr = String(fd.get('addr') || p.addr || '').trim();
     p.type = String(fd.get('type') || p.type);
     p.area = Number(fd.get('area')) || null;
     const lessee = lesseeFrom(fd);

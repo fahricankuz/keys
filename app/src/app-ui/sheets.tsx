@@ -29,6 +29,9 @@ import { PayButton } from '../ui/motion';
 import { host } from '../domain/host';
 import { MailPreviewSheet, MailReportSettings } from './report-mail';
 import { PlanCard } from '../site/PlanCard';
+import { AddressFields } from './address';
+import { emptyAddress } from '../domain/address';
+import { loadRates, rateFor } from '../domain/cpi';
 import { EnterpriseForm } from '../site/EnterpriseForm';
 import { plans as sitePlans } from '../site/content';
 
@@ -202,7 +205,9 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
           <Card gap={4}>
             <OnOff label={t('Telefon ve tarayıcı bildirimi')} k="push" />
             <OnOff label={t('E-posta')} k="email" />
+            <OnOff label={t('SMS (kira, sözleşme ve sigorta hatırlatmaları)')} k="sms" />
           </Card>
+          {!user?.phone ? <Muted>{t('SMS için Hesap sekmesinden telefon numaranı ekle.')}</Muted> : null}
           {owner ? (
             <>
               <Label>{t('Rapor e-postası')}</Label>
@@ -229,6 +234,7 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
           <Seg value={S.theme === 'dark' ? 'dark' : 'light'} onChange={(v) => act('theme', { v })} options={[['light', t('Açık')], ['dark', t('Koyu')]]} />
           <H2>{t('Dil')}</H2>
           <Seg value={getLang()} onChange={(v) => act('lang', { v })} options={LANGS as any} />
+          <Card gap={4}><OnOff label={t('Panele girerken kilit sesi')} k="openSound" /></Card>
         </Stack>
       ) : null}
 
@@ -493,6 +499,18 @@ function RenewalSheet({ pid, close }: { pid?: string; close: () => void }) {
   const p = propOf(pid);
   const [cpi, setCpi] = useState(ui.renewal.cpi == null ? '' : String(ui.renewal.cpi));
   const [amount, setAmount] = useState(ui.renewal.amount == null ? '' : String(ui.renewal.amount));
+  const [auto, setAuto] = useState<{ month: string; rate: number } | null>(null);
+  // Oran tablosunda yenileme ayı için TÜİK verisi varsa alan kendiliğinden dolar (elle değiştirilebilir).
+  useEffect(() => {
+    let live = true;
+    loadRates().then((r) => {
+      const hit = live ? rateFor(r, parse(p.contractEnd)) : null;
+      if (!hit) return;
+      setAuto(hit);
+      if (ui.renewal.cpi == null) { setCpi(String(hit.rate)); ui.renewal.cpi = hit.rate; }
+    });
+    return () => { live = false; };
+  }, [p.id]);
   const has = cpi !== '' && isFinite(Number(cpi));
   const max = has ? Math.round(p.rent * (1 + Number(cpi) / 100)) : 0;
   const over = has && Number(amount) > max;
@@ -502,6 +520,7 @@ function RenewalSheet({ pid, close }: { pid?: string; close: () => void }) {
       <KV k={t('Mevcut kira')} v={tl(p.rent)} /><KV k={t('Sözleşme bitişi')} v={fmtFull(parse(p.contractEnd))} />
       <Field label={t('Son 12 aylık TÜFE ortalaması (%)')} value={cpi} keyboardType="decimal-pad" placeholder={t('TÜİK’in açıkladığı oran')}
         onChangeText={(x) => { const n = x.replace(',', '.').replace(/[^0-9.]/g, ''); setCpi(n); ui.renewal.cpi = n === '' ? null : Number(n); if (n !== '' && !amount) { const m = Math.round(p.rent * (1 + Number(n) / 100)); setAmount(String(m)); ui.renewal.amount = m; } }} />
+      {auto ? <Muted>{t('TÜİK {m} verisi: %{r}. Sözleşmede daha düşük bir oran yazıyorsa onu gir.', { m: monthYear(auto.month), r: String(auto.rate).replace('.', ',') })}</Muted> : null}
       <Note>{!has ? t('Oranı girince yasal üst sınır burada görünür.') : over ? t('Önerdiğin tutar yasal üst sınırı (') + tl(max) + t(') aşıyor; teklif sınırla gönderilir.') : `${t('Yasal üst sınır:')} ${tl(max)} (+${tl(max - p.rent)})`}</Note>
       {ui.role === 'landlord' && can(p.id, 'shared') ? (
         <>
@@ -534,7 +553,7 @@ function LesseeFields({ v, set, p }: { v: any; set: (k: string, x: any) => void;
 }
 
 function AddPropSheet({ close }: { close: () => void }) {
-  const { v, set } = useVals({ type: ui.newPropType || 'Konut', name: '', addr: '', rent: '', due: '1', phone: '', tenantKind: TENANT_KINDS[0], coName: '', coTaxNo: '', coTaxOffice: '', stopaj: true });
+  const { v, set } = useVals({ type: ui.newPropType || 'Konut', name: '', address: emptyAddress(), area: '', rent: '', due: '1', phone: '', tenantKind: TENANT_KINDS[0], coName: '', coTaxNo: '', coTaxOffice: '', stopaj: true });
   const [err, setErr] = useState('');
   const ph: any = { Konut: t('Ör. Kadıköy 3+1'), Ofis: t('Ör. Levent ofis'), Mağaza: t('Ör. Bağdat Cd. mağaza'), Depo: t('Ör. Hadımköy depo') };
   return (
@@ -542,8 +561,11 @@ function AddPropSheet({ close }: { close: () => void }) {
       <Title>{t('Mülk ekle')}</Title>
       <Seg scroll value={v.type} onChange={(x) => set('type', x)} options={PROP_TYPES.map((tp: string) => [tp, t(tp)] as [string, string])} />
       <Text2 label={t('Mülk adı')} v={v} set={set} k="name" maxLength={60} placeholder={ph[v.type]} error={err} />
-      <Text2 label={t('Adres')} v={v} set={set} k="addr" maxLength={120} />
-      <Row align="flex-start"><View style={{ flex: 1 }}><NumField label={t('Aylık kira (₺)')} v={v} set={set} k="rent" /></View><View style={{ flex: 1 }}><NumField label={t('Ödeme günü')} v={v} set={set} k="due" /></View></Row>
+      <H2>{t('Adres')}</H2>
+      <AddressFields value={v.address} onChange={(a) => set('address', a)} />
+      <H2>{t('Kira')}</H2>
+      <Row align="flex-start"><View style={{ flex: 1 }}><NumField label={t('Alan (m²)')} v={v} set={set} k="area" /></View><View style={{ flex: 1 }}><NumField label={t('Aylık kira (₺)')} v={v} set={set} k="rent" /></View></Row>
+      <NumField label={t('Ödeme günü')} v={v} set={set} k="due" />
       {v.type !== 'Konut' ? <LesseeFields v={v} set={set} /> : null}
       <Text2 label={t('Kiracının telefonu')} v={v} set={set} k="phone" keyboardType="phone-pad" placeholder="05__ ___ __ __" />
       <Muted>{t('Kaydettiğinde kiracıya WhatsApp ile davet linki hazırlanır; katıldığında mülk iki taraflı panele dönüşür.')}</Muted>
@@ -555,7 +577,7 @@ function AddPropSheet({ close }: { close: () => void }) {
 function EditPropSheet({ pid, close }: { pid?: string; close: () => void }) {
   const p = propOf(pid);
   const { v, set } = useVals({
-    name: p.name, addr: p.addr, type: p.type, area: p.area ? String(p.area) : '', rent: String(p.rent), due: String(p.dueDay),
+    name: p.name, address: p.address || { ...emptyAddress(), note: p.addr || '' }, type: p.type, area: p.area ? String(p.area) : '', rent: String(p.rent), due: String(p.dueDay),
     tenantKind: p.company ? TENANT_KINDS[1] : TENANT_KINDS[0], coName: p.company?.name || '', coTaxNo: p.company?.taxNo || '', coTaxOffice: p.company?.taxOffice || '', stopaj: !p.company || p.stopaj,
     aidat: String(p.aidat), aidatPayer: p.aidatPayer, depositKind: p.depositKind || 'Nakit', deposit: String(p.deposit), depositNote: p.depositNote || '',
     value: p.value ? String(p.value) : '', contractEnd: p.contractEnd, dask: p.dask || ''
@@ -564,7 +586,7 @@ function EditPropSheet({ pid, close }: { pid?: string; close: () => void }) {
     <Stack>
       <Title>{t('Mülk bilgileri')}</Title>
       <Text2 label={t('Mülk adı')} v={v} set={set} k="name" maxLength={60} />
-      <Text2 label={t('Adres')} v={v} set={set} k="addr" maxLength={120} />
+      <AddressFields value={v.address} onChange={(a) => set('address', a)} />
       <Choice label={t('Mülk tipi')} options={PROP_TYPES} v={v} set={set} k="type" render={t} />
       <Row align="flex-start"><View style={{ flex: 1 }}><NumField label={t('Alan (m²)')} v={v} set={set} k="area" /></View><View style={{ flex: 1 }}><NumField label={p.stopaj ? t('Aylık brüt kira (₺)') : t('Aylık kira (₺)')} v={v} set={set} k="rent" /></View></Row>
       <NumField label={t('Ödeme günü')} v={v} set={set} k="due" />

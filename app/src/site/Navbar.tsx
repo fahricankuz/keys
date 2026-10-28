@@ -1,7 +1,7 @@
 /* Tanıtım sitesinin üst şeridi ve menüsü. "Özellikler" açılır panelinde kategori seçilince
    sayfadaki Özellikler bölümü o kategorinin sekmesiyle açılır (Landing → openFeature). */
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text as RNText, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text as RNText, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { t, getLang, setLang } from '../domain/i18n';
@@ -11,6 +11,7 @@ import { Wordmark } from '../ui/Wordmark';
 import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
 import { Icon } from '../app-ui/blocks';
 import { categories } from './content';
+import { CONFIG } from '../domain/config';
 
 /** Üst duyuru şeridi: kira kartının kahverengisinden kırmızıya akan hareketli geçiş, altta kırmızı ışıma,
     soldan sağa geçen parıltı ve "Fırsat" etiketi. Hareketi azaltmayı seçen kullanıcıda geçiş durağandır. */
@@ -37,6 +38,12 @@ const ANIM: any = Platform.OS === 'web' ? StyleSheet.create({
 
 /** Üst duyuru şeridi: kira kartının kahverengisinden kırmızıya akan hareketli geçiş, altta kırmızı ışıma,
     soldan sağa geçen parıltı ve "Fırsat" etiketi. Hareketi azaltmayı seçen kullanıcıda geçiş durağandır. */
+/** Sitedeki statik sayfaya (hesaplayıcı, blog) aynı sekmede gider. */
+export function openPage(path: string) {
+  if (typeof window !== 'undefined' && window.location) window.location.assign('/' + path);
+  else Linking.openURL(CONFIG.publicUrl.replace(/\/?$/, '/') + path).catch(() => {});
+}
+
 export function TopBar() {
   const c = useColors();
   const router = useRouter();
@@ -102,6 +109,9 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
                     <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{label}</Text>
                   </PressScale>
                 ))}
+                <PressScale onPress={() => openPage('kira-artis-hesaplama')} accessibilityRole="link" style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+                  <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{t('Kira artışı hesapla')}</Text>
+                </PressScale>
               </View>
             )}
             <View style={{ flexDirection: 'row', gap: phone ? (narrow ? 3 : 4) : 6, alignItems: 'center' }}>

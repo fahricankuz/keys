@@ -27,9 +27,9 @@ test('uygunluk: her security definer işlevinde search_path sabit', async () => 
   expect(bad).toEqual([]);
 });
 
-test('uygunluk: anon rolünün hiçbir tabloya yetkisi yok', async () => {
-  const g = await q(`select table_name from information_schema.role_table_grants where grantee = 'anon' and table_schema = 'public'`);
-  expect(g).toEqual([]);
+test('uygunluk: anon rolü yalnız herkese açık TÜFE tablosunu okur', async () => {
+  const g = await q(`select table_name, privilege_type from information_schema.role_table_grants where grantee = 'anon' and table_schema = 'public'`);
+  expect(g).toEqual([{ table_name: 'cpi_rates', privilege_type: 'SELECT' }]);
 });
 
 test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnızca izinli listede (yeni işlev eklenirse bilinçli karar gerekir)', async () => {
@@ -41,7 +41,7 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
     // activity_feed → sahip/ekip, invite_preview → kodu bilen, member_can / msg_side → çağıranın kendi üyeliği,
     // submit_lead → herkese açık kurumsal başvuru (alan doğrulaması ve sıklık sınırı içinde).
     'accept_invite', 'activity_feed', 'admin_audit_log', 'admin_delete_message', 'admin_extend_trial', 'admin_kpis', 'admin_messages',
-    'admin_set_ban', 'admin_set_plan', 'admin_subscriptions', 'admin_threads', 'admin_users',
+    'admin_set_ban', 'admin_set_cpi', 'admin_set_plan', 'admin_subscriptions', 'admin_threads', 'admin_users',
     'delete_my_account', 'file_review_ok', 'has_access', 'import_properties', 'invite_preview', 'is_admin', 'is_banned', 'is_member', 'is_owner',
     'member_can', 'member_role', 'msg_side', 'my_access', 'review_ok', 'shares_property', 'submit_lead', 'team_list', 'team_remove', 'team_set'
   ]);
@@ -272,4 +272,19 @@ test('kurumsal başvuru: oturumsuz ziyaretçi gönderir; doğrulama ve sıklık 
   expect(rows.length).toBe(3);
   expect(rows[0]).toMatchObject({ kind: 'kurumsal', units: 40, company: 'Yılmaz Emlak', details: { types: ['Konut', 'Ofis'], role: 'Emlak ofisi' } });
   expect(rows[1].details.types).toEqual([]);
+});
+
+test('TÜFE oranları: herkes okur; yalnız yönetici yazar; yazma kaydı tutulur', async () => {
+  await as(A);
+  await q(`select public.admin_set_cpi('2026-09', 33.456)`);
+  await as(null, true);
+  expect(await q(`select month, avg12::text from public.cpi_rates`)).toEqual([{ month: '2026-09', avg12: '33.46' }]);
+  expect(await tryCall(db, `insert into public.cpi_rates (month, avg12) values ('2026-10', 1)`)).toBeTruthy();
+  await as(L);
+  expect(await tryCall(db, `select public.admin_set_cpi('2026-10', 99)`)).toMatch(/Yönetici/);
+  expect(await tryCall(db, `update public.cpi_rates set avg12 = 1`)).toBeTruthy();
+  await as(A);
+  expect(await tryCall(db, `select public.admin_set_cpi('2026-13', 10)`)).toBeTruthy();
+  await q(`select public.admin_set_cpi('2026-09', null)`);
+  expect(await q(`select * from public.cpi_rates`)).toEqual([]);
 });

@@ -24,6 +24,7 @@ export const POSTS = [
     summary: 'Konut kirasında yıllık artış sınırı, TÜFE 12 aylık ortalaması ve adım adım örnek hesap.',
     body: `
 <p>Kira sözleşmesi yenilendiğinde mülk sahibi ile kiracının en çok konuştuğu konu artış oranıdır. Konut ve çatılı işyeri kiralarında bu oranın yasal bir üst sınırı vardır; sınırı bilmek iki tarafı da gereksiz tartışmadan korur.</p>
+<div class="callout"><p>Hemen hesaplamak için <a href="/kira-artis-hesaplama"><strong>ücretsiz kira artış hesaplayıcımızı</strong></a> kullan: güncel TÜFE oranı kendiliğinden gelir.</p></div>
 <h2 id="ust-sinir">Üst sınır: TÜFE 12 aylık ortalaması</h2>
 <p>Türk Borçlar Kanunu'nun 344. maddesine göre yenilenen kira dönemindeki artış, bir önceki kira yılında <strong>TÜFE'nin 12 aylık ortalamalara göre değişim oranını</strong> geçemez. Sözleşmede daha düşük bir oran yazıyorsa o oran geçerlidir; daha yüksek bir oran yazılsa bile sınır uygulanır.</p>
 <div class="callout"><p>2022–2024 arasında konut kiraları için geçici olarak yüzde 25 sınırı uygulanmıştı. Bu uygulama Temmuz 2024'te sona erdi; bugün geçerli olan sınır TÜFE 12 aylık ortalamasıdır.</p></div>

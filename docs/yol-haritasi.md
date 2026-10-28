@@ -38,6 +38,15 @@ Sahip: 👤 = sizin yapmanız gereken (hesap, sözleşme, karar) · 🤖 = kodda
       tablo `support_requests`, olay **INSERT**, tür *Supabase Edge Functions* → `lead-mail`, başlık `x-anahtar-secret: <LEAD_SECRET>`.
       Başvurular webhook kurulmadan da yönetici paneli → Talepler'de görünür.
 
+- [ ] 👤 **Kira artış oranları (TÜFE)**: TCMB EVDS'e üye olup API anahtarı alın (evds2.tcmb.gov.tr → profil → API anahtarı).
+      `supabase functions deploy tufe-sync`; gizli değişkenler `TUFE_SECRET`, `EVDS_KEY`. Cron: Edge Function `tufe-sync`, POST,
+      `0 9 3-6 * *`, başlık `x-anahtar-secret`. Kurulana kadar oranları **yönetici paneli → Kira artış oranları**'ndan elle girin;
+      elle girilen aylar otomatik çekimde ezilmez. Sitedeki `/kira-artis-hesaplama` ve uygulamadaki yenileme ekranı bu tablodan okur.
+- [ ] 👤 **SMS hatırlatmaları**: bir SMS sağlayıcısı seçin (öneri: **Netgsm**; BTK onaylı gönderici başlığı, ör. `ANAHTAR`) ve
+      push fonksiyonunun gizli değişkenlerine `SMS_PROVIDER=netgsm`, `NETGSM_USER`, `NETGSM_PASS`, `NETGSM_HEADER` ekleyin
+      (ya da `SMS_PROVIDER=twilio`, `TWILIO_SID`, `TWILIO_TOKEN`, `TWILIO_FROM`). SMS yalnız tarihli hatırlatmalarda gider
+      (kira günü yaklaşırken, kira günü, gecikme, sözleşme, DASK, tahliye); kullanıcı Ayarlar → Bildirimler'den kapatabilir.
+
 ## Faz 1 — Güvenlik ve hukuk (1–2 hafta, Faz 0 ile paralel)
 
 - [ ] 👤 **KVKK**: aydınlatma metni ve gizlilik politikasını avukata kontrol ettirin; VERBİS kayıt yükümlülüğünü değerlendirin;

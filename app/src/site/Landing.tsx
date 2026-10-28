@@ -18,7 +18,7 @@ import { Icon, Steps } from '../app-ui/blocks';
 import { useLangTick } from '../app-ui/hooks';
 import { categories, faq, plans } from './content';
 import { PlanCard } from './PlanCard';
-import { Nav, TopBar } from './Navbar';
+import { Nav, TopBar, openPage } from './Navbar';
 
 const EASE = 'cubic-bezier(0.32,0.72,0,1)';
 const site = (path: string) => CONFIG.publicUrl.replace(/\/?$/, '/') + path;
@@ -497,13 +497,36 @@ function Contact({ anchor }: { anchor: (el: any) => void }) {
   );
 }
 
+/** Ücretsiz kira artış hesaplayıcısına yönlendiren bant (ayrı, SEO'ya açık sayfa). */
+function CalcBand() {
+  const c = useColors();
+  const { phone } = useBreakpoint();
+  return (
+    <Container style={{ paddingTop: phone ? 44 : 96 }}>
+      <Reveal style={{ backgroundColor: c.lemon, borderRadius: phone ? 26 : 36, padding: phone ? 22 : 44, flexDirection: phone ? 'column' : 'row', alignItems: phone ? 'flex-start' : 'center', gap: phone ? 16 : 32, overflow: 'hidden' }}>
+        <View style={{ flex: phone ? undefined : 1, gap: 8 }}>
+          <Text v="label" color="#6B4A00" style={{ fontSize: 13, letterSpacing: 0.4 }}>{t('Ücretsiz araç')}</Text>
+          <Display size={phone ? 24 : 40} color="#1D1A19">{t('Bu yıl kiraya ne kadar zam yapılabilir?')}</Display>
+          <Text v="body" color="#3B2A00" style={{ fontSize: phone ? 15 : 17, lineHeight: phone ? 22 : 26, maxWidth: 560 }}>{t('TÜİK’in her ay açıkladığı 12 aylık ortalama TÜFE ile yasal zam tavanını ve yeni kira bedelini saniyeler içinde hesapla.')}</Text>
+        </View>
+        <View style={{ backgroundColor: '#1D1A19', borderRadius: 24, padding: phone ? 18 : 24, gap: 6, minWidth: phone ? undefined : 300, alignSelf: phone ? 'stretch' : 'auto' }}>
+          <Text v="small" color="#BDB1AB">{t('Örnek: ₺25.000 kira, %40 TÜFE')}</Text>
+          <Display size={phone ? 30 : 38} color="#FAF5F0">₺35.000</Display>
+          <Text v="small" color="#F2B544" style={{ fontFamily: fonts.bodyBold }}>{t('+₺10.000 / ay')}</Text>
+          <View style={{ marginTop: 10 }}><Button kind="primary" title={t('Kira artışını hesapla')} onPress={() => openPage('kira-artis-hesaplama')} /></View>
+        </View>
+      </Reveal>
+    </Container>
+  );
+}
+
 function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
   const c = useColors();
   const { phone } = useBreakpoint();
   const lang = getLang();
   const open = (u: string) => () => Linking.openURL(u).catch(() => {});
   const cols: [string, [string, () => void][]][] = [
-    [t('Ürün'), [[t('Özellikler'), () => scrollTo('ozellikler')], [t('Nasıl çalışır'), () => scrollTo('nasil')], [t('Fiyatlar'), () => scrollTo('fiyat')], [t('Blog'), open(site('blog/'))]]],
+    [t('Ürün'), [[t('Özellikler'), () => scrollTo('ozellikler')], [t('Nasıl çalışır'), () => scrollTo('nasil')], [t('Fiyatlar'), () => scrollTo('fiyat')], [t('Kira artış hesaplama'), () => openPage('kira-artis-hesaplama')], [t('Blog'), open(site('blog/'))]]],
     [t('Destek'), [[t('Destek merkezi'), open(CONFIG.legal.support)], [t('Sıkça sorulanlar'), () => scrollTo('sss')], [CONFIG.supportEmail, open('mailto:' + CONFIG.supportEmail)]]],
     [t('Yasal'), [[t('Kullanım Koşulları'), open(CONFIG.legal.terms)], [t('Gizlilik ve KVKK'), open(CONFIG.legal.privacy)], [t('Hesap silme'), open(CONFIG.legal.deletion)]]]
   ];
@@ -591,6 +614,7 @@ export default function Landing() {
         <Features active={feature} setActive={setFeature} anchor={mark('ozellikler')} go={go} />
         <HowItWorks go={go} anchor={mark('nasil')} />
         <Pricing go={go} anchor={mark('fiyat')} />
+        <CalcBand />
         <Faq anchor={mark('sss')} />
         <Contact anchor={mark('iletisim')} />
         <Footer scrollTo={scrollTo} />

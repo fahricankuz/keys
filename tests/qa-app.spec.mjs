@@ -59,7 +59,17 @@ test('kabul: mülk sahibi kaydolur, mülk ekler, kiracı davetle katılır, deko
   await expect(page).toHaveURL(/\/uygulama/);
   await page.getByRole('button', { name: 'Mülk ekle' }).first().click();
   await page.getByLabel('Mülk adı').fill('Kadıköy Dairesi');
-  await page.getByLabel('Adres').fill('Moda Cd. 5');
+  // Adres: il → ilçe → mahalle listeden (aranabilir), sokak ve numara elle.
+  await page.getByRole('button', { name: 'İl', exact: true }).click();
+  await page.getByRole('button', { name: 'İstanbul', exact: true }).click();
+  await page.getByRole('button', { name: 'İlçe', exact: true }).click();
+  await page.getByLabel('İlçe ara').fill('kadı');
+  await page.getByRole('button', { name: 'Kadıköy', exact: true }).click();
+  await page.getByRole('button', { name: 'Mahalle', exact: true }).click();
+  await page.getByRole('button', { name: 'Caferağa Mahallesi' }).click();
+  await page.getByLabel('Cadde / sokak').fill('Moda Cd.');
+  await page.getByLabel('Bina no').fill('5');
+  await page.getByLabel('Alan (m²)').fill('110');
   await page.getByLabel('Aylık kira (₺)').fill('25000');
   await page.getByLabel('Ödeme günü').fill('5');
   await page.getByRole('button', { name: 'Kaydet ve davet et' }).click();
@@ -67,6 +77,9 @@ test('kabul: mülk sahibi kaydolur, mülk ekler, kiracı davetle katılır, deko
   await expect.poll(async () => (await db(page)).tables.invites.length).toBe(1);
   const code = (await db(page)).tables.invites[0].code;
   expect(code).toMatch(/^[A-Z0-9]{8}$/);
+  const prop = (await db(page)).tables.properties.find((x) => x.name === 'Kadıköy Dairesi');
+  expect(prop).toMatchObject({ area: 110, addr: 'Moda Cd. No:5, Caferağa Mahallesi, Kadıköy/İstanbul',
+    address: { country: 'Türkiye', city: 'İstanbul', district: 'Kadıköy', hood: 'Caferağa Mahallesi', street: 'Moda Cd.', no: '5' } });
 
   // 2) Kiracı davet bağlantısıyla gelir, kaydolur ve mülke bağlanır.
   await signOutLocal(page);

@@ -78,6 +78,18 @@ export async function setPlan(uid, plan, until, why){
   must(await c.rpc('admin_set_plan', { uid, plan: plan || '', until: until || null, why }));
 }
 
+/** Yasal kira artış oranları (TÜFE 12 aylık ortalama), yeni aydan eskiye. */
+export async function loadCpi(){
+  const c = await client();
+  return must(await c.from('cpi_rates').select('month, avg12, source, updated_at').order('month', { ascending: false }).limit(60)) || [];
+}
+
+/** Bir ayın oranını girer ya da siler (rate boşsa). */
+export async function setCpi(month, rate){
+  const c = await client();
+  must(await c.rpc('admin_set_cpi', { m: month, rate: rate === '' || rate == null ? null : Number(rate) }));
+}
+
 /** "Bize ulaş" talepleri (kurumsal, içe aktarma, genel). */
 export async function loadSupport(){
   const c = await client();

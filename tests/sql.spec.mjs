@@ -214,6 +214,26 @@ test('günlük hatırlatma eşik gününde bir kez üretilir', async () => {
   expect(first).toBeGreaterThanOrEqual(2);          // iki kiracı
   expect(second).toBe(0);                           // aynı gün tekrar yok
   expect((await notes(T2)).some(n => n.title === 'Kira günü yaklaşıyor')).toBe(true);
+  expect((await notes(L)).some(n => /: kira günü yaklaşıyor$/.test(n.title))).toBe(true);   // mülk sahibine de
+});
+
+test('hatırlatmalar: kira günü ve gecikmede iki tarafa; ayardan kapatılan tür gönderilmez', async () => {
+  await as(null);
+  const [{ due_day }] = await q(`select due_day from public.properties where id = 'p1'`);
+  const base = new Date(); base.setDate(1); base.setMonth(base.getMonth() + 2);
+  const d = (n) => { const x = new Date(base.getFullYear(), base.getMonth(), n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
+  await q(`update public.properties set start_date = '2020-01-01', contract_end = '2099-01-01' where id = 'p1'`);
+  await q(`delete from public.payments where property_id = 'p1' and month = $1`, [d(1).slice(0, 7)]);
+  await q(`delete from public.notifications`);
+  await q(`select public.daily_reminders($1::date)`, [d(due_day)]);
+  expect((await notes(T2)).map(n => n.title)).toContain('Bugün kira günü');
+  // Gecikme: iki tarafa. Kiracı gecikme bildirimini kapattıysa ona gitmez, mülk sahibine yine gider.
+  await q(`update public.profiles set settings = settings || '{"lateNotice":false}' where id = $1`, [T2]);
+  await q(`select public.daily_reminders($1::date)`, [d(due_day + 1)]);
+  expect((await notes(T2)).some(n => n.title === 'Kira gecikti')).toBe(false);
+  expect((await notes(L)).some(n => /: kira gecikti$/.test(n.title))).toBe(true);
+  expect((await notes(T1)).some(n => n.title === 'Kira gecikti')).toBe(true);
+  await q(`update public.profiles set settings = settings - 'lateNotice' where id = $1`, [T2]);
 });
 
 test('dosya deposu yalnızca ev üyelerine açık', async () => {

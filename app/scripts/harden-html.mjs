@@ -68,6 +68,12 @@ const cssV = existsSync(cssFile) ? createHash('sha256').update(readFileSync(cssF
 let count = 0;
 for (const file of walk(out)) {
   let html = readFileSync(file, 'utf8');
+  // Statik sayfalardaki herkese açık veri okuyucular (kira artış hesaplayıcı) için Supabase adresi ve herkese açık anahtar.
+  if (html.includes('%%ANAHTAR_API%%')) {
+    const key = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+    html = html.replaceAll('%%ANAHTAR_API%%', api && key ? esc(api + '|' + key) : '');
+    writeFileSync(file, html);
+  }
   if (cssV) {
     const v = html.replace(/(href="(?:\.\.\/|\/)?site\.css)(?:\?v=[0-9a-f]+)?"/g, `$1?v=${cssV}"`);
     if (v !== html) { html = v; writeFileSync(file, html); }

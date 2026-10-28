@@ -11,15 +11,17 @@
 //   WEBHOOK_SECRET   — webhook'a eklenen x-evim-secret başlığıyla aynı değer
 // İsteğe bağlı:
 //   RESEND_API_KEY, EMAIL_FROM — e-posta bildirimleri için
+//   SMS_PROVIDER ve sağlayıcı bilgileri — tarihli hatırlatmalar için SMS (ayrıntı sms.ts)
 //   APP_URL          — bildirim bağlantılarının açılacağı adres (ör. https://kullanici.github.io/project_evim/)
 // SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY Supabase tarafından otomatik sağlanır.
 
 import webpush from 'npm:web-push@3.6.7';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { sendApns, sendFcm } from './native.ts';
+import { sendSms, smsEnabled } from './sms.ts';
 
 type NotificationRow = {
-  id: number; user_id: string; title: string; body: string; url: string; tag: string | null;
+  id: number; user_id: string; property_id: string | null; title: string; body: string; url: string; tag: string | null;
 };
 
 const env = (k: string) => Deno.env.get(k) ?? '';
@@ -38,6 +40,16 @@ function safeEqual(a: string, b: string): boolean {
   return d === 0;
 }
 
+/** Bildirimdeki eski adres biçimini (#/kiraci/odemeler, #/mulk-sahibi/mulk/<id>/odeme) panel yoluna çevirir
+    (app/src/domain/nav.js → toApp ile aynı kural). */
+function panelPath(url: string): string {
+  const [root, a, b, c] = String(url || '').replace(/^#/, '').split('?')[0].split('/').filter(Boolean);
+  if (root === 'kiraci') return a ? (a === 'belgeler' && b ? `/uygulama/belgeler/${b}` : `/uygulama/${a}`) : '/uygulama';
+  if (root === 'mulk-sahibi' && a === 'mulk' && b) return `/uygulama/mulk?pid=${encodeURIComponent(b)}&sub=${c || 'ozet'}`;
+  if (root === 'mulk-sahibi' && a) return `/uygulama/${a}`;
+  return '/uygulama';
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('Yalnızca POST', { status: 405 });
 
@@ -53,7 +65,7 @@ Deno.serve(async (req) => {
   }
 
   const appUrl = env('APP_URL');
-  const link = appUrl ? appUrl.replace(/\/?$/, '/') + n.url : n.url;
+  const link = appUrl ? appUrl.replace(/\/?$/, '') + panelPath(n.url) : panelPath(n.url);
 
   // 1. Web Push
   const { data: subs } = await admin.from('push_subscriptions').select('endpoint, keys').eq('user_id', n.user_id);
@@ -90,10 +102,22 @@ Deno.serve(async (req) => {
     }
   }
 
-  // 3. E-posta (varsayılan açık; kullanıcı kapatmadıysa ve Resend yapılandırıldıysa)
+  const { data: profile } = await admin.from('profiles').select('settings, phone').eq('id', n.user_id).single();
+
+  // 3. SMS: yalnız tarihli hatırlatmalar (kira günü, gecikme, sözleşme, DASK, tahliye); kullanıcı kapatmadıysa.
+  let texted = false;
+  if (smsEnabled() && profile?.settings?.sms !== false && /^(rent-soon|rent-due|rent-late|renew|dask|evict)-/.test(n.tag ?? '')) {
+    let phone = profile?.phone || '';
+    if (!phone && n.property_id) {
+      const { data: m } = await admin.from('memberships').select('phone').eq('user_id', n.user_id).eq('property_id', n.property_id).maybeSingle();
+      phone = m?.phone || '';
+    }
+    if (phone) texted = await sendSms(phone, `anahtar: ${n.title}. ${n.body} ${link}`).catch(() => false);
+  }
+
+  // 4. E-posta (varsayılan açık; kullanıcı kapatmadıysa ve Resend yapılandırıldıysa)
   let mailed = false;
   if (env('RESEND_API_KEY') && env('EMAIL_FROM')) {
-    const { data: profile } = await admin.from('profiles').select('settings').eq('id', n.user_id).single();
     if (profile?.settings?.email !== false) {
       const { data: user } = await admin.auth.admin.getUserById(n.user_id);
       const to = user?.user?.email;
@@ -114,5 +138,5 @@ Deno.serve(async (req) => {
     }
   }
 
-  return Response.json({ sent, mailed });
+  return Response.json({ sent, texted, mailed });
 });

@@ -53,7 +53,7 @@ export function buildProperty(d){
   return {
     id: pr.id,
     ownerId: pr.owner_id,
-    name: pr.name, addr: pr.addr || '',
+    name: pr.name, addr: pr.addr || '', address: pr.address || null,
     type: pr.prop_type || 'Konut', area: num(pr.area),
     company: pr.company || null, stopaj: !!pr.stopaj, depositKind: pr.deposit_kind || 'Nakit',
     landlord: { name: (ownerMember && nameOf(ownerMember)) || ownerProfile.name || 'Mülk sahibi', phone: ownerMember?.phone || ownerProfile.phone || '' },
@@ -102,7 +102,7 @@ function clean(o){
 
 export function propertyRow(p, ownerId){
   return {
-    id: p.id, owner_id: ownerId || p.ownerId, name: p.name, addr: p.addr || '',
+    id: p.id, owner_id: ownerId || p.ownerId, name: p.name, addr: p.addr || '', address: p.address || null,
     prop_type: p.type || 'Konut', area: p.area ?? null, company: p.company || null,
     stopaj: !!p.stopaj, deposit_kind: p.depositKind || 'Nakit',
     rent: p.rent, due_day: p.dueDay, aidat: p.aidat || 0, aidat_payer: p.aidatPayer || 'Kiracı',

@@ -258,6 +258,13 @@ export function createClient(url, key, opts){
         persist(db);
         return { data:inv.property_id, error:null };
       }
+      if (name === 'admin_set_cpi'){
+        if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
+        db.tables.cpi_rates = (db.tables.cpi_rates || []).filter(r => r.month !== args.m);
+        if (args.rate != null) db.tables.cpi_rates.push({ month:args.m, avg12:Math.round(args.rate * 100) / 100, source:'manual', updated_at:now() });
+        persist(db);
+        return { data:null, error:null };
+      }
       if (name === 'submit_lead'){
         const p = args.p || {};
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.email || '')) return { data:null, error:{ message:'Geçerli bir e-posta adresi yaz.' } };

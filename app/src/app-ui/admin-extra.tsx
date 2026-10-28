@@ -1,7 +1,7 @@
 /* Yönetici paneli: genel bakış göstergeleri, mülk sahibi abonelikleri ve "Bize ulaş" talepleri. */
 import { ReactNode, useEffect, useState } from 'react';
 import { Linking, View } from 'react-native';
-import { extendTrial, humanError, loadKpis, loadSubscriptions, loadSupport, setPlan, setSupportStatus } from '../domain/admin';
+import { extendTrial, humanError, loadCpi, loadKpis, loadSubscriptions, loadSupport, setCpi, setPlan, setSupportStatus } from '../domain/admin';
 import { CONFIG } from '../domain/config';
 import { planLabel } from '../domain/plans';
 import { t, locale } from '../domain/i18n';
@@ -309,6 +309,51 @@ export function Support() {
           </Row>
         </Card>
       ))}
+    </Stack>
+  );
+}
+
+/** Yasal kira artış oranları: tufe-sync fonksiyonu her ay doldurur; yönetici elle girer ya da düzeltir. */
+export function CpiRates() {
+  const c = useColors();
+  const { data, err, reload } = useLoad<any[]>(() => loadCpi());
+  const now = new Date();
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const [month, setMonth] = useState(prev.getFullYear() + '-' + String(prev.getMonth() + 1).padStart(2, '0'));
+  const [rate, setRate] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+  const save = async (m: string, r: string) => {
+    setMsg(null);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(m)) { setMsg(t('Ayı YYYY-AA biçiminde yaz (ör. 2026-09).')); return; }
+    try { await setCpi(m, r.replace(',', '.')); setRate(''); reload(); } catch (e) { setMsg(humanError(e)); }
+  };
+  return (
+    <Stack>
+      <Card gap={12}>
+        <H2>{t('Oran gir')}</H2>
+        <Muted>{t('TÜİK bülteninde “12 aylık ortalamalara göre değişim” satırındaki TÜFE oranı. Ay, verinin ait olduğu aydır (ör. Ekim başında açıklanan Eylül verisi için 2026-09).')}</Muted>
+        <Row gap={10} wrap align="flex-end">
+          <View style={{ flexGrow: 1, flexBasis: 160 }}><Field label={t('Ay (YYYY-AA)')} value={month} onChangeText={setMonth} maxLength={7} /></View>
+          <View style={{ flexGrow: 1, flexBasis: 160 }}><Field label={t('Oran (%)')} value={rate} onChangeText={(x) => setRate(x.replace(/[^0-9.,-]/g, ''))} keyboardType="decimal-pad" placeholder="ör. 33,45" /></View>
+          <Button title={t('Kaydet')} onPress={() => save(month, rate)} disabled={!rate} style={{ minHeight: 52 }} />
+        </Row>
+        {msg ? <Text v="small" color={c.badInk}>{msg}</Text> : null}
+      </Card>
+      {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
+      {data || err ? null : <Spin />}
+      {data && !data.length ? <Empty>{t('Henüz oran yok. tufe-sync fonksiyonu kurulunca her ay kendiliğinden eklenir.')}</Empty> : null}
+      {data && data.length ? (
+        <Card gap={0}>
+          {data.map((r, i) => (
+            <Row key={r.month} between style={{ paddingVertical: 12, borderTopWidth: i ? 1 : 0, borderColor: c.line }}>
+              <Text v="small" style={{ fontFamily: fonts.bodyBold, flex: 1 }}>{r.month}</Text>
+              <Text v="small" style={{ fontFamily: fonts.bodyXBold, width: 90 }}>%{String(r.avg12).replace('.', ',')}</Text>
+              <Chip tone={r.source === 'evds' ? 'ok' : 'warn'} label={r.source === 'evds' ? t('Otomatik') : t('Elle')} />
+              <Button kind="quiet" title={t('Sil')} onPress={() => save(r.month, '')} />
+            </Row>
+          ))}
+        </Card>
+      ) : null}
     </Stack>
   );
 }
