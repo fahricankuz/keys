@@ -43,6 +43,7 @@ function safeEqual(a: string, b: string): boolean {
 /** Bildirimdeki eski adres biçimini (#/kiraci/odemeler, #/mulk-sahibi/mulk/<id>/odeme) panel yoluna çevirir
     (app/src/domain/nav.js → toApp ile aynı kural). */
 function panelPath(url: string): string {
+  if (String(url || '').startsWith('/uygulama')) return url;   // yeni biçim (site bildirimleri) olduğu gibi
   const [root, a, b, c] = String(url || '').replace(/^#/, '').split('?')[0].split('/').filter(Boolean);
   if (root === 'kiraci') return a ? (a === 'belgeler' && b ? `/uygulama/belgeler/${b}` : `/uygulama/${a}`) : '/uygulama';
   if (root === 'mulk-sahibi' && a === 'mulk' && b) return `/uygulama/mulk?pid=${encodeURIComponent(b)}&sub=${c || 'ozet'}`;
@@ -104,9 +105,9 @@ Deno.serve(async (req) => {
 
   const { data: profile } = await admin.from('profiles').select('settings, phone').eq('id', n.user_id).single();
 
-  // 3. SMS: yalnız tarihli hatırlatmalar (kira günü, gecikme, sözleşme, DASK, tahliye); kullanıcı kapatmadıysa.
+  // 3. SMS: yalnız tarihli hatırlatmalar (kira günü, gecikme, sözleşme, DASK, tahliye, site aidatı); kullanıcı kapatmadıysa.
   let texted = false;
-  if (smsEnabled() && profile?.settings?.sms !== false && /^(rent-soon|rent-due|rent-late|renew|dask|evict)-/.test(n.tag ?? '')) {
+  if (smsEnabled() && profile?.settings?.sms !== false && /^(rent-soon|rent-due|rent-late|renew|dask|evict|aidat-(soon|due|late|late2))-/.test(n.tag ?? '')) {
     let phone = profile?.phone || '';
     if (!phone && n.property_id) {
       const { data: m } = await admin.from('memberships').select('phone').eq('user_id', n.user_id).eq('property_id', n.property_id).maybeSingle();

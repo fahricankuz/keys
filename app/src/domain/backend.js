@@ -309,7 +309,7 @@ export async function loadAll(opts = {}){
 }
 
 /** Tek bir evi sunucudan yeniden okur (başka cihazdan değişiklik geldiğinde). */
-async function refreshProperty(pid){
+export async function refreshProperty(pid){
   if (S.props[pid] && JSON.stringify(S.props[pid]) !== synced[pid]){ scheduleSync(0); refreshQueue.add(pid); return; }
   const built = await fetchRows([pid], true).catch(e => { console.error(e); return null; });
   if (!built) return;

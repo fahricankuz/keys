@@ -9,7 +9,8 @@ import { myOrgs, orgCan } from '../domain/org';
 import {
   KINDS, MODES, kindLabel, unitLabel, distribute, unpaidOf, lateFee, loadSiteAdmin, saveUnit, deleteUnit, parseUnits, importUnits,
   saveResident, deleteResident, createCharges, deleteCharge, decideCharge, markPaid, addExpense, deleteExpense, announce, deleteAnnouncement,
-  answerRequest, mySiteUnits, loadMySite, payCharge, openSiteRequest
+  answerRequest, mySiteUnits, loadMySite, payCharge, openSiteRequest, loadUnitCharges, budgetTotal, budgetAidat, saveBudget,
+  applyBudgetAidat, loadBudgets, siteReport
 } from '../domain/site';
 import { tl, monthYear, fmtFull, parse } from '../domain/util';
 import { Button, Chip, Field, Text } from '../ui/kit';
@@ -100,6 +101,7 @@ function UnitCard({ u, d, oid, org, can, reload }: { u: any; d: any; oid: string
   const [r, setR] = useState<any>({ role: 'kiraci', name: '', phone: '' });
   const [err, setErr] = useState<string | null>(null);
   const people = d.residents.filter((x: any) => x.unit_id === u.id);
+  const linked = (d.linked || []).filter((x: any) => x.unit_id === u.id);
   const act = async (fn: () => Promise<any>) => { setErr(null); try { await fn(); reload(); } catch (e) { setErr(humanError(e)); } };
   return (
     <Card gap={8}>
@@ -126,6 +128,12 @@ function UnitCard({ u, d, oid, org, can, reload }: { u: any; d: any; oid: string
             {can('residents.manage') ? <Button kind="quiet" title={t('Sil')} onPress={() => act(() => deleteResident(p.id))} /> : null}
           </Row>
         </Row>
+      ))}
+      {linked.map((p: any, i: number) => (
+        <View key={'l' + i} style={{ paddingTop: 6, borderTopWidth: 1, borderColor: c.line }}>
+          <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{p.name}</Text>
+          <Muted>{t('Kiracı · ev sahibinin anahtar hesabı üzerinden bağlı')}</Muted>
+        </View>
       ))}
       {can('residents.manage') ? (adding ? (
         <Stack gap={8}>
@@ -388,6 +396,122 @@ function RequestCard({ x, unit, can, reload }: { x: any; unit: any; can: (p: str
   );
 }
 
+const METHOD_LABEL = () => [['share', t('Arsa payına göre')], ['area', t('m²’ye göre')], ['equal', t('Eşit')]] as [string, string][];
+
+/** İşletme projesi: yıllık gider kalemleri, dağıtım anahtarı, dairelerin aylık aidatı ve "aidatları güncelle". */
+function Budget({ d, oid, can, reload }: { d: any; oid: string; can: (p: string) => boolean; reload: () => void }) {
+  const c = useColors();
+  const thisYear = new Date().getFullYear();
+  const [year, setYear] = useState(thisYear);
+  const saved = (d.budgets || []).find((b: any) => Number(b.year) === year);
+  const blank = { year, method: 'share', note: '', approved_on: '', items: [{ cat: '', amount: '' }] };
+  const [b, setB] = useState<any>(saved ? { ...saved, approved_on: saved.approved_on || '' } : blank);
+  useEffect(() => { setB(saved ? { ...saved, approved_on: saved.approved_on || '' } : { ...blank, year }); }, [year, saved?.updated_at]);
+  const [err, setErr] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const edit = can('charges.manage');
+  const plan = budgetAidat(d.units, { ...b, items: b.items.map((i: any) => ({ ...i, amount: Number(String(i.amount).replace(',', '.')) || 0 })) });
+  const unitBy: Record<string, any> = Object.fromEntries(d.units.map((u: any) => [u.id, u]));
+  const total = budgetTotal({ items: b.items.map((i: any) => ({ amount: Number(String(i.amount).replace(',', '.')) || 0 })) });
+  const setItem = (i: number, patch: any) => setB({ ...b, items: b.items.map((x: any, j: number) => (j === i ? { ...x, ...patch } : x)) });
+  const act = async (fn: () => Promise<any>, ok: string) => { setErr(null); setMsg(null); try { await fn(); setMsg(ok); reload(); } catch (e) { setErr(humanError(e)); } };
+  // Gerçekleşen: bu yılın giderleri, bütçe kalemleriyle (adı aynı olan) karşılaştırılır.
+  const spent = (cat: string) => d.expenses.filter((e: any) => String(e.spent_on).startsWith(String(year)) && String(e.cat).toLocaleLowerCase('tr') === String(cat).toLocaleLowerCase('tr'))
+    .reduce((a: number, e: any) => a + Number(e.amount), 0);
+  return (
+    <Stack>
+      <Seg value={String(year)} onChange={(v) => setYear(Number(v))} options={[thisYear - 1, thisYear, thisYear + 1].map((y) => [String(y), String(y)] as [string, string])} />
+      <Muted>{t('İşletme projesi yıllık gider tahminidir; kat malikleri kurulunca onaylanır ve (yönetim planında aksi yoksa) arsa payına göre paylaştırılır.')}</Muted>
+      <Card gap={10}>
+        <H2>{t('{year} işletme projesi', { year })}</H2>
+        {b.items.map((it: any, i: number) => (
+          <Row key={i} gap={10} wrap align="flex-end">
+            <View style={{ flexGrow: 2, flexBasis: 200 }}><Field label={t('Gider kalemi')} value={it.cat} editable={edit} onChangeText={(v) => setItem(i, { cat: v })} maxLength={60} placeholder={t('ör. Asansör bakımı')} /></View>
+            <View style={{ flexGrow: 1, flexBasis: 130 }}><Field label={t('Yıllık tutar (₺)')} value={String(it.amount ?? '')} editable={edit} onChangeText={(v) => setItem(i, { amount: v.replace(/[^0-9.,]/g, '') })} keyboardType="decimal-pad" /></View>
+            <View style={{ minWidth: 110, paddingBottom: 14 }}><Muted>{t('Harcanan')} {tl(spent(it.cat))}</Muted></View>
+          </Row>
+        ))}
+        {edit ? <Button kind="ghost" title={t('Kalem ekle')} onPress={() => setB({ ...b, items: [...b.items, { cat: '', amount: '' }] })} style={{ alignSelf: 'flex-start' }} /> : null}
+        <Row between wrap><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{t('Yıllık toplam')}</Text><Text v="h3">{tl(total)}</Text></Row>
+        <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{t('Paylaştırma')}</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{METHOD_LABEL().map(([k, l]) => <Pill key={k} label={l} on={b.method === k} onPress={edit ? () => setB({ ...b, method: k }) : undefined} disabled={!edit} />)}</View>
+        <Field label={t('Kurul onay tarihi (YYYY-AA-GG, isteğe bağlı)')} value={b.approved_on || ''} editable={edit} onChangeText={(v) => setB({ ...b, approved_on: v })} maxLength={10} />
+        {edit ? (
+          <Row wrap>
+            <Button title={t('Kaydet')} onPress={() => act(() => saveBudget(oid, { ...b, year }), t('İşletme projesi kaydedildi.'))} disabled={!total} />
+            {can('units.manage') && saved ? <Button kind="ghost" title={t('Daire aidatlarını güncelle')}
+              onPress={() => act(async () => { await applyBudgetAidat(oid, d.units, saved); }, t('Dairelerin aylık aidatı işletme projesine göre güncellendi.'))} /> : null}
+          </Row>
+        ) : null}
+        <Err e={err} />
+        {msg ? <Text v="small" color={c.okInk}>{msg}</Text> : null}
+      </Card>
+      {plan.length ? (
+        <Stack gap={8}>
+          <H2>{t('Dairelerin aylık payı')}</H2>
+          <Card gap={0}>
+            {plan.map((x, i) => (
+              <Row key={x.unit_id} between style={{ paddingVertical: 10, borderTopWidth: i ? 1 : 0, borderColor: c.line }}>
+                <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{unitLabel(unitBy[x.unit_id])}</Text>
+                <Muted>{unitBy[x.unit_id].aidat != null && Number(unitBy[x.unit_id].aidat) !== x.monthly ? t('şu an') + ' ' + tl(unitBy[x.unit_id].aidat) + ' → ' : ''}</Muted>
+                <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{tl(x.monthly)} {t('/ ay')}</Text>
+              </Row>
+            ))}
+          </Card>
+        </Stack>
+      ) : null}
+    </Stack>
+  );
+}
+
+/** Yönetim kurulu raporu: dönem seçilir, ekranda gösterilir, "Yazdır / PDF" ile çıktı alınır. */
+function Report({ d, org }: { d: any; org: string }) {
+  const c = useColors();
+  const [period, setPeriod] = useState<'month' | 'year'>('month');
+  const [ref, setRef] = useState(thisMonth() + '-01');
+  const months = Array.from({ length: 12 }, (_, i) => { const x = new Date(); x.setDate(1); x.setMonth(x.getMonth() - i); return x.toISOString().slice(0, 7) + '-01'; });
+  const years = [0, 1, 2].map((i) => (new Date().getFullYear() - i) + '-01-01');
+  const r = siteReport(d, period, ref);
+  const charged = r.charges.reduce((a: number, x: any) => a + x.charged, 0);
+  const got = r.charges.reduce((a: number, x: any) => a + x.collected, 0);
+  const spent = r.expenses.reduce((a: number, x: any) => a + x.total, 0);
+  const share = period === 'year' ? 1 : 1 / 12;
+  const line = (a: string, b: string, i: number, bad?: boolean) => (
+    <Row key={a + i} between style={{ paddingVertical: 9, borderTopWidth: i ? 1 : 0, borderColor: c.line }}>
+      <Text v="small" style={{ fontFamily: fonts.bodyBold, flex: 1 }}>{a}</Text><Text v="small" style={{ fontFamily: fonts.bodyXBold }} color={bad ? c.badInk : c.ink}>{b}</Text>
+    </Row>
+  );
+  const title = period === 'year' ? t('{year} yıllık yönetim raporu', { year: ref.slice(0, 4) }) : t('{month} yönetim raporu', { month: monthYear(ref.slice(0, 7)) });
+  return (
+    <Stack>
+      <Seg value={period} onChange={(v: any) => { setPeriod(v); setRef(v === 'year' ? years[0] : months[0]); }} options={[['month', t('Aylık')], ['year', t('Yıllık')]]} />
+      <Seg scroll value={ref} onChange={setRef} options={(period === 'year' ? years : months).map((x) => [x, period === 'year' ? x.slice(0, 4) : monthYear(x.slice(0, 7))] as [string, string])} />
+      <Card gap={12}>
+        <View style={{ gap: 2 }}><Label>{org} · {t('{n} daire', { n: r.units })}</Label><Text v="h3">{title}</Text></View>
+        <Row wrap>
+          <View style={{ flex: 1, minWidth: 130 }}><Muted>{t('Tahakkuk')}</Muted><Text v="h3">{tl(charged)}</Text></View>
+          <View style={{ flex: 1, minWidth: 130 }}><Muted>{t('Tahsil edilen')}</Muted><Text v="h3">{tl(got)}</Text><Muted>{charged ? Math.round((got / charged) * 100) + '%' : '—'}</Muted></View>
+          <View style={{ flex: 1, minWidth: 130 }}><Muted>{t('Giderler')}</Muted><Text v="h3">{tl(spent)}</Text></View>
+        </Row>
+        {r.charges.length ? <View><Label>{t('Tahakkuk ve tahsilat')}</Label>{r.charges.map((x: any, i: number) => line(kindLabel(x.kind), tl(x.collected) + ' / ' + tl(x.charged), i))}</View> : null}
+        {r.expenses.length ? <View><Label>{t('Giderler')}</Label>{r.expenses.map((x: any, i: number) => line(x.cat, tl(x.total), i))}</View> : null}
+        {r.budget ? (
+          <View><Label>{t('İşletme projesi {year} · harcanan / öngörülen', { year: r.budget.year })}</Label>
+            {r.budget.items.map((it: any, i: number) => {
+              const used = r.expenses.filter((e: any) => e.cat.toLocaleLowerCase('tr') === String(it.cat).toLocaleLowerCase('tr')).reduce((a: number, e: any) => a + e.total, 0);
+              return line(it.cat, tl(used) + ' / ' + tl(Number(it.amount) * share), i, used > Number(it.amount) * share);
+            })}
+          </View>
+        ) : null}
+        <View><Label>{t('Borçlu daireler')}</Label>{r.debtors.length ? r.debtors.map((x: any, i: number) => line(x.unit, tl(x.unpaid), i, true)) : <Muted>{t('Gecikmiş borç yok.')}</Muted>}</View>
+        <Muted>{t('Talepler')}: {t('{n} açıldı', { n: r.requests.opened })} · {t('{n} açık bekliyor', { n: r.requests.open })}</Muted>
+      </Card>
+      {typeof window !== 'undefined' && (window as any).print ? <Button kind="ghost" title={t('Yazdır / PDF')} onPress={() => (window as any).print()} style={{ alignSelf: 'flex-start' }} /> : null}
+      <Muted>{t('Bu rapor her ayın 1’inde (yıllığı 1 Ocak’ta) “Raporlar” yetkisi olan yöneticilere e-postayla da gider.')}</Muted>
+    </Stack>
+  );
+}
+
 /** Site yönetiminin ekranı. Birden çok site varsa üstte seçilir. */
 export function SiteAdminScreen() {
   useStore();
@@ -407,6 +531,8 @@ export function SiteAdminScreen() {
   const can = (p: string) => orgCan(org, p);
   const tabs: [string, string][] = [['ozet', t('Özet')], ['daire', t('Daireler')], ['tahakkuk', t('Tahakkuk')]];
   if (can('expenses.manage') || can('reports.view')) tabs.push(['gider', t('Giderler')]);
+  if (can('charges.manage') || can('reports.view')) tabs.push(['butce', t('Bütçe')]);
+  if (can('reports.view')) tabs.push(['rapor', t('Rapor')]);
   tabs.push(['duyuru', t('Duyurular')], ['talep', t('Talepler') + (d ? ' (' + d.requests.filter((x: any) => x.status < 3).length + ')' : '')]);
   const unitBy: Record<string, any> = d ? Object.fromEntries(d.units.map((u: any) => [u.id, u])) : {};
   return (
@@ -422,6 +548,8 @@ export function SiteAdminScreen() {
           {tab === 'tahakkuk' && <Charges key={seed ? seed.title + seed.value : 'x'} d={d} oid={org.id} can={can} reload={load} seed={seed} />}
           {tab === 'gider' && <Expenses d={d} oid={org.id} can={can} reload={load}
             onDistribute={(x: any) => { setSeed({ month: String(x.spent_on).slice(0, 7), kind: 'ozel', title: x.cat, mode: 'share', value: x.amount }); setTab('tahakkuk'); }} />}
+          {tab === 'butce' && <Budget d={d} oid={org.id} can={can} reload={load} />}
+          {tab === 'rapor' && <Report d={d} org={org.name} />}
           {tab === 'duyuru' && <Notes d={d} oid={org.id} can={can} reload={load} />}
           {tab === 'talep' && (d.requests.length ? d.requests.map((x: any) => <RequestCard key={x.id} x={x} unit={unitBy[x.unit_id]} can={can} reload={load} />) : <Empty>{t('Talep yok.')}</Empty>)}
         </>
@@ -484,6 +612,32 @@ function MyCharge({ x, payer, reload }: { x: any; payer: boolean; reload: () => 
   );
 }
 
+/** Mülke bağlı site dairesinin tahakkukları (mülkün Ödemeler ekranında kira kartının yanında). */
+export function SiteUnitCharges({ unitId }: { unitId: string }) {
+  useStore();
+  const c = useColors();
+  const u = mySiteUnits().find((x: any) => x.unit_id === unitId);
+  const [list, setList] = useState<any[] | null>(null);
+  const load = useCallback(async () => setList(await loadUnitCharges(unitId)), [unitId]);
+  useEffect(() => { load(); }, [load]);
+  if (!u) return null;
+  const payer = u.payer === u.role;
+  const due = (list || []).reduce((a, x) => a + unpaidOf(x), 0);
+  return (
+    <Stack gap={6}>
+      <Row between align="flex-start">
+        <View style={{ flex: 1, gap: 2 }}>
+          <Label>{t('Site aidatı')} · {u.org}</Label>
+          <Text v="h3">{unitLabel(u)}</Text>
+          <Muted>{u.payer === 'malik' ? t('Aidatı malik öder') : t('Aidatı kiracı öder')}{payer ? '' : ' · ' + t('takip için görünür')}</Muted>
+        </View>
+        <View style={{ alignItems: 'flex-end' }}><Muted>{t('Ödenmemiş')}</Muted><Text v="h3" color={due ? c.badInk : c.okInk}>{tl(due)}</Text></View>
+      </Row>
+      {!list ? <Spin /> : list.length ? <View>{list.slice(0, 6).map((x) => <MyCharge key={x.id} x={x} payer={payer} reload={load} />)}</View> : <Muted>{t('Tahakkuk yok.')}</Muted>}
+    </Stack>
+  );
+}
+
 /** Panelde kısa site kartı: sitede dairesi olan kiracı ya da malik "Sitem"e buradan geçer. */
 export function SiteTeaser({ go }: { go: (p: string) => void }) {
   useStore();
@@ -500,6 +654,28 @@ export function SiteTeaser({ go }: { go: (p: string) => void }) {
         <Muted>›</Muted>
       </Row>
     </Card>
+  );
+}
+
+/** Sakinin gördüğü işletme projesi: bu yılın kalemleri ve dairesinin aylık payı. */
+function ResidentBudget({ units }: { units: any[] }) {
+  const [list, setList] = useState<any[]>([]);
+  const year = new Date().getFullYear();
+  const key = units.map((u) => u.org_id).join();
+  useEffect(() => { loadBudgets([...new Set(units.map((u) => u.org_id))]).then(setList).catch(() => {}); }, [key]);
+  const mine = list.filter((b) => Number(b.year) === year);
+  if (!mine.length) return null;
+  return (
+    <Stack gap={8}>
+      <H2>{t('İşletme projesi')}</H2>
+      {mine.map((b) => (
+        <Card key={b.org_id} gap={6}>
+          <Row between wrap><Label>{units.find((u) => u.org_id === b.org_id)?.org} · {b.year}</Label>{b.approved_on ? <Chip tone="ok" label={t('Kurulca onaylı')} /> : null}</Row>
+          {b.items.map((it: any) => <Row key={it.cat} between><Text v="small">{it.cat}</Text><Text v="small" style={{ fontFamily: fonts.bodyBold }}>{tl(it.amount)}</Text></Row>)}
+          <Row between><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{t('Yıllık toplam')}</Text><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{tl(budgetTotal(b))}</Text></Row>
+        </Card>
+      ))}
+    </Stack>
   );
 }
 
@@ -547,6 +723,8 @@ export function ResidentSiteScreen() {
           <Card key={x.id} gap={4}><Row between wrap><Text v="body" style={{ fontFamily: fonts.bodyXBold }}>{x.title}</Text><Muted>{day(x.created_at)}</Muted></Row>{x.body ? <Text v="small">{x.body}</Text> : null}</Card>
         )) : <Empty>{t('Henüz duyuru yok.')}</Empty>}
       </Stack>
+
+      <ResidentBudget units={units} />
 
       <Stack gap={8}>
         <H2>{t('Yönetime talep')}</H2>

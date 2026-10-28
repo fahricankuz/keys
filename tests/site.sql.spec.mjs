@@ -105,3 +105,75 @@ test('dosya klasörü: yönetim ve sakin site klasörüne erişir, yabancı eri�
   await as(ID.T);
   expect((await q(`select public.site_folder_ok('site-../p1') ok`))[0].ok).toBe(false);
 });
+
+/* ---------------- Faz 2 tamamlayıcıları: mülk–daire bağı, hatırlatma, bütçe, rapor ---------------- */
+
+test('ev sahibi mülkünü dairesine bağlar; bağlı mülkün kiracısı daireyi görür, öder, talep açar', async () => {
+  // Önce kiracının doğrudan kaydı kaldırılır: erişimi yalnız ev sahibinin bağlantısından gelsin.
+  await as(M);
+  await q(`delete from public.site_residents where role = 'kiraci'`);
+  await as(ID.T);
+  expect(await q(`select id from public.site_charges`)).toEqual([]);
+  // Malik olmayan bağlayamaz; doğrudan güncelleme de engellenir.
+  await as(ID.L2);
+  expect(await tryCall(db, `select public.link_site_unit('p2', $1)`, [a1])).toMatch(/maliki olarak kayıtlı değilsin/);
+  expect(await tryCall(db, `update public.properties set site_unit_id = $1 where id = 'p2'`, [a1])).toMatch(/maliki olarak kayıtlı değilsin/);
+  await as(ID.L);
+  await q(`select public.link_site_unit('p1', $1)`, [a1]);
+  await as(ID.T);
+  const [{ u }] = await q(`select public.my_site_units() u`);
+  expect(u).toEqual([expect.objectContaining({ no: '1', role: 'kiraci', property_id: 'p1' })]);
+  expect((await q(`select count(*)::int c from public.site_charges`))[0].c).toBe(1);
+  await q(`insert into public.site_requests (org_id, unit_id, title) values ($1, $2, 'Kapı zili bozuk')`, [org, a1]);
+  await as(M);
+  expect((await q(`select name from public.site_linked_tenants($1)`, [org])).map(r => r.name)).toEqual(['Kiracı']);
+  await as(ID.X);
+  expect(await q(`select * from public.site_linked_tenants($1)`, [org])).toEqual([]);
+});
+
+test('aidat hatırlatması ödeyene gider (kiracı yoksa malike); aynı gün ikinci kez gitmez, ayardan kapanır', async () => {
+  await as(M);
+  await q(`update public.site_units set payer = 'kiraci' where id = $1`, [a1]);
+  await q(`insert into public.site_charges (org_id, unit_id, month, kind, amount) values ($1, $2, '2026-12', 'aidat', 1500), ($1, $3, '2026-12', 'aidat', 1000)`, [org, a1, a2]);
+  await as(null);
+  const n = (await q(`select public.site_reminders('2026-12-28') n`))[0].n;
+  expect(n).toBe(1);   // A1: kiracı (bağlı mülkten); A2: kayıtlı kimse yok → kimseye gitmez
+  const rows = await q(`select user_id, title, body, tag from public.notifications where tag like 'aidat-%'`);
+  expect(rows).toEqual([expect.objectContaining({ user_id: ID.T, title: 'A Blok No 1: aidat günü yaklaşıyor', tag: expect.stringMatching(/^aidat-soon-/) })]);
+  expect(rows[0].body).toMatch(/12\.2026 aidatı ₺1\.500, son gün 31\.12\.2026/);
+  expect((await q(`select public.site_reminders('2026-12-28') n`))[0].n).toBe(0);
+  // Aidatı malik öderse malike gider; kullanıcı kapattıysa gitmez.
+  await db.exec(`update public.site_units set payer = 'malik' where id = '${a1}'`);
+  expect((await q(`select public.site_reminders('2027-01-05') n`))[0].n).toBe(1);
+  expect((await q(`select user_id from public.notifications where tag like 'aidat-late-%'`)).map(r => r.user_id)).toEqual([ID.L]);
+  await db.exec(`update public.profiles set settings = settings || '{"remindAidat": false}' where id = '${ID.L}'`);
+  expect((await q(`select public.site_reminders('2027-01-15') n`))[0].n).toBe(0);
+});
+
+test('işletme projesi: yönetim yazar, malik ve kiracı okur; yetkisiz yazamaz', async () => {
+  await as(M);
+  await q(`insert into public.site_budgets (org_id, year, items) values ($1, 2026, $2)`, [org, JSON.stringify([{ cat: 'Asansör bakımı', amount: 48000 }, { cat: 'Temizlik', amount: 72000 }])]);
+  await as(ID.L);
+  expect((await q(`select year from public.site_budgets`)).map(r => r.year)).toEqual([2026]);
+  expect(await tryCall(db, `update public.site_budgets set note = 'x' where org_id = $1 returning 1`, [org])).toBeNull();
+  expect((await q(`select note from public.site_budgets`))[0].note).toBe('');
+  await as(ID.X);
+  expect(await q(`select year from public.site_budgets`)).toEqual([]);
+});
+
+test('yönetim kurulu raporu: tahakkuk/tahsilat, giderler, bütçe, borçlular; yetkisiz okuyamaz', async () => {
+  await as(Y);   // muhasebe: Raporlar yetkisi var
+  const [{ r }] = await q(`select public.site_report($1, 'year', '2026-06-01') r`, [org]);
+  expect(r.org).toBe('Atakum Sitesi');
+  expect(r.units).toBe(2);
+  const aidat = r.charges.find(x => x.kind === 'aidat');
+  expect(Number(aidat.charged)).toBe(5000);       // 1500 + 1000 (Kasım) + 1500 + 1000 (Aralık)
+  expect(Number(aidat.collected)).toBe(1500);
+  expect(r.expenses).toEqual([{ cat: 'Asansör bakımı', total: 4500 }]);
+  expect(Number(r.budget.total)).toBe(120000);
+  expect(r.requests.opened).toBe(2);
+  await as(ID.T);
+  expect(await tryCall(db, `select public.site_report($1, 'month', '2026-11-01')`, [org])).toMatch(/Rapor yetkin yok/);
+  await as(null);
+  expect((await q(`select email from public.site_report_recipients()`)).map(r => r.email).sort()).toEqual(['mudur@atakum.com', 'muhasebe@atakum.com']);
+});

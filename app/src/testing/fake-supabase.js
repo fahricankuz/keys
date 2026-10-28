@@ -7,7 +7,7 @@ const KEY = '__fakedb';
 const TABLES = ['profiles','properties','property_shared','memberships','invites','payments','rent_history',
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
-                'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests'];
+                'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets'];
 
 function load(){
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d){ TABLES.forEach(t => d.tables[t] = d.tables[t] || []); d.tables.payments.forEach(r => { r.kind = r.kind || 'kira'; }); return d; } } catch(e){}
@@ -24,6 +24,7 @@ const KEYS = {
   profiles:['id'], properties:['id'], property_shared:['property_id'], memberships:['property_id','user_id'],
   invites:['code'], payments:['property_id','month','kind'], rent_history:['id'], requests:['id'], messages:['id'],
   documents:['id'], expenses:['id'], notifications:['id'], push_subscriptions:['endpoint'], subscriptions:['user_id'], device_tokens:['token'],
+  site_budgets:['org_id','year'],
   admins:['user_id'], reviews:['kind','property_id','ref_id'], bans:['user_id'], admin_audit:['id']
 };
 
@@ -33,6 +34,7 @@ function defaults(table, row, db){
   if (table === 'payments'){ r.kind = r.kind || 'kira'; r.method = r.method || 'dekont'; }
   if (table.startsWith('site_')){ r.id = r.id || uuid(); r.created_at = r.created_at || now(); }
   if (table === 'site_residents'){ r.code = r.code || 'S' + Math.random().toString(16).slice(2, 9).toUpperCase().padEnd(7, '0'); r.user_id = r.user_id || null; r.lives_here = r.lives_here !== false; }
+  if (table === 'site_budgets'){ r.updated_at = now(); }
   if (table === 'site_units'){ r.payer = r.payer || 'kiraci'; r.block = r.block || ''; }
   if (table === 'site_charges'){ r.status = r.status || 'open'; r.paid_amount = r.paid_amount || 0; r.title = r.title || ''; r.method = r.method || 'dekont'; }
   if (table === 'site_requests'){ r.status = r.status || 0; r.reply = r.reply || ''; }
@@ -53,6 +55,15 @@ function afterInsert(table, row, db){
 }
 
 /* Denetim: schema.sql → track_*_review / upsert_review / on_review_change ile aynı kural. */
+/** Kişinin site daireleri: doğrudan kaydı ve bağlı mülkünün kiracısı olarak (schema.sql → site_links). */
+function siteLinks(db, uid){
+  const T = db.tables, out = (T.site_residents || []).filter(r => r.user_id === uid).map(r => ({ unit_id:r.unit_id, org_id:r.org_id, role:r.role }));
+  T.properties.filter(p => p.site_unit_id && T.memberships.some(m => m.property_id === p.id && m.user_id === uid && m.role === 'tenant')).forEach(p => {
+    const u = (T.site_units || []).find(x => x.id === p.site_unit_id);
+    if (u) out.push({ unit_id:u.id, org_id:u.org_id, role:'kiraci' });
+  });
+  return out;
+}
 /** Denetim anahtarı (schema.sql → pay_ref): kira için ay, aidat için "aidat:ay". */
 const payRef = (row) => ((row.kind || 'kira') === 'kira' ? row.month : row.kind + ':' + row.month);
 const isAdmin = (db, uid) => db.tables.admins.some(a => a.user_id === uid);
@@ -91,7 +102,8 @@ function visible(db, table, row, actor){
   // Site: yönetim (kurum üyesi) hepsini, sakin yalnız kendi dairesini ve kendi taleplerini görür (schema.sql 17. bölüm).
   if (table.startsWith('site_') && row.org_id){
     if ((db.tables.org_members || []).some(m => m.org_id === row.org_id && m.user_id === actor)) return true;
-    const mine = db.tables.site_residents.filter(r => r.user_id === actor);
+    const mine = siteLinks(db, actor);
+    if (table === 'site_budgets') return mine.some(r => r.org_id === row.org_id);
     if (table === 'site_units') return mine.some(r => r.unit_id === row.id);
     if (table === 'site_charges') return mine.some(r => r.unit_id === row.unit_id);
     if (table === 'site_residents') return row.user_id === actor;
@@ -414,11 +426,25 @@ export function createClient(url, key, opts){
         }
       }
       if (name === 'my_site_units'){
-        const T = db.tables;
-        return { data: T.site_residents.filter(r => r.user_id === me).map(r => {
-          const u = T.site_units.find(x => x.id === r.unit_id) || {}, o = (T.organizations || []).find(x => x.id === u.org_id) || {};
-          return { unit_id:u.id, org_id:o.id, org:o.name, block:u.block || '', no:u.no, area:u.area ?? null, aidat:u.aidat ?? null, payer:u.payer || 'kiraci', role:r.role, lives_here:r.lives_here };
+        const T = db.tables, by = {};
+        siteLinks(db, me).forEach(l => { by[l.unit_id] = by[l.unit_id] === 'malik' || l.role === 'malik' ? 'malik' : 'kiraci'; });
+        return { data: Object.keys(by).map(id => {
+          const u = T.site_units.find(x => x.id === id) || {}, o = (T.organizations || []).find(x => x.id === u.org_id) || {};
+          const prop = T.properties.find(p => p.site_unit_id === id && (p.owner_id === me || T.memberships.some(m => m.property_id === p.id && m.user_id === me)));
+          return { unit_id:u.id, org_id:o.id, org:o.name, block:u.block || '', no:u.no, area:u.area ?? null, aidat:u.aidat ?? null, payer:u.payer || 'kiraci', role:by[id], property_id: prop ? prop.id : null };
         }), error:null };
+      }
+      if (name === 'link_site_unit'){
+        const T = db.tables, p = T.properties.find(x => x.id === args.pid);
+        if (!p || p.owner_id !== me) return { data:null, error:{ message:'Yalnızca mülk sahibi bağlayabilir', code:'42501' } };
+        if (args.unit && !T.site_residents.some(r => r.unit_id === args.unit && r.user_id === me && r.role === 'malik')) return { data:null, error:{ message:'Bu dairenin maliki olarak kayıtlı değilsin', code:'42501' } };
+        p.site_unit_id = args.unit || null; persist(db);
+        return { data:null, error:null };
+      }
+      if (name === 'site_linked_tenants'){
+        const T = db.tables;
+        return { data: T.properties.filter(p => p.site_unit_id && (T.site_units.find(u => u.id === p.site_unit_id) || {}).org_id === args.oid)
+          .flatMap(p => T.memberships.filter(m => m.property_id === p.id && m.role === 'tenant').map(m => ({ unit_id:p.site_unit_id, name:m.display_name }))), error:null };
       }
       if (name === 'accept_site_invite'){
         const r = db.tables.site_residents.find(x => x.code === String(args.invite_code).trim().toUpperCase());

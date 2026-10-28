@@ -3014,3 +3014,217 @@ drop policy if exists site_files_write on storage.objects;
 create policy site_files_write on storage.objects for insert to authenticated
   with check (bucket_id = 'evim' and public.site_folder_ok((storage.foldername(name))[1]));
 
+
+-- ---------------------------------------------------------------------
+-- 18. Site: mülk–daire bağlantısı, aidat hatırlatmaları, işletme projesi, yönetim kurulu raporu
+-- ---------------------------------------------------------------------
+-- Ev sahibi anahtar'daki mülkünü sitedeki dairesine bağlar (dairenin maliki olarak kayıtlıysa). Bağlı mülkün
+-- kiracısı o dairenin kiracısı sayılır: aidatını görür ve öder, duyuruları alır, yönetime talep açar.
+
+alter table public.properties add column if not exists site_unit_id uuid references public.site_units(id) on delete set null;
+
+/** Kişinin site daireleri: doğrudan kaydı (malik / kiracı) ve bağlı mülkünün kiracısı olarak. */
+create or replace function public.site_links(uid uuid)
+returns table (unit_id uuid, org_id uuid, role text) language sql stable security definer set search_path = public as $$
+  select r.unit_id, r.org_id, r.role from public.site_residents r where r.user_id = uid
+  union
+  select u.id, u.org_id, 'kiraci' from public.properties p
+    join public.site_units u on u.id = p.site_unit_id
+    join public.memberships m on m.property_id = p.id and m.role = 'tenant'
+   where m.user_id = uid
+$$;
+revoke execute on function public.site_links(uuid) from public, anon, authenticated;
+
+create or replace function public.site_role(unit uuid)
+returns text language sql stable security definer set search_path = public as $$
+  select case when bool_or(role = 'malik') then 'malik' when bool_or(role = 'kiraci') then 'kiraci' end
+  from public.site_links(auth.uid()) where unit_id = unit
+$$;
+create or replace function public.is_site_resident(oid uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.site_links(auth.uid()) where org_id = oid)
+$$;
+
+create or replace function public.my_site_units()
+returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'unit_id', u.id, 'org_id', o.id, 'org', o.name, 'block', u.block, 'no', u.no, 'area', u.area, 'aidat', u.aidat,
+    'payer', u.payer, 'role', l.role,
+    'property_id', (select p.id from public.properties p where p.site_unit_id = u.id
+                     and (p.owner_id = auth.uid() or exists (select 1 from public.memberships m where m.property_id = p.id and m.user_id = auth.uid()))
+                     limit 1)) order by o.name, u.block, u.no), '[]'::jsonb)
+  from (select unit_id, case when bool_or(role = 'malik') then 'malik' else 'kiraci' end as role
+          from public.site_links(auth.uid()) group by unit_id) l
+  join public.site_units u on u.id = l.unit_id join public.organizations o on o.id = u.org_id
+$$;
+
+drop policy if exists sq_insert on public.site_requests;
+create policy sq_insert on public.site_requests for insert to authenticated
+  with check (user_id = auth.uid() and status = 0 and reply = '' and public.is_site_resident(org_id)
+              and (unit_id is null or public.site_role(unit_id) is not null));
+
+/** Mülkü site dairesine bağlar ya da bağı kaldırır (unit boş). Yalnızca mülkün sahibi, dairenin maliki olarak. */
+create or replace function public.link_site_unit(pid text, unit uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_owner(pid) then raise exception 'Yalnızca mülk sahibi bağlayabilir' using errcode = '42501'; end if;
+  if unit is not null and not exists (select 1 from public.site_residents where unit_id = unit and user_id = auth.uid() and role = 'malik') then
+    raise exception 'Bu dairenin maliki olarak kayıtlı değilsin' using errcode = '42501';
+  end if;
+  if unit is not null and exists (select 1 from public.properties where site_unit_id = unit and id <> pid) then
+    raise exception 'Bu daire başka bir mülke bağlı' using errcode = '23505';
+  end if;
+  update public.properties set site_unit_id = unit where id = pid;
+end $$;
+grant execute on function public.link_site_unit(text, uuid) to authenticated;
+
+/** Bağlantı başka yoldan (doğrudan güncelleme) kurulamaz. */
+create or replace function public.guard_site_link()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.site_unit_id is distinct from old.site_unit_id and new.site_unit_id is not null and auth.uid() is not null
+     and not public.is_admin()
+     and not exists (select 1 from public.site_residents where unit_id = new.site_unit_id and user_id = auth.uid() and role = 'malik') then
+    raise exception 'Bu dairenin maliki olarak kayıtlı değilsin' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+drop trigger if exists guard_site_link on public.properties;
+create trigger guard_site_link before update on public.properties for each row execute function public.guard_site_link();
+
+/** Yönetim için: dairelere ev sahibi aracılığıyla bağlanan kiracılar (ad ve mülk adı; iletişim bilgisi verilmez). */
+create or replace function public.site_linked_tenants(oid uuid)
+returns table (unit_id uuid, name text) language sql stable security definer set search_path = public as $$
+  select p.site_unit_id, coalesce(nullif(m.display_name, ''), pr.name)
+  from public.properties p join public.site_units u on u.id = p.site_unit_id
+  join public.memberships m on m.property_id = p.id and m.role = 'tenant' join public.profiles pr on pr.id = m.user_id
+  where u.org_id = oid and public.is_org_member(oid)
+$$;
+grant execute on function public.site_linked_tenants(uuid) to authenticated;
+
+-- ---- İşletme projesi (yıllık bütçe) -----------------------------------
+-- items: [{cat, amount}] yıllık tutarlar. KMK md. 37: işletme projesi kat malikleri kurulunca onaylanır; giderler
+-- (yönetim planında aksi yoksa) arsa payına göre paylaştırılır. Malik ve kiracılar da okur.
+create table if not exists public.site_budgets (
+  org_id      uuid not null references public.organizations(id) on delete cascade,
+  year        int not null check (year between 2000 and 2100),
+  items       jsonb not null default '[]'::jsonb check (jsonb_typeof(items) = 'array'),
+  method      text not null default 'share' check (method in ('share','area','equal')),
+  note        text not null default '' check (length(note) <= 2000),
+  approved_on date,
+  updated_at  timestamptz not null default now(),
+  primary key (org_id, year)
+);
+alter table public.site_budgets enable row level security;
+drop policy if exists sb_read on public.site_budgets;
+create policy sb_read on public.site_budgets for select to authenticated
+  using (public.is_org_member(org_id) or public.is_site_resident(org_id) or public.is_admin());
+drop policy if exists sb_write on public.site_budgets;
+create policy sb_write on public.site_budgets for all to authenticated
+  using (public.org_can(org_id, 'charges.manage')) with check (public.org_can(org_id, 'charges.manage'));
+drop policy if exists not_banned on public.site_budgets;
+create policy not_banned on public.site_budgets as restrictive for all to authenticated using (not public.is_banned()) with check (not public.is_banned());
+
+-- ---- Aidat hatırlatmaları ------------------------------------------------
+-- Ödeyene (dairenin "aidatı kim öder" seçimine göre; kiracı yoksa malike): ay sonundan 3 gün önce, ay sonunda,
+-- ay sonundan 5 ve 15 gün sonra. Kullanıcı ayarlardan kapatabilir (remindAidat). Kanallar push/e-posta/SMS (push fonksiyonu).
+create or replace function public.site_reminders(today date default (now() at time zone 'Europe/Istanbul')::date)
+returns int language plpgsql security definer set search_path = public as $$
+declare before int;
+begin
+  select count(*) into before from public.notifications;
+  with due as (
+    select c.*, (date_trunc('month', to_date(c.month, 'YYYY-MM')) + interval '1 month' - interval '1 day')::date as last_day,
+           u.payer, public.unit_label(c.unit_id) as lbl
+    from public.site_charges c join public.site_units u on u.id = c.unit_id
+    join public.organizations o on o.id = c.org_id and o.status = 'active'
+    where c.status in ('open','partial','rejected')
+  ), stage as (
+    select d.*, case today - d.last_day when -3 then 'soon' when 0 then 'due' when 5 then 'late' when 15 then 'late2' end as st
+    from due d
+  ), cand as (
+    -- Dairenin hesabı bağlı kişileri: doğrudan kayıtlı malik/kiracı ve bağlı mülkün kiracısı.
+    select s.*, x.user_id, x.role from stage s
+    join lateral (
+      select r.user_id, r.role from public.site_residents r where r.unit_id = s.unit_id and r.user_id is not null
+      union
+      select m.user_id, 'kiraci' from public.properties p join public.memberships m on m.property_id = p.id and m.role = 'tenant'
+       where p.site_unit_id = s.unit_id
+    ) x on true
+    where s.st is not null
+  ), who as (
+    -- Ödeyen: dairede seçilen rol (aidatı kim öder); o rolde kimse yoksa diğer rol.
+    select c.* from cand c
+    where c.role = c.payer or not exists (select 1 from cand c2 where c2.id = c.id and c2.role = c.payer)
+  )
+  insert into public.notifications (user_id, title, body, url, tag)
+  select distinct on (w.user_id, w.id) w.user_id,
+         case when w.st in ('late','late2') then w.lbl || ': aidat gecikti' else w.lbl || ': aidat günü yaklaşıyor' end,
+         to_char(to_date(w.month, 'YYYY-MM'), 'MM.YYYY') || ' ' || case w.kind when 'aidat' then 'aidatı' else coalesce(nullif(w.title, ''), 'tahakkuk') end
+           || ' ' || public.fmt_tl(w.amount - case when w.status = 'partial' then w.paid_amount else 0 end)
+           || case when w.st in ('late','late2') then ', son gün ' || to_char(w.last_day, 'DD.MM.YYYY') || ' idi.' else ', son gün ' || to_char(w.last_day, 'DD.MM.YYYY') || '.' end,
+         '/uygulama/sitem', 'aidat-' || w.st || '-' || w.id
+  from who w left join public.profiles pr on pr.id = w.user_id
+  where coalesce((pr.settings ->> 'remindAidat')::boolean, true)
+  on conflict do nothing;
+  return (select count(*) from public.notifications) - before;
+end $$;
+revoke execute on function public.site_reminders(date) from public, anon, authenticated;
+
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    perform cron.unschedule(jobid) from cron.job where jobname = 'anahtar-site-reminders';
+    perform cron.schedule('anahtar-site-reminders', '5 6 * * *', 'select public.site_reminders()');
+  end if;
+end $$;
+
+-- ---- Yönetim kurulu raporu ----------------------------------------------
+/** Dönem raporu (period: month | year; ref: dönemden bir gün): tahakkuk ve tahsilat (türe göre), giderler (kaleme göre),
+    bütçe karşılaştırması, borçlular, talepler. Yönetimde "Raporlar" yetkisi olan ve report edge fonksiyonu (service_role) çağırır. */
+create or replace function public.site_report(oid uuid, period text, ref date)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare
+  d0 date := case when period = 'year' then date_trunc('year', ref)::date else date_trunc('month', ref)::date end;
+  d1 date := case when period = 'year' then (date_trunc('year', ref) + interval '1 year')::date else (date_trunc('month', ref) + interval '1 month')::date end;
+  m0 text := to_char(d0, 'YYYY-MM');
+  m1 text := to_char(d1 - 1, 'YYYY-MM');
+  yr int := extract(year from d0)::int;
+begin
+  if auth.uid() is not null and not public.org_can(oid, 'reports.view') and not public.is_admin() then
+    raise exception 'Rapor yetkin yok' using errcode = '42501';
+  end if;
+  return jsonb_build_object(
+    'org', (select name from public.organizations where id = oid),
+    'period', period, 'from', d0, 'to', d1 - 1,
+    'units', (select count(*) from public.site_units where org_id = oid),
+    'charges', (select coalesce(jsonb_agg(x order by x.kind), '[]'::jsonb) from (
+        select kind, sum(amount) as charged,
+               sum(case when status = 'paid' then amount when status in ('partial') then paid_amount else 0 end) as collected
+        from public.site_charges where org_id = oid and month between m0 and m1 group by kind) x),
+    'expenses', (select coalesce(jsonb_agg(x order by x.total desc), '[]'::jsonb) from (
+        select cat, sum(amount) as total from public.site_expenses where org_id = oid and spent_on >= d0 and spent_on < d1 group by cat) x),
+    'budget', (select case when b.org_id is null then null else jsonb_build_object('year', b.year, 'approved_on', b.approved_on,
+                 'items', b.items, 'total', (select coalesce(sum((i ->> 'amount')::numeric), 0) from jsonb_array_elements(b.items) i)) end
+               from (select 1) one left join public.site_budgets b on b.org_id = oid and b.year = yr),
+    'debtors', (select coalesce(jsonb_agg(x order by x.unpaid desc), '[]'::jsonb) from (
+        select public.unit_label(unit_id) as unit, sum(amount - case when status = 'partial' then paid_amount else 0 end) as unpaid
+        from public.site_charges where org_id = oid and status <> 'paid' and month <= m1
+          and (date_trunc('month', to_date(month, 'YYYY-MM')) + interval '1 month')::date <= least(d1, current_date)
+        group by unit_id order by 2 desc limit 20) x),
+    'requests', jsonb_build_object(
+        'opened', (select count(*) from public.site_requests where org_id = oid and created_at >= d0 and created_at < d1),
+        'open', (select count(*) from public.site_requests where org_id = oid and status < 3)));
+end $$;
+grant execute on function public.site_report(uuid, text, date) to authenticated;
+
+/** Rapor alıcıları: etkin site kurumlarında "Raporlar" yetkisi olan yöneticiler (master dahil). */
+create or replace function public.site_report_recipients()
+returns table (org_id uuid, user_id uuid, email text, name text, lang text) language sql stable security definer set search_path = public as $$
+  select o.id, p.id, u.email::text, p.name, p.lang
+  from public.organizations o
+  cross join lateral public.org_people(o.id, 'reports.view') pp(uid)
+  join public.profiles p on p.id = pp.uid join auth.users u on u.id = p.id
+  where o.sector = 'site' and o.status = 'active' and coalesce((p.settings ->> 'siteReport')::boolean, true)
+$$;
+revoke execute on function public.site_report_recipients() from public, anon, authenticated;

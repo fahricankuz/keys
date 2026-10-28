@@ -43,8 +43,16 @@ Ekranlar sektörün diliyle konuşur (sitede *aidat*, *sakin*, *daire*; AVM'de *
       malik ve kiracı için **Sitem** ekranı (tahakkuklar, dekont yükleme, duyurular, yönetime talep). Malik dairesinin tahakkuklarını
       kendiliğinden görür; aidatı varsayılan olarak kiracı öder, kiracı "Aidat" talebiyle yönetime bildirir. Gecikme tazminatı
       (KMK md. 20, aylık %5) borçlular listesinde bilgi amaçlı gösterilir, tahakkuk edilmez.
-      Sonraki adımlar: ev sahibinin anahtar'daki mülkünü site dairesine bağlayıp kiracının "Evim" ekranında kira ve aidatı tek yerde
-      göstermek; aidat için sunucudan e-posta/SMS hatırlatması; yönetim kurulu raporu (PDF/e-posta); işletme projesi ve bütçe.
+      **Tamamlayıcılar (18. bölüm):**
+      - *Mülk–daire bağı:* dairenin maliki olarak kayıtlı ev sahibi, anahtar'daki mülkünü daireye bağlar (`link_site_unit`).
+        Bağlı mülkün kiracısı dairenin kiracısı sayılır (`site_links`): kiracının Ödemeler ekranında kira kartının altında site aidatı
+        görünür ve oradan ödenir; duyuruları alır, talep açar. Yönetim bu kiracıları "ev sahibi üzerinden bağlı" olarak görür.
+      - *Aidat hatırlatmaları:* `site_reminders` her gün (pg_cron `anahtar-site-reminders`) ödeyene ay sonundan 3 gün önce, ay sonunda,
+        5 ve 15 gün sonra bildirim yazar; push fonksiyonu e-posta ve SMS'e de taşır. Ayarlar → Bildirimler'den kapatılır.
+      - *İşletme projesi:* `site_budgets` (yıllık kalemler, paylaştırma: arsa payı / m² / eşit, kurul onay tarihi). Dairelerin aylık
+        payı hesaplanır, "Daire aidatlarını güncelle" ile dairelere yazılır; malik ve kiracılar Sitem'de görür.
+      - *Yönetim kurulu raporu:* Site → Rapor (aylık/yıllık; tahakkuk ve tahsilat, giderler, bütçe karşılaştırması, borçlular, talepler;
+        yazdır/PDF) ve `report` fonksiyonuyla aynı zamanlamada "Raporlar" yetkili yöneticilere e-posta (`site_report`).
 - [ ] **Faz 3 — AVM ve depo.** Ciroya bağlı kira ve ciro bildirimi, ortak alan gideri dağıtımı, m² ve döviz/endeks bazlı kira, doluluk.
 - [ ] **Faz 4 — GYO.** Çok portföy, onay akışı, değerleme ve doluluk panosu, yatırımcı raporu, API — ilk GYO müşterisiyle birlikte.
 

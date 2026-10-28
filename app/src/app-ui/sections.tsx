@@ -20,6 +20,11 @@ import {
   Avatar, Bar, Big, BigRoll, Card, Empty, FileLink, H2, Hero, Icon, IconBtn, Items, KV, Label, LI, List, Mid, Muted, Note, ReviewChip, Row, Seg, Stack, Steps, StatusChip, Thumbs, initials, toneOf, typeIcon, MonthLegend, YearTiles
 } from './blocks';
 import { Toggle } from './forms';
+import { SiteUnitCharges } from './site';
+import { useAuth } from '../auth/auth';
+import { useStore } from './hooks';
+import { humanError, refreshProperty } from '../domain/backend';
+import { mySiteUnits, linkSiteUnit, unitLabel } from '../domain/site';
 import { Picked, pickImages, takePhoto } from './media';
 import { mediaSrc } from '../domain/backend';
 import { LIVE } from '../domain/config';
@@ -174,18 +179,72 @@ export function SecPay({ p }: { p: any }) {
 
 /** Aidat: kiradan ayrı izlenen kalem. Kiracı ödüyorsa kiracı dekont yükler, mülk sahibi onaylar;
     mülk sahibi ödüyorsa kendi ödemesini kaydeder. Son altı ayın durumu listelenir. */
+/** Mülk sitedeki bir daireye bağlıysa aidat siteden gelir (yönetimin tahakkuku); değilse mülkteki aidat izlenir. */
 export function AidatCard({ p }: { p: any }) {
+  useStore();
+  const owner = ui.role === 'landlord' && isOwnerOf(p.id);
+  if (p.siteUnitId) {
+    return (
+      <Card gap={10}>
+        <SiteUnitCharges unitId={p.siteUnitId} />
+        {owner ? <SiteLinker p={p} /> : null}
+      </Card>
+    );
+  }
+  return <LocalAidat p={p} footer={owner ? <SiteLinker p={p} /> : null} />;
+}
+
+/** Ev sahibi: mülkü sitedeki dairesine bağlar ya da bağı kaldırır. Site yönetiminden aldığı malik davet koduyla başlar. */
+function SiteLinker({ p }: { p: any }) {
+  const c = useColors();
+  const { join } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [code, setCode] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const act = async (fn: () => Promise<any>) => { setBusy(true); setErr(null); try { await fn(); await refreshProperty(p.id); } catch (e) { setErr(humanError(e)); } setBusy(false); };
+  if (p.siteUnitId) {
+    return <Button kind="quiet" title={t('Site dairesi bağlantısını kaldır')} onPress={() => act(() => linkSiteUnit(p.id, null))} style={{ alignSelf: 'flex-start' }} />;
+  }
+  const free = mySiteUnits().filter((u: any) => u.role === 'malik' && !u.property_id);
+  return (
+    <View style={{ gap: 8, paddingTop: 8, borderTopWidth: 1, borderColor: c.line }}>
+      {free.length ? (
+        <>
+          <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{t('Bu mülk sitedeki dairen mi? Bağlarsan aidat siteden gelir, kiracın da görür ve öder.')}</Text>
+          <Row wrap gap={6}>{free.map((u: any) => <Button key={u.unit_id} kind="ghost" title={u.org + ' · ' + unitLabel(u)} disabled={busy} onPress={() => act(() => linkSiteUnit(p.id, u.unit_id))} />)}</Row>
+        </>
+      ) : open ? (
+        <>
+          <Muted>{t('Siten anahtar kullanıyorsa yönetimden malik davet kodunu iste ve buraya gir; ardından mülkünü daireye bağla.')}</Muted>
+          <Row gap={8} wrap align="flex-end">
+            <TextInput value={code} onChangeText={(v) => setCode(v.toUpperCase())} accessibilityLabel={t('Site davet kodu')} placeholder="S1234ABC" placeholderTextColor={c.muted} autoCapitalize="characters" maxLength={12}
+              style={{ flexGrow: 1, flexBasis: 160, minHeight: 48, borderRadius: radius.pill, paddingHorizontal: 18, borderWidth: 1.5, borderColor: c.line, color: c.ink, fontFamily: fonts.bodyBold, letterSpacing: 1.5 }} />
+            <Button title={t('Kodu gir')} disabled={!code.trim() || busy} onPress={async () => { setBusy(true); const e = await join(code); setBusy(false); setErr(e); if (!e) setCode(''); }} />
+          </Row>
+        </>
+      ) : (
+        <PressScale onPress={() => setOpen(true)} accessibilityRole="button" style={{ alignSelf: 'flex-start' }}>
+          <Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('Siten anahtar kullanıyor mu? Daireni bağla')} ›</Text>
+        </PressScale>
+      )}
+      {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
+    </View>
+  );
+}
+
+function LocalAidat({ p, footer }: { p: any; footer?: any }) {
   const { open } = useSheet();
   const c = useColors();
   if (!aidatOn(p)) {
-    return <Card gap={4}><Label>{t('Aidat')}</Label><Muted>{t('Bu mülk için aidat tanımlı değil.')}</Muted></Card>;
+    return <Card gap={4}><Label>{t('Aidat')}</Label><Muted>{t('Bu mülk için aidat tanımlı değil.')}</Muted>{footer}</Card>;
   }
   const byTenant = aidatByTenant(p);
   const tenant = ui.role === 'tenant';
   // Ödemeyi kim kaydeder: aidatı kiracı ödüyorsa kiracı, mülk sahibi ödüyorsa mülk sahibi (ya da ödeme yetkili ekip üyesi).
   const payer = tenant ? byTenant : !byTenant && can(p.id, 'pay');
   if (tenant && !byTenant) {
-    return <Card gap={4}><Label>{t('Aidat')}</Label><Text v="h3">{tl(p.aidat)} {t('/ ay')}</Text><Muted>{t('Aidatı mülk sahibi öder.')}</Muted></Card>;
+    return <Card gap={4}><Label>{t('Aidat')}</Label><Text v="h3">{tl(p.aidat)} {t('/ ay')}</Text><Muted>{t('Aidatı mülk sahibi öder.')}</Muted>{footer}</Card>;
   }
   const months = aidatMonths(p, 6);
   const cur = months[0];
@@ -220,6 +279,7 @@ export function AidatCard({ p }: { p: any }) {
           );
         })}
       </View>
+      {footer}
     </Card>
   );
 }

@@ -220,14 +220,18 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
             <OnOff label={t('Sözleşme yenileme')} k="remindRenew" />
             {ui.role === 'landlord' ? <OnOff label={t('DASK ve sigorta bitişi')} k="remindIns" /> : null}
             <OnOff label={t('Tahliye tarihi')} k="remindEvict" />
+            {mySiteUnits().length ? <OnOff label={t('Site aidatı hatırlatmaları')} k="remindAidat" /> : null}
           </Card>
           <Label>{t('Nereden haber alayım?')}</Label>
           <Card gap={4}>
             <OnOff label={t('Telefon ve tarayıcı bildirimi')} k="push" />
             <OnOff label={t('E-posta')} k="email" />
-            <OnOff label={t('SMS (kira, sözleşme ve sigorta hatırlatmaları)')} k="sms" />
+            <OnOff label={t('SMS (kira, aidat, sözleşme ve sigorta hatırlatmaları)')} k="sms" />
           </Card>
           {!user?.phone ? <Muted>{t('SMS için Hesap sekmesinden telefon numaranı ekle.')}</Muted> : null}
+          {myOrgs().some((o: any) => o.sector === 'site' && (o.perms || []).includes('reports.view')) ? (
+            <Card gap={4}><OnOff label={t('Site yönetim raporu (aylık ve yıllık e-posta)')} k="siteReport" /></Card>
+          ) : null}
           {owner ? (
             <>
               <Label>{t('Rapor e-postası')}</Label>

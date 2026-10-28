@@ -3,6 +3,7 @@
 // Zamanlama (Supabase → Integrations → Cron → Edge Function "report", POST, başlık x-anahtar-secret):
 //   aylık:  0 6 1 * *   gövde {"period":"month"}  → geçen ayın raporu
 //   yıllık: 30 6 1 1 *  gövde {"period":"year"}   → geçen yılın raporu
+// Site kurumlarında "Raporlar" yetkisi olan yöneticilere aynı zamanlamayla yönetim kurulu raporu da gider (site_report).
 // İsteğe bağlı gövde alanları: "ref" (YYYY-MM-DD; raporlanacak dönemden bir gün), "only" (tek kullanıcı kimliği, deneme için).
 //
 // Gerekli gizli değişkenler (supabase secrets set ...):
@@ -13,6 +14,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { renderReport, type Report } from './template.ts';
+import { renderSiteReport, type SiteReport } from './site-template.ts';
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
@@ -63,6 +65,31 @@ Deno.serve(async (req) => {
     } catch (e) {
       failed++;
       console.error('rapor gönderilemedi', p.user_id, (e as Error).message);
+    }
+  }
+  // Site yönetim kurulu raporu.
+  const { data: siteTo, error: se } = await admin.rpc('site_report_recipients');
+  if (se) console.error('site raporu alıcıları okunamadı', se.message);
+  const cache = new Map<string, SiteReport>();
+  for (const p of (siteTo ?? []) as { org_id: string; user_id: string; email: string; name: string }[]) {
+    if (body.only && body.only !== p.user_id) continue;
+    try {
+      if (!cache.has(p.org_id)) {
+        const { data: r, error: e } = await admin.rpc('site_report', { oid: p.org_id, period, ref });
+        if (e) throw e;
+        cache.set(p.org_id, r as SiteReport);
+      }
+      const mail = renderSiteReport(cache.get(p.org_id)!, { name: (p.name || '').split(' ')[0], appUrl });
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${env('RESEND_API_KEY')}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ from: env('EMAIL_FROM'), to: p.email, subject: mail.subject, html: mail.html, text: mail.text })
+      });
+      if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+      sent++;
+    } catch (e) {
+      failed++;
+      console.error('site raporu gönderilemedi', p.user_id, (e as Error).message);
     }
   }
   return Response.json({ period, ref, sent, failed });

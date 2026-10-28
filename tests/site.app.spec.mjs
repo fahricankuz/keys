@@ -130,3 +130,57 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await expect(page.getByText('Ödendi').first()).toBeVisible();
   await expect(page.getByText('Daire için aidatı malik ödeyecek.')).toBeVisible();
 });
+
+test('ev sahibi mülkünü site dairesine bağlar; kiracı kira ile aidatı aynı ekranda öder; bütçe aidatları günceller; rapor', async ({ page }) => {
+  await page.addInitScript(() => {
+    const d = JSON.parse(localStorage.getItem('__fakedb'));
+    if (d.tables.site_units && d.tables.site_units.length) return;
+    const now = new Date().toISOString();
+    d.tables.site_units = [{ id: 'u1', org_id: 'o1', block: 'A', no: '1', area: 120, share: 2, aidat: 1500, payer: 'kiraci', note: '', created_at: now }];
+    d.tables.site_residents = [{ id: 'r1', org_id: 'o1', unit_id: 'u1', user_id: '00000000-0000-4000-8000-00000000000a', role: 'malik', name: 'Ayşe Mülk', phone: '', email: '', lives_here: false, code: 'S0000001', created_at: now }];
+    d.tables.site_charges = [{ id: 'c1', org_id: 'o1', unit_id: 'u1', month: now.slice(0, 7), kind: 'aidat', title: '', amount: 1500, status: 'open', paid_amount: 0, method: 'dekont', created_at: now }];
+    localStorage.setItem('__fakedb', JSON.stringify(d));
+  });
+  // 1. Ev sahibi (dairenin maliki) mülkünü daireye bağlar.
+  await login(page, 'ev@ornek.com');
+  await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
+  await page.goto(url('/uygulama/mulk?pid=p1&sub=odeme'));
+  await page.getByRole('button', { name: 'Atakum Sitesi · A Blok No 1' }).click();
+  await expect(page.getByText('Site aidatı · Atakum Sitesi')).toBeVisible();
+  expect((await db(page)).tables.properties[0].site_unit_id).toBe('u1');
+
+  // 2. Kiracı: Ödemeler'de kiranın altında site aidatı; dekont yükler.
+  await login(page, 'kiraci@ornek.com');
+  await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
+  await page.goto(url('/uygulama/odemeler'));
+  await expect(page.getByText('Site aidatı · Atakum Sitesi')).toBeVisible();
+  await page.getByRole('button', { name: 'Dekont yükle' }).last().click();
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Dosya seç' }).click();
+  await (await chooser).setFiles(PNG);
+  await expect(page.getByText('dekont.png')).toBeVisible();
+  await page.getByRole('button', { name: 'Yönetime gönder' }).click();
+  await expect.poll(async () => (await db(page)).tables.site_charges[0].status).toBe('review');
+
+  // 3. Yönetim: bağlı kiracıyı görür; işletme projesinden aidatı günceller; rapor.
+  await login(page, 'ev@ornek.com');
+  await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
+  await page.goto(url('/uygulama/site'));
+  await page.getByRole('button', { name: 'Daireler' }).click();
+  await expect(page.getByText('Kiracı · ev sahibinin anahtar hesabı üzerinden bağlı')).toBeVisible();
+  await page.getByRole('button', { name: 'Bütçe' }).click();
+  await page.getByLabel('Gider kalemi').fill('Asansör bakımı');
+  await page.getByLabel('Yıllık tutar (₺)').fill('48000');
+  await page.getByRole('button', { name: 'Kalem ekle' }).click();
+  await page.getByLabel('Gider kalemi').last().fill('Temizlik');
+  await page.getByLabel('Yıllık tutar (₺)').last().fill('72000');
+  await expect(page.getByText('₺10.000 / ay')).toBeVisible();          // 120.000 / 12, tek daire
+  await page.getByRole('button', { name: 'Kaydet' }).click();
+  await expect(page.getByText('İşletme projesi kaydedildi.')).toBeVisible();
+  await page.getByRole('button', { name: 'Daire aidatlarını güncelle' }).click();
+  await expect.poll(async () => (await db(page)).tables.site_units[0].aidat).toBe(10000);
+  await page.getByRole('button', { name: 'Rapor' }).click();
+  await expect(page.getByText(/yönetim raporu$/).first()).toBeVisible();
+  await expect(page.getByText('Borçlu daireler')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Yazdır / PDF' })).toBeVisible();
+});

@@ -75,16 +75,18 @@ export function lateFee(c, today = new Date()){
 export async function loadSiteAdmin(oid){
   const c = await db();
   const since = (() => { const d = new Date(); d.setMonth(d.getMonth() - 12); return d.toISOString().slice(0, 7); })();
-  const [units, residents, charges, expenses, notes, requests] = await Promise.all([
+  const [units, residents, charges, expenses, notes, requests, budgets, linked] = await Promise.all([
     c.from('site_units').select('*').eq('org_id', oid),
     c.from('site_residents').select('*').eq('org_id', oid),
     c.from('site_charges').select('*').eq('org_id', oid),
     c.from('site_expenses').select('*').eq('org_id', oid),
     c.from('site_announcements').select('*').eq('org_id', oid),
-    c.from('site_requests').select('*').eq('org_id', oid)
+    c.from('site_requests').select('*').eq('org_id', oid),
+    c.from('site_budgets').select('*').eq('org_id', oid),
+    c.rpc('site_linked_tenants', { oid })
   ].map((p) => p.then((r) => (r.error ? [] : r.data || []))));
   return {
-    units: units.sort(sortUnits), residents,
+    units: units.sort(sortUnits), residents, budgets, linked,
     charges: charges.filter((x) => x.month >= since).sort((a, b) => b.month.localeCompare(a.month)),
     expenses: expenses.sort((a, b) => String(b.spent_on).localeCompare(String(a.spent_on))),
     notes: notes.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))),
@@ -222,4 +224,86 @@ export async function payCharge(ch, { amount, date, note, file }){
 
 export async function openSiteRequest(oid, unitId, { cat, title, body }){
   must(await (await db()).from('site_requests').insert({ org_id: oid, unit_id: unitId || null, user_id: live.user?.id, cat, title: String(title).trim(), body: String(body || '').trim() }));
+}
+
+/* ---- Mülk ↔ daire bağlantısı -------------------------------------- */
+
+/** Ev sahibi mülkünü sitedeki dairesine bağlar (dairenin maliki olarak kayıtlı olmalı) ya da bağı kaldırır (unit boş). */
+export async function linkSiteUnit(pid, unit){
+  must(await (await db()).rpc('link_site_unit', { pid, unit: unit || null }));
+  await refreshSiteUnits(false);
+}
+/** Bir dairenin tahakkukları (yeniden eskiye). */
+export async function loadUnitCharges(unitId){
+  const r = await (await db()).from('site_charges').select('*').eq('unit_id', unitId);
+  return (r.error ? [] : r.data || []).sort((a, b) => b.month.localeCompare(a.month));
+}
+
+/* ---- İşletme projesi (yıllık bütçe) ------------------------------- */
+
+export const budgetTotal = (b) => (b && Array.isArray(b.items) ? b.items.reduce((a, i) => a + (Number(i.amount) || 0), 0) : 0);
+/** Bütçeden dairelerin aylık aidatı: yıllık toplam, seçilen anahtara (arsa payı, m², eşit) göre bölünüp 12'ye. */
+export function budgetAidat(units, b){
+  const total = budgetTotal(b);
+  if (!total) return [];
+  return distribute(units, b.method === 'area' ? 'area' : b.method === 'equal' ? 'equal' : 'share', total)
+    .map((x) => ({ unit_id: x.unit_id, monthly: Math.round((x.amount / 12) * 100) / 100 }));
+}
+export async function saveBudget(oid, b){
+  const row = { org_id: oid, year: Number(b.year), method: b.method || 'share', note: b.note || '', approved_on: b.approved_on || null,
+    items: (b.items || []).filter((i) => String(i.cat || '').trim()).map((i) => ({ cat: String(i.cat).trim(), amount: Number(String(i.amount).replace(',', '.')) || 0 })) };
+  must(await (await db()).from('site_budgets').upsert(row, { onConflict: 'org_id,year' }));
+}
+export async function loadBudgets(oids){
+  if (!oids.length) return [];
+  const r = await (await db()).from('site_budgets').select('*').in('org_id', oids);
+  return r.error ? [] : r.data || [];
+}
+/** Bütçedeki aylık aidatları dairelere yazar. */
+export async function applyBudgetAidat(oid, units, b){
+  const plan = budgetAidat(units, b);
+  for (const x of plan){
+    const u = units.find((y) => y.id === x.unit_id);
+    if (u && Number(u.aidat) !== x.monthly) await saveUnit(oid, { ...u, aidat: x.monthly });
+  }
+  return plan.length;
+}
+
+/* ---- Yönetim kurulu raporu (ekranda; e-postadaki site_report ile aynı hesap) ---- */
+
+/** "2026-10" → "2026-11-01" (sonraki ayın ilk günü; saat diliminden bağımsız). */
+const nextMonthStart = (ym) => { const [a, b] = ym.split('-').map(Number); return b === 12 ? (a + 1) + '-01-01' : a + '-' + String(b + 1).padStart(2, '0') + '-01'; };
+
+export function siteReport(d, period, ref){
+  const y = Number(String(ref).slice(0, 4)), mo = Number(String(ref).slice(5, 7));
+  const m0 = period === 'year' ? y + '-01' : ref.slice(0, 7), m1 = period === 'year' ? y + '-12' : ref.slice(0, 7);
+  const d0 = m0 + '-01', d1 = nextMonthStart(m1);
+  const inP = (x) => x.month >= m0 && x.month <= m1;
+  const kinds = {};
+  d.charges.filter(inP).forEach((x) => {
+    const k = kinds[x.kind] || (kinds[x.kind] = { kind: x.kind, charged: 0, collected: 0 });
+    k.charged += Number(x.amount);
+    k.collected += x.status === 'paid' ? Number(x.amount) : x.status === 'partial' ? Number(x.paid_amount) : 0;
+  });
+  const cats = {};
+  d.expenses.filter((e) => e.spent_on >= d0 && e.spent_on < d1).forEach((e) => { cats[e.cat] = (cats[e.cat] || 0) + Number(e.amount); });
+  const unitBy = Object.fromEntries(d.units.map((u) => [u.id, u]));
+  const now = new Date().toISOString().slice(0, 10);
+  const debt = {};
+  d.charges.filter((x) => x.status !== 'paid' && x.month <= m1).forEach((x) => {
+    const due = nextMonthStart(x.month);                         // ay sonundan sonraki gün
+    if (due > (d1 < now ? d1 : now)) return;
+    debt[x.unit_id] = (debt[x.unit_id] || 0) + unpaidOf(x);
+  });
+  const budget = (d.budgets || []).find((b) => Number(b.year) === y) || null;
+  return {
+    period, from: d0, to: d1, units: d.units.length, month: mo,
+    charges: Object.values(kinds),
+    expenses: Object.entries(cats).map(([cat, total]) => ({ cat, total })).sort((a, b) => b.total - a.total),
+    budget: budget ? { ...budget, total: budgetTotal(budget) } : null,
+    debtors: Object.entries(debt).filter(([, v]) => v > 0).map(([id, unpaid]) => ({ unit: unitBy[id] ? unitLabel(unitBy[id]) : '—', unpaid }))
+      .sort((a, b) => b.unpaid - a.unpaid).slice(0, 20),
+    requests: { opened: d.requests.filter((r) => String(r.created_at).slice(0, 10) >= d0 && String(r.created_at).slice(0, 10) < d1).length,
+                open: d.requests.filter((r) => r.status < 3).length }
+  };
 }

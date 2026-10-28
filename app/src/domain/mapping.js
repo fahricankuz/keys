@@ -58,6 +58,7 @@ export function buildProperty(d){
     name: pr.name, addr: pr.addr || '', address: pr.address || null,
     type: pr.prop_type || 'Konut', area: num(pr.area),
     company: pr.company || null, stopaj: !!pr.stopaj, depositKind: pr.deposit_kind || 'Nakit',
+    siteUnitId: pr.site_unit_id || null,                 // sitedeki daireye bağlıysa (schema.sql 18. bölüm)
     landlord: { name: (ownerMember && nameOf(ownerMember)) || ownerProfile.name || 'Mülk sahibi', phone: ownerMember?.phone || ownerProfile.phone || '' },
     tenants,
     rent: num(pr.rent), dueDay: pr.due_day,
