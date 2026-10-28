@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { Slot, usePathname } from 'expo-router';
 import { useFonts } from 'expo-font';
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
-import { InterTight_700Bold, InterTight_800ExtraBold } from '@expo-google-fonts/inter-tight';
+import { FONT_FILES } from '../ui/fontFiles';
 import { hydrate } from '../domain/storage';
 import { initLang } from '../domain/i18n';
 import { boot } from '../domain/state';
@@ -12,9 +11,7 @@ import { useColors } from '../ui/theme';
 import titles from '../site/titles.json';
 
 export default function Root() {
-  const [fontsOk] = useFonts({
-    InterTight_700Bold, InterTight_800ExtraBold, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold
-  });
+  const [fontsOk] = useFonts(FONT_FILES);
   const [stored, setStored] = useState(false);
   useEffect(() => {
     // Web'de sunucu HTML'i Türkçe üretilir; kayıtlı dil, hidrasyon bittikten sonra uygulanır
@@ -22,7 +19,7 @@ export default function Root() {
     // Sabit bir bekleme yetmez: sayfa bölümleri ayrı yüklenir; dil, içerik React'e bağlanmadan değişirse
     // "hydration" hatası olur. Bu yüzden sayfadaki son öğe React'e bağlanınca (en fazla 3 sn) uygulanır.
     hydrate().then(() => {
-      const apply = () => { initLang(); boot(); setStored(true); };
+      const apply = () => { initLang().then(() => { boot(); setStored(true); }); };
       if (Platform.OS !== 'web' || typeof document === 'undefined') { apply(); return; }
       const t0 = Date.now();
       const hydrated = () => {
@@ -47,8 +44,9 @@ export default function Root() {
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
     const key = path.replace(/^\/|\/$/g, '');
-    const T = titles as Record<string, string>;
-    document.title = T[key] || T[key.split('/').slice(0, 2).join('/')] || T[key.split('/')[0]] || T._default;
+    const T = titles as unknown as Record<string, string | { title: string }>;
+    const v = T[key] || T[key.split('/').slice(0, 2).join('/')] || T[key.split('/')[0]] || T._default;
+    document.title = typeof v === 'string' ? v : v.title;
   }, [path]);
   useEffect(() => {
     if (Platform.OS === 'web' && typeof document !== 'undefined') {

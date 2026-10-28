@@ -23,6 +23,14 @@ const turnstile = process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY ? 'https://challeng
 /** Sayfa başka bir sitenin içine gömülürse (clickjacking) gizlenir ve üst pencereye açılır. */
 const FRAME_GUARD = "if(window.top!==window.self){document.documentElement.style.display='none';try{window.top.location=window.self.location}catch(e){}}";
 
+/** Web yazı tipleri: public/fonts altındaki WOFF2 alt kümeleri; aile adları ui/theme.ts → fonts ile aynı.
+    Ağırlık aralığı geniş tutulur ki tarayıcı sahte kalınlık üretmesin. İlk ekrandaki iki yüz önceden yüklenir. */
+const FONT_FACES = [['Inter_400Regular', 'inter-400'], ['Inter_500Medium', 'inter-500'], ['Inter_600SemiBold', 'inter-600'], ['Inter_700Bold', 'inter-700'],
+  ['InterTight_700Bold', 'intertight-700'], ['InterTight_800ExtraBold', 'intertight-800']];
+const fontCss = () => '<style>' + FONT_FACES.map(([fam, file]) =>
+  `@font-face{font-family:'${fam}';src:url(${base}/fonts/${file}.woff2) format('woff2');font-weight:100 900;font-display:swap}`).join('') + '</style>' +
+  ['intertight-800', 'inter-400'].map((f) => `<link rel="preload" href="${base}/fonts/${f}.woff2" as="font" type="font/woff2" crossorigin=""/>`).join('');
+
 const sha = (s) => `'sha256-${createHash('sha256').update(s).digest('base64')}'`;
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 
@@ -68,12 +76,6 @@ const cssV = existsSync(cssFile) ? createHash('sha256').update(readFileSync(cssF
 let count = 0;
 for (const file of walk(out)) {
   let html = readFileSync(file, 'utf8');
-  // Statik sayfalardaki herkese açık veri okuyucular (kira artış hesaplayıcı) için Supabase adresi ve herkese açık anahtar.
-  if (html.includes('%%ANAHTAR_API%%')) {
-    const key = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
-    html = html.replaceAll('%%ANAHTAR_API%%', api && key ? esc(api + '|' + key) : '');
-    writeFileSync(file, html);
-  }
   if (cssV) {
     const v = html.replace(/(href="(?:\.\.\/|\/)?site\.css)(?:\?v=[0-9a-f]+)?"/g, `$1?v=${cssV}"`);
     if (v !== html) { html = v; writeFileSync(file, html); }
@@ -82,16 +84,20 @@ for (const file of walk(out)) {
   html = html.replace('<html lang="en">', '<html lang="tr">');
   const guard = `<script>${FRAME_GUARD}</script>`;
   const hashes = [...new Set([...inline(html), FRAME_GUARD].map(sha))];
-  const title = titleFor(file);
+  // titles.json değeri ya başlık ya da { title, desc } (sayfaya özel açıklama).
+  const entry = titleFor(file);
+  const title = typeof entry === 'string' ? entry : entry.title;
+  const desc = typeof entry === 'string' ? DESC : (entry.desc || DESC);
   // Elle yazılmış sayfalar (destek, yasal metinler) kendi başlık ve açıklamasını taşır; onlara yenisi eklenmez.
   const own = /<title>/.test(html);
   const head = [
     `<meta http-equiv="Content-Security-Policy" content="${esc(csp(hashes))}"/>`,
     ...(own ? [] : [
       `<title>${title}</title>`,
-      `<meta name="description" content="${DESC}"/>`,
+      `<meta name="description" content="${esc(desc)}"/>`,
+      `<link rel="canonical" href="https://anahtar.io/${relative(out, file).replace(/\.html$/, '').replace(/(^|\/)index$/, '')}"/>`,
       `<meta property="og:title" content="${title}"/>`,
-      `<meta property="og:description" content="${DESC}"/>`
+      `<meta property="og:description" content="${esc(desc)}"/>`
     ]),
     '<meta property="og:locale" content="tr_TR"/>',
     '<meta name="referrer" content="strict-origin-when-cross-origin"/>',
@@ -103,7 +109,7 @@ for (const file of walk(out)) {
     `<link rel="apple-touch-icon" href="${base}/apple-touch-icon.png"/>`
   ].join('');
   // CSP en başta olmalı ki sonraki kaynaklara da uygulansın; çerçeve koruması hemen ardından.
-  html = html.replace('<head>', `<head>${head}${guard}`);
+  html = html.replace('<head>', `<head>${head}${guard}${own ? '' : fontCss()}`);
   writeFileSync(file, html);
   count++;
 }

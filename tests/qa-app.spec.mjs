@@ -477,14 +477,27 @@ test('kurumsal başvuru: fiyatlardaki "Bize ulaşın" formu açar; başvuru yön
   await expect(page.getByText('Web formu')).toBeVisible();
 });
 
-test('kurumsal: sektör sayfası açık temada; "Teklif al" formu sektör seçili açar', async ({ page }) => {
+test('çözümler: ana sayfadaki seçimden sektör sayfasına, oradan sektör seçili teklif formuna gidilir; statik sayfalar açık temada', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' });
-  await page.goto(url('/kurumsal/avm'));
-  await expect(page.locator('h1')).toContainText('AVM');
+  await page.goto(url('/destek/'));
   // Cihaz koyu temada olsa da statik sayfalar marka renginde (kireç) açılır.
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(250, 245, 240)');
-  await page.locator('.sector-hero a', { hasText: 'Teklif al' }).click();
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto(url('/'));
+  await expect(page.getByText('Seni en iyi ne tanımlar?').first()).toBeVisible();
+  await page.getByRole('link', { name: /^AVM/ }).first().click();
+  await expect(page).toHaveURL(/\/cozumler\/avm/);
+  await expect(page.getByText('Mağaza kiralarını').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Teklif al' }).first().click();
   await expect(page).toHaveURL(/\/kurumsal\?sektor=AVM/);
   await expect(page.getByRole('radio', { name: 'AVM' })).toHaveAttribute('aria-checked', 'true');
-  await expect(page.getByRole('link', { name: 'GYO' })).toBeVisible();
+});
+
+test('kira artış hesaplayıcı: kira ve oranla yeni kirayı hesaplar; sözleşme oranı düşükse onu uygular', async ({ page }) => {
+  await page.goto(url('/kira-artis-hesaplama'));
+  await page.getByLabel('Mevcut aylık kira (₺)').fill('25000');
+  await page.getByLabel('TÜFE oranı (%)').fill('40');
+  await expect(page.getByText('₺35.000').first()).toBeVisible();
+  await page.getByLabel('Sözleşmedeki oran (%)').fill('30');
+  await expect(page.getByText('₺32.500').first()).toBeVisible();
 });

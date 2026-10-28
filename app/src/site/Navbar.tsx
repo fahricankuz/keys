@@ -109,7 +109,10 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
                     <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{label}</Text>
                   </PressScale>
                 ))}
-                <PressScale onPress={() => openPage('kira-artis-hesaplama')} accessibilityRole="link" style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+                <PressScale onPress={() => { setOpen(false); go('/cozumler'); }} accessibilityRole="link" style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+                  <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{t('Çözümler')}</Text>
+                </PressScale>
+                <PressScale onPress={() => { setOpen(false); go('/kira-artis-hesaplama'); }} accessibilityRole="link" style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
                   <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{t('Kira artışı hesapla')}</Text>
                 </PressScale>
               </View>

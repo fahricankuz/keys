@@ -11,10 +11,17 @@
    Türkçe saklanır ve yalnızca gösterilirken çevrilir; dil değişince veri
    bozulmaz. */
 
-import { EN as EN_BASE } from './en.js';
-import { EN_EXTRA } from './en-extra.js';
-const EN = Object.assign({}, EN_EXTRA, EN_BASE);
 import { storage } from './storage.js';
+
+// İngilizce sözlük (~170 KB) ayrı parçada; yalnız dil İngilizceyse indirilir (Türkçe ziyaretçi hiç yüklemez).
+let EN = null;
+let loading = null;
+export function loadEn(){
+  if (EN) return Promise.resolve();
+  loading = loading || Promise.all([import('./en.js'), import('./en-extra.js')])
+    .then(([a, b]) => { EN = Object.assign({}, b.EN_EXTRA, a.EN); });
+  return loading;
+}
 
 export const LANGS = [['tr', 'Türkçe'], ['en', 'English']];
 
@@ -32,9 +39,11 @@ function detect(){
 let lang = 'tr';
 const listeners = new Set();
 /** Depo okunabilir olunca çağrılır (hydrate sonrası). */
-export function initLang(){
+export async function initLang(){
   const d = detect();
-  lang = LANGS.some(l => l[0] === d) ? d : 'tr';
+  const next = LANGS.some(l => l[0] === d) ? d : 'tr';
+  if (next === 'en') await loadEn().catch(() => {});
+  lang = next;
 }
 export function onLang(fn){ listeners.add(fn); return () => listeners.delete(fn); }
 
@@ -56,7 +65,7 @@ export function t(s, vars){
   s = String(s);
   // 'Ara|telefon': aynı Türkçe metnin farklı anlamları için bağlam etiketi.
   let out = s.includes('|') ? s.slice(0, s.indexOf('|')) : s;
-  if (lang !== 'tr' && s){
+  if (lang !== 'tr' && s && EN){
     const hit = EN[s];
     if (hit === undefined) missing.add(s);
     else out = hit;
@@ -77,6 +86,6 @@ export function setLang(next){
     pref.lang = next;
     storage.setItem('evim-tercih', JSON.stringify(pref));
   } catch(e){}
-  lang = next;
-  listeners.forEach(fn => fn(next));
+  const done = () => { lang = next; listeners.forEach(fn => fn(next)); };
+  if (next === 'en' && !EN) loadEn().then(done, done); else done();
 }

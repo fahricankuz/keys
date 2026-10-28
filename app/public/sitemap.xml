@@ -2,10 +2,20 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://anahtar.io/</loc></url>
   <url><loc>https://anahtar.io/kayit</loc></url>
-  <url><loc>https://anahtar.io/kurumsal</loc></url>
   <url><loc>https://anahtar.io/giris</loc></url>
   <url><loc>https://anahtar.io/destek/</loc></url>
   <url><loc>https://anahtar.io/kira-artis-hesaplama</loc><lastmod>2026-10-28</lastmod><changefreq>monthly</changefreq></url>
+  <url><loc>https://anahtar.io/kurumsal</loc></url>
+  <url><loc>https://anahtar.io/cozumler</loc></url>
+  <url><loc>https://anahtar.io/cozumler/mulk-sahibi</loc></url>
+  <url><loc>https://anahtar.io/cozumler/portfoy</loc></url>
+  <url><loc>https://anahtar.io/cozumler/kiraci</loc></url>
+  <url><loc>https://anahtar.io/cozumler/emlak-ofisi</loc></url>
+  <url><loc>https://anahtar.io/cozumler/site-yonetimi</loc></url>
+  <url><loc>https://anahtar.io/cozumler/avm</loc></url>
+  <url><loc>https://anahtar.io/cozumler/gyo</loc></url>
+  <url><loc>https://anahtar.io/cozumler/depo-lojistik</loc></url>
+  <url><loc>https://anahtar.io/cozumler/family-office</loc></url>
   <url><loc>https://anahtar.io/blog/</loc><lastmod>2026-10-27</lastmod></url>
   <url><loc>https://anahtar.io/blog/kira-artisi-nasil-hesaplanir</loc><lastmod>2026-10-27</lastmod></url>
   <url><loc>https://anahtar.io/blog/isyeri-kirasinda-stopaj</loc><lastmod>2026-10-27</lastmod></url>
@@ -15,10 +25,4 @@
   <url><loc>https://anahtar.io/blog/aidat-kim-oder</loc><lastmod>2026-10-27</lastmod></url>
   <url><loc>https://anahtar.io/blog/kiraci-tahliyesi</loc><lastmod>2026-10-27</lastmod></url>
   <url><loc>https://anahtar.io/blog/kira-geliri-beyannamesi</loc><lastmod>2026-10-27</lastmod></url>
-  <url><loc>https://anahtar.io/kurumsal/emlak-ofisi</loc></url>
-  <url><loc>https://anahtar.io/kurumsal/site-yonetimi</loc></url>
-  <url><loc>https://anahtar.io/kurumsal/avm</loc></url>
-  <url><loc>https://anahtar.io/kurumsal/gyo</loc></url>
-  <url><loc>https://anahtar.io/kurumsal/depo-lojistik</loc></url>
-  <url><loc>https://anahtar.io/kurumsal/family-office</loc></url>
 </urlset>

@@ -12,7 +12,7 @@ import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 export default function AuthShell({ title, lead, children, side, wide }: {
   title: string; lead?: string; children: ReactNode;
   /** Sol paneldeki başlık, metin ve maddeler (varsayılan: marka sözü). */
-  side?: { title: string; lead: string; points?: string[]; foot?: string }; wide?: boolean;
+  side?: { title: string; lead: string; points?: string[]; groups?: { title: string; items: string[] }[]; foot?: string }; wide?: boolean;
 }) {
   const c = useColors();
   const router = useRouter();
@@ -30,6 +30,19 @@ export default function AuthShell({ title, lead, children, side, wide }: {
               <View key={x} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
                 <Text v="body" color={c.lemon} style={{ fontFamily: fonts.bodyXBold }}>✓</Text>
                 <Text v="body" color="#FFF3EA" style={{ flex: 1 }}>{x}</Text>
+              </View>
+            ))}
+            {side?.groups?.map((g) => (
+              <View key={g.title} style={{ gap: 8, marginTop: 10 }}>
+                <Text v="small" color={c.heroMuted} style={{ fontFamily: fonts.bodyBold }}>{g.title}</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: 8 }}>
+                  {g.items.map((x) => (
+                    <View key={x} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start', width: '50%', paddingRight: 8 }}>
+                      <Text v="body" color={c.lemon} style={{ fontFamily: fonts.bodyXBold }}>✓</Text>
+                      <Text v="body" color="#FFF3EA" style={{ flex: 1 }}>{x}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
             ))}
           </View>

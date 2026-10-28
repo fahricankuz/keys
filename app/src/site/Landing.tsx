@@ -18,6 +18,7 @@ import { Icon, Steps } from '../app-ui/blocks';
 import { useLangTick } from '../app-ui/hooks';
 import { categories, faq, plans } from './content';
 import { PlanCard } from './PlanCard';
+import { SegmentGrid } from './SegmentParts';
 import { Nav, TopBar, openPage } from './Navbar';
 
 const EASE = 'cubic-bezier(0.32,0.72,0,1)';
@@ -27,7 +28,7 @@ const site = (path: string) => CONFIG.publicUrl.replace(/\/?$/, '/') + path;
 const BALANCE: any = Platform.OS === 'web' ? { textWrap: 'balance' } : null;
 
 /** Büyük başlık yazısı. */
-function Display({ children, size, color, style, center }: { children: ReactNode; size: number; color?: string; style?: any; center?: boolean }) {
+export function Display({ children, size, color, style, center }: { children: ReactNode; size: number; color?: string; style?: any; center?: boolean }) {
   const c = useColors();
   return (
     <RNText style={[{ fontFamily: fonts.siteBold, fontSize: size, lineHeight: Math.round(size * 1.08), letterSpacing: -size * (size > 40 ? 0.035 : 0.02), color: color ?? c.ink, textAlign: center ? 'center' : undefined, ...BALANCE }, style]}>
@@ -36,7 +37,7 @@ function Display({ children, size, color, style, center }: { children: ReactNode
   );
 }
 
-function SectionHead({ label, title, body, onDark, compact }: { label?: string; title: string; body?: string; onDark?: boolean; compact?: boolean }) {
+export function SectionHead({ label, title, body, onDark, compact }: { label?: string; title: string; body?: string; onDark?: boolean; compact?: boolean }) {
   const c = useColors();
   const { phone } = useBreakpoint();
   return (
@@ -497,6 +498,17 @@ function Contact({ anchor }: { anchor: (el: any) => void }) {
   );
 }
 
+/** "Seni en iyi ne tanımlar?" — her seçenek kendi sayfasına (/cozumler/…) gider. */
+function Segments({ go }: { go: (p: string) => void }) {
+  const { phone } = useBreakpoint();
+  return (
+    <Container style={{ paddingTop: phone ? 44 : 112, gap: phone ? 18 : 32, maxWidth: 1080 }}>
+      <SectionHead compact label={t('Çözümler')} title={t('Seni en iyi ne tanımlar?')} />
+      <Reveal><SegmentGrid go={go} compact={phone} /></Reveal>
+    </Container>
+  );
+}
+
 /** Ücretsiz kira artış hesaplayıcısına yönlendiren bant (ayrı, SEO'ya açık sayfa). */
 function CalcBand() {
   const c = useColors();
@@ -520,13 +532,13 @@ function CalcBand() {
   );
 }
 
-function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
+export function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
   const c = useColors();
   const { phone } = useBreakpoint();
   const lang = getLang();
   const open = (u: string) => () => Linking.openURL(u).catch(() => {});
   const cols: [string, [string, () => void][]][] = [
-    [t('Ürün'), [[t('Özellikler'), () => scrollTo('ozellikler')], [t('Nasıl çalışır'), () => scrollTo('nasil')], [t('Fiyatlar'), () => scrollTo('fiyat')], [t('Kira artış hesaplama'), () => openPage('kira-artis-hesaplama')], [t('Blog'), open(site('blog/'))]]],
+    [t('Ürün'), [[t('Özellikler'), () => scrollTo('ozellikler')], [t('Nasıl çalışır'), () => scrollTo('nasil')], [t('Fiyatlar'), () => scrollTo('fiyat')], [t('Çözümler'), () => openPage('cozumler')], [t('Kurumsal'), () => openPage('kurumsal')], [t('Kira artış hesaplama'), () => openPage('kira-artis-hesaplama')], [t('Blog'), open(site('blog/'))]]],
     [t('Destek'), [[t('Destek merkezi'), open(CONFIG.legal.support)], [t('Sıkça sorulanlar'), () => scrollTo('sss')], [CONFIG.supportEmail, open('mailto:' + CONFIG.supportEmail)]]],
     [t('Yasal'), [[t('Kullanım Koşulları'), open(CONFIG.legal.terms)], [t('Gizlilik ve KVKK'), open(CONFIG.legal.privacy)], [t('Hesap silme'), open(CONFIG.legal.deletion)]]]
   ];
@@ -565,7 +577,7 @@ function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
   );
 }
 
-function ToTop({ show, onPress }: { show: boolean; onPress: () => void }) {
+export function ToTop({ show, onPress }: { show: boolean; onPress: () => void }) {
   const c = useColors();
   const anim: any = { transitionProperty: 'opacity, transform', transitionDuration: '500ms', transitionTimingFunction: EASE };
   return (
@@ -602,6 +614,11 @@ export default function Landing() {
   /** Menüden bir özellik seçildi: sekmeyi aç, bölüme kaydır. */
   const openFeature = (id: string) => { setFeature(id); scrollTo('ozellikler'); };
   const mark = (k: string) => (el: any) => { if (el) at.current[k] = el; };
+  // Başka sayfadan menüyle gelindiyse (/#fiyat) ilgili bölüme kaydırılır.
+  useEffect(() => {
+    const h = typeof window !== 'undefined' ? window.location.hash.replace('#', '') : '';
+    if (h) setTimeout(() => scrollTo(h), 450);
+  }, []);
   return (
     <View style={{ flex: 1 }}>
       <ScrollView ref={scroll} style={{ flex: 1, backgroundColor: c.bg }} contentContainerStyle={{ flexGrow: 1 }} stickyHeaderIndices={[1]} scrollEventThrottle={64}
@@ -611,6 +628,7 @@ export default function Landing() {
         <Hero go={go} scrollTo={scrollTo} />
         <Rotator go={go} scrollTo={scrollTo} />
         <Manifesto />
+        <Segments go={go} />
         <Features active={feature} setActive={setFeature} anchor={mark('ozellikler')} go={go} />
         <HowItWorks go={go} anchor={mark('nasil')} />
         <Pricing go={go} anchor={mark('fiyat')} />

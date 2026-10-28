@@ -6,12 +6,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { POSTS, CATEGORIES } from './posts.mjs';
 import { destekPage } from './destek.mjs';
-import { kiraArtisPage } from './kira-artis.mjs';
-import { SECTORS, sectorPage } from './sectors.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUB = join(HERE, '../../public');
 const SITE = 'https://anahtar.io';
+// Uygulama içindeki sayfalar (src/site/segments.ts → SEGMENT_SLUGS ile aynı).
+const SEGMENTS = ['mulk-sahibi', 'portfoy', 'kiraci', 'emlak-ofisi', 'site-yonetimi', 'avm', 'gyo', 'depo-lojistik', 'family-office'];
 const LOGO = readFileSync(join(HERE, 'logo.svg'), 'utf8');
 let logoN = 0;
 const logo = () => LOGO.replaceAll('LOGOID', 'lg' + (++logoN));
@@ -64,7 +64,7 @@ export function bar(active) {
   const a = (href, label, key, cls = '') => `<a href="${href}"${cls ? ` class="${cls}"` : ''}${active === key ? ' aria-current="page"' : ''}>${label}</a>`;
   return `<header class="bar"><div class="wrap">
 <a class="logo" href="/" aria-label="anahtar ana sayfa">${logo()}</a>
-<nav aria-label="Site">${a('/kira-artis-hesaplama', 'Kira artışı hesapla', 'hesap', 'hide-s')}${a('/blog/', 'Blog', 'blog')}${a('/destek/', 'Destek', 'destek', 'hide-s')}${a('/giris', 'Giriş yap', 'giris', 'hide-s')}${a('/kayit', 'Ücretsiz dene', '', 'btn')}</nav>
+<nav aria-label="Site">${a('/cozumler', 'Çözümler', 'cozum', 'hide-s')}${a('/kira-artis-hesaplama', 'Kira artışı hesapla', 'hesap', 'hide-s')}${a('/blog/', 'Blog', 'blog')}${a('/destek/', 'Destek', 'destek', 'hide-s')}${a('/giris', 'Giriş yap', 'giris', 'hide-s')}${a('/kayit', 'Ücretsiz dene', '', 'btn')}</nav>
 </div></header>`;
 }
 
@@ -194,14 +194,17 @@ ${sorted.map(item).join('\n')}
 
 function sitemap() {
   const file = join(PUB, 'sitemap.xml');
-  const keep = readFileSync(file, 'utf8').split('\n').filter((l) => l.includes('<url>') && !l.includes('/blog/') && !l.includes('/kira-artis-hesaplama') && !l.includes('/kurumsal/'));
+  const keep = readFileSync(file, 'utf8').split('\n').filter((l) => l.includes('<url>') && !l.includes('/blog/') && !/\/(kira-artis-hesaplama|kurumsal|cozumler)/.test(l));
   const last = [...POSTS].map((p) => p.updated || p.date).sort().pop();
   const lines = [
     ...keep,
     `  <url><loc>${SITE}/kira-artis-hesaplama</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod><changefreq>monthly</changefreq></url>`,
+    `  <url><loc>${SITE}/kurumsal</loc></url>`,
+    `  <url><loc>${SITE}/cozumler</loc></url>`,
+    ...SEGMENTS.map((x) => `  <url><loc>${SITE}/cozumler/${x}</loc></url>`),
     `  <url><loc>${SITE}/blog/</loc><lastmod>${last}</lastmod></url>`,
     ...POSTS.map((p) => `  <url><loc>${SITE}/blog/${p.slug}</loc><lastmod>${p.updated || p.date}</lastmod></url>`),
-    ...SECTORS.map((x) => `  <url><loc>${SITE}/kurumsal/${x.slug}</loc></url>`)
+
   ];
   writeFileSync(file, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${lines.join('\n')}\n</urlset>\n`);
 }
@@ -216,8 +219,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   }
   write('blog/rss.xml', rss());
   write('destek/index.html', destekPage({ head, bar, foot }));
-  write('kira-artis-hesaplama.html', kiraArtisPage({ head, bar, foot }));
-  for (const x of SECTORS) write(`kurumsal/${x.slug}.html`, sectorPage(x, { head, bar, foot }));
   sitemap();
   const og = POSTS.filter((p) => !existsSync(join(PUB, 'blog/og', p.slug + '.jpg')));
   console.log(`blog: ${POSTS.length} yazı yazıldı` + (og.length ? `; kapak görseli eksik: ${og.map((p) => p.slug).join(', ')} (node scripts/blog/og.mjs)` : ''));

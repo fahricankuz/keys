@@ -29,6 +29,53 @@
   "hesap-silme": "Hesap silme | anahtar",
   "+not-found": "Sayfa bulunamadı | anahtar",
   "_default": "anahtar",
-  "kurumsal": "Kurumsal paket başvurusu | anahtar",
-  "uygulama/ayarlar": "Ayarlar | anahtar"
+  "kurumsal": {
+    "title": "Kurumsal paket: büyük portföyler için kira yönetimi | anahtar",
+    "desc": "Sınırsız mülk ve ekip, aylık ve yıllık rapor, kurulum ve veri taşıma. Emlak ofisi, site yönetimi, AVM, GYO, depo ve family office için teklif alın."
+  },
+  "uygulama/ayarlar": "Ayarlar | anahtar",
+  "kira-artis-hesaplama": {
+    "title": "Kira Artış Oranı Hesaplama 2026: Yasal Zam Tavanı | anahtar",
+    "desc": "Kira artış oranı hesaplama: TÜİK 12 aylık ortalama TÜFE ile yasal zam tavanını ve yeni kira bedelini saniyeler içinde hesapla. Konut ve işyeri için ücretsiz."
+  },
+  "cozumler": {
+    "title": "Çözümler: mülk sahibi, kiracı, emlak ofisi ve kurumsal | anahtar",
+    "desc": "Tek daireden yüzlerce mülklük portföye: mülk sahibi, kiracı, emlak ofisi, site yönetimi, AVM, GYO, depo ve family office için anahtar."
+  },
+  "cozumler/mulk-sahibi": {
+    "title": "Mülk sahibi için kira takibi | anahtar",
+    "desc": "Tek mülkün kirasını, dekontunu, arızasını ve sözleşme tarihlerini kiracınla aynı ekranda takip et."
+  },
+  "cozumler/portfoy": {
+    "title": "Birden fazla mülk için kira yönetimi | anahtar",
+    "desc": "5 mülke kadar tahsilat, gider, net getiri ve ekip yönetimi tek ekranda."
+  },
+  "cozumler/kiraci": {
+    "title": "Kiracılar için ücretsiz kira takibi | anahtar",
+    "desc": "Dekontunu yükle, arızayı bildir, sözleşme ve belgelerin hep yanında olsun. Kiracı hesabı ücretsiz."
+  },
+  "cozumler/emlak-ofisi": {
+    "title": "Emlak ofisleri için kira yönetimi | anahtar",
+    "desc": "Yönettiğin her mülkün kirası, dekontu ve talebi tek panelde; mülk sahiplerine aylık rapor."
+  },
+  "cozumler/site-yonetimi": {
+    "title": "Site ve bina yönetimi için kira ve kiracı takibi | anahtar",
+    "desc": "Kiralık dairelerin kiracı iletişimi, talepleri ve belgeleri yönetim ekibiyle tek yerde."
+  },
+  "cozumler/avm": {
+    "title": "AVM ve ticari merkezler için kiracı yönetimi | anahtar",
+    "desc": "Mağaza kiraları, stopaj, sözleşme yenilemeleri ve kiracı talepleri tek panelde."
+  },
+  "cozumler/gyo": {
+    "title": "GYO için portföy ve kira takibi | anahtar",
+    "desc": "Tahsilat, getiri ve sözleşme takvimi tek ekranda; aylık ve yıllık rapor."
+  },
+  "cozumler/depo-lojistik": {
+    "title": "Depo ve lojistik alanları için kira yönetimi | anahtar",
+    "desc": "Depo kiraları, uzun vadeli sözleşmeler ve sigorta tarihleri tek yerde."
+  },
+  "cozumler/family-office": {
+    "title": "Family office için kira ve gider yönetimi | anahtar",
+    "desc": "Aile ve şirket mülklerinin kirası, gideri ve vergisi tek yerde; düzenli rapor."
+  }
 }
