@@ -6,8 +6,8 @@ import { fonts, useBreakpoint, useColors } from '../../ui/theme';
 import { Icon } from '../../app-ui/blocks';
 import { Reveal } from '../../ui/Reveal';
 import SitePage from '../../site/SitePage';
-import { Display } from '../../site/Landing';
-import { BrandBand, Headline, RentCard, SegmentGrid, TONE } from '../../site/SegmentParts';
+import { Display, SectionHead } from '../../site/Landing';
+import { BrandBand, Headline, RentCard, SegmentFlow } from '../../site/SegmentParts';
 import { SEGMENT_SLUGS, segments } from '../../site/segments';
 import { demo } from '../../site/money';
 
@@ -25,7 +25,7 @@ export default function SegmentPage() {
   const corp = s.plan === 'kurumsal';
   const cta = corp ? [t('Teklif al'), '/kurumsal?sektor=' + encodeURIComponent(s.role || '') + '#form']
     : s.plan === 'kiraci' ? [t('Kiracı olarak kayıt ol'), '/kayit/kiraci'] : [t('1 ay ücretsiz dene'), '/kayit/mulk-sahibi'];
-  const [bg, fg] = TONE[s.tone];
+  const bg = c.accentSoft, fg = c.accentText;
   const amount = s.plan === 'tek' || s.plan === 'kiraci' ? demo('₺28.500', '$950') : s.plan === 'bes' ? demo('₺142.000', '$4,700') : demo('₺2.480.000', '$82,000');
   const label = s.plan === 'tek' || s.plan === 'kiraci' ? t('Bu ayın kirası · son gün 5 Kasım') : t('Bu ay tahsil edilen · tüm portföy');
   const card = (children: any, key?: string) => (
@@ -92,10 +92,10 @@ export default function SegmentPage() {
           action={<Button kind="onDark" title={cta[0]} onPress={() => go(cta[1])} />} />
       </Container>
 
-      <Container style={{ paddingTop: phone ? 48 : 96, paddingBottom: phone ? 56 : 112, gap: 16 }}>
-        <Text v="label" muted style={{ fontSize: 13 }}>{t('Diğer seçenekler')}</Text>
-        <SegmentGrid compact go={go} except={s.slug} />
-      </Container>
+      <View style={{ paddingTop: phone ? 48 : 104, paddingBottom: phone ? 56 : 120, gap: phone ? 18 : 30 }}>
+        <Container><SectionHead compact label={t('Diğer çözümler')} title={t('Seni en iyi ne tanımlar?')} /></Container>
+        <View style={{ width: '100%', maxWidth: 1360, alignSelf: 'center' }}><SegmentFlow go={go} except={s.slug} /></View>
+      </View>
     </SitePage>
   );
 }

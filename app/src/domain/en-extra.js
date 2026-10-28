@@ -1186,5 +1186,8 @@ export const EN_EXTRA = {
   'Haziran': 'June',
   'Temmuz': 'July',
   'Aralık': 'December',
-  'Tüm çözümler': 'All solutions'
+  'Tüm çözümler': 'All solutions',
+  'Diğer çözümler': 'Other solutions',
+  '5 mülk': '5 properties',
+  '{name} sayfasına git': 'Go to {name}'
 };

@@ -487,10 +487,14 @@ test('çözümler: üst menüdeki açılır listeden sektör sayfasına, oradan 
   // Ana sayfada ayrı bir seçim bölümü yok; seçim üst menüdeki açılır listede.
   await expect(page.getByText('Seni en iyi ne tanımlar?')).toHaveCount(0);
   await page.getByRole('button', { name: 'Çözümler' }).click();
-  await expect(page.getByText('Seni en iyi ne tanımlar?').first()).toBeVisible();
+  await expect(page.getByText('Tüm çözümler').first()).toBeVisible();
   await page.getByRole('link', { name: /^AVM/ }).first().click();
   await expect(page).toHaveURL(/\/cozumler\/avm/);
   await expect(page.getByText('Mağaza kiralarını').first()).toBeVisible();
+  // Sayfa altında diğer çözümler akan şeritte; bulunulan sayfa şeritte yer almaz.
+  await expect(page.getByText('Diğer çözümler')).toBeVisible();
+  await expect(page.getByRole('link', { name: /^GYO/ }).first()).toBeAttached();
+  await expect(page.getByRole('link', { name: 'AVM · Kurumsal' })).toHaveCount(0);
   // Sol üstteki logo ana sayfaya döner.
   await page.getByRole('link', { name: 'Ana sayfa' }).first().click();
   await expect(page).toHaveURL(/\/$/);

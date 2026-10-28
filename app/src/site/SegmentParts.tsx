@@ -1,7 +1,7 @@
 /* "Seni en iyi ne tanımlar?" kartları ve segment sayfalarının ortak parçaları (marka kiti: renkli simge kutulu liste kartı,
    Baca Karası kira kartı ve kapı çubuğu, Tuğla zeminde süper grafik "a"). */
-import { ReactNode } from 'react';
-import { Text as RNText, View } from 'react-native';
+import { ReactNode, useState } from 'react';
+import { Platform, ScrollView, StyleSheet, Text as RNText, View } from 'react-native';
 import Svg, { G, Path } from 'react-native-svg';
 import { t } from '../domain/i18n';
 import { PressScale, Text } from '../ui/kit';
@@ -15,7 +15,7 @@ const TONE = { peach: ['#F0CFC8', '#A8231F'], butter: ['#F7DDB0', '#6B4A00'], sa
 /** Seçim kartı: simge kutusu, ad, alt bilgi, ok. */
 function Option({ s, onPress, compact }: { s: Segment; onPress: () => void; compact?: boolean }) {
   const c = useColors();
-  const [bg, fg] = TONE[s.tone];
+  const bg = c.accentSoft, fg = c.accentText;
   return (
     <PressScale onPress={onPress} accessibilityRole="link" accessibilityLabel={s.name + ' · ' + s.sub} scaleTo={0.98} hoverScale={1.015}
       wrapStyle={{ flexGrow: 1, flexBasis: compact ? 220 : 300 }}
@@ -39,6 +39,62 @@ export function SegmentGrid({ go, compact, except }: { go: (p: string) => void; 
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: compact ? 10 : 12 }}>
       {segments().filter((s) => s.slug !== except).map((s) => <Option key={s.slug} s={s} compact={compact} onPress={() => go('/cozumler/' + s.slug)} />)}
+    </View>
+  );
+}
+
+/** Kayan şerit (web): kartlar iki kez dizilir ve -%50'ye kayar; böylece uçsuz bucaksız akar.
+    Kenarlar yumuşakça kaybolur, üstüne gelince durur. Hareketi azaltmayı seçende ve telefonda elle kaydırılır. */
+const FLOW: any = Platform.OS === 'web' ? StyleSheet.create({
+  track: {
+    animationKeyframes: [{ '0%': { transform: 'translateX(0)' }, '100%': { transform: 'translateX(-50%)' } }],
+    animationDuration: '48s', animationIterationCount: 'infinite', animationTimingFunction: 'linear'
+  } as any,
+  mask: {
+    maskImage: 'linear-gradient(90deg, transparent 0, #000 9%, #000 91%, transparent 100%)',
+    WebkitMaskImage: 'linear-gradient(90deg, transparent 0, #000 9%, #000 91%, transparent 100%)'
+  } as any
+}) : null;
+
+function FlowCard({ s, go }: { s: Segment; go: (p: string) => void }) {
+  const c = useColors();
+  return (
+    <PressScale onPress={() => go('/cozumler/' + s.slug)} accessibilityRole="link" accessibilityLabel={s.name + ' · ' + s.sub} scaleTo={0.97} hoverScale={1.03}
+      style={{ width: 300, flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: c.surface, borderRadius: 24, borderWidth: 1, borderColor: c.line, paddingVertical: 14, paddingLeft: 14, paddingRight: 18, boxShadow: '0 1px 0 rgba(29,26,25,0.03), 0 12px 32px -18px rgba(29,26,25,0.28)' } as any}>
+      <View style={{ width: 46, height: 46, borderRadius: 15, backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name={s.icon} size={21} color={c.accentText} />
+      </View>
+      <View style={{ flex: 1, gap: 1 }}>
+        <RNText numberOfLines={1} style={{ fontFamily: fonts.bodyXBold, fontSize: 16, color: c.ink }}>{s.name}</RNText>
+        <RNText numberOfLines={1} style={{ fontFamily: fonts.body, fontSize: 13.5, color: c.muted }}>{s.sub}</RNText>
+      </View>
+      <View style={{ transform: [{ rotate: '180deg' }], opacity: 0.45 }}><Icon name="back" size={15} color={c.ink} /></View>
+    </PressScale>
+  );
+}
+
+/** Sayfa altındaki diğer çözümler: kesintisiz akan kart şeridi. */
+export function SegmentFlow({ go, except }: { go: (p: string) => void; except?: string }) {
+  const { phone } = useBreakpoint();
+  const [hover, setHover] = useState(false);
+  const list = segments().filter((s) => s.slug !== except);
+  const reduce = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (!FLOW || reduce || phone) {
+    return (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 16, paddingVertical: 10 }}>
+        {list.map((s) => <FlowCard key={s.slug} s={s} go={go} />)}
+      </ScrollView>
+    );
+  }
+  return (
+    <View style={[{ overflow: 'hidden', paddingVertical: 14 }, FLOW.mask]} onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}>
+      <View style={[{ flexDirection: 'row', width: 'max-content' as any }, FLOW.track, { animationPlayState: hover ? 'paused' : 'running' } as any]}>
+        {[0, 1].map((k) => (
+          <View key={k} aria-hidden={k === 1} style={{ flexDirection: 'row', gap: 14, paddingRight: 14 }}>
+            {list.map((s) => <FlowCard key={s.slug} s={s} go={go} />)}
+          </View>
+        ))}
+      </View>
     </View>
   );
 }

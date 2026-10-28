@@ -13,7 +13,6 @@ import { Icon } from '../app-ui/blocks';
 import { categories } from './content';
 import { CONFIG } from '../domain/config';
 import { segments } from './segments';
-import { TONE } from './SegmentParts';
 
 /** Üst duyuru şeridi: kira kartının kahverengisinden kırmızıya akan hareketli geçiş, altta kırmızı ışıma,
     soldan sağa geçen parıltı ve "Fırsat" etiketi. Hareketi azaltmayı seçen kullanıcıda geçiş durağandır. */
@@ -149,37 +148,69 @@ function MenuButton({ label, on, onPress }: { label: string; on: boolean; onPres
   );
 }
 
-/** Açılır çözümler menüsü: "Seni en iyi ne tanımlar?" seçenekleri; her biri kendi sayfasına gider. */
+/** Açılır çözümler menüsü (Özellikler menüsüyle aynı düzen): solda seçenekler, ortada üzerine gelinen
+    seçeneğin özeti ve hazır özellikleri, sağda ilgili çağrı. Seçeneğe basınca kendi sayfasına gidilir. */
 function SolutionMenu({ onPick }: { onPick: (path: string) => void }) {
   const c = useColors();
   const { desktop } = useBreakpoint();
+  const list = segments();
+  const [active, setActive] = useState(list[0].slug);
+  const cur = list.find((x) => x.slug === active) || list[0];
+  const corp = cur.plan === 'kurumsal';
+  const page = '/cozumler/' + cur.slug;
   return (
     <View style={{ position: 'absolute', top: 66, left: 0, right: 0, zIndex: 60 }}>
       <Animated.View entering={FadeInDown.duration(200)} exiting={FadeOut.duration(120)}
-        style={{ backgroundColor: c.surface, borderRadius: 32, borderWidth: 1, borderColor: c.line, padding: 22, gap: 16, boxShadow: shadows.lift }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6 }}>
-          <RNText style={{ fontFamily: fonts.siteBold, fontSize: 20, letterSpacing: -0.4, color: c.ink }}>{t('Seni en iyi ne tanımlar?')}</RNText>
-          <PressScale onPress={() => onPick('/cozumler')} accessibilityRole="link">
-            <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 14, color: c.accentText }}>{t('Tüm çözümler')} ›</RNText>
-          </PressScale>
-        </View>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: 4 }}>
-          {segments().map((s) => {
-            const [bg, fg] = TONE[s.tone];
+        style={{ backgroundColor: c.surface, borderRadius: 32, borderWidth: 1, borderColor: c.line, padding: 14, flexDirection: 'row', gap: 6, boxShadow: shadows.lift }}>
+        <View style={{ width: 270, gap: 2 }} accessibilityRole="tablist">
+          {list.map((s) => {
+            const on = s.slug === active;
             return (
-              <Pressable key={s.slug} onPress={() => onPick('/cozumler/' + s.slug)} accessibilityRole="link" accessibilityLabel={s.name + ' · ' + s.sub}
-                style={({ hovered }: any) => ({ width: desktop ? '33.33%' : '50%', flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 18, backgroundColor: hovered ? c.surface2 : 'transparent' })}>
-                <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon name={s.icon} size={19} color={fg} />
-                </View>
-                <View style={{ flex: 1, gap: 1 }}>
-                  <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 15, color: c.ink }}>{s.name}</RNText>
-                  <RNText style={{ fontFamily: fonts.body, fontSize: 13, color: c.muted }}>{s.sub}</RNText>
-                </View>
+              <Pressable key={s.slug} onHoverIn={() => setActive(s.slug)} onPress={() => onPick('/cozumler/' + s.slug)} accessibilityRole="link" accessibilityLabel={s.name + ' · ' + s.sub}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, minHeight: 44, borderRadius: 16, backgroundColor: on ? c.surface2 : 'transparent' }}>
+                <Icon name={s.icon} size={19} color={on ? c.accentText : c.ink} />
+                <RNText numberOfLines={1} style={{ flex: 1, fontFamily: on ? fonts.bodyXBold : fonts.bodyBold, fontSize: 15, color: c.ink }}>
+                  {s.name}{s.plan === 'tek' || s.plan === 'bes' ? <RNText style={{ fontFamily: fonts.body, color: c.muted }}>{' · ' + (s.plan === 'bes' ? t('5 mülk') : s.sub)}</RNText> : null}
+                </RNText>
+                <View style={{ transform: [{ rotate: '180deg' }], opacity: on ? 1 : 0.35 }}><Icon name="back" size={15} /></View>
               </Pressable>
             );
           })}
         </View>
+        <View style={{ width: 1, backgroundColor: c.line, marginVertical: 8 }} />
+        <Animated.View key={cur.slug} entering={FadeIn.duration(220)} style={{ flex: 1, paddingHorizontal: 22, paddingVertical: 10, gap: 16 }}>
+          <RNText style={{ fontFamily: fonts.siteBold, fontSize: 22, lineHeight: 26, letterSpacing: -0.5, color: c.ink }}>
+            {cur.title[0]} <RNText style={{ color: c.accent }}>{cur.title[1]}</RNText> {cur.title[2]}
+          </RNText>
+          <RNText style={{ fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: c.muted }}>{cur.lead}</RNText>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 24, rowGap: 12 }}>
+            {cur.has.slice(0, 4).map((h) => (
+              <View key={h} style={{ width: desktop ? '46%' : '100%', flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+                <View style={{ marginTop: 1 }}><Icon name="check" size={16} color={c.okInk} /></View>
+                <RNText style={{ flex: 1, fontFamily: fonts.bodyBold, fontSize: 14.5, lineHeight: 20, color: c.ink }}>{h}</RNText>
+              </View>
+            ))}
+          </View>
+          <View style={{ flexDirection: 'row', gap: 18, marginTop: 'auto' as any }}>
+            <PressScale onPress={() => onPick(page)} accessibilityRole="link">
+              <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 14, color: c.accentText }}>{t('{name} sayfasına git', { name: cur.name })} ›</RNText>
+            </PressScale>
+            <PressScale onPress={() => onPick('/cozumler')} accessibilityRole="link">
+              <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 14, color: c.muted }}>{t('Tüm çözümler')} ›</RNText>
+            </PressScale>
+          </View>
+        </Animated.View>
+        {desktop && (
+          <>
+            <View style={{ width: 1, backgroundColor: c.line, marginVertical: 8 }} />
+            <View style={{ width: 260, padding: 10, gap: 12, justifyContent: 'center' }}>
+              <RNText style={{ fontFamily: fonts.siteBold, fontSize: 20, lineHeight: 22, letterSpacing: -0.4, color: c.ink }}>{corp ? t('Kurumsal paket') : cur.plan === 'kiraci' ? t('Kiracı hesabı her zaman ücretsiz.') : t('1 ay ücretsiz dene')}</RNText>
+              <Text v="small" muted>{corp ? t('Kısa formu doldurun; uygun fiyatı ve kurulum planını iki iş günü içinde iletelim.') : t('Kiracılar her zaman ücretsiz. Mülk sahipleri her paketi 1 ay ücretsiz dener.')}</Text>
+              <Button kind="primary" title={corp ? t('Teklif al') : t('Hesap oluştur')}
+                onPress={() => onPick(corp ? '/kurumsal?sektor=' + encodeURIComponent(cur.role || '') + '#form' : cur.plan === 'kiraci' ? '/kayit/kiraci' : '/kayit/mulk-sahibi')} />
+            </View>
+          </>
+        )}
       </Animated.View>
     </View>
   );
