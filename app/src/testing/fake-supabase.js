@@ -115,6 +115,7 @@ class Query {
   update(v){ this.op = 'update'; this.values = v; return this; }
   delete(){ this.op = 'delete'; return this; }
   eq(k, v){ this.filters.push(r => r[k] === v); return this; }
+  neq(k, v){ this.filters.push(r => r[k] !== v); return this; }
   in(k, v){ this.filters.push(r => v.includes(r[k])); return this; }
   is(k, v){ this.filters.push(r => (r[k] ?? null) === v); return this; }
   order(k, o){ this.orderBy = [k, o?.ascending !== false]; return this; }
@@ -366,6 +367,7 @@ export function createClient(url, key, opts){
         }, error:null };
       }
       if (name === 'my_access') return { data: accessOf(db, me), error:null };
+      if (name === 'team_list' || name === 'activity_feed') return { data:[], error:null };
       if (name === 'delete_my_account'){
         db.users = db.users.filter(u => u.id !== me);
         db.tables.profiles = db.tables.profiles.filter(p => p.id !== me);
