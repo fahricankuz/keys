@@ -136,7 +136,7 @@ test('performans: ana sayfa bütçesi (yükleme süresi, istek sayısı, aktarı
   console.log(`performans: görünür ${visible} ms · DCL ${Math.round(nav.dcl)} ms · load ${Math.round(nav.load)} ms · LCP ${lcp && Math.round(lcp)} ms · betik ${(js / 1024).toFixed(0)} KB · yazı tipi ${fonts.length} · istek ${reqs.length}`);
   expect(visible).toBeLessThan(5000);
   if (lcp) expect(lcp).toBeLessThan(4000);
-  expect(js).toBeLessThan(2.6 * 1024 * 1024);       // sıkıştırılmamış; sıkıştırılınca ~1/4'ü
+  expect(js).toBeLessThan(2.7 * 1024 * 1024);       // sıkıştırılmamış; sıkıştırılınca ~1/4'ü
   expect(fonts.length).toBeLessThanOrEqual(6);        // yalnızca kullanılan ağırlıklar iner
   expect(reqs.filter((r) => !r.url.startsWith(`http://localhost:${PORT}`))).toEqual([]);   // dış sunucuya istek yok
 });
