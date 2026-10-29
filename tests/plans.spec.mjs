@@ -22,7 +22,7 @@ test.beforeAll(async () => {
 
 const tek = () => M.tierOf('tek'), bes = () => M.tierOf('bes'), kur = () => M.tierOf('kurumsal');
 
-test('fiyatlar mülk başına: Başlangıç 99,99, Portföy 199,99; yıllık aylığın 10 katı; Kurumsal teklif', () => {
+test('fiyatlar mülk başına: Başlangıç 99,99, Profesyonel 199,99; yıllık aylığın 10 katı; Kurumsal teklif', () => {
   M.i18n.setLang('tr');
   expect(M.priceText(tek())).toBe('₺99,99');
   expect(M.priceText(bes())).toBe('₺199,99');
@@ -66,7 +66,7 @@ test('toplam: mülk adedi × mülk başı fiyat; kuruş hatası yok; fiyatsız p
   expect(M.totalText(kur(), 12)).toBe('Teklif alın');
 });
 
-test('mülk aralığı: Başlangıç ve Portföy 1-9, Kurumsal 10 ve üstü', () => {
+test('mülk aralığı: Başlangıç ve Profesyonel 1-9, Kurumsal 10 ve üstü', () => {
   M.i18n.setLang('tr');
   expect(M.maxUnits()).toBe(9);
   expect(M.rangeText(tek())).toBe('1-9 mülk');
@@ -84,7 +84,7 @@ test('ürün kimliği: paket, adet ve dönem gidiş-dönüş; geçersiz kimlik n
   for (const bad of ['tek_0_aylik', 'tek_10_aylik', 'bes_3_haftalik', 'evim_aylik', 'kurumsal_3_aylik', '', null, undefined]) expect(M.parseProduct(bad)).toBeNull();
 });
 
-test('özellik kilitleri: SMS, ekip, toplu aktarma ve rapor Başlangıç\'ta yok; Portföy ve Kurumsal\'da var', () => {
+test('özellik kilitleri: SMS, ekip, toplu aktarma ve rapor Başlangıç\'ta yok; Profesyonel ve Kurumsal\'da var', () => {
   for (const f of ['sms', 'team', 'import', 'report']) {
     expect(M.FEATURES[f]).not.toContain('tek');
     expect(M.FEATURES[f]).toContain('bes');
@@ -95,13 +95,13 @@ test('özellik kilitleri: SMS, ekip, toplu aktarma ve rapor Başlangıç\'ta yok
   expect(M.FEATURES.mailReport).toContain('kurumsal');
 });
 
-test('paket maddeleri: Portföy Başlangıç\'ı kapsar; SMS yalnız Portföy ve Kurumsal listesinde', () => {
+test('paket maddeleri: Profesyonel Başlangıç\'ı kapsar; SMS yalnız Profesyonel ve Kurumsal listesinde', () => {
   M.i18n.setLang('tr');
   expect(M.tierPoints('tek').join('|')).not.toMatch(/SMS/);
   expect(M.tierPoints('bes')[0]).toBe('Başlangıç’taki her şey');
   expect(M.tierPoints('bes').join('|')).toMatch(/SMS hatırlatmaları/);
   expect(M.tierPoints('kurumsal')[0]).toBe('Site yönetimi · AVM · GYO · Depo ve lojistik · Emlak ofisi · Aile ofisi');   // ilk madde: sektörler (kartta kalın)
-  expect(M.tierPoints('kurumsal')[1]).toBe('Portföy’deki her şey');
+  expect(M.tierPoints('kurumsal')[1]).toBe('Profesyonel’deki her şey');
   expect(M.tierPoints('tek')).toHaveLength(6);
 });
 

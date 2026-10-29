@@ -18,7 +18,7 @@ export const CONFIG = {
     /** Fiyatlar tanımlanana kadar satın alma kapalıdır; herkes deneme ya da yöneticinin verdiği paketle kullanır. */
     paused: true,
     /** Mülk sahibi paketleri: fiyat MÜLK BAŞINA ve KDV dahildir (aylık ve yıllık; yıllık = aylığın 10 katı, 2 ay bedava).
-        Başlangıç ve Portföy 1–9 mülk içindir (units = en çok satın alınabilecek mülk, maxUnits); 10 ve üstü Kurumsal (teklif).
+        Başlangıç ve Profesyonel 1–9 mülk içindir (units = en çok satın alınabilecek mülk, maxUnits); 10 ve üstü Kurumsal (teklif).
         İngilizce sitede dolar fiyatları (usd, usdYearly) gösterilir. Her paket 1 ay ücretsiz denemeyle başlar. */
     tiers: [
       { id:'tek', units:9, price:99.99, yearly:999.90, usd:2.00, usdYearly:20.00 },

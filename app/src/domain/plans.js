@@ -1,5 +1,5 @@
 /* Mülk sahibi paketleri: adlar, mülk sayısı aralığı, MÜLK BAŞINA fiyat ve paketlere göre özellikler.
-   Kiracı ve ekip hesapları her zaman ücretsizdir. Başlangıç ve Portföy 1–9 mülk içindir; 10 ve üstü Kurumsal'dır (teklif).
+   Kiracı ve ekip hesapları her zaman ücretsizdir. Başlangıç ve Profesyonel 1–9 mülk içindir; 10 ve üstü Kurumsal'dır (teklif).
    Fiyatlar KDV dahildir. Her paket 1 ay ücretsiz denemeyle başlar. */
 
 import { t, getLang } from './i18n.js';
@@ -7,7 +7,7 @@ import { CONFIG } from './config.js';
 
 export const PLAN_LABEL = {
   tek: () => t('Başlangıç'),
-  bes: () => t('Portföy'),
+  bes: () => t('Profesyonel'),
   kurumsal: () => t('Kurumsal'),
   trial: () => t('Deneme'),
   pro: () => t('Sınırsız')
@@ -68,7 +68,7 @@ export function parseProduct(pid){
   return m ? { plan: m[1], units: Number(m[2]), yearly: m[3] === 'yillik' } : null;
 }
 
-/** Paketlere göre açılan özellikler. Başlangıç'ta olmayanlar Portföy ve Kurumsal'da açıktır;
+/** Paketlere göre açılan özellikler. Başlangıç'ta olmayanlar Profesyonel ve Kurumsal'da açıktır;
     deneme süresince hepsi açıktır. */
 export const FEATURES = {
   team: ['bes', 'kurumsal', 'trial', 'pro'],      // ekip üyeleri (emlakçı, muhasebeci, personel)
@@ -100,7 +100,7 @@ export function tierPoints(id){
   if (id === 'bes') return pro;
   return [
     t('Site yönetimi · AVM · GYO · Depo ve lojistik · Emlak ofisi · Aile ofisi'),   // ilk madde kartta kalın yazılır (sektörler)
-    t('Portföy’deki her şey'),
+    t('Profesyonel’deki her şey'),
     t('Sınırsız mülk ve ekip üyesi'),
     t('Aylık ve yıllık rapor e-postası'),
     t('Öncelikli destek'),

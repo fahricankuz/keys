@@ -44,11 +44,7 @@
   },
   "cozumler/mulk-sahibi": {
     "title": "Mülk sahibi için kira takibi | anahtar",
-    "desc": "Tek mülkün kirasını, dekontunu, arızasını ve sözleşme tarihlerini kiracınla aynı ekranda takip et."
-  },
-  "cozumler/portfoy": {
-    "title": "Birden fazla mülk için kira yönetimi | anahtar",
-    "desc": "5 mülke kadar tahsilat, gider, net getiri ve ekip yönetimi tek ekranda."
+    "desc": "1-9 mülkün kirasını, dekontunu, arızasını, giderini ve sözleşme tarihlerini kiracınla aynı ekranda takip et."
   },
   "cozumler/kiraci": {
     "title": "Kiracılar için ücretsiz kira takibi | anahtar",

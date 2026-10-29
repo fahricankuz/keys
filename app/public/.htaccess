@@ -12,6 +12,9 @@ RewriteCond %{HTTPS} !=on
 RewriteCond %{HTTP:X-Forwarded-Proto} !=https
 RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
+# Kaldırılan sayfa: iki "Mülk sahibi" çözümü tek sayfada birleşti.
+RewriteRule ^cozumler/portfoy/?$ /cozumler/mulk-sahibi [L,R=301]
+
 # Temiz adresler: /giris/kiraci -> /giris/kiraci.html (uygulama sayfaları ayrı .html dosyalarıdır)
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d

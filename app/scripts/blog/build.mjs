@@ -11,7 +11,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const PUB = join(HERE, '../../public');
 const SITE = 'https://anahtar.io';
 // Uygulama içindeki sayfalar (src/site/segments.ts → SEGMENT_SLUGS ile aynı).
-const SEGMENTS = ['mulk-sahibi', 'portfoy', 'kiraci', 'emlak-ofisi', 'site-yonetimi', 'avm', 'gyo', 'depo-lojistik', 'family-office'];
+const SEGMENTS = ['mulk-sahibi', 'kiraci', 'emlak-ofisi', 'site-yonetimi', 'avm', 'gyo', 'depo-lojistik', 'family-office'];
 const LOGO = readFileSync(join(HERE, 'logo.svg'), 'utf8');
 let logoN = 0;
 const logo = () => LOGO.replaceAll('LOGOID', 'lg' + (++logoN));

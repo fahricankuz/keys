@@ -504,6 +504,27 @@ test('çözümler: üst menüdeki açılır listeden sektör sayfasına, oradan 
   await expect(page.getByRole('radio', { name: 'AVM' })).toHaveAttribute('aria-checked', 'true');
 });
 
+test('üst menü sırası; çözümlerde tek "Mülk sahibi"; eski /cozumler/portfoy adresi yeni sayfaya gider', async ({ page }) => {
+  await page.goto(url('/'));
+  const order = await page.evaluate(() => [...document.querySelectorAll('[role=button],[role=link],a')].map((e) => e.textContent.trim())
+    .filter((x) => ['Özellikler', 'Çözümler', 'Nasıl çalışır', 'Fiyatlar', 'Kira artışı hesapla', 'SSS'].includes(x)));
+  expect([...new Set(order)]).toEqual(['Özellikler', 'Çözümler', 'Nasıl çalışır', 'Fiyatlar', 'Kira artışı hesapla', 'SSS']);
+  await page.getByRole('button', { name: 'Çözümler' }).click();
+  await expect(page.getByRole('link', { name: /^Mülk sahibi · / })).toHaveCount(1);
+  await expect(page.getByRole('link', { name: 'Mülk sahibi · 1-9 mülk' })).toBeVisible();
+  await page.goto(url('/cozumler/mulk-sahibi'));
+  await expect(page.getByText('Ekip üyeleri: emlakçı, muhasebeci, personel').first()).toBeVisible();
+  await page.goto(url('/cozumler/portfoy'));
+  await expect(page).toHaveURL(/\/cozumler\/mulk-sahibi/);
+});
+
+test('e-posta onay bağlantısı (eski biçim, ana sayfaya #access_token ile dönen) giriş sayfasına yönlenir, jeton adreste kalmaz', async ({ page }) => {
+  await page.goto(url('/#access_token=x.y.z&expires_in=3600&refresh_token=abc&token_type=bearer&type=signup'));
+  await expect(page).toHaveURL(/\/giris\?dogrulandi=1$/);
+  await expect(page.getByText('E-posta adresin doğrulandı. Şimdi hesap türünü seçip giriş yapabilirsin.')).toBeVisible();
+  expect(page.url()).not.toContain('access_token');
+});
+
 test('kira artış hesaplayıcı: kira ve oranla yeni kirayı hesaplar; sözleşme oranı düşükse onu uygular', async ({ page }) => {
   await page.goto(url('/kira-artis-hesaplama'));
   // Alanlar boşken örnek değerlerle (25.000 ve %33,45) sonuç baştan görünür.

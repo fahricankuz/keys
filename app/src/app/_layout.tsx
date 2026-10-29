@@ -31,6 +31,13 @@ export default function Root() {
       wait();
     });
   }, []);
+  // E-posta onay bağlantısı eskiden ana sayfaya dönüyordu (#access_token=…&type=signup). Jeton adresten silinir ve
+  // kişi giriş sayfasına yönlendirilir; yeni kayıtlarda bağlantı zaten /giris?dogrulandi=1 adresine gelir.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const h = window.location.hash;
+    if (/access_token=/.test(h) && /type=(signup|email|email_change|invite|magiclink)/.test(h)) window.location.replace('/giris?dogrulandi=1');
+  }, []);
   // Eski uygulamanın servis çalışıcısı ve önbelleği telefonlarda kalmış olabilir ("bazen eski uygulama açılıyor"):
   // bulunursa kaldırılır ve eski önbellek silinir. Yeni sitenin kendi çalışıcısı yoktur.
   useEffect(() => {

@@ -638,7 +638,7 @@ export const EN_EXTRA = {
   'Excel / CSV ile toplu mülk aktarma': 'Bulk property import with Excel / CSV',
   'Yıllık rapor, Excel ve vergi tahmini': 'Yearly report, Excel and tax estimate',
   'Gider defteri ve mülk başına net getiri': 'Expense ledger and net yield per property',
-  'Portföy’deki her şey': 'Everything in Portfolio',
+  'Profesyonel’deki her şey': 'Everything in Professional',
   'Sınırsız mülk ve ekip üyesi': 'Unlimited properties and team members',
   'Öncelikli destek': 'Priority support',
   'Kurulum ve veri taşıma yardımı': 'Setup and data migration help',
@@ -746,7 +746,7 @@ export const EN_EXTRA = {
   'Ücretsiz deneme nasıl işliyor?': 'How does the free trial work?',
   'Her paket 1 ay ücretsiz denemeyle başlar; deneme süresince 5 mülke kadar ekleyebilir, bütün özellikleri kullanabilirsin. Süre bitince kayıtların silinmez, salt okunur olur; okuma ve mesajlaşma açık kalır, kiracının işleri etkilenmez.': 'Every plan starts with a 1-month free trial; you can add up to 5 properties and use every feature. When it ends your records are kept read-only; reading and messaging stay open and your tenant is not affected.',
   'Paketler arasındaki fark ne?': 'What is the difference between plans?',
-  'Başlangıç tek mülk içindir ve ödeme, talep, belge ve hatırlatmaları kapsar. Portföy 5 mülke kadar çıkar; ekip üyeleri, Excel ile toplu aktarma, yıllık rapor ve vergi tahmini ekler. Kurumsal sınırsız mülk, aylık ve yıllık rapor e-postası, öncelikli destek ve kurulum yardımı içerir.': 'Starter is for one property and covers payments, requests, documents and reminders. Portfolio goes up to 5 properties and adds team members, Excel import, yearly reports and tax estimates. Enterprise includes unlimited properties, monthly and yearly report emails, priority support and setup help.',
+  'Başlangıç tek mülk içindir ve ödeme, talep, belge ve hatırlatmaları kapsar. Profesyonel 5 mülke kadar çıkar; ekip üyeleri, Excel ile toplu aktarma, yıllık rapor ve vergi tahmini ekler. Kurumsal sınırsız mülk, aylık ve yıllık rapor e-postası, öncelikli destek ve kurulum yardımı içerir.': 'Starter is for one property and covers payments, requests, documents and reminders. Professional goes up to 5 properties and adds team members, Excel import, yearly reports and tax estimates. Enterprise includes unlimited properties, monthly and yearly report emails, priority support and setup help.',
   'Davet kodum yok, ne yapmalıyım?': 'I do not have an invite code. What should I do?',
   'Kayıt olurken kodu boş bırakabilirsin. Hesabını açtıktan sonra ev sahibinden kodu isteyip panelden girersin; ev sahibin henüz anahtar kullanmıyorsa uygulamadan ona WhatsApp ile öneri gönderebilirsin.': 'You can leave the code empty when signing up. After creating your account, ask your landlord for the code and enter it in the app; if they do not use anahtar yet, you can recommend it to them on WhatsApp.',
   'Evet. Ödeme ve giderleri Excel olarak, tüm verini JSON olarak indirebilirsin; hesabını ve sahibi olduğun mülklerin verisini uygulamadan silebilirsin. Silme gibi geri dönüşsüz işler onay ister.': 'Yes. You can download payments and expenses as Excel and all your data as JSON; you can delete your account and your properties’ data in the app. Irreversible actions like deletion ask for confirmation.',
@@ -1545,5 +1545,8 @@ export const EN_EXTRA = {
   'Tahakkuklar, duyurular ve yönetime talep': 'Charges, announcements and requests to management',
   'Birimler, tahakkuk, giderler, duyurular': 'Units, charges, expenses, announcements',
   'Yönetim raporu (aylık ve yıllık e-posta)': 'Management report (monthly and yearly email)',
-  'Örnek hesap: kendi kiranı ve oranını girince güncellenir.': 'Sample calculation: it updates when you enter your own rent and rate.'
+  'Örnek hesap: kendi kiranı ve oranını girince güncellenir.': 'Sample calculation: it updates when you enter your own rent and rate.',
+  'Profesyonel': 'Professional',
+  'Satın alma sayfasındaki seçimi': 'Choice on the purchase page',
+  'E-posta adresin doğrulandı. Şimdi hesap türünü seçip giriş yapabilirsin.': 'Your email address is verified. Pick your account type and log in.'
 };

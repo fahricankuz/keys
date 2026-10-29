@@ -1,5 +1,5 @@
 /* Satın alma sayfası (/satin-al): önce mülk sayısı, sonra paket ve ödeme dönemi seçilir; fiyat mülk başınadır ve KDV dahildir.
-   Sağdaki özet "bugün ödenecek ₺0", ilk ödeme tarihi ve hatırlatma çizelgesini gösterir. Başlangıç seçiliyken Portföy önerisi çıkar.
+   Sağdaki özet "bugün ödenecek ₺0", ilk ödeme tarihi ve hatırlatma çizelgesini gösterir. Başlangıç seçiliyken Profesyonel önerisi çıkar.
    Ödeme: kart bilgisi ya da App Store / Google Play aboneliği; 1 ay ücretsizden sonra iptal edilmezse otomatik başlar,
    çekimden 1 gün önce e-posta ve bildirimle hatırlatılır. */
 import { useEffect, useState } from 'react';
@@ -8,7 +8,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { t, locale, getLang } from '../domain/i18n';
 import { CONFIG } from '../domain/config';
 import { storage } from '../domain/storage';
-import { maxUnits, paused, planLabel, tierOf, tierPoints, totalPrice, totalText } from '../domain/billing';
+import { maxUnits, paused, planLabel, tierOf, tierPoints, totalPrice, totalText, PLAN_CHOICE, savePlanChoice } from '../domain/billing';
 import { useAuth } from '../auth/auth';
 import { Button, Container, PressScale, Text } from '../ui/kit';
 import { Wordmark } from '../ui/Wordmark';
@@ -16,7 +16,7 @@ import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 import { Icon } from '../app-ui/blocks';
 
 type Plan = 'tek' | 'bes';
-const SEL = 'anahtar-paket-secimi';
+
 const DAY = 864e5;
 
 /** Küçük yuvarlak +/− düğmesi. */
@@ -155,8 +155,10 @@ export default function Purchase() {
     : (() => { const d = new Date(today + 30 * DAY); return d.getDate() + ' ' + d.toLocaleDateString('tr-TR', { month: 'long' }) + '’' + ABL[d.getMonth()] + ' itibaren'; })();
 
   const start = () => {
-    try { storage.setItem(SEL, JSON.stringify({ plan, units, yearly })); } catch {}
-    if (!user) { router.push('/kayit/mulk-sahibi' as any); return; }
+    // Ödeme sistemi bağlanana kadar: oturum yoksa seçim cihazda tutulur ve kayda gidilir (girişte profile taşınır);
+    // mülk sahibi oturumu açıksa seçim doğrudan profiline yazılır.
+    if (!user) { try { storage.setItem(PLAN_CHOICE, JSON.stringify({ plan, units, yearly })); } catch {} router.push('/kayit/mulk-sahibi' as any); return; }
+    if (user.role === 'landlord') savePlanChoice({ plan, units, yearly });
     setStarted(true);
   };
 
@@ -290,7 +292,7 @@ export default function Purchase() {
           {plan === 'tek' ? (
             <View accessibilityRole="summary" style={{ backgroundColor: c.butter, borderRadius: 28, padding: phone ? 20 : 24, gap: 10 }}>
               <Text v="label" color="#1D1A19" style={{ fontSize: 12.5 }}>{t('Daha fazlası için')}</Text>
-              <RNText style={{ fontFamily: fonts.siteBold, fontSize: 24, lineHeight: 26, letterSpacing: -0.5, color: '#1D1A19' }}>{t('Portföy ile ekibini, raporunu ve SMS’ini aç')}</RNText>
+              <RNText style={{ fontFamily: fonts.siteBold, fontSize: 24, lineHeight: 26, letterSpacing: -0.5, color: '#1D1A19' }}>{t('Profesyonel ile ekibini, raporunu ve SMS’ini aç')}</RNText>
               <Text v="small" color="#1D1A19">{yearly ? t('Aynı {n} mülk için yılda yalnızca {price} daha.', { n: units, price: money(diff) }) : t('Aynı {n} mülk için ayda yalnızca {price} daha.', { n: units, price: money(diff) })}</Text>
               {[t('Ekip üyeleri: emlakçı, muhasebeci, personel'), t('Excel / CSV ile toplu mülk aktarma'), t('Net getiri, yıllık rapor ve vergi tahmini'), t('SMS hatırlatmaları')].map((x) => (
                 <View key={x} style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
@@ -298,7 +300,7 @@ export default function Purchase() {
                   <Text v="small" color="#1D1A19" style={{ flex: 1 }}>{x}</Text>
                 </View>
               ))}
-              <Button kind="primary" block title={t('Portföy’e geç')} onPress={() => setPlan('bes')} />
+              <Button kind="primary" block title={t('Profesyonel’e geç')} onPress={() => setPlan('bes')} />
             </View>
           ) : null}
         </View>

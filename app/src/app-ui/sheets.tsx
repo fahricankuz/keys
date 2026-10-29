@@ -192,7 +192,7 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
           ) : null}
           {myOrgs().some((o: any) => PORTFOLIO_SECTORS.includes(o.sector)) ? (
             <PressScale onPress={() => { if (!page) close(); router.push('/uygulama/site' as any); }} accessibilityRole="link" scaleTo={0.99} style={{ padding: 16, borderRadius: radius.lg, backgroundColor: c.tile, gap: 2 }}>
-              <Label>{myOrgs().some((o: any) => o.sector === 'site') ? t('Site yönetimi') : t('Portföy yönetimi')}</Label>
+              <Label>{myOrgs().some((o: any) => o.sector === 'site') ? t('Site yönetimi') : t('Profesyonel yönetimi')}</Label>
               <Row between><Text v="body" style={{ fontFamily: fonts.bodyBold }}>{t('Birimler, tahakkuk, giderler, duyurular')}</Text><Muted>›</Muted></Row>
             </PressScale>
           ) : null}
@@ -230,10 +230,10 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
             {hasFeature('sms')
               ? <OnOff label={t('SMS (kira, aidat, sözleşme ve sigorta hatırlatmaları)')} k="sms" />
               : (
-                <PressScale onPress={() => { host.closeSheet(); host.go('/satin-al?plan=bes'); }} accessibilityRole="link" accessibilityLabel={t('SMS hatırlatmaları Portföy paketinde. Portföy’e geç.')} scaleTo={0.99}
+                <PressScale onPress={() => { host.closeSheet(); host.go('/satin-al?plan=bes'); }} accessibilityRole="link" accessibilityLabel={t('SMS hatırlatmaları Profesyonel paketinde. Profesyonel’e geç.')} scaleTo={0.99}
                   style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 6 }}>
                   <Text v="small" muted style={{ flex: 1, fontFamily: fonts.bodyBold }}>{t('SMS (kira, aidat, sözleşme ve sigorta hatırlatmaları)')}</Text>
-                  <Chip tone="accent" label={t('Portföy’e özel')} />
+                  <Chip tone="accent" label={t('Profesyonel’e özel')} />
                 </PressScale>
               )}
           </Card>
@@ -778,7 +778,7 @@ function RefundSheet({ pid, close }: { pid?: string; close: () => void }) {
 
 /* ---------------- abonelik ---------------- */
 
-/** Kurumsal için iletişim formu açılır; Başlangıç ve Portföy satın alma sayfasına (paket, dönem ve mülk adedi seçimi) gider. */
+/** Kurumsal için iletişim formu açılır; Başlangıç ve Profesyonel satın alma sayfasına (paket, dönem ve mülk adedi seçimi) gider. */
 function pickTier(id: string, units: number | null, open: (n: string, p?: any) => void, yearly = false) {
   if (id === 'kurumsal') open('kurumsal-basvuru');
   else {
@@ -889,7 +889,7 @@ function UpgradeSheet({ need, suggest }: { need?: number; suggest?: string }) {
       <Title>{corp ? t('10 ve üstü mülk için Kurumsal') : t('Mülk adedini artır')}</Title>
       <Note warn>
         {a.inTrial ? t('Deneme süresinde en fazla {n} mülk ekleyebilirsin.', { n: limit }) : t('{plan} paketin en fazla {n} mülk içeriyor.', { plan: planLabel(a.plan), n: limit })}{' '}
-        {corp ? t('Başlangıç ve Portföy en fazla {n} mülk içindir; daha fazlası için Kurumsal paketle iletişime geç.', { n: maxUnits() }) : t('Mülk sayını artırarak devam edebilirsin; fiyat mülk başınadır.')}
+        {corp ? t('Başlangıç ve Profesyonel en fazla {n} mülk içindir; daha fazlası için Kurumsal paketle iletişime geç.', { n: maxUnits() }) : t('Mülk sayını artırarak devam edebilirsin; fiyat mülk başınadır.')}
       </Note>
       {corp
         ? <Button block title={t('Kurumsal için bize ulaş')} onPress={() => open('kurumsal-basvuru')} />

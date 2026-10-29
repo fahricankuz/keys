@@ -1,5 +1,5 @@
-// Paketler ve satın alma sayfası: mülk başına fiyat (KDV dahil), Başlangıç/Portföy 1-9 mülk, Kurumsal 10+ (öne çıkan kutu),
-// satın alma sayfasında mülk adedi +/− ve Portföy yükseltme önerisi, mülk sınırı uyarısı, SMS kilidi.
+// Paketler ve satın alma sayfası: mülk başına fiyat (KDV dahil), Başlangıç/Profesyonel 1-9 mülk, Kurumsal 10+ (öne çıkan kutu),
+// satın alma sayfasında mülk adedi +/− ve Profesyonel yükseltme önerisi, mülk sınırı uyarısı, SMS kilidi.
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
@@ -27,7 +27,7 @@ const url = (p) => `http://localhost:${PORT}${p}`;
 const db = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('__fakedb')));
 const card = (page, name) => page.locator('div').filter({ has: page.getByText(name, { exact: true }) }).filter({ has: page.getByRole('button', { name: /Paketi seç|Bize ulaşın/ }) }).last();
 
-test('ana sayfa fiyatları: mülk başına, KDV dahil, Başlangıç ve Portföy 1-9 mülk; seçici ve 3 mülk toplamı yok', async ({ page }) => {
+test('ana sayfa fiyatları: mülk başına, KDV dahil, Başlangıç ve Profesyonel 1-9 mülk; seçici ve 3 mülk toplamı yok', async ({ page }) => {
   await page.goto(url('/'));
   await expect(page.getByText('Kiracılar için ücretsiz. Mülk sahibi mülkü kadar öder.')).toBeVisible();
   await expect(page.getByText('₺99,99').first()).toBeVisible();
@@ -42,12 +42,12 @@ test('ana sayfa fiyatları: mülk başına, KDV dahil, Başlangıç ve Portföy 
   const sectors = page.getByText('Site yönetimi · AVM · GYO · Depo ve lojistik · Emlak ofisi · Aile ofisi', { exact: true });
   await expect(sectors).toBeVisible();
   expect(await sectors.evaluate((e) => Number(getComputedStyle(e).fontWeight) >= 700 || /XBold|Bold/i.test(getComputedStyle(e).fontFamily))).toBe(true);
-  for (const x of ['Portföy’deki her şey', 'Sınırsız mülk ve ekip üyesi', 'Aylık ve yıllık rapor e-postası', 'Öncelikli destek', 'Kurulum ve veri taşıma yardımı', 'Kuruma özel sözleşme ve fatura']) await expect(page.getByText(x, { exact: true }).first()).toBeVisible();
+  for (const x of ['Profesyonel’deki her şey', 'Sınırsız mülk ve ekip üyesi', 'Aylık ve yıllık rapor e-postası', 'Öncelikli destek', 'Kurulum ve veri taşıma yardımı', 'Kuruma özel sözleşme ve fatura']) await expect(page.getByText(x, { exact: true }).first()).toBeVisible();
   await expect(page.getByText('10+', { exact: true })).toHaveCount(0);
   await expect(page.getByText('Mülk sayına ve sektörüne göre')).toBeVisible();
   await expect(page.getByText('Teklif alın', { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Bize ulaşın' }).first()).toBeVisible();
-  // SMS yalnız Portföy maddelerinde (Kurumsal "Portföy'deki her şey" der); Başlangıç listesinde yok.
+  // SMS yalnız Profesyonel maddelerinde (Kurumsal "Profesyonel'deki her şey" der); Başlangıç listesinde yok.
   expect(await page.getByText('SMS hatırlatmaları', { exact: true }).count()).toBe(1);
   // Yıllık: aylığın 10 katı ve mülk başına aylık karşılığı.
   await page.getByRole('tab', { name: /Yıllık/ }).click();
@@ -80,16 +80,16 @@ test('"Paketi seç" satın alma sayfasını açar; mülk adedi +/− ile 1-9 ara
   await expect(page).toHaveURL(/\/kurumsal/);
 });
 
-test('Başlangıç seçiliyken Portföy önerisi: aynı mülk adedi için fark gösterilir; "Portföy\'e geç" paketi değiştirir ve öneri kaybolur', async ({ page }) => {
+test('Başlangıç seçiliyken Profesyonel önerisi: aynı mülk adedi için fark gösterilir; "Profesyonel\'e geç" paketi değiştirir ve öneri kaybolur', async ({ page }) => {
   await page.goto(url('/satin-al?plan=tek&donem=aylik&adet=3'));
   await expect(page.getByText('₺299,97', { exact: true }).first()).toBeVisible();
-  await expect(page.getByText('Portföy ile ekibini, raporunu ve SMS’ini aç')).toBeVisible();
+  await expect(page.getByText('Profesyonel ile ekibini, raporunu ve SMS’ini aç')).toBeVisible();
   await expect(page.getByText('Aynı 3 mülk için ayda yalnızca ₺300,00 daha.')).toBeVisible();   // 3 × (199,99 − 99,99)
   for (const x of ['Ekip üyeleri: emlakçı, muhasebeci, personel', 'Excel / CSV ile toplu mülk aktarma', 'Net getiri, yıllık rapor ve vergi tahmini']) await expect(page.getByText(x).first()).toBeVisible();
-  await page.getByRole('button', { name: 'Portföy’e geç' }).click();
+  await page.getByRole('button', { name: 'Profesyonel’e geç' }).click();
   await expect(page.getByText('₺599,97', { exact: true }).first()).toBeVisible();              // 3 × 199,99
-  await expect(page.getByText('Portföy ile ekibini, raporunu ve SMS’ini aç')).toHaveCount(0);
-  await expect(page.getByText('Portföy paketinde neler var?')).toBeVisible();
+  await expect(page.getByText('Profesyonel ile ekibini, raporunu ve SMS’ini aç')).toHaveCount(0);
+  await expect(page.getByText('Profesyonel paketinde neler var?')).toBeVisible();
   await expect(page.getByText('SMS hatırlatmaları', { exact: true }).first()).toBeVisible();
   // Yıllıkta öneri farkı yıllık yazılır.
   await page.goto(url('/satin-al?plan=tek&donem=yillik&adet=2'));
@@ -98,7 +98,7 @@ test('Başlangıç seçiliyken Portföy önerisi: aynı mülk adedi için fark g
 
 test('abonelik başlatma: çıkış yapmışsa mülk sahibi kaydına gider ve seçim saklanır; mülk sahibi oturumunda ödeme-güncelleme bilgisi çıkar; kiracıya uyarı', async ({ page }) => {
   await page.goto(url('/satin-al?plan=bes&adet=4'));
-  await expect(page.getByText('Portföy', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Profesyonel', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Bugün ödeme yok · İstediğin zaman iptal')).toBeVisible();
   await expect(page.getByText('E-posta ve bildirimle hatırlatırız')).toBeVisible();
   await expect(page.getByText('İptal etmezsen ilk ödeme alınır')).toBeVisible();
@@ -112,10 +112,16 @@ test('abonelik başlatma: çıkış yapmışsa mülk sahibi kaydına gider ve se
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
   await expect(page).toHaveURL(/\/uygulama/);
+  // Cihazdaki seçim girişte mülk sahibinin profiline taşınır (yönetici panelinde görünür).
+  const choice = async () => page.evaluate(() => (JSON.parse(localStorage.getItem('__fakedb')).tables.profiles.find((p) => p.role === 'landlord').settings || {}).planChoice || null);
+  await expect.poll(async () => (await choice())?.plan, { timeout: 15000 }).toBe('bes');
+  expect(await choice()).toMatchObject({ plan: 'bes', units: 4, yearly: false });
+  expect(await page.evaluate(() => localStorage.getItem('anahtar-paket-secimi'))).toBeNull();
   await page.goto(url('/satin-al?plan=tek&adet=2'));
   await page.getByRole('button', { name: '1 ay ücretsiz başla' }).click();
   await expect(page.getByText('Ödeme sistemimizi güncelliyoruz').last()).toBeVisible();
   await expect(page.getByText('Başlangıç, 2 mülk', { exact: false })).toBeVisible();
+  await expect.poll(async () => (await choice())?.plan, { timeout: 15000 }).toBe('tek');
 });
 
 test('İngilizce: dolar fiyatlar, çeviri eksiği yok; ana sayfa fiyatları ve satın alma sayfası erişilebilir (axe)', async ({ page }) => {
@@ -159,7 +165,7 @@ test('mülk sınırı: Başlangıç 1 mülk satın alındıysa ikinci mülk ekle
   // SMS ayarı kilitli (Başlangıç).
   await page.goto(url('/uygulama/ayarlar'));
   await page.getByRole('button', { name: 'Bildirimler', exact: true }).click();
-  await expect(page.getByText('Portföy’e özel')).toBeVisible();
+  await expect(page.getByText('Profesyonel’e özel')).toBeVisible();
   // İkinci mülk: sınır uyarısı ve adet artırma.
   await page.goto(url('/uygulama'));
   await page.getByRole('button', { name: /Mülk ekle/ }).first().click();

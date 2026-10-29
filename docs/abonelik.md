@@ -38,7 +38,7 @@ Deneme süresi `supabase/schema.sql` içindeki `trial_days()` fonksiyonundadır
 
 ## Güncel model: mülk başına abonelik (bu bölüm aşağıdaki eski anlatımın yerine geçer)
 
-| | Başlangıç | Portföy | Kurumsal |
+| | Başlangıç | Profesyonel | Kurumsal |
 | --- | --- | --- | --- |
 | Mülk | 1-9 | 1-9 | 10 ve üstü (teklif, iletişim) |
 | Aylık fiyat (KDV dahil) | **₺99,99 / mülk** ($2.00) | **₺199,99 / mülk** ($4.00) | sözleşmeye göre |
@@ -74,7 +74,7 @@ Deneme süresi `supabase/schema.sql` içindeki `trial_days()` fonksiyonundadır
   almaz). Kart bilgisini web'de almak için iyzico ya da PayTR ile ayrı bir entegrasyon gerekir (kartı saklayıp dönemsel çekim,
   3D Secure, iptal ve fatura akışı); o zamana kadar abonelik App Store / Google Play'den başlar. `/satin-al` sayfası seçimi alır ve
   ödeme açılana kadar bilgilendirir.
-- **SMS yalnızca Portföy ve Kurumsal.** İstemcide `FEATURES.sms` ve ayarlarda kilit; sunucuda `sms_allowed()` (push fonksiyonu
+- **SMS yalnızca Profesyonel ve Kurumsal.** İstemcide `FEATURES.sms` ve ayarlarda kilit; sunucuda `sms_allowed()` (push fonksiyonu
   SMS'ten önce sorar; kiracıya giden SMS mülk sahibinin paketine bağlıdır, site aidatı Kurumsal sayılır).
 
 ## 1. Planlar ve fiyatlar

@@ -89,7 +89,7 @@ paketleri yönetici panelinden elle verebilirsiniz.
 ## Faz 5 — Açılış ve büyüme
 
 - [ ] 👤 Google Search Console + site haritası gönderimi, blog içerik takvimi (kira artışı, depozito, stopaj…).
-- [ ] 👤 Emlakçı / site yöneticisi ortaklıkları (Portföy paketi), sosyal medya.
+- [ ] 👤 Emlakçı / site yöneticisi ortaklıkları (Profesyonel paketi), sosyal medya.
 - [ ] 🤖 Davet / tavsiye (referral) mekanizması; yıllık plan teşvikleri.
 
 ## Teknik borç (kısa vadede ele alınmalı)

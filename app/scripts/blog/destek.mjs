@@ -23,7 +23,7 @@ const GROUPS = [
   ]],
   ['paketler', 'Paketler ve deneme', [
     ['Ücretsiz deneme nasıl işliyor?', 'Mülk sahibi hesabı 1 ay ücretsiz denemeyle başlar; deneme süresince 5 mülke kadar ekleyebilir, bütün özellikleri kullanabilirsin. Deneme bitince kayıtların silinmez, salt okunur olur; okuma, mesajlaşma ve dışa aktarma açık kalır.'],
-    ['Paketler arasındaki fark ne?', '<b>Başlangıç</b> tek mülk içindir. <b>Portföy</b> 5 mülke kadar çıkar; ekip üyeleri, Excel ile toplu aktarma, yıllık rapor ve vergi tahmini ekler. <b>Kurumsal</b> sınırsız mülk, aylık ve yıllık rapor e-postası, öncelikli destek ve kurulum yardımı içerir; teklif için bize yaz.'],
+    ['Paketler arasındaki fark ne?', 'İkisi de 1-9 mülk içindir ve fiyat mülk başınadır (KDV dahil): <b>Başlangıç</b> ayda ₺99,99, <b>Profesyonel</b> ₺199,99. Başlangıç ödeme, talep, belge, tutanak ve hatırlatmaları kapsar; Profesyonel bunlara ekip üyeleri, Excel ile toplu aktarma, net getiri, yıllık rapor ve SMS hatırlatmalarını ekler. <b>Kurumsal</b> 10 ve üstü mülk, site yönetimi ve ticari portföy içindir; teklif için bize yaz.'],
     ['Paketimi nasıl iptal ederim?', 'Uygulama mağazasından aldıysan iptali mağazadan yaparsın: iPhone’da <b>Ayarlar → [adın] → Abonelikler</b>, Android’de <b>Google Play → Profil → Ödemeler ve abonelikler</b>. İptal dönemin sonunda geçerli olur. Diğer durumlarda bize yaz.']
   ]],
   ['hesap', 'Hesap ve veri', [

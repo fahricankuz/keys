@@ -16,7 +16,7 @@ const sub = async (uid, product, extra = {}) => { await as(null); return db.quer
   [uid, product, extra.store ?? 'app_store', extra.period ?? 'normal', extra.expires ?? new Date(Date.now() + 20 * 864e5).toISOString(), extra.renew ?? true]); };
 const acc = async (uid) => { await as(null); return (await q(`select public.access_state($1) a`, [uid]))[0].a; };
 
-test('ürün kimliğinden adet: tek_3_aylik → 3 mülk; yabancı kimlik → paketin varsayılanı (9); Portföy yıllık 7 mülk', async () => {
+test('ürün kimliğinden adet: tek_3_aylik → 3 mülk; yabancı kimlik → paketin varsayılanı (9); Profesyonel yıllık 7 mülk', async () => {
   await as(null);
   const u = async (p) => (await q(`select public.product_units($1) u`, [p]))[0].u;
   expect(await u('tek_3_aylik')).toBe(3);
@@ -42,7 +42,7 @@ test('mülk sınırı: satın alınan adet kadar mülk eklenir, sonrası EV403 i
   expect((await q(`select count(*)::int n from public.properties where owner_id = $1`, [L]))[0].n).toBe(3);
 });
 
-test('SMS kapısı: Başlangıç hayır; Portföy, Kurumsal, deneme ve sınırsız evet; kiracıya SMS mülk sahibinin paketine bağlı', async () => {
+test('SMS kapısı: Başlangıç hayır; Profesyonel, Kurumsal, deneme ve sınırsız evet; kiracıya SMS mülk sahibinin paketine bağlı', async () => {
   await as(null);
   const ok = async (uid, pid = null) => (await q(`select public.sms_allowed($1, $2) a`, [uid, pid]))[0].a;
   await sub(L, 'tek_3_aylik');
@@ -80,7 +80,7 @@ test('yenileme hatırlatması: ertesi gün yenilenen / denemesi biten abonelere 
   expect(notes.map((r) => r.user_id).sort()).toEqual([L, T].sort());
   const byUser = Object.fromEntries(notes.map((r) => [r.user_id, r]));
   expect(byUser[L].title).toBe('Aboneliğin yarın yenilenecek');
-  expect(byUser[L].body).toContain('Portföy · 3 mülk · aylık');
+  expect(byUser[L].body).toContain('Profesyonel · 3 mülk · aylık');
   expect(byUser[L].body).toContain('App Store abonelik ayarlarından');
   expect(byUser[T].title).toBe('Ücretsiz denemen yarın bitiyor');
   expect(byUser[T].body).toContain('Yarın ilk ödemen alınacak');

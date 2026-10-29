@@ -10,20 +10,16 @@ export type Segment = {
 };
 
 export const segments = (): Segment[] => [
-  { slug: 'mulk-sahibi', name: t('Mülk sahibi'), sub: t('1 mülk'), icon: 'home', tone: 'peach', plan: 'tek',
-    title: [t('Tek mülkün kirasını'), t('düzenle'), t('takip et.')],
-    lead: t('Kira, dekont, arıza ve sözleşme tarihleri kiracınla aynı ekranda. Hatırlatmalar kendiliğinden gider.'),
+  // Bireysel mülk sahibi tek seçenek: Başlangıç ve Profesyonel paketleri ikisi de 1-9 mülk içindir (fiyat mülk başına).
+  { slug: 'mulk-sahibi', name: t('Mülk sahibi'), sub: t('1-9 mülk'), icon: 'home', tone: 'peach', plan: 'tek',
+    title: [t('Mülklerinin kirasını'), t('tek'), t('ekrandan yönet.')],
+    lead: t('Kira, dekont, arıza ve sözleşme tarihleri kiracınla aynı ekranda; tahsilat, gider ve net getiri bir arada. Hatırlatmalar kendiliğinden gider.'),
     pains: [[t('Dekont peşinde koşmak'), t('Kira yattı mı, eksik mi diye her ay mesajlaşmak.')],
             [t('Unutulan tarihler'), t('Sözleşme yenileme, kira artışı ve DASK tarihleri gözden kaçıyor.')],
-            [t('Dağınık yazışmalar'), t('Arıza fotoğrafları ve belgeler WhatsApp’ta kayboluyor.')]],
-    has: [t('Ödeme ve dekont takibi, kısmi ödeme'), t('Arıza ve tadilat talepleri, mesajlaşma'), t('Belge arşivi, giriş ve çıkış tutanağı'), t('Kira, DASK ve sözleşme hatırlatmaları'), t('Yasal kira artışı hesabı')] },
-  { slug: 'portfoy', name: t('Mülk sahibi'), sub: t('1-9 mülk'), icon: 'grid', tone: 'butter', plan: 'bes',
-    title: [t('Birden fazla mülkü'), t('tek'), t('ekrandan yönet.')],
-    lead: t('Tüm mülklerin tahsilatı, gideri ve net getirisi bir arada. Emlakçını ve muhasebecini ekibine kat.'),
-    pains: [[t('Excel karmaşası'), t('Her mülk için ayrı tablo, ayrı hesap.')],
-            [t('Gider ve vergi'), t('Yıl sonunda gider ve kira gelirini toplamak saatler alıyor.')],
-            [t('Yardımcılarla çalışmak'), t('Emlakçı ve muhasebeciye ne kadar erişim verileceği belirsiz.')]],
-    has: [t('Gider defteri ve mülk başına net getiri'), t('Yıllık rapor, Excel ve vergi tahmini'), t('Ekip üyeleri: emlakçı, muhasebeci, personel'), t('Excel / CSV ile toplu mülk aktarma'), t('Tüm hatırlatmalar tek takvimde')] },
+            [t('Excel karmaşası'), t('Her mülk için ayrı tablo; yıl sonunda gider ve kira gelirini toplamak saatler alıyor.')]],
+    has: [t('Ödeme ve dekont takibi, kısmi ödeme'), t('Arıza ve tadilat talepleri, mesajlaşma'), t('Belge arşivi, giriş ve çıkış tutanağı'),
+          t('Kira, DASK ve sözleşme hatırlatmaları'), t('Yasal kira artışı hesabı'), t('Gider defteri ve mülk başına net getiri'),
+          t('Ekip üyeleri: emlakçı, muhasebeci, personel'), t('Excel / CSV ile toplu mülk aktarma')] },
   { slug: 'kiraci', name: t('Kiracı'), sub: t('her zaman ücretsiz'), icon: 'key', tone: 'sage', plan: 'kiraci',
     title: [t('Kiranı'), t('kolayca'), t('öde, kayıt altında tut.')],
     lead: t('Dekontunu yükle, arızayı fotoğrafla bildir, sözleşmen ve belgelerin hep yanında olsun. Kiracı hesabı ücretsizdir.'),
@@ -81,4 +77,4 @@ export const segments = (): Segment[] => [
     custom: [t('Sahip ve şirket bazında gruplama'), t('Birden çok vergi numarası için ayrı özet'), t('Size özel kurulum ve veri taşıma')] }
 ];
 
-export const SEGMENT_SLUGS = ['mulk-sahibi', 'portfoy', 'kiraci', 'emlak-ofisi', 'site-yonetimi', 'avm', 'gyo', 'depo-lojistik', 'family-office'];
+export const SEGMENT_SLUGS = ['mulk-sahibi', 'kiraci', 'emlak-ofisi', 'site-yonetimi', 'avm', 'gyo', 'depo-lojistik', 'family-office'];

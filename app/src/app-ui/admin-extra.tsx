@@ -267,6 +267,9 @@ export function Subscriptions() {
             ? [t('Kaynak: {s}', { s: s.store === 'admin' ? t('yönetici') : s.store || '—' }), s.expires_at ? t('Bitiş: {d}', { d: day(s.expires_at) }) : t('Süresiz'), s.will_renew ? t('Yenilenecek') : t('Yenilenmeyecek')].join(' · ')
             : t('Deneme bitişi: {d}', { d: day(s.trial_ends) }) + (s.extra_days ? ' · ' + t('+{n} gün uzatıldı', { n: s.extra_days }) : '')}</Muted>
           <Muted>{t('{n} mülk', { n: s.units })} · {t('{n} kiracı', { n: s.tenants })}</Muted>
+          {s.choice && !s.subscribed ? (
+            <Muted>{t('Satın alma sayfasındaki seçimi')}: {planLabel(s.choice.plan)} · {t('{n} mülk', { n: s.choice.units })} · {s.choice.yearly ? t('yıllık') : t('aylık')}{s.choice.at ? ' · ' + day(s.choice.at) : ''}</Muted>
+          ) : null}
           <SubActions s={s} reload={reload} />
         </Card>
       ))}

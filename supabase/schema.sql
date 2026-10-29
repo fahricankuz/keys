@@ -2082,10 +2082,12 @@ begin
 end $$;
 grant execute on function public.admin_kpis(int) to authenticated;
 
+-- choice: satın alma sayfasında seçilen paket, mülk adedi ve dönem (ödeme sistemi bağlanmadan önce kayıt olanlar için).
+drop function if exists public.admin_subscriptions();
 create or replace function public.admin_subscriptions()
 returns table (id uuid, name text, email text, created_at timestamptz, subscribed boolean, in_trial boolean, trial_ends timestamptz,
                extra_days int, plan text, store text, expires_at timestamptz, will_renew boolean, billing_issue boolean,
-               banned boolean, units bigint, tenants bigint)
+               banned boolean, units bigint, tenants bigint, choice jsonb)
 language plpgsql stable security definer set search_path = public as $$
 begin
   if not public.is_admin() then raise exception 'Yönetici yetkisi gerekli' using errcode = '42501'; end if;
@@ -2096,7 +2098,8 @@ begin
            exists (select 1 from public.bans b where b.user_id = p.id),
            (select count(*) from public.properties pr where pr.owner_id = p.id),
            (select count(*) from public.memberships m join public.properties pr on pr.id = m.property_id
-             where pr.owner_id = p.id and m.role = 'tenant')
+             where pr.owner_id = p.id and m.role = 'tenant'),
+           p.settings -> 'planChoice'
     from public.profiles p
     cross join lateral (select public.access_state(p.id) a) st
     left join auth.users u on u.id = p.id
@@ -3576,7 +3579,7 @@ end $$;
 grant execute on function public.admin_add_property(uuid, jsonb) to authenticated;
 
 -- =====================================================================
--- 21. Mülk başına abonelik: adet ürün kimliğinden, SMS yalnız Portföy ve Kurumsal, yenileme öncesi hatırlatma, kartlı deneme
+-- 21. Mülk başına abonelik: adet ürün kimliğinden, SMS yalnız Profesyonel ve Kurumsal, yenileme öncesi hatırlatma, kartlı deneme
 -- Ürün kimliği: tek_3_aylik, bes_5_yillik … (paket_adet_dönem; adet 1-9). Satın alınan adet mülk sınırıdır.
 -- Eski kimlikler (evim_aylik, tek, bes…) adet taşımaz; paketin varsayılan sınırı (9) uygulanır.
 -- =====================================================================
@@ -3587,7 +3590,7 @@ returns int language sql immutable as $$
   select case when product ~ '^(tek|bes)_[1-9]_(aylik|yillik)$' then substring(product from '^(?:tek|bes)_([1-9])_')::int end
 $$;
 
--- Paketin varsayılan (adet bilinmeyen) sınırı: Başlangıç ve Portföy en çok 9 mülk; deneme 5; Kurumsal ve diğerleri sınırsız.
+-- Paketin varsayılan (adet bilinmeyen) sınırı: Başlangıç ve Profesyonel en çok 9 mülk; deneme 5; Kurumsal ve diğerleri sınırsız.
 create or replace function public.plan_units(plan text)
 returns int language sql immutable as $$
   select case plan when 'tek' then 9 when 'bes' then 9 when 'trial' then 5 else null end
@@ -3680,7 +3683,7 @@ begin
     select d.user_id,
       case when d.period_type in ('trial','intro') then 'Ücretsiz denemen yarın bitiyor' else 'Aboneliğin yarın yenilenecek' end,
       case when d.period_type in ('trial','intro') then 'Yarın ilk ödemen alınacak.' else 'Yarın ödemen alınacak.' end
-        || ' Paket: ' || case public.plan_of(d.product_id) when 'tek' then 'Başlangıç' when 'bes' then 'Portföy' when 'kurumsal' then 'Kurumsal' else 'Abonelik' end
+        || ' Paket: ' || case public.plan_of(d.product_id) when 'tek' then 'Başlangıç' when 'bes' then 'Profesyonel' when 'kurumsal' then 'Kurumsal' else 'Abonelik' end
         || coalesce(' · ' || public.product_units(d.product_id)::text || ' mülk', '')
         || case when d.product_id ~ '_yillik$' then ' · yıllık' when d.product_id ~ '_aylik$' then ' · aylık' else '' end
         || '. İptal etmek istersen ' || case d.store when 'app_store' then 'App Store' when 'play_store' then 'Google Play' else 'ödeme' end

@@ -8,7 +8,8 @@
 
 import { t } from './i18n.js';
 import { CONFIG, LIVE } from './config.js';
-import { S, ui } from './state.js';
+import { S, ui, save } from './state.js';
+import { storage } from './storage.js';
 import { live } from './backend.js';
 import { tiers, FEATURES, maxUnits } from './plans.js';
 
@@ -72,4 +73,24 @@ export function hasFeature(f, a = access()){
   const plan = a && a.plan;
   if (!plan) return true;
   return (FEATURES[f] || []).includes(plan);
+}
+
+/* ---- Satın alma sayfasındaki seçim ---------------------------------
+   Ödeme sistemi bağlanana kadar "1 ay ücretsiz başla" kayda yönlendirir. Seçilen paket, mülk adedi ve dönem
+   önce cihazda tutulur, mülk sahibi hesabıyla oturum açılınca profil ayarlarına (profiles.settings.planChoice)
+   yazılır; yönetici panelinde Abonelikler'de görünür, satın alma açılınca bu seçimle başlanır. */
+export const PLAN_CHOICE = 'anahtar-paket-secimi';
+
+export function savePlanChoice(c){
+  if (!c || !['tek', 'bes'].includes(c.plan)) return;
+  S.settings.planChoice = { plan: c.plan, units: Math.max(1, Number(c.units) || 1), yearly: !!c.yearly, at: new Date().toISOString() };
+  save();
+}
+/** Cihazda bekleyen seçimi mülk sahibinin profiline taşır (girişten hemen sonra). */
+export function adoptPlanChoice(role){
+  let c = null;
+  try { c = JSON.parse(storage.getItem(PLAN_CHOICE) || 'null'); } catch(e){}
+  if (!c) return;
+  if (role === 'landlord') savePlanChoice(c);
+  try { storage.removeItem(PLAN_CHOICE); } catch(e){}
 }

@@ -391,7 +391,7 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
 /* ---------------- fiyatlar ---------------- */
 
 /** Fiyat kartı: üstte paket ve fiyat, altında ince çizgilerle ayrılmış özellikler, en altta düğme.
-    Önerilen paket (Portföy) koyu zemin, krem yazı ve sarı vurgularla öne çıkar; diğerleri açık zeminlidir. */
+    Önerilen paket (Profesyonel) koyu zemin, krem yazı ve sarı vurgularla öne çıkar; diğerleri açık zeminlidir. */
 function PlanCta(p: any, go: (path: string) => void, yearly: boolean) {
   return p.id === 'kurumsal'
     ? { title: t('Bize ulaşın'), onPress: () => go('/kurumsal') }

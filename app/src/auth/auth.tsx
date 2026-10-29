@@ -7,7 +7,7 @@ import { hydrate, storage } from '../domain/storage';
 import { LIVE, CONFIG } from '../domain/config';
 import { closeLocal, openLocal, ui } from '../domain/state';
 import { t, getLang } from '../domain/i18n';
-import { account } from '../domain/billing';
+import { account, adoptPlanChoice } from '../domain/billing';
 import * as backend from '../domain/backend';
 import { playOnNextOpen } from '../app-ui/OpenSplash';
 
@@ -82,6 +82,7 @@ async function enterLive(au: { id: string; email?: string }): Promise<User> {
       try { await backend.acceptInvite(code); } catch {}
       storage.removeItem(INVITE);
     }
+    adoptPlanChoice(u.role);          // satın alma sayfasında seçilen paket (varsa) profile yazılır
   }
   return u;
 }
@@ -144,7 +145,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (LIVE) {
         if (captchaPending()) return t('Güvenlik doğrulaması bitsin, sonra tekrar dene.');
         const c = await backend.client();
-        const { data, error } = await c.auth.signUp({ email, password, options: { data: { name, role, lang: getLang() }, captchaToken: captchaToken() ?? undefined } });
+        // Onay e-postasındaki bağlantı giriş sayfasına döner (Supabase → Redirect URLs listesinde anahtar.io/** olmalı).
+        const { data, error } = await c.auth.signUp({ email, password, options: { data: { name, role, lang: getLang() }, captchaToken: captchaToken() ?? undefined,
+          emailRedirectTo: CONFIG.publicUrl.replace(/\/?$/, '/') + 'giris?dogrulandi=1' } });
         captchaSpent();
         if (error) return t('Hesap oluşturulamadı: {m}', { m: backend.humanError(error) });
         if (!data.session) return 'CONFIRM';

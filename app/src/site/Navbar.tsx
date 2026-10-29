@@ -82,7 +82,7 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
     document.addEventListener('keydown', esc);
     return () => document.removeEventListener('keydown', esc);
   }, []);
-  const links: [string, string][] = [['nasil', t('Nasıl çalışır')], ['fiyat', t('Fiyatlar')], ['sss', t('SSS')]];
+  const links: [string, string][] = [['nasil', t('Nasıl çalışır')], ['fiyat', t('Fiyatlar')]];
   const glass: any = { backgroundColor: c.bg + 'B8', backdropFilter: 'saturate(180%) blur(22px)', WebkitBackdropFilter: 'saturate(180%) blur(22px)' };
   // Telefonda logo, dil, giriş ve kayıt tek satıra sığsın diye düğmeler sıkı.
   const btn = { minHeight: phone ? 40 : 44, paddingHorizontal: phone ? 8 : 20 };
@@ -113,6 +113,9 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
                 ))}
                 <PressScale onPress={() => { setOpen(false); go('/kira-artis-hesaplama'); }} accessibilityRole="link" style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
                   <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{t('Kira artışı hesapla')}</Text>
+                </PressScale>
+                <PressScale onPress={() => { setOpen(false); scrollTo('sss'); }} accessibilityRole="link" style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+                  <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{t('SSS')}</Text>
                 </PressScale>
               </View>
             )}

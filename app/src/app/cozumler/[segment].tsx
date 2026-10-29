@@ -12,7 +12,8 @@ import { SEGMENT_SLUGS, segments } from '../../site/segments';
 import { demo } from '../../site/money';
 
 /** Her seçenek için statik sayfa üretilir (arama motorları için). */
-export function generateStaticParams() { return SEGMENT_SLUGS.map((segment) => ({ segment })); }
+// "portfoy": kaldırılan eski sayfa; statik sayfası yalnızca mülk sahibi sayfasına yönlendirir (sunucuda .htaccess de 301 verir).
+export function generateStaticParams() { return [...SEGMENT_SLUGS, 'portfoy'].map((segment) => ({ segment })); }
 
 export default function SegmentPage() {
   const { segment } = useLocalSearchParams<{ segment: string }>();
@@ -20,7 +21,8 @@ export default function SegmentPage() {
   const c = useColors();
   const { phone, desktop } = useBreakpoint();
   const s = segments().find((x) => x.slug === segment);
-  if (!s) return <Redirect href="/cozumler" />;
+  // Eski "Mülk sahibi · 5 mülk" sayfası tek mülk sahibi sayfasında birleşti.
+  if (!s) return <Redirect href={segment === 'portfoy' ? '/cozumler/mulk-sahibi' : '/cozumler'} />;
   const go = (p: string) => router.push(p as any);
   const corp = s.plan === 'kurumsal';
   const cta = corp ? [t('Teklif al'), '/kurumsal?sektor=' + encodeURIComponent(s.role || '') + '#form']
