@@ -99,11 +99,12 @@ export function tierPoints(id){
   ];
   if (id === 'bes') return pro;
   return [
+    t('Site yönetimi · AVM · GYO · Depo ve lojistik · Emlak ofisi · Family office'),   // ilk madde kartta kalın yazılır (sektörler)
     t('Portföy’deki her şey'),
-    t('Sözleşmenize göre sınırsız mülk ve ekip'),
-    t('Kurum hesabı, master yönetici, özel roller'),
-    t('Site yönetimi, ticari portföy modülleri'),
+    t('Sınırsız mülk ve ekip üyesi'),
     t('Aylık ve yıllık rapor e-postası'),
-    t('Kurulum, veri taşıma ve öncelikli destek')
+    t('Öncelikli destek'),
+    t('Kurulum ve veri taşıma yardımı'),
+    t('Kuruma özel sözleşme ve fatura')
   ];
 }

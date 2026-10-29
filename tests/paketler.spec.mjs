@@ -38,9 +38,13 @@ test('ana sayfa fiyatları: mülk başına, KDV dahil, Başlangıç ve Portföy 
   await expect(page.getByText('10 ve üstü mülk', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Kaç mülkün var?')).toHaveCount(0);
   await expect(page.getByText(/3 mülk için/)).toHaveCount(0);
-  // Kurumsal: aynı açık kart tasarımı + "10+" ve sektör vurgusu; teklif usulü.
-  await expect(page.getByText('10+', { exact: true })).toBeVisible();
-  for (const x of ['Site yönetimi', 'AVM', 'GYO', 'Depo ve lojistik', 'Emlak ofisi', 'Family office']) await expect(page.getByText(x, { exact: true }).first()).toBeVisible();
+  // Kurumsal: açık kart; en üstte kalın bir maddede sektörler, altında sözleşmeli hizmetler; vurgu kutusu yok.
+  const sectors = page.getByText('Site yönetimi · AVM · GYO · Depo ve lojistik · Emlak ofisi · Family office', { exact: true });
+  await expect(sectors).toBeVisible();
+  expect(await sectors.evaluate((e) => Number(getComputedStyle(e).fontWeight) >= 700 || /XBold|Bold/i.test(getComputedStyle(e).fontFamily))).toBe(true);
+  for (const x of ['Portföy’deki her şey', 'Sınırsız mülk ve ekip üyesi', 'Aylık ve yıllık rapor e-postası', 'Öncelikli destek', 'Kurulum ve veri taşıma yardımı', 'Kuruma özel sözleşme ve fatura']) await expect(page.getByText(x, { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('10+', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Mülk sayına ve sektörüne göre')).toBeVisible();
   await expect(page.getByText('Teklif alın', { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Bize ulaşın' }).first()).toBeVisible();
   // SMS yalnız Portföy maddelerinde (Kurumsal "Portföy'deki her şey" der); Başlangıç listesinde yok.

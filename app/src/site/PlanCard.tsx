@@ -4,35 +4,12 @@ import { ReactNode } from 'react';
 import { Platform, Text as RNText, View } from 'react-native';
 import { t } from '../domain/i18n';
 import { Button, Chip, Text } from '../ui/kit';
-import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
+import { fonts, useBreakpoint, useColors } from '../ui/theme';
 import { Icon } from '../app-ui/blocks';
 
 const BALANCE: any = Platform.OS === 'web' ? { textWrap: 'balance' } : null;
 
 export type Plan = { id: string; name: string; price: string; per: string; monthlyEq: string; units: string; points: string[]; best: boolean; corp?: boolean; sub?: string; vat?: boolean };
-
-/** Kurumsal kartında öne çıkan sektörler (Kurumsal'a özel modüller bu sektörler içindir). */
-const SECTORS = () => [t('Site yönetimi'), t('AVM'), t('GYO'), t('Depo ve lojistik'), t('Emlak ofisi'), t('Family office')];
-
-/** "10+ mülk" ve sektörler: Kurumsal kartını diğerlerinden ayıran vurgu kutusu. */
-function CorpCallout() {
-  const c = useColors();
-  return (
-    <View style={{ backgroundColor: c.accentSoft, borderRadius: 18, padding: 16, gap: 10 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
-        <RNText style={{ fontFamily: fonts.siteBold, fontSize: 38, lineHeight: 40, letterSpacing: -1, color: c.accentText }}>10+</RNText>
-        <Text v="small" color={c.ink} style={{ fontFamily: fonts.bodyBold, flex: 1 }}>{t('mülk için size özel fiyat ve kurulum')}</Text>
-      </View>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-        {SECTORS().map((x) => (
-          <View key={x} style={{ backgroundColor: c.surface, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: c.line }}>
-            <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 12, color: c.ink }}>{x}</RNText>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
 
 export function PlanCard({ p, cta, badge, eqLine, side, compact }: {
   p: Plan; cta: { title: string; onPress: () => void; disabled?: boolean };
@@ -69,14 +46,13 @@ export function PlanCard({ p, cta, badge, eqLine, side, compact }: {
         {p.monthlyEq || eqLine ? <Text v="small" color={soft}>{p.monthlyEq ? t('mülk başına aylık {price}’ye denk gelir', { price: p.monthlyEq }) : ' '}</Text> : null}
         {p.vat ? <Text v="small" color={soft} style={{ fontSize: 12.5 }}>{t('KDV dahil')}</Text> : p.sub ? <Text v="small" color={soft}>{p.sub}</Text> : null}
       </View>
-      {p.corp ? <CorpCallout /> : null}
       <Text v="small" color={dark ? c.lemon : c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('1 ay ücretsiz deneme')}</Text>
       <View>
         {p.points.map((x, k) => (
           <View key={x} style={{ flexDirection: 'row', gap: 10, alignItems: 'center', minHeight: small ? 0 : 46, paddingVertical: small ? 8 : 6,
             borderTopWidth: 1, borderTopColor: rule, borderBottomWidth: k === p.points.length - 1 ? 1 : 0, borderBottomColor: rule }}>
             <Icon name="check" size={16} color={dark ? c.lemon : c.okInk} />
-            <Text v="small" color={ink} style={{ flex: 1, fontSize: 14, lineHeight: 20, opacity: dark ? 0.9 : 1 }}>{x}</Text>
+            <Text v="small" color={ink} style={{ flex: 1, fontSize: 14, lineHeight: 20, opacity: dark ? 0.9 : 1, ...(p.corp && k === 0 ? { fontFamily: fonts.bodyXBold, opacity: 1 } : {}) }}>{x}</Text>
           </View>
         ))}
       </View>
