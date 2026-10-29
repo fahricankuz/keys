@@ -6,7 +6,7 @@ import { serveDist, seed, PW, ensureDist } from './app-helpers.mjs';
 import { watchErrors } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
-const PORT = 8209;
+const PORT = 8231;
 let server;
 let errors;
 

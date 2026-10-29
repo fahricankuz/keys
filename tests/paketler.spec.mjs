@@ -6,7 +6,7 @@ import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
 import { watchErrors } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
-const PORT = 8210;
+const PORT = 8232;
 let server;
 let errors;
 
@@ -70,7 +70,7 @@ test('"Paketi seç" satın alma sayfasını açar; mülk adedi +/− ile 1-9 ara
   // Yıllık dönem: 9 × 999,90
   await page.getByRole('radio', { name: /^Yıllık/ }).click();
   await total('₺8.999,10');
-  await expect(page.getByText('aylık ₺749,93’ye denk gelir')).toBeVisible();
+  await expect(page.getByText('Yıllık ödemeyle ₺1.799,82 tasarruf ediyorsun')).toBeVisible();   // 9 × 99,99 × 12 − 8.999,10
   // 10+ için Kurumsal bağlantısı.
   await page.getByRole('link', { name: 'bize ulaşın' }).click();
   await expect(page).toHaveURL(/\/kurumsal/);
@@ -95,8 +95,10 @@ test('Başlangıç seçiliyken Portföy önerisi: aynı mülk adedi için fark g
 test('abonelik başlatma: çıkış yapmışsa mülk sahibi kaydına gider ve seçim saklanır; mülk sahibi oturumunda ödeme-güncelleme bilgisi çıkar; kiracıya uyarı', async ({ page }) => {
   await page.goto(url('/satin-al?plan=bes&adet=4'));
   await expect(page.getByText('Portföy', { exact: true }).first()).toBeVisible();
-  await expect(page.getByText('1 ay ücretsiz · bugün ödeme yok')).toBeVisible();
-  await expect(page.getByText(/Çekimden 1 gün önce e-posta ve bildirimle hatırlatırız/)).toBeVisible();
+  await expect(page.getByText('Bugün ödeme yok · İstediğin zaman iptal')).toBeVisible();
+  await expect(page.getByText('E-posta ve bildirimle hatırlatırız')).toBeVisible();
+  await expect(page.getByText('İptal etmezsen ilk ödeme alınır')).toBeVisible();
+  await expect(page.getByText('BUGÜN ÖDENECEK')).toBeVisible();
   await page.getByRole('button', { name: '1 ay ücretsiz başla' }).click();
   await expect(page).toHaveURL(/\/kayit\/mulk-sahibi/);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('anahtar-paket-secimi')))).toEqual({ plan: 'bes', units: 4, yearly: false });
