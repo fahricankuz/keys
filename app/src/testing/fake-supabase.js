@@ -135,7 +135,12 @@ function accessOf(db, uid){
   const trialEnds = new Date(Date.parse(p.created_at || now()) + TRIAL_DAYS * 86400000).toISOString();
   const inTrial = !subscribed && Date.now() < Date.parse(trialEnds);
   const org = (db.tables.org_members || []).some(m => m.user_id === uid && (db.tables.organizations.find(o => o.id === m.org_id) || {}).status === 'active');
-  return { role:p.role, access: p.role === 'tenant' || p.role === 'team' || subscribed || inTrial || org, subscribed, inTrial, trialEnds, trialDays:TRIAL_DAYS,
+  // schema.sql §21 ile aynı: paket ürün kimliğinden, mülk sınırı ürün kimliğindeki adetten.
+  const pid = s?.product_id || '', pm = /^(tek|bes)_([1-9])_(aylik|yillik)$/.exec(pid);
+  const plan = subscribed ? (/kurumsal/i.test(pid) ? 'kurumsal' : /(^|[._-])bes/.test(pid) ? 'bes' : /(^|[._-])tek/.test(pid) ? 'tek' : 'pro') : inTrial ? 'trial' : null;
+  const units = subscribed && pm ? Number(pm[2]) : ({ tek:9, bes:9, trial:5 }[plan] ?? null);
+  return { role:p.role, plan, units, trialPeriod: !!(subscribed && ['trial','intro'].includes(s?.period_type)), cardTrial:false,
+    access: p.role === 'tenant' || p.role === 'team' || subscribed || inTrial || org, subscribed, inTrial, trialEnds, trialDays:TRIAL_DAYS,
     expiresAt: s?.expires_at || null, store: s?.store || null, productId: s?.product_id || null, willRenew: !!s?.will_renew, billingIssue: !!s?.billing_issue };
 }
 const GATED = ['properties','payments','rent_history','requests','documents','expenses','property_shared','invites'];

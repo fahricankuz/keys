@@ -107,7 +107,14 @@ Deno.serve(async (req) => {
 
   // 3. SMS: yalnız tarihli hatırlatmalar (kira günü, gecikme, sözleşme, DASK, tahliye, site aidatı); kullanıcı kapatmadıysa.
   let texted = false;
-  if (smsEnabled() && profile?.settings?.sms !== false && /^(rent-soon|rent-due|rent-late|renew|dask|evict|aidat-(soon|due|late|late2))-/.test(n.tag ?? '')) {
+  // SMS Başlangıç paketinde yoktur: ücreti ödeyen mülk sahibinin paketi SMS içermiyorsa gönderilmez (sunucu kuralı; sms_allowed, schema.sql §21).
+  let smsOk = true;
+  // Site aidatı (aidat-…) kurumun (Kurumsal) hizmetidir, pakete bakılmaz.
+  if (smsEnabled() && profile?.settings?.sms !== false && /^(rent-soon|rent-due|rent-late|renew|dask|evict)-/.test(n.tag ?? '')) {
+    const { data: allowed } = await admin.rpc('sms_allowed', { uid: n.user_id, pid: n.property_id ?? null });
+    smsOk = allowed !== false;
+  }
+  if (smsOk && smsEnabled() && profile?.settings?.sms !== false && /^(rent-soon|rent-due|rent-late|renew|dask|evict|aidat-(soon|due|late|late2))-/.test(n.tag ?? '')) {
     let phone = profile?.phone || '';
     if (!phone && n.property_id) {
       const { data: m } = await admin.from('memberships').select('phone').eq('user_id', n.user_id).eq('property_id', n.property_id).maybeSingle();
@@ -119,7 +126,8 @@ Deno.serve(async (req) => {
   // 4. E-posta (varsayılan açık; kullanıcı kapatmadıysa ve Resend yapılandırıldıysa)
   let mailed = false;
   if (env('RESEND_API_KEY') && env('EMAIL_FROM')) {
-    if (profile?.settings?.email !== false) {
+    // Ödeme hatırlatması (bill-…) işlem e-postasıdır: kullanıcı bildirim e-postalarını kapatmış olsa da gönderilir.
+    if (profile?.settings?.email !== false || /^bill-/.test(n.tag ?? '')) {
       const { data: user } = await admin.auth.admin.getUserById(n.user_id);
       const to = user?.user?.email;
       if (to) {

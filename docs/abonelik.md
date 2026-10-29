@@ -31,11 +31,51 @@ hesaplarında yapılacak ayarlardır.
 Deneme süresi `supabase/schema.sql` içindeki `trial_days()` fonksiyonundadır
 (varsayılan 30 gün). Değiştirip dosyayı yeniden çalıştırman yeterli.
 
-> Mağazaların kendi "ücretsiz deneme" tekliflerini (introductory offer)
-> **açmaman** önerilir: uygulamadaki deneme zaten kartsız başlıyor, ikisi
-> birlikte kafa karıştırır.
+> Güncel model için aşağıdaki "mülk başına abonelik" bölümüne bak: kartsız
+> deneme kalkınca mağazanın 1 aylık ücretsiz deneme teklifi kullanılır.
 
 ---
+
+## Güncel model: mülk başına abonelik (bu bölüm aşağıdaki eski anlatımın yerine geçer)
+
+| | Başlangıç | Portföy | Kurumsal |
+| --- | --- | --- | --- |
+| Mülk | 1-9 | 1-9 | 10 ve üstü (teklif, iletişim) |
+| Aylık fiyat (KDV dahil) | **₺99,99 / mülk** ($2.00) | **₺199,99 / mülk** ($4.00) | sözleşmeye göre |
+| Yıllık fiyat | aylığın 10 katı (2 ay bedava): ₺999,90 / mülk | ₺1.999,90 / mülk | |
+| SMS hatırlatması | yok | var (kota sonra belirlenecek) | var |
+
+- **Mülk adedi satın alınır**: müşteri satın alma sayfasında (`/satin-al`) paketi, dönemi ve 1-9 arası mülk sayısını seçer;
+  toplam = adet × mülk başı fiyat. Satın alınan adet mülk sınırıdır (sunucuda `guard_unit_limit`). Sınır dolunca "Mülk adedini artır"
+  (9'u aşarsa Kurumsal) önerilir.
+- **Mağaza ürün kimliği = paket + adet + dönem**: `tek_3_aylik`, `bes_5_yillik` … (paket `tek`/`bes`, adet 1-9, dönem `aylik`/`yillik`).
+  Sunucu paketi ve adedi bu kimlikten okur (`plan_of`, `product_units`). Her mağazada 2 paket × 9 adet × 2 dönem = **36 abonelik
+  ürünü** açılır (App Store Connect'te bir abonelik grubunda, Play'de "base plan"larla; toplu oluşturma için App Store Connect API'si
+  ya da betik kullanılabilir). Eski kimlikler (`evim_aylik`, `tek`, `bes`) adet taşımaz; paketin üst sınırı (9) uygulanır.
+  RevenueCat'te yetki (`pro`) ve paketler (offering) bu ürünlere bağlanır; uygulama seçilen adede göre ürünü seçer.
+- **Ücretsiz ay + otomatik yenileme.** Kartsız üyelik kalkar: deneme, mağazanın "introductory offer / free trial" teklifidir
+  (1 ay ücretsiz). 1 ayın sonunda iptal edilmezse aylık ya da yıllık abonelik kayıtlı karttan/hesaptan çekilmeye başlar.
+  Mağazada her ürüne **1 aylık ücretsiz deneme** teklifi tanımlayın (eski "açmayın" tavsiyesi geçersiz).
+- **Çekimden 1 gün önce hatırlatma.** `billing_reminders()` (schema.sql §21; pg_cron'la her gün 09:30 İstanbul) ertesi gün yenilenecek
+  ya da ücretsiz ayı bitecek, iptal edilmemiş abonelere bildirim düşürür; `push` fonksiyonu bunu cihaza ve **e-postaya**
+  (kullanıcı e-posta bildirimini kapatmış olsa da — işlem e-postasıdır) gönderir. Elle verilen paketler (`store = admin`) ve iptal
+  edilenler (`will_renew = false`) hariçtir. pg_cron yoksa dışarıdan `select public.billing_reminders();` günde bir çalıştırılır.
+- **Kartsız denemeyi kapatma (kesim).** Hazır olunca (ürünler, RevenueCat, mağaza teklifleri tamam), kesim tarihini yazın:
+
+  ```sql
+  alter database postgres set anahtar.card_trial_from = '2026-12-01T00:00:00Z';
+  ```
+
+  Bu tarihten **sonra** açılan mülk sahibi hesaplarına uygulama içi (kartsız) deneme verilmez; erişim abonelikle (mağazanın ücretsiz
+  ayı dahil) açılır. Önce açılan hesaplar mevcut denemesini sürdürür. Aynı anda `app/src/domain/config.js` → `billing.cardTrial: true`
+  ve `billing.paused: false` yapılır (metinler "kart ya da mağaza hesabı gerekir" der). Geri almak için
+  `alter database postgres reset anahtar.card_trial_from;`.
+- **Web'de kart.** Web'den kartla abonelik şu an yoktur (RevenueCat Web Billing Stripe ister, Stripe Türkiye'de kurulu şirketleri
+  almaz). Kart bilgisini web'de almak için iyzico ya da PayTR ile ayrı bir entegrasyon gerekir (kartı saklayıp dönemsel çekim,
+  3D Secure, iptal ve fatura akışı); o zamana kadar abonelik App Store / Google Play'den başlar. `/satin-al` sayfası seçimi alır ve
+  ödeme açılana kadar bilgilendirir.
+- **SMS yalnızca Portföy ve Kurumsal.** İstemcide `FEATURES.sms` ve ayarlarda kilit; sunucuda `sms_allowed()` (push fonksiyonu
+  SMS'ten önce sorar; kiracıya giden SMS mülk sahibinin paketine bağlıdır, site aidatı Kurumsal sayılır).
 
 ## 1. Planlar ve fiyatlar
 

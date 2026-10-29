@@ -2,7 +2,7 @@
 
    Kiracılar ücretsizdir. Mülk sahibi 1 aylık (30 gün) denemeyle başlar; süre bitince
    abonelik yoksa kayıtlar salt okunur olur (okuma ve mesajlaşma açık). Paketler mülk
-   sayısına göre ayrılır (plans.js).
+   sayısına göre fiyatlanır: mülk başına aylık / yıllık, 1–9 mülk; 10 ve üstü Kurumsal (plans.js).
    Satın alma App Store / Google Play üzerinden RevenueCat ile yapılır; bu
    sürümde web, abonelik durumunu gösterir ve telefondan abone olmayı anlatır. */
 
@@ -10,9 +10,9 @@ import { t } from './i18n.js';
 import { CONFIG, LIVE } from './config.js';
 import { S, ui } from './state.js';
 import { live } from './backend.js';
-import { tiers, FEATURES } from './plans.js';
+import { tiers, FEATURES, maxUnits } from './plans.js';
 
-export { PLAN_LABEL, planLabel, tiers, unitsText, priceText, monthlyEquivalent, tierPoints, FEATURES } from './plans.js';
+export { PLAN_LABEL, planLabel, tiers, tierOf, unitsText, rangeText, priceText, monthlyEquivalent, totalPrice, totalText, productId, parseProduct, maxUnits, tierPoints, FEATURES } from './plans.js';
 
 const DAY = 86400000;
 export const TRIAL_DAYS = 30;
@@ -57,12 +57,13 @@ export function ownedCount(){
   return S.order.filter(pid => !S.props[pid]?.ownerId || !id || S.props[pid].ownerId === id).length;
 }
 
-/** n mülk daha eklenebilir mi? Eklenemezse önerilen paket döner. */
+/** n mülk daha eklenebilir mi? Eklenemezse önerilen yol döner: 'adet' (satın alınan mülk sayısını artır) ya da
+    'kurumsal' (10 ve üstü); need: istenen toplam mülk sayısı. */
 export function roomFor(n = 1, have = ownedCount(), a = access()){
   const limit = unitLimit(a);
   if (limit == null || have + n <= limit) return { ok:true, limit, have };
-  const fit = tiers().find(x => x.units == null || x.units >= have + n);
-  return { ok:false, limit, have, suggest: fit ? fit.id : 'kurumsal' };
+  const need = have + n;
+  return { ok:false, limit, have, need, suggest: need > maxUnits() ? 'kurumsal' : 'adet' };
 }
 
 /** Paket bu özelliği içeriyor mu? (plans.js → FEATURES). Plan bilinmiyorsa açık kabul edilir. */

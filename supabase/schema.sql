@@ -3569,3 +3569,132 @@ begin
   return jsonb_build_object('id', pid, 'count', n, 'limit', lim, 'over', lim is not null and n > lim);
 end $$;
 grant execute on function public.admin_add_property(uuid, jsonb) to authenticated;
+
+-- =====================================================================
+-- 21. Mülk başına abonelik: adet ürün kimliğinden, SMS yalnız Portföy ve Kurumsal, yenileme öncesi hatırlatma, kartlı deneme
+-- Ürün kimliği: tek_3_aylik, bes_5_yillik … (paket_adet_dönem; adet 1-9). Satın alınan adet mülk sınırıdır.
+-- Eski kimlikler (evim_aylik, tek, bes…) adet taşımaz; paketin varsayılan sınırı (9) uygulanır.
+-- =====================================================================
+
+/** Ürün kimliğinden satın alınan mülk adedi (1-9); biçim tutmuyorsa null. */
+create or replace function public.product_units(product text)
+returns int language sql immutable as $$
+  select case when product ~ '^(tek|bes)_[1-9]_(aylik|yillik)$' then substring(product from '^(?:tek|bes)_([1-9])_')::int end
+$$;
+
+-- Paketin varsayılan (adet bilinmeyen) sınırı: Başlangıç ve Portföy en çok 9 mülk; deneme 5; Kurumsal ve diğerleri sınırsız.
+create or replace function public.plan_units(plan text)
+returns int language sql immutable as $$
+  select case plan when 'tek' then 9 when 'bes' then 9 when 'trial' then 5 else null end
+$$;
+
+/** Kartsız deneme kapatıldığında geçerli kesim zamanı: bu zamandan sonra açılan hesaplara uygulama içi (kartsız) deneme verilmez;
+    deneme yalnızca mağaza / ödeme aboneliğinin ücretsiz ayıdır. Boşsa özellik kapalıdır (mevcut davranış).
+    Açmak için: alter database postgres set anahtar.card_trial_from = '2026-12-01T00:00:00Z'; */
+create or replace function public.card_trial_from()
+returns timestamptz language sql stable as $$
+  select nullif(current_setting('anahtar.card_trial_from', true), '')::timestamptz
+$$;
+
+create or replace function public.access_state(uid uuid)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare
+  p public.profiles;
+  s public.subscriptions;
+  o public.organizations;
+  subscribed boolean;
+  trial_end timestamptz;
+  plan text;
+  cf timestamptz := public.card_trial_from();
+  card boolean;
+begin
+  select * into p from public.profiles where id = uid;
+  if p.id is null then return jsonb_build_object('access', false); end if;
+  select * into s from public.subscriptions where user_id = uid;
+  o := public.master_org(uid);
+  subscribed := s.user_id is not null and s.active and (s.expires_at is null or s.expires_at > now());
+  -- Kartlı deneme: kesimden sonra açılan hesapların uygulama içi denemesi yoktur.
+  card := cf is not null and p.created_at >= cf;
+  trial_end := case when card then null else p.created_at + make_interval(days => public.trial_days() + coalesce(p.extra_trial_days, 0)) end;
+  plan := case when o.id is not null then 'kurumsal' when subscribed then public.plan_of(s.product_id)
+                when coalesce(now() < trial_end, false) then 'trial' else null end;
+  return jsonb_build_object(
+    'role', p.role,
+    'access', p.role in ('tenant','team') or subscribed or coalesce(now() < trial_end, false)
+              or exists (select 1 from public.org_members m join public.organizations x on x.id = m.org_id
+                         where m.user_id = uid and x.status = 'active' and (x.contract_until is null or x.contract_until >= current_date)),
+    'subscribed', subscribed,
+    'inTrial', not subscribed and coalesce(now() < trial_end, false),
+    'trialEnds', trial_end,
+    'trialDays', public.trial_days(),
+    'cardTrial', card,
+    'plan', plan,
+    'units', case when o.id is not null then o.units
+                  when subscribed and public.product_units(s.product_id) is not null then public.product_units(s.product_id)
+                  else public.plan_units(plan) end,
+    'org', o.id,
+    'trialPeriod', coalesce(subscribed and s.period_type in ('trial','intro'), false),
+    'expiresAt', s.expires_at,
+    'store', s.store,
+    'productId', s.product_id,
+    'willRenew', coalesce(s.will_renew, false),
+    'billingIssue', coalesce(s.billing_issue, false)
+  );
+end $$;
+
+/** SMS hatırlatması gönderilebilir mi? Ücreti ödeyen mülk sahibinin paketi SMS içermeli (Başlangıç içermez).
+    Mülk verilirse mülk sahibinin, yoksa kişinin kendi paketine bakılır. Yalnızca sunucu fonksiyonları çağırır. */
+create or replace function public.sms_allowed(uid uuid, pid text default null)
+returns boolean language plpgsql stable security definer set search_path = public as $$
+declare owner uuid;
+begin
+  if pid is not null then select owner_id into owner from public.properties where id = pid; end if;
+  return coalesce(public.access_state(coalesce(owner, uid)) ->> 'plan', '') in ('bes','kurumsal','trial','pro');
+end $$;
+revoke execute on function public.sms_allowed(uuid, text) from public, anon, authenticated;
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    grant execute on function public.sms_allowed(uuid, text) to service_role;
+  end if;
+end $$;
+
+/** Yenileme / ilk ücret çekimi öncesi hatırlatma: ücretli aboneliği (otomatik yenileyen) ertesi gün yenilenecek ya da
+    ücretsiz denemesi ertesi gün bitecek olanlara bildirim düşer; push fonksiyonu bildirimi cihaza ve e-postaya (kullanıcı
+    e-postayı kapatmış olsa da) gönderir. Yönetici elle verdiği paketler (store = 'admin') ve iptal edilenler (will_renew = false) hariç. */
+create or replace function public.billing_reminders(today date default (now() at time zone 'Europe/Istanbul')::date)
+returns int language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  with due as (
+    select s.user_id, s.product_id, s.period_type, s.store, s.expires_at
+      from public.subscriptions s
+     where s.active and s.will_renew and coalesce(s.store, '') not in ('admin', 'promotional') and s.expires_at is not null
+       and (s.expires_at at time zone 'Europe/Istanbul')::date = today + 1
+  ), ins as (
+    insert into public.notifications (user_id, title, body, url, tag)
+    select d.user_id,
+      case when d.period_type in ('trial','intro') then 'Ücretsiz denemen yarın bitiyor' else 'Aboneliğin yarın yenilenecek' end,
+      case when d.period_type in ('trial','intro') then 'Yarın ilk ödemen alınacak.' else 'Yarın ödemen alınacak.' end
+        || ' Paket: ' || case public.plan_of(d.product_id) when 'tek' then 'Başlangıç' when 'bes' then 'Portföy' when 'kurumsal' then 'Kurumsal' else 'Abonelik' end
+        || coalesce(' · ' || public.product_units(d.product_id)::text || ' mülk', '')
+        || case when d.product_id ~ '_yillik$' then ' · yıllık' when d.product_id ~ '_aylik$' then ' · aylık' else '' end
+        || '. İptal etmek istersen ' || case d.store when 'app_store' then 'App Store' when 'play_store' then 'Google Play' else 'ödeme' end
+        || ' abonelik ayarlarından bugün iptal edebilirsin.',
+      '/uygulama/ayarlar', 'bill-' || to_char(today + 1, 'YYYYMMDD')
+      from due d
+    on conflict do nothing
+    returning 1
+  )
+  select count(*) into n from ins;
+  return n;
+end $$;
+revoke execute on function public.billing_reminders(date) from public;
+
+-- pg_cron varsa her gün 09:30 (İstanbul) çalıştır.
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    perform cron.unschedule(jobid) from cron.job where jobname = 'evim-billing-reminders';
+    perform cron.schedule('evim-billing-reminders', '30 6 * * *', 'select public.billing_reminders()');
+  end if;
+end $$;
