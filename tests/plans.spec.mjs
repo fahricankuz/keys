@@ -100,7 +100,7 @@ test('paket maddeleri: Portföy Başlangıç\'ı kapsar; SMS yalnız Portföy ve
   expect(M.tierPoints('tek').join('|')).not.toMatch(/SMS/);
   expect(M.tierPoints('bes')[0]).toBe('Başlangıç’taki her şey');
   expect(M.tierPoints('bes').join('|')).toMatch(/SMS hatırlatmaları/);
-  expect(M.tierPoints('kurumsal')[0]).toBe('Site yönetimi · AVM · GYO · Depo ve lojistik · Emlak ofisi · Family office');   // ilk madde: sektörler (kartta kalın)
+  expect(M.tierPoints('kurumsal')[0]).toBe('Site yönetimi · AVM · GYO · Depo ve lojistik · Emlak ofisi · Aile ofisi');   // ilk madde: sektörler (kartta kalın)
   expect(M.tierPoints('kurumsal')[1]).toBe('Portföy’deki her şey');
   expect(M.tierPoints('tek')).toHaveLength(6);
 });

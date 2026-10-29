@@ -506,6 +506,16 @@ test('çözümler: üst menüdeki açılır listeden sektör sayfasına, oradan 
 
 test('kira artış hesaplayıcı: kira ve oranla yeni kirayı hesaplar; sözleşme oranı düşükse onu uygular', async ({ page }) => {
   await page.goto(url('/kira-artis-hesaplama'));
+  // Alanlar boşken örnek değerlerle (25.000 ve %33,45) sonuç baştan görünür.
+  await expect(page.getByText('₺33.363').first()).toBeVisible();
+  await expect(page.getByText('Örnek hesap: kendi kiranı ve oranını girince güncellenir.')).toBeVisible();
+  // Yazarken binlik ayırıcı eklenir; oranda nokta da ondalık sayılır.
+  await page.getByLabel('Mevcut aylık kira (₺)').fill('10000');
+  await expect(page.getByLabel('Mevcut aylık kira (₺)')).toHaveValue('10.000');
+  await page.getByLabel('TÜFE oranı (%)').fill('33.5');
+  await expect(page.getByLabel('TÜFE oranı (%)')).toHaveValue('33,5');
+  await expect(page.getByText('₺13.350').first()).toBeVisible();
+  await expect(page.getByText('Örnek hesap: kendi kiranı ve oranını girince güncellenir.')).toHaveCount(0);
   await page.getByLabel('Mevcut aylık kira (₺)').fill('25000');
   await page.getByLabel('TÜFE oranı (%)').fill('40');
   await expect(page.getByText('₺35.000').first()).toBeVisible();

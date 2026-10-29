@@ -855,6 +855,8 @@ declare
   mkey   text := to_char(today, 'YYYY-MM');
   due    date;
   paid   text;
+  soon   date;   -- yaklaşan vade: bu ayın vadesi geçtiyse gelecek ayınki (ayın 1'i vadeli kira için ay sonunda hatırlatma)
+  spaid  text;
   n      int := 0;
   before int;
 begin
@@ -866,20 +868,23 @@ begin
     -- İlk ayda vade, sözleşme başlangıcından önceye düşmez (yeni eklenen mülk için "kira gecikti" gitmez).
     if to_char(p.start_date, 'YYYY-MM') = mkey and p.start_date > due then due := p.start_date; end if;
     select status into paid from public.payments where property_id = p.id and month = mkey and kind = 'kira';
+    soon := case when due >= today then due
+                 else make_date(extract(year from (today + interval '1 month'))::int, extract(month from (today + interval '1 month'))::int, p.due_day) end;
+    select status into spaid from public.payments where property_id = p.id and month = to_char(soon, 'YYYY-MM') and kind = 'kira';
 
     for mb in select * from public.memberships where property_id = p.id loop
       select settings into s from public.profiles where id = mb.user_id;
 
       -- Ayarlardan kapatılan hatırlatma türleri atlanır (varsayılan açık).
       -- Kira günü yaklaşıyor: kiracıya ve mülk sahibine (ödeme henüz yoksa).
-      if paid is null and coalesce((s ->> 'remindRent')::boolean, true)
-         and due - today = coalesce((s ->> 'rentDays')::int, 3) then
+      if spaid is null and coalesce((s ->> 'remindRent')::boolean, true)
+         and soon - today = coalesce((s ->> 'rentDays')::int, 3) and soon <= p.contract_end then
         insert into public.notifications (user_id, property_id, title, body, url, tag)
         values (mb.user_id, p.id,
                 case when mb.role = 'tenant' then 'Kira günü yaklaşıyor' else p.name || ': kira günü yaklaşıyor' end,
                 case when mb.role = 'tenant'
-                     then p.name || ': ' || public.fmt_tl(p.rent) || ', son gün ' || to_char(due, 'DD.MM.YYYY') || '.'
-                     else public.fmt_tl(p.rent) || ' kira ' || to_char(due, 'DD.MM.YYYY') || ' tarihinde ödenecek; henüz dekont yok.' end,
+                     then p.name || ': ' || public.fmt_tl(p.rent) || ', son gün ' || to_char(soon, 'DD.MM.YYYY') || '.'
+                     else public.fmt_tl(p.rent) || ' kira ' || to_char(soon, 'DD.MM.YYYY') || ' tarihinde ödenecek; henüz dekont yok.' end,
                 case when mb.role = 'tenant' then '#/kiraci/odemeler' else '#/mulk-sahibi/mulk/' || p.id || '/odeme' end,
                 'rent-soon-' || p.id)
         on conflict do nothing;
@@ -2307,7 +2312,7 @@ grant execute on function public.admin_set_cpi(text, numeric) to authenticated;
 -- ---------------------------------------------------------------------
 -- 16. Kurumlar (kurumsal müşteri hesabı) — yol planı Faz 0
 -- ---------------------------------------------------------------------
--- Kurum: site yönetimi, AVM, GYO, depo, emlak ofisi, family office gibi kurumsal müşteri.
+-- Kurum: site yönetimi, AVM, GYO, depo, emlak ofisi, aile ofisi gibi kurumsal müşteri.
 -- Bireysel kullanıcılar kurum kullanmaz (properties.org_id boş kalır); onlar için hiçbir şey değişmez.
 -- Bir kurumun tek bir master yöneticisi vardır; diğer yöneticilerin yetkisi kurumun rollerinden gelir.
 -- Roller ve yetkileri master yönetici düzenler. Kurumu ve master yöneticiyi anahtar yöneticisi açar.

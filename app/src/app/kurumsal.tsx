@@ -20,7 +20,7 @@ export default function Kurumsal() {
         title: t('Büyük portföyler için anahtar.'),
         lead: t('Sınırsız mülk ve ekip üyesi, kurulumda veri taşıma desteği.'),
         points: [t('Aylık ve yıllık rapor e-postası'), t('Öncelikli destek'), t('Kuruma özel sözleşme ve fatura'), t('Sektörünüze göre özel yapılandırma')],
-        groups: [{ title: t('Sektörünüze göre'), items: [t('Emlak ofisi'), t('Site ve bina yönetimi'), t('AVM'), t('GYO'), t('Depo ve lojistik'), t('Family office')] }],
+        groups: [{ title: t('Sektörünüze göre'), items: [t('Emlak ofisi'), t('Site ve bina yönetimi'), t('AVM'), t('GYO'), t('Depo ve lojistik'), t('Aile ofisi')] }],
         foot: t('Konut, ofis, mağaza ve depo')
       }}>
       <EnterpriseForm role={sektor} />

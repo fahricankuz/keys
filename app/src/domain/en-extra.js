@@ -978,7 +978,7 @@ export const EN_EXTRA = {
   'AVM': 'Shopping mall',
   'GYO': 'REIT',
   'Depo ve lojistik': 'Warehouse and logistics',
-  'Family office': 'Family office',
+  'Aile ofisi': 'Family office',
   'Tek mülkün kirasını': 'Track your property’s rent',
   'düzenle': 'neatly',
   'takip et.': 'in one place.',
@@ -1125,7 +1125,7 @@ export const EN_EXTRA = {
   'Sözleşmedeki oran düşükse onu uygular': 'Applies your lease rate if it is lower',
   'Aylık ve yıllık farkı gösterir': 'Shows the monthly and yearly difference',
   'Kira artışı hesaplayıcı': 'Rent increase calculator',
-  'Mevcut aylık kira (₺)': 'Current monthly rent (₺)',
+  'Mevcut aylık kira (₺)': 'Current monthly rent',
   'Kira yenileme ayı': 'Renewal month',
   'TÜİK {m} verisi: {r}': 'TÜİK {m} figure: {r}',
   '{m} verisi henüz sistemde yok; TÜİK bültenindeki oranı aşağıya gir.': 'The {m} figure is not in the system yet; enter the rate from the TÜİK bulletin below.',
@@ -1544,5 +1544,6 @@ export const EN_EXTRA = {
   'Portföy yönetimi': 'Portfolio management',
   'Tahakkuklar, duyurular ve yönetime talep': 'Charges, announcements and requests to management',
   'Birimler, tahakkuk, giderler, duyurular': 'Units, charges, expenses, announcements',
-  'Yönetim raporu (aylık ve yıllık e-posta)': 'Management report (monthly and yearly email)'
+  'Yönetim raporu (aylık ve yıllık e-posta)': 'Management report (monthly and yearly email)',
+  'Örnek hesap: kendi kiranı ve oranını girince güncellenir.': 'Sample calculation: it updates when you enter your own rent and rate.'
 };

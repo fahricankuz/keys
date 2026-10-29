@@ -105,12 +105,12 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
             {!phone && (
               <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
                 <MenuButton label={t('Özellikler')} on={menu === 'ozellik'} onPress={() => setMenu((m) => (m === 'ozellik' ? null : 'ozellik'))} />
+                <MenuButton label={t('Çözümler')} on={menu === 'cozum'} onPress={() => setMenu((m) => (m === 'cozum' ? null : 'cozum'))} />
                 {links.map(([k, label]) => (
                   <PressScale key={k} onPress={() => { setOpen(false); scrollTo(k); }} accessibilityRole="link" style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
                     <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{label}</Text>
                   </PressScale>
                 ))}
-                <MenuButton label={t('Çözümler')} on={menu === 'cozum'} onPress={() => setMenu((m) => (m === 'cozum' ? null : 'cozum'))} />
                 <PressScale onPress={() => { setOpen(false); go('/kira-artis-hesaplama'); }} accessibilityRole="link" style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
                   <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{t('Kira artışı hesapla')}</Text>
                 </PressScale>

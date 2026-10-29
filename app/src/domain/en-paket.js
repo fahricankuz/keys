@@ -2,7 +2,7 @@
 export const EN_PAKET = {
   '{n} ve üstü mülk': '{n} or more properties',
   '1-{n} mülk': '1-{n} properties',
-  'Site yönetimi · AVM · GYO · Depo ve lojistik · Emlak ofisi · Family office': 'Building management · Shopping malls · REITs · Warehouse and logistics · Real estate offices · Family offices',
+  'Site yönetimi · AVM · GYO · Depo ve lojistik · Emlak ofisi · Aile ofisi': 'Building management · Shopping malls · REITs · Warehouse and logistics · Real estate offices · Family offices',
   'Sınırsız mülk': 'Unlimited properties',
   'Belge arşivi, giriş ve çıkış tutanağı, depozito iadesi': 'Document archive, move-in and move-out reports, deposit refund',
   'Sözleşme yenileme ve TÜFE yasal üst sınırı': 'Contract renewal and the legal CPI cap',

@@ -1,6 +1,6 @@
 # Kurumsal yol planı (site, AVM, GYO, depo)
 
-Bugün mülk sahibi (1 ve 5 mülk), kiracı, emlak ofisi ve family office anahtar'ı olduğu gibi kullanabilir.
+Bugün mülk sahibi (1 ve 5 mülk), kiracı, emlak ofisi ve aile ofisi anahtar'ı olduğu gibi kullanabilir.
 Site ve bina yönetimi, AVM, GYO ve depo/lojistik için paneller sektöre göre ayrışacak. Ayrı uygulama yazılmaz:
 tek uygulama üç esnek nokta üzerine kurulur.
 

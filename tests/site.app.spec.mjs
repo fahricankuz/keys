@@ -42,7 +42,9 @@ async function login(page, email) {
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
 }
-const month = new Date().toISOString().slice(0, 7);
+/** Tarayıcı Europe/Istanbul saatinde çalışır (playwright.config); beklenen ay ve günler de o saat dilimiyle hesaplanır. */
+const istDay = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(d);
+const month = istDay().slice(0, 7);
 
 test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep, onay ve gider dağıtımı', async ({ page }) => {
   // 1. Yönetim: daireleri toplu ekler, kiracı ekler, aidat tahakkuk eder, duyuru yapar.
@@ -138,7 +140,7 @@ test('ev sahibi mülkünü site dairesine bağlar; kiracı kira ile aidatı ayn�
     const now = new Date().toISOString();
     d.tables.site_units = [{ id: 'u1', org_id: 'o1', block: 'A', no: '1', area: 120, share: 2, aidat: 1500, payer: 'kiraci', note: '', created_at: now }];
     d.tables.site_residents = [{ id: 'r1', org_id: 'o1', unit_id: 'u1', user_id: '00000000-0000-4000-8000-00000000000a', role: 'malik', name: 'Ayşe Mülk', phone: '', email: '', lives_here: false, code: 'S0000001', created_at: now }];
-    d.tables.site_charges = [{ id: 'c1', org_id: 'o1', unit_id: 'u1', month: now.slice(0, 7), kind: 'aidat', title: '', amount: 1500, status: 'open', paid_amount: 0, method: 'dekont', created_at: now }];
+    d.tables.site_charges = [{ id: 'c1', org_id: 'o1', unit_id: 'u1', month: new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date()).slice(0, 7), kind: 'aidat', title: '', amount: 1500, status: 'open', paid_amount: 0, method: 'dekont', created_at: now }];
     localStorage.setItem('__fakedb', JSON.stringify(d));
   });
   // 1. Ev sahibi (dairenin maliki) mülkünü daireye bağlar.

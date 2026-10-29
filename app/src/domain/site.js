@@ -7,6 +7,7 @@ import { t } from './i18n.js';
 import { client, live, storeFile } from './backend.js';
 import { storedPath } from './mapping.js';
 import { emit } from './state.js';
+import { iso, mkey } from './util.js';
 
 function must(res){
   if (res.error) throw res.error;
@@ -105,7 +106,7 @@ export function lateFee(c, today = new Date()){
 /** Yönetim ekranının tüm verisi (son 13 ayın tahakkukları). */
 export async function loadSiteAdmin(oid){
   const c = await db();
-  const since = (() => { const d = new Date(); d.setMonth(d.getMonth() - 12); return d.toISOString().slice(0, 7); })();
+  const since = (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 12); return mkey(d); })();
   const [units, residents, charges, expenses, notes, requests, budgets, linked, turnovers, rentChanges, orgRow] = await Promise.all([
     c.from('site_units').select('*').eq('org_id', oid),
     c.from('site_residents').select('*').eq('org_id', oid),
@@ -215,12 +216,12 @@ export async function decideCharge(ch, ok, reason = ''){
 export async function markPaid(ch, amount, method = 'havale'){
   const paid = Number(amount) || Number(ch.amount);
   must(await (await db()).from('site_charges').update({
-    status: paid >= Number(ch.amount) ? 'paid' : 'partial', paid_amount: paid, paid_on: new Date().toISOString().slice(0, 10), method, reject_reason: null
+    status: paid >= Number(ch.amount) ? 'paid' : 'partial', paid_amount: paid, paid_on: iso(new Date()), method, reject_reason: null
   }).eq('id', ch.id));
 }
 
 export async function addExpense(oid, e){
-  must(await (await db()).from('site_expenses').insert({ org_id: oid, cat: e.cat, amount: Number(e.amount) || 0, spent_on: e.spent_on || new Date().toISOString().slice(0, 10), note: e.note || '' }));
+  must(await (await db()).from('site_expenses').insert({ org_id: oid, cat: e.cat, amount: Number(e.amount) || 0, spent_on: e.spent_on || iso(new Date()), note: e.note || '' }));
 }
 export async function deleteExpense(id){ must(await (await db()).from('site_expenses').delete().eq('id', id)); }
 export async function announce(oid, title, body){
@@ -272,7 +273,7 @@ export async function payCharge(ch, { amount, date, note, file }){
   if (file && !path) throw new Error(t('Dosya yüklenemedi'));
   must(await (await db()).from('site_charges').update({
     status: 'review', paid_amount: (ch.status === 'partial' ? Number(ch.paid_amount) || 0 : 0) + (Number(amount) || 0),
-    paid_on: date || new Date().toISOString().slice(0, 10), note: note || null,
+    paid_on: date || iso(new Date()), note: note || null,
     receipt_name: file ? file.name || 'dekont' : '', receipt_path: path
   }).eq('id', ch.id));
 }
@@ -343,7 +344,7 @@ export function siteReport(d, period, ref){
   const cats = {};
   d.expenses.filter((e) => e.spent_on >= d0 && e.spent_on < d1).forEach((e) => { cats[e.cat] = (cats[e.cat] || 0) + Number(e.amount); });
   const unitBy = Object.fromEntries(d.units.map((u) => [u.id, u]));
-  const now = new Date().toISOString().slice(0, 10);
+  const now = iso(new Date());
   const debt = {};
   d.charges.filter((x) => x.status !== 'paid' && x.month <= m1).forEach((x) => {
     const due = nextMonthStart(x.month);                         // ay sonundan sonraki gün
@@ -434,8 +435,8 @@ export async function applyIncrease(oid, inc, amount, reason){
 
 /** Kiracısı olan birim: kiracı kaydı (ya da ev sahibi üzerinden bağlı kiracı) var ve sözleşmesi bitmemiş. */
 export function occupancy(d, today = new Date()){
-  const day = today.toISOString().slice(0, 10);
-  const soon = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 90).toISOString().slice(0, 10);
+  const day = iso(today);
+  const soon = iso(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 90));
   const tenantOf = (u) => d.residents.some((r) => r.unit_id === u.id && r.role === 'kiraci') || (d.linked || []).some((x) => x.unit_id === u.id);
   const full = (u) => tenantOf(u) && (!u.lease_end || u.lease_end >= day);
   const units = d.units, occ = units.filter(full);

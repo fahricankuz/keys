@@ -1,6 +1,6 @@
 /* Kurumlar (kurumsal müşteri hesabı, yol planı Faz 0).
 
-   Kurum: site yönetimi, AVM, GYO, depo, emlak ofisi, family office gibi kurumsal müşteri. Bir master yöneticisi
+   Kurum: site yönetimi, AVM, GYO, depo, emlak ofisi, aile ofisi gibi kurumsal müşteri. Bir master yöneticisi
    vardır; diğer yöneticilerin yetkisi kurumun rollerinden gelir. Roller ve yetkileri master düzenler.
    Yetki ve modül listeleri supabase/schema.sql (16. bölüm) ile aynıdır; sunucu her işlemi ayrıca denetler. */
 
@@ -15,7 +15,7 @@ export const SECTORS = () => [
   { key: 'gyo', label: t('GYO'), icon: 'chart' },
   { key: 'depo', label: t('Depo ve lojistik'), icon: 'box' },
   { key: 'emlak', label: t('Emlak ofisi'), icon: 'office' },
-  { key: 'family', label: t('Family office'), icon: 'safe' },
+  { key: 'family', label: t('Aile ofisi'), icon: 'safe' },
   { key: 'diger', label: t('Diğer'), icon: 'landlord' }
 ];
 export const sectorOf = (key) => SECTORS().find((s) => s.key === key) || SECTORS()[SECTORS().length - 1];

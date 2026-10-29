@@ -31,7 +31,7 @@
   "_default": "anahtar",
   "kurumsal": {
     "title": "Kurumsal paket: büyük portföyler için kira yönetimi | anahtar",
-    "desc": "Sınırsız mülk ve ekip, aylık ve yıllık rapor, kurulum ve veri taşıma. Emlak ofisi, site yönetimi, AVM, GYO, depo ve family office için teklif alın."
+    "desc": "Sınırsız mülk ve ekip, aylık ve yıllık rapor, kurulum ve veri taşıma. Emlak ofisi, site yönetimi, AVM, GYO, depo ve aile ofisi için teklif alın."
   },
   "uygulama/ayarlar": "Ayarlar | anahtar",
   "kira-artis-hesaplama": {
@@ -40,7 +40,7 @@
   },
   "cozumler": {
     "title": "Çözümler: mülk sahibi, kiracı, emlak ofisi ve kurumsal | anahtar",
-    "desc": "Tek daireden yüzlerce mülklük portföye: mülk sahibi, kiracı, emlak ofisi, site yönetimi, AVM, GYO, depo ve family office için anahtar."
+    "desc": "Tek daireden yüzlerce mülklük portföye: mülk sahibi, kiracı, emlak ofisi, site yönetimi, AVM, GYO, depo ve aile ofisi için anahtar."
   },
   "cozumler/mulk-sahibi": {
     "title": "Mülk sahibi için kira takibi | anahtar",
@@ -75,7 +75,7 @@
     "desc": "Depo kiraları, uzun vadeli sözleşmeler ve sigorta tarihleri tek yerde."
   },
   "cozumler/family-office": {
-    "title": "Family office için kira ve gider yönetimi | anahtar",
+    "title": "Aile ofisi için kira ve gider yönetimi | anahtar",
     "desc": "Aile ve şirket mülklerinin kirası, gideri ve vergisi tek yerde; düzenli rapor."
   },
   "satin-al": "Paketini seç | anahtar"

@@ -21,8 +21,8 @@ test.afterAll(() => server && server.close());
 
 const MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 const now = new Date();
-const thisMonth = MONTHS[now.getMonth()] + ' ' + now.getFullYear();
-const KEY = now.toISOString().slice(0, 7);
+const KEY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(now).slice(0, 7);   // tarayıcının (İstanbul) ayı
+const thisMonth = MONTHS[Number(KEY.slice(5, 7)) - 1] + ' ' + KEY.slice(0, 4);
 
 function seedWith(payer) {
   const db = seed();

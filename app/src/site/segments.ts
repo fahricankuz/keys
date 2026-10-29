@@ -71,7 +71,7 @@ export const segments = (): Segment[] => [
             [t('Sigorta ve belgeler'), t('Poliçe ve tutanak tarihleri farklı yerlerde.')]],
     has: [t('Depo tipi mülk ve m² bilgisi'), t('Sözleşme, sigorta ve belge hatırlatmaları'), t('Kira geçmişi ve yasal artış hesabı'), t('Kiracı şirket ve stopaj bilgisi'), t('Toplu içe aktarma')],
     custom: [t('m² başına kira ve endeksleme'), t('Döviz bazlı kira takibi'), t('Çok lokasyonlu portföy görünümü')] },
-  { slug: 'family-office', name: t('Family office'), sub: t('Kurumsal'), icon: 'safe', tone: 'sage', plan: 'kurumsal', role: 'Mülk sahibi / yatırımcı',
+  { slug: 'family-office', name: t('Aile ofisi'), sub: t('Kurumsal'), icon: 'safe', tone: 'sage', plan: 'kurumsal', role: 'Mülk sahibi / yatırımcı',
     title: [t('Aile mülklerini'), t('tek'), t('çatı altında toplayın.')],
     lead: t('Farklı kişi ve şirketler adına tutulan mülklerin kirasını, giderini ve vergisini tek yerde görün.'),
     pains: [[t('Birden çok sahip'), t('Mülkler farklı kişi ve şirketler adına kayıtlı.')],

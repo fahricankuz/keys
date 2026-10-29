@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Text as RNText, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { t } from '../domain/i18n';
+import { t, getLang } from '../domain/i18n';
 import { loadRates } from '../domain/cpi';
 import { Button, Container, PressScale, Text } from '../ui/kit';
 import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
@@ -15,9 +15,22 @@ import { BrandBand, Headline } from '../site/SegmentParts';
 const MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 const key = (y: number, m: number) => { const d = new Date(y, m, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
 const label = (k: string) => { const [y, m] = k.split('-').map(Number); return t(MONTHS[m - 1]) + ' ' + y; };
-const num = (s: string) => { const v = s.replace(/\./g, '').replace(',', '.').trim(); return v === '' ? NaN : Number(v); };
-const tl = (n: number) => '₺' + Math.round(n).toLocaleString('tr-TR');
-const pct = (n: number) => '%' + n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/* Sayı biçimi dile göre: Türkçede 10.000,50 ve %30,00; İngilizcede 10,000.50 ve 30.00%. */
+const en = () => getLang() === 'en';
+const SEP = () => (en() ? { group: ',', dec: '.', loc: 'en-US' } : { group: '.', dec: ',', loc: 'tr-TR' });
+const num = (s: string) => { const { group, dec } = SEP(); const v = s.split(group).join('').replace(dec, '.').trim(); return v === '' ? NaN : Number(v); };
+/** Tutar alanı yazarken biçimlenir: yalnız rakamlar kalır, binlik ayırıcıyla gruplanır ("10000" → "10.000"). */
+const fmtAmount = (raw: string) => raw.replace(/\D/g, '').replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, SEP().group);
+/** Oran alanı: nokta da virgül de ondalık sayılır ("33.45" ya da "33,45"), en fazla iki hane. */
+const fmtRate = (raw: string) => {
+  const [int, ...rest] = raw.replace(/[.,]/g, SEP().dec).replace(new RegExp('[^0-9\\' + SEP().dec + ']', 'g'), '').split(SEP().dec);
+  return rest.length ? int + SEP().dec + rest.join('').slice(0, 2) : int;
+};
+const numRate = (s: string) => { const v = s.replace(',', '.').trim(); return v === '' ? NaN : Number(v); };
+const tl = (n: number) => '₺' + Math.round(n).toLocaleString(SEP().loc);
+const pct = (n: number) => { const v = n.toLocaleString(SEP().loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return en() ? v + '%' : '%' + v; };
+/** Alanlar boşken hesapta kullanılan örnek değerler (alanlarda soluk yer tutucu olarak görünür). */
+const EXAMPLE_RENT = 25000, EXAMPLE_RATE = 33.45;
 
 const FAQ: [string, string][] = [
   ['Kira artış oranı nasıl hesaplanır?', 'Konut ve çatılı işyeri kiralarında yenilenen dönemdeki artış, bir önceki kira yılında TÜFE’nin 12 aylık ortalamalara göre değişim oranını geçemez (TBK 344). Yeni kira = mevcut kira × (1 + oran ÷ 100).'],
@@ -59,10 +72,13 @@ export default function KiraArtis() {
   const renewal = key(ym[0], ym[1]);
   const dataKey = key(ym[0], ym[1] - 1);                     // yenilemeden önceki ayın verisi
   const auto = rates[dataKey] ?? null;
-  const cap = !isNaN(num(manual)) ? num(manual) : auto;
-  const r = num(rent), k = num(contract);
+  // Alan boşsa yer tutucudaki örnek değerle hesaplanır; sonuç kutusu en baştan dolu görünür.
+  const sample = isNaN(num(rent)) || (isNaN(numRate(manual)) && auto == null);
+  const cap = !isNaN(numRate(manual)) ? numRate(manual) : auto ?? EXAMPLE_RATE;
+  const r = isNaN(num(rent)) ? EXAMPLE_RENT : num(rent), k = numRate(contract);
   const applied = cap == null ? null : !isNaN(k) && k < cap ? k : cap;
   const next = applied != null && r > 0 ? r * (1 + applied / 100) : null;
+  const fmtNum = (n: number) => n.toLocaleString(SEP().loc, { maximumFractionDigits: 2 });
   const shift = (d: number) => { const x = new Date(ym[0], ym[1] + d, 1); setYm([x.getFullYear(), x.getMonth()]); };
   const table = useMemo(() => Object.keys(rates).sort().reverse().slice(0, 24), [rates]);
   const year = now.getFullYear();
@@ -90,7 +106,7 @@ export default function KiraArtis() {
           <View accessibilityRole="form" aria-label={t('Kira artışı hesaplayıcı')}
             style={{ backgroundColor: c.surface, borderRadius: phone ? 26 : 34, borderWidth: 1, borderColor: c.line, padding: phone ? 20 : 30, gap: 16, boxShadow: shadows.lift } as any}>
             <View style={{ flexDirection: 'row' }}>
-              <Input label={t('Mevcut aylık kira (₺)')} value={rent} placeholder="25.000" onChange={(v) => setRent(v.replace(/[^0-9.,]/g, ''))} />
+              <Input label={t('Mevcut aylık kira (₺)')} value={rent} placeholder={fmtNum(EXAMPLE_RENT)} onChange={(v) => setRent(fmtAmount(v))} />
             </View>
             <View style={{ gap: 8 }}>
               <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{t('Kira yenileme ayı')}</Text>
@@ -104,16 +120,17 @@ export default function KiraArtis() {
               </Text>
             </View>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-              <Input label={t('TÜFE oranı (%)')} value={manual} placeholder={auto != null ? String(auto).replace('.', ',') : '33,45'} onChange={(v) => setManual(v.replace(/[^0-9.,]/g, ''))} />
-              <Input label={t('Sözleşmedeki oran (%)')} value={contract} placeholder={t('isteğe bağlı')} onChange={(v) => setContract(v.replace(/[^0-9.,]/g, ''))} />
+              <Input label={t('TÜFE oranı (%)')} value={manual} placeholder={fmtNum(auto ?? EXAMPLE_RATE)} onChange={(v) => setManual(fmtRate(v))} />
+              <Input label={t('Sözleşmedeki oran (%)')} value={contract} placeholder={t('isteğe bağlı')} onChange={(v) => setContract(fmtRate(v))} />
             </View>
             <View accessibilityLiveRegion="polite" style={{ backgroundColor: next != null ? c.lemon : c.tile, borderRadius: 22, padding: phone ? 18 : 22, gap: 4 }}>
               <Text v="small" color="#1D1A19" style={{ fontFamily: fonts.bodyBold }}>{t('Yeni kira en fazla')}</Text>
               <RNText style={{ fontFamily: fonts.siteBold, fontSize: phone ? 38 : 50, lineHeight: phone ? 42 : 54, letterSpacing: -1.5, color: next != null ? '#1D1A19' : c.muted }}>{next != null ? tl(next) : '₺—'}</RNText>
               {next != null && applied != null ? (
                 <>
-                  <Text v="small" color="#1D1A19" style={{ fontFamily: fonts.bodyBold }}>+{tl(next - r)} / {t('ay')} · +{tl((next - r) * 12)} / {t('yıl')}</Text>
+                  <Text v="small" color="#1D1A19" style={{ fontFamily: fonts.bodyBold }}>+{tl(next - r)} {t('/ ay')} · +{tl((next - r) * 12)} {t('/ yıl')}</Text>
                   <Text v="small" color="#3B2A00">{t('Uygulanan oran')}: {pct(applied)} {applied === k ? t('(sözleşmedeki oran)') : t('(yasal üst sınır)')}</Text>
+                  {sample ? <Text v="small" color="#3B2A00" style={{ opacity: 0.8 }}>{t('Örnek hesap: kendi kiranı ve oranını girince güncellenir.')}</Text> : null}
                 </>
               ) : <Text v="small" muted>{t('Kirayı ve oranı gir; sonuç burada görünür.')}</Text>}
             </View>

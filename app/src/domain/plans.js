@@ -99,7 +99,7 @@ export function tierPoints(id){
   ];
   if (id === 'bes') return pro;
   return [
-    t('Site yönetimi · AVM · GYO · Depo ve lojistik · Emlak ofisi · Family office'),   // ilk madde kartta kalın yazılır (sektörler)
+    t('Site yönetimi · AVM · GYO · Depo ve lojistik · Emlak ofisi · Aile ofisi'),   // ilk madde kartta kalın yazılır (sektörler)
     t('Portföy’deki her şey'),
     t('Sınırsız mülk ve ekip üyesi'),
     t('Aylık ve yıllık rapor e-postası'),

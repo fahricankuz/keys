@@ -15,7 +15,7 @@ import {
 } from '../domain/site';
 import { loadRates } from '../domain/cpi';
 import { terms, sectorOf } from '../domain/org';
-import { tl, monthYear, fmtFull, parse } from '../domain/util';
+import { tl, monthYear, fmtFull, parse, mkey, iso } from '../domain/util';
 import { Button, Chip, Field, Text } from '../ui/kit';
 import { Loader } from '../ui/Loader';
 import { fonts, radius, useColors } from '../ui/theme';
@@ -26,8 +26,9 @@ import { Picked } from './media';
 import { Pill } from './org';
 import { Page } from './screens';
 
-const thisMonth = () => new Date().toISOString().slice(0, 7);
-const today = () => new Date().toISOString().slice(0, 10);
+// Tarihler yerel saatle (Türkiye UTC+3; ISO dönüşümü gece yarısından sonra bir önceki güne/aya kayardı).
+const thisMonth = () => mkey(new Date());
+const today = () => iso(new Date());
 const day = (v?: string) => (v ? fmtFull(parse(String(v).slice(0, 10))) : '—');
 /** Tahakkuk durumu → ortak durum çipi (ödendi, onay bekliyor, kısmi, reddedildi, bekliyor, gecikti). */
 const stOf = (c: any) => (c.status === 'paid' ? 'approved' : c.status === 'open' ? (overdue(c) ? 'late' : 'pending') : c.status);
@@ -585,7 +586,7 @@ function Report({ d, org }: { d: any; org: string }) {
   const c = useColors();
   const [period, setPeriod] = useState<'month' | 'year'>('month');
   const [ref, setRef] = useState(thisMonth() + '-01');
-  const months = Array.from({ length: 12 }, (_, i) => { const x = new Date(); x.setDate(1); x.setMonth(x.getMonth() - i); return x.toISOString().slice(0, 7) + '-01'; });
+  const months = Array.from({ length: 12 }, (_, i) => { const x = new Date(); x.setDate(1); x.setMonth(x.getMonth() - i); return mkey(x) + '-01'; });
   const years = [0, 1, 2].map((i) => (new Date().getFullYear() - i) + '-01-01');
   const r = siteReport(d, period, ref);
   const charged = r.charges.reduce((a: number, x: any) => a + x.charged, 0);
@@ -923,7 +924,7 @@ export function residentTitle(units: any[]) {
 /** Ciro bildirimi (ciro kirası olan ticari birimde kiracı): ay ve tutar; düzeltme yeniden onaya düşer. */
 function TurnoverBox({ u }: { u: any }) {
   const c = useColors();
-  const prev = (() => { const x = new Date(); x.setDate(1); x.setMonth(x.getMonth() - 1); return x.toISOString().slice(0, 7); })();
+  const prev = (() => { const x = new Date(); x.setDate(1); x.setMonth(x.getMonth() - 1); return mkey(x); })();
   const [month, setMonth] = useState(prev);
   const [amount, setAmount] = useState('');
   const [list, setList] = useState<any[]>([]);

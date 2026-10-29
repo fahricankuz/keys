@@ -36,11 +36,13 @@ async function login(page, email) {
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
 }
-const iso = d => d.toISOString().slice(0, 10);
-const now = new Date();
-const start = iso(new Date(now.getFullYear() - 1, now.getMonth(), now.getDate() - 10, 12));   // yıldönümü 10 gün önce geçti
-const month = iso(now).slice(0, 7);
-const prev = (() => { const x = new Date(); x.setDate(1); x.setMonth(x.getMonth() - 1); return x.toISOString().slice(0, 7); })();
+const iso0 = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+/** Tarayıcı Europe/Istanbul saatinde çalışır (playwright.config); beklenen ay ve günler de o saat dilimiyle hesaplanır. */
+const istDay = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(d);
+const [Y, Mo, D] = istDay().split('-').map(Number);
+const start = iso0(new Date(Y - 1, Mo - 1, D - 10, 12));   // yıldönümü 10 gün önce geçti
+const month = istDay().slice(0, 7);
+const prev = Mo === 1 ? (Y - 1) + '-12' : Y + '-' + String(Mo - 1).padStart(2, '0');
 
 test('AVM: mağaza ve sözleşme, döviz kira tahakkuku, ciro bildirimi ve farkı, kira artışı, doluluk', async ({ page }) => {
   await login(page, 'ev@ornek.com');

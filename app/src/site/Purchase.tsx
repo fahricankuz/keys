@@ -49,8 +49,9 @@ function Option({ on, onPress, title, badge, lines }: { on: boolean; onPress: ()
   const c = useColors();
   const bg = badge?.tone === 'ok' ? c.okBg : c.warnBg, fg = badge?.tone === 'ok' ? c.okInk : c.warnInk;
   return (
-    <PressScale onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected: on, checked: on }} aria-checked={on} scaleTo={0.985} wrapStyle={{ flex: 1, minWidth: 220 }}
-      style={{ padding: 16, borderRadius: 20, borderWidth: 1.5, borderColor: on ? c.accent : c.line, backgroundColor: on ? c.rose : c.surface, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+    <PressScale onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected: on, checked: on }} aria-checked={on} scaleTo={0.985}
+      // flex dış sarmalayıcıya gider; iç kart onu doldurur, böylece aynı satırdaki kartlar eşit yükseklikte olur.
+      style={{ flex: 1, minWidth: 220, padding: 16, borderRadius: 20, borderWidth: 1.5, borderColor: on ? c.accent : c.line, backgroundColor: on ? c.rose : c.surface, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
       <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: on ? c.accent : c.muted, alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
         {on ? <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: c.accent }} /> : null}
       </View>
