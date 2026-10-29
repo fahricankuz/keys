@@ -3412,3 +3412,160 @@ returns jsonb language sql stable security definer set search_path = public as $
           from public.site_links(auth.uid()) group by unit_id) l
   join public.site_units u on u.id = l.unit_id join public.organizations o on o.id = u.org_id
 $$;
+
+-- =====================================================================
+-- 20. Kurum master yöneticisi mülk sahibidir; sözleşmedeki adede kadar mülk; anahtar ekibi müşteri adına mülk ekler
+-- Master yönetici atanınca hesap "mülk sahibi" olur (kiracı hesabıysa ve hiçbir eve kiracı olarak bağlı değilse).
+-- Mülk sayısı kurumun sözleşmesindeki adetle (organizations.units) sınırlanır; boşsa sınırsız. Master'ın eklediği mülk
+-- kuruma bağlanır. Anahtar ekibi (yönetici) sınırı aşabilir: admin_add_property sınırı aşılıp aşılmadığını bildirir.
+-- =====================================================================
+
+-- Hesap rolü yalnızca sunucu içi işlemlerle (anahtar.system bayrağı) değişir; kullanıcı kendi rolünü yine değiştiremez.
+create or replace function public.guard_profile()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is not null and coalesce(current_setting('anahtar.system', true), '') <> '1' and new.role is distinct from old.role then
+    raise exception 'Hesap rolü değiştirilemez' using errcode = '42501';
+  end if;
+  if auth.uid() is not null and not public.is_admin() and new.extra_trial_days is distinct from old.extra_trial_days then
+    raise exception 'Deneme süresi değiştirilemez' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+
+/** Kurumun master yöneticisini mülk sahibi yapar (yalnızca kiracı hesabı ve hiçbir eve kiracı olarak bağlı değilse). */
+create or replace function public.org_master_landlord(uid uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  perform set_config('anahtar.system', '1', true);
+  update public.profiles set role = 'landlord'
+   where id = uid and role = 'tenant'
+     and not exists (select 1 from public.memberships m where m.user_id = uid and m.role = 'tenant');
+  perform set_config('anahtar.system', '', true);
+end $$;
+revoke execute on function public.org_master_landlord(uuid) from public, anon, authenticated;
+
+create or replace function public.org_master_trigger()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.is_master then perform public.org_master_landlord(new.user_id); end if;
+  return null;
+end $$;
+drop trigger if exists org_master_landlord on public.org_members;
+create trigger org_master_landlord after insert or update of is_master on public.org_members
+  for each row execute function public.org_master_trigger();
+-- Mevcut master yöneticiler de mülk sahibi sayılır.
+do $$
+declare r record;
+begin
+  for r in select user_id from public.org_members where is_master loop perform public.org_master_landlord(r.user_id); end loop;
+end $$;
+
+/** Hesabın master olduğu, sözleşmesi sürüyor ve etkin kurum (yoksa boş satır). */
+create or replace function public.master_org(uid uuid)
+returns public.organizations language sql stable security definer set search_path = public as $$
+  select o.* from public.organizations o join public.org_members m on m.org_id = o.id
+   where m.user_id = uid and m.is_master and o.status = 'active' and (o.contract_until is null or o.contract_until >= current_date)
+   order by o.created_at limit 1
+$$;
+revoke execute on function public.master_org(uuid) from public, anon, authenticated;
+
+/** Erişim durumu: kurumun master yöneticisi "kurumsal" pakette sayılır ve mülk sınırı sözleşmedeki adettir. */
+create or replace function public.access_state(uid uuid)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare
+  p public.profiles;
+  s public.subscriptions;
+  o public.organizations;
+  subscribed boolean;
+  trial_end timestamptz;
+  plan text;
+begin
+  select * into p from public.profiles where id = uid;
+  if p.id is null then return jsonb_build_object('access', false); end if;
+  select * into s from public.subscriptions where user_id = uid;
+  o := public.master_org(uid);
+  subscribed := s.user_id is not null and s.active and (s.expires_at is null or s.expires_at > now());
+  trial_end := p.created_at + make_interval(days => public.trial_days() + coalesce(p.extra_trial_days, 0));
+  plan := case when o.id is not null then 'kurumsal' when subscribed then public.plan_of(s.product_id) when now() < trial_end then 'trial' else null end;
+  return jsonb_build_object(
+    'role', p.role,
+    -- Etkin bir kurumun yöneticisi kurumun sözleşmesiyle erişir (16. bölüm).
+    'access', p.role in ('tenant','team') or subscribed or now() < trial_end
+              or exists (select 1 from public.org_members m join public.organizations x on x.id = m.org_id
+                         where m.user_id = uid and x.status = 'active' and (x.contract_until is null or x.contract_until >= current_date)),
+    'subscribed', subscribed,
+    'inTrial', not subscribed and now() < trial_end,
+    'trialEnds', trial_end,
+    'trialDays', public.trial_days(),
+    'plan', plan,
+    'units', case when o.id is not null then o.units else public.plan_units(plan) end,
+    'org', o.id,
+    'expiresAt', s.expires_at,
+    'store', s.store,
+    'productId', s.product_id,
+    'willRenew', coalesce(s.will_renew, false),
+    'billingIssue', coalesce(s.billing_issue, false)
+  );
+end $$;
+
+/** Mülk sınırı: kurumun master yöneticisi için sözleşmedeki adet, diğerleri için paket. Master'ın mülkü kuruma bağlanır. */
+create or replace function public.guard_unit_limit()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare lim int; o public.organizations; n int;
+begin
+  o := public.master_org(new.owner_id);
+  if o.id is not null and new.org_id is null then new.org_id := o.id; end if;
+  if auth.uid() is null or public.is_admin() then return new; end if;
+  if o.id is not null then
+    lim := o.units;
+    if lim is not null then
+      select count(*) into n from public.properties p where p.org_id = o.id or p.owner_id = new.owner_id;
+      if n >= lim then raise exception 'Sözleşme sınırı: en fazla % mülk', lim using errcode = 'EV403'; end if;
+    end if;
+    return new;
+  end if;
+  lim := (public.access_state(new.owner_id) ->> 'units')::int;
+  if lim is not null and (select count(*) from public.properties where owner_id = new.owner_id) >= lim then
+    raise exception 'Paket sınırı: en fazla % mülk', lim using errcode = 'EV403';
+  end if;
+  return new;
+end $$;
+
+/** Anahtar ekibi: bir müşteri (mülk sahibi ya da kurum master yöneticisi) adına mülk ekler.
+    p: {name, addr?, prop_type?, area?, rent?, due_day?, aidat?, deposit?, start_date?, contract_end?}.
+    Sözleşme / paket sınırını aşabilir; dönen "over" aşıldığını bildirir (ekran uyarır). */
+create or replace function public.admin_add_property(owner_uid uuid, p jsonb)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  r text;
+  nm text := btrim(coalesce(p ->> 'name', ''));
+  pid text;
+  o public.organizations;
+  lim int;
+  n int;
+  sd date := coalesce(nullif(p ->> 'start_date', '')::date, current_date);
+begin
+  if not public.is_admin() then raise exception 'Yönetici yetkisi gerekli' using errcode = '42501'; end if;
+  select role into r from public.profiles where id = owner_uid;
+  if r is null then raise exception 'Hesap bulunamadı' using errcode = 'P0002'; end if;
+  if r <> 'landlord' then raise exception 'Bu hesap mülk sahibi hesabı değil' using errcode = '22023'; end if;
+  if length(nm) < 2 then raise exception 'Mülk adını yaz' using errcode = '22023'; end if;
+  insert into public.properties (owner_id, name, addr, prop_type, area, rent, due_day, aidat, deposit, start_date, contract_end)
+  values (owner_uid, nm, left(coalesce(p ->> 'addr', ''), 300), coalesce(nullif(p ->> 'prop_type', ''), 'Konut'),
+          nullif(p ->> 'area', '')::numeric, coalesce(nullif(p ->> 'rent', '')::numeric, 0), coalesce(nullif(p ->> 'due_day', '')::int, 1),
+          coalesce(nullif(p ->> 'aidat', '')::numeric, 0), coalesce(nullif(p ->> 'deposit', '')::numeric, 0), sd,
+          coalesce(nullif(p ->> 'contract_end', '')::date, (sd + interval '1 year')::date))
+  returning id into pid;
+  o := public.master_org(owner_uid);
+  if o.id is not null then
+    lim := o.units;
+    select count(*) into n from public.properties x where x.org_id = o.id or x.owner_id = owner_uid;
+  else
+    lim := (public.access_state(owner_uid) ->> 'units')::int;
+    select count(*) into n from public.properties x where x.owner_id = owner_uid;
+  end if;
+  perform public.audit('property.add', pid, jsonb_build_object('owner', owner_uid, 'name', nm));
+  return jsonb_build_object('id', pid, 'count', n, 'limit', lim, 'over', lim is not null and n > lim);
+end $$;
+grant execute on function public.admin_add_property(uuid, jsonb) to authenticated;

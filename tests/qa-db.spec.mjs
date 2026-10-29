@@ -44,7 +44,7 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
     // accept_org_invite → kodu bilen (süre ve tek kullanım denetimiyle).
     // Site: accept_site_invite → kodu bilen (tek kullanım); site_role, is_site_resident, my_site_units, site_folder_ok → yalnız çağıranı sorar;
     // link_site_unit → mülk sahibi ve dairenin maliki; site_linked_tenants → kurum üyesi; site_report → Raporlar yetkisi.
-    'accept_invite', 'accept_org_invite', 'accept_site_invite', 'activity_feed', 'admin_audit_log', 'admin_delete_message', 'admin_extend_trial', 'admin_kpis', 'admin_messages',
+    'accept_invite', 'accept_org_invite', 'accept_site_invite', 'activity_feed', 'admin_add_property', 'admin_audit_log', 'admin_delete_message', 'admin_extend_trial', 'admin_kpis', 'admin_messages',
     'admin_org_save', 'admin_org_set_master', 'admin_orgs',
     'admin_set_ban', 'admin_set_cpi', 'admin_set_plan', 'admin_subscriptions', 'admin_threads', 'admin_users',
     'delete_my_account', 'file_review_ok', 'has_access', 'import_properties', 'invite_preview', 'is_admin', 'is_banned', 'is_member',

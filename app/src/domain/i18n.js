@@ -18,8 +18,8 @@ let EN = null;
 let loading = null;
 export function loadEn(){
   if (EN) return Promise.resolve();
-  loading = loading || Promise.all([import('./en.js'), import('./en-extra.js')])
-    .then(([a, b]) => { EN = Object.assign({}, b.EN_EXTRA, a.EN); });
+  loading = loading || Promise.all([import('./en.js'), import('./en-extra.js'), import('./en-mulk.js')])
+    .then(([a, b, m]) => { EN = Object.assign({}, b.EN_EXTRA, m.EN_MULK, a.EN); });
   return loading;
 }
 

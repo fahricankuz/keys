@@ -12,6 +12,7 @@ import { Loader } from '../ui/Loader';
 import { fonts, radius, useColors } from '../ui/theme';
 import { Card, Empty, H2, Muted, Row, Seg, Stack } from './blocks';
 import { OrgManage, Pill } from './org';
+import { AddProperty } from './admin-property';
 
 export type OrgDraft = { name?: string; sector?: string; units?: number | null; lead_id?: string; email?: string; note?: string };
 
@@ -126,8 +127,9 @@ function InviteCode({ code, org }: { code: string; org: string }) {
 
 function OrgCard({ o, reload }: { o: any; reload: () => void }) {
   const c = useColors();
-  const [mode, setMode] = useState<'' | 'edit' | 'master' | 'manage'>('');
+  const [mode, setMode] = useState<'' | 'edit' | 'master' | 'manage' | 'property'>('');
   const [err, setErr] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const sec = sectorOf(o.sector);
   const toggleStatus = async () => {
     setErr(null);
@@ -146,16 +148,20 @@ function OrgCard({ o, reload }: { o: any; reload: () => void }) {
           <Chip tone={o.status === 'active' ? 'ok' : 'bad'} label={o.status === 'active' ? t('Etkin') : t('Askıda')} />
         </Row>
       </Row>
-      <Muted>{[t('{n} yönetici', { n: o.members }), o.units ? t('{n} birim (sözleşme)', { n: o.units }) : '', o.contract_until ? t('Sözleşme bitişi {d}', { d: day(o.contract_until) }) : '',
+      <Muted>{[t('{n} yönetici', { n: o.members }), o.units ? t('{n} birim (sözleşme)', { n: o.units }) : '', t('{n} mülk ekli', { n: o.unit_count || 0 }), o.contract_until ? t('Sözleşme bitişi {d}', { d: day(o.contract_until) }) : '',
         (o.modules || []).length + ' ' + t('modül')].filter(Boolean).join(' · ')}</Muted>
       {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
+      {info ? <Text v="small" color={c.okInk}>{info}</Text> : null}
       <Row wrap>
+        {o.master ? <Button kind={mode === 'property' ? 'primary' : 'ghost'} title={t('Mülk ekle')} onPress={() => { setInfo(null); setMode(mode === 'property' ? '' : 'property'); }} /> : null}
         <Button kind={mode === 'manage' ? 'primary' : 'ghost'} title={t('Yöneticiler ve roller')} onPress={() => setMode(mode === 'manage' ? '' : 'manage')} />
         <Button kind={mode === 'master' ? 'primary' : 'ghost'} title={t('Master belirle')} onPress={() => setMode(mode === 'master' ? '' : 'master')} />
         <Button kind="ghost" title={t('Düzenle')} onPress={() => setMode('edit')} />
         <Button kind="quiet" title={o.status === 'active' ? t('Askıya al') : t('Etkinleştir')} onPress={toggleStatus} />
       </Row>
       {mode === 'master' ? <MasterForm org={o} done={reload} /> : null}
+      {mode === 'property' && o.master ? <AddProperty owner={{ id: o.master.id, name: o.master.name || o.name }} count={o.unit_count || 0} limit={o.units}
+        done={(m) => { setMode(''); if (m) { setInfo(m); reload(); } }} /> : null}
       {mode === 'manage' ? <OrgManage oid={o.id} power={{ master: true, members: true, admin: true }} /> : null}
     </Card>
   );
