@@ -1,4 +1,4 @@
-// Yüklenen görseller depolama maliyeti için küçültülür: fotoğraflar 1280 px, dekont/fatura/belge görselleri 1800 px (uzun kenar);
+// Yüklenen görseller depolama maliyeti için küçültülür: tüm görseller (fotoğraf, dekont, fatura, belge) uzun kenarı 1280 px (WebP 0,75);
 // küçük görseller büyütülmez. Dosya WebP/JPEG olarak, orijinalden çok daha küçük yüklenir. PDF'ler 10 MB ile sınırlıdır.
 import { test, expect } from '@playwright/test';
 import { deflateSync } from 'node:zlib';
@@ -56,7 +56,7 @@ async function sent(page) {
   return o;
 }
 
-test('dekont görseli uzun kenarı 1800 px\'e küçültülür, WebP/JPEG olarak ve çok daha küçük yüklenir', async ({ page }) => {
+test('dekont görseli uzun kenarı 1280 px\'e küçültülür, WebP/JPEG olarak ve çok daha küçük yüklenir', async ({ page }) => {
   await tenant(page);
   const big = png(3000, 2200);
   await page.getByRole('button', { name: 'Dekont yükle' }).first().click();
@@ -67,13 +67,13 @@ test('dekont görseli uzun kenarı 1800 px\'e küçültülür, WebP/JPEG olarak 
   await page.getByRole('button', { name: 'Gönder' }).click();
   const o = await sent(page);
   expect(o.type).toMatch(/^image\/(webp|jpeg)$/);
-  expect(Math.max(o.w, o.h)).toBe(1800);
+  expect(Math.max(o.w, o.h)).toBe(1280);
   expect(o.w).toBeGreaterThan(o.h);                               // yatay oran korunur
   expect(Math.abs(o.w / o.h - 3000 / 2200)).toBeLessThan(0.01);
-  expect(o.size).toBeLessThan(500 * 1024);                        // 3000×2200 görselin ham hali ≈ 20 MB
+  expect(o.size).toBeLessThan(300 * 1024);                        // 3000×2200 görselin ham hali ≈ 20 MB
 });
 
-test('dikey belge görselinde de uzun kenar (yükseklik) 1800 px olur', async ({ page }) => {
+test('dikey belge görselinde de uzun kenar (yükseklik) 1280 px olur', async ({ page }) => {
   await tenant(page);
   await page.getByRole('button', { name: 'Dekont yükle' }).first().click();
   const chooser = page.waitForEvent('filechooser');
@@ -82,7 +82,7 @@ test('dikey belge görselinde de uzun kenar (yükseklik) 1800 px olur', async ({
   await expect(page.getByText('dikey.png')).toBeVisible();
   await page.getByRole('button', { name: 'Gönder' }).click();
   const o = await sent(page);
-  expect(o.h).toBe(1800);
+  expect(o.h).toBe(1280);
   expect(o.w).toBeLessThan(o.h);
 });
 

@@ -12,11 +12,11 @@ export const MAX_FILE = 10 * 1024 * 1024;
 
 export type Picked = { name: string; dataUrl: string | null; isImage: boolean; uri?: string; mime?: string; size?: number };
 
-/** Küçültme ayarı: uzun kenar (px) ve kalite. Fotoğraf ve mesaj görselleri küçük kalabilir; dekont, fatura ve belgelerde
-    küçük yazılar (tutarlar, tarihler, maddeler) okunsun diye daha yüksek çözünürlük ve kalite kullanılır. */
+/** Küçültme ayarı (tüm görseller): uzun kenar 1280 px, WebP kalite 0,75 (JPEG yedeği 0,70). Tipik bir telefon fotoğrafı
+    ≈ 2 MB'tan ≈ 55 KB'a iner; dekont ve belgelerdeki yazılar okunur kalır. */
 type Preset = { max: number; webp: number; jpeg: number };
 const PHOTO: Preset = { max: 1280, webp: 0.75, jpeg: 0.7 };
-const DOC: Preset = { max: 1800, webp: 0.82, jpeg: 0.78 };
+const DOC: Preset = PHOTO;
 
 /** Görselin boyutu (px); okunamazsa null. */
 function dimsOf(uri: string, w?: number, h?: number): Promise<[number, number] | null> {
