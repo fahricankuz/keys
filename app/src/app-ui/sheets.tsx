@@ -14,7 +14,7 @@ import { t, LANGS, getLang } from '../domain/i18n';
 import { CONFIG, LIVE } from '../domain/config';
 import { inviteLink, mediaSrc } from '../domain/backend';
 import { act, submit } from '../domain/services';
-import { access, trialDaysLeft, tiers, planLabel, unitsText, priceText, unitLimit, roomFor, paused } from '../domain/billing';
+import { access, trialDaysLeft, planLabel, unitsText, unitLimit, hasFeature, maxUnits, ownedCount, roomFor, paused } from '../domain/billing';
 import { can, isTeam, memberRole, roleLabel } from '../domain/team';
 import { TeamInviteSheet, TeamShareSheet, TeamMemberSheet } from './team';
 import { toApp } from '../domain/nav';
@@ -227,7 +227,15 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
           <Card gap={4}>
             <OnOff label={t('Telefon ve tarayıcı bildirimi')} k="push" />
             <OnOff label={t('E-posta')} k="email" />
-            <OnOff label={t('SMS (kira, aidat, sözleşme ve sigorta hatırlatmaları)')} k="sms" />
+            {hasFeature('sms')
+              ? <OnOff label={t('SMS (kira, aidat, sözleşme ve sigorta hatırlatmaları)')} k="sms" />
+              : (
+                <PressScale onPress={() => { host.closeSheet(); host.go('/satin-al?plan=bes'); }} accessibilityRole="link" accessibilityLabel={t('SMS hatırlatmaları Portföy paketinde. Portföy’e geç.')} scaleTo={0.99}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 6 }}>
+                  <Text v="small" muted style={{ flex: 1, fontFamily: fonts.bodyBold }}>{t('SMS (kira, aidat, sözleşme ve sigorta hatırlatmaları)')}</Text>
+                  <Chip tone="accent" label={t('Portföy’e özel')} />
+                </PressScale>
+              )}
           </Card>
           {!user?.phone ? <Muted>{t('SMS için Hesap sekmesinden telefon numaranı ekle.')}</Muted> : null}
           {myOrgs().some((o: any) => PORTFOLIO_SECTORS.includes(o.sector) && (o.perms || []).includes('reports.view')) ? (
@@ -770,29 +778,13 @@ function RefundSheet({ pid, close }: { pid?: string; close: () => void }) {
 
 /* ---------------- abonelik ---------------- */
 
-/** Paket listesi: mülk sınırı ve fiyat; mevcut ve önerilen paket işaretlenir. */
-function TierPicker({ current, suggest, onPick }: { current?: string; suggest?: string; onPick: (id: string) => void }) {
-  const c = useColors();
-  return (
-    <Stack gap={8}>
-      {tiers().map((tr: any) => {
-        const mine = current === tr.id, rec = suggest === tr.id;
-        return (
-          <PressScale key={tr.id} onPress={() => onPick(tr.id)} accessibilityRole="button" accessibilityLabel={planLabel(tr.id)} scaleTo={0.99}
-            style={{ padding: 16, borderRadius: radius.lg, borderWidth: 1.5, borderColor: rec ? c.accent : c.line, backgroundColor: rec ? c.accentSoft : c.surface, gap: 4 }}>
-            <Row between><Text v="h3">{planLabel(tr.id)}</Text>{mine ? <Chip tone="ok" label={t('Paketin')} /> : rec ? <Chip tone="accent" label={t('Önerilen')} /> : null}</Row>
-            <Row between><Muted>{unitsText(tr.units)}</Muted><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{priceText(tr)}{tr.price != null ? ' ' + t('/ ay') : ''}</Text></Row>
-          </PressScale>
-        );
-      })}
-    </Stack>
-  );
-}
-
-/** Kurumsal için iletişim formu açılır; diğer paketler satın almaya gider. */
-function pickTier(id: string, units: number | null, open: (n: string, p?: any) => void) {
+/** Kurumsal için iletişim formu açılır; Başlangıç ve Portföy satın alma sayfasına (paket, dönem ve mülk adedi seçimi) gider. */
+function pickTier(id: string, units: number | null, open: (n: string, p?: any) => void, yearly = false) {
   if (id === 'kurumsal') open('kurumsal-basvuru');
-  else act('buy', { tier: id });
+  else {
+    host.closeSheet();
+    host.go('/satin-al?plan=' + id + '&donem=' + (yearly ? 'yillik' : 'aylik') + (units ? '&adet=' + Math.min(units, maxUnits()) : ''));
+  }
 }
 
 /** Paketler: ana sayfadaki fiyat kartlarının aynısı; aylık / yıllık seçimi, mevcut paket işaretli. */
@@ -808,14 +800,18 @@ function SubscriptionSheet() {
   const days = trialDaysLeft(a);
   const total = a.trialDays || 30;
   const status = a.subscribed
-    ? { title: t('{plan} paketi', { plan: planLabel(a.plan || a.productId) }), body: unitsText(limit) + (a.expiresAt ? ' · ' + t('{date} tarihinde yenilenir', { date: fmtFull(new Date(a.expiresAt)) }) : ''), chip: <Chip tone="ok" label={t('Aktif')} />, pct: null as number | null }
+    ? a.trialPeriod
+      ? { title: t('Ücretsiz ay · {plan} paketi', { plan: planLabel(a.plan || a.productId) }), body: unitsText(limit) + (a.expiresAt ? ' · ' + t('{date} tarihinde ilk ödemen alınır; iptal etmezsen abonelik başlar', { date: fmtFull(new Date(a.expiresAt)) }) : ''), chip: <Chip tone="ok" label={t('Aktif')} />, pct: null as number | null }
+      : { title: t('{plan} paketi', { plan: planLabel(a.plan || a.productId) }), body: unitsText(limit) + (a.expiresAt ? ' · ' + t('{date} tarihinde yenilenir', { date: fmtFull(new Date(a.expiresAt)) }) : ''), chip: <Chip tone="ok" label={t('Aktif')} />, pct: null as number | null }
+    : a.cardTrial && !a.inTrial
+      ? { title: t('Ücretsiz ayını başlat'), body: t('Kart bilgin ya da App Store / Google Play hesabınla abone ol; ilk ay ücretsiz. Başlayana kadar kayıtların salt okunurdur.'), chip: <Chip tone="warn" label={t('Abonelik gerekli')} />, pct: 0 }
     : a.inTrial
       ? { title: t('Ücretsiz deneme · {n} gün kaldı', { n: days }), body: t('Denemede {units} mülke kadar ekleyebilirsin. Deneme bitince kayıtların silinmez; abone olana kadar salt okunur olur.', { units: limit ?? CONFIG.billing.trialUnits ?? 5 }), chip: <Chip tone="warn" label={t('Deneme')} />, pct: Math.max(0, Math.min(100, (days / total) * 100)) }
       : { title: t('Deneme süren bitti'), body: t('Kayıtların duruyor; okuyabilir ve mesajlaşabilirsin. Değiştirmek için abone ol.'), chip: <Chip tone="bad" label={t('Salt okunur')} />, pct: 0 };
   const cta = (id: string) => mine === id
     ? { title: t('Mevcut paketin'), onPress: () => {}, disabled: true }
     : id === 'kurumsal' ? { title: t('Bize ulaşın'), onPress: () => pickTier(id, null, open) }
-    : { title: t('Paketi seç'), onPress: () => pickTier(id, null, open) };
+    : { title: t('Paketi seç'), onPress: () => pickTier(id, Math.max(1, ownedCount()), open, yearly) };
   return (
     <Stack gap={16}>
       <View style={{ gap: 4 }}>
@@ -881,22 +877,23 @@ function EnterpriseSheet({ close }: { close: () => void }) {
   );
 }
 
-/** Paket sınırına gelince: yükseltme önerisi. */
+/** Mülk sınırına gelince: satın alınan adet doluysa adedi artırma, 9'u aşıyorsa Kurumsal önerisi. */
 function UpgradeSheet({ need, suggest }: { need?: number; suggest?: string }) {
   const { open } = useSheet();
   const a: any = access();
   const limit = unitLimit(a);
+  const plan = a.subscribed && (a.plan === 'tek' || a.plan === 'bes') ? a.plan : 'tek';
+  const corp = suggest === 'kurumsal';
   return (
     <Stack>
-      <Title>{t('Paketini yükselt')}</Title>
+      <Title>{corp ? t('10 ve üstü mülk için Kurumsal') : t('Mülk adedini artır')}</Title>
       <Note warn>
-        {a.inTrial ? t('Deneme süresinde en fazla {n} mülk ekleyebilirsin.', { n: limit }) : t('{plan} paketin en fazla {n} mülk içerir.', { plan: planLabel(a.plan), n: limit })}{' '}
-        {suggest === 'kurumsal' ? t('Daha fazla mülk için Kurumsal paketi öneriyoruz.') : t('Daha fazla mülk için paketini yükselt.')}
+        {a.inTrial ? t('Deneme süresinde en fazla {n} mülk ekleyebilirsin.', { n: limit }) : t('{plan} paketin en fazla {n} mülk içeriyor.', { plan: planLabel(a.plan), n: limit })}{' '}
+        {corp ? t('Başlangıç ve Portföy en fazla {n} mülk içindir; daha fazlası için Kurumsal paketle iletişime geç.', { n: maxUnits() }) : t('Mülk sayını artırarak devam edebilirsin; fiyat mülk başınadır.')}
       </Note>
-      <TierPicker current={a.subscribed ? a.plan : undefined} suggest={suggest} onPick={(id) => pickTier(id, need ?? null, open)} />
-      {suggest === 'kurumsal'
+      {corp
         ? <Button block title={t('Kurumsal için bize ulaş')} onPress={() => open('kurumsal-basvuru')} />
-        : <Button block title={t('Paketi yükselt')} onPress={() => act('buy', { tier: suggest })} />}
+        : <Button block title={t('Mülk adedini {n} yap', { n: need ?? (limit ?? 0) + 1 })} onPress={() => pickTier(plan, need ?? (limit ?? 0) + 1, open)} />}
     </Stack>
   );
 }

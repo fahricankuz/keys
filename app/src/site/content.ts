@@ -1,5 +1,6 @@
 import { t } from '../domain/i18n';
-import { tiers, planLabel, priceText, monthlyEquivalent, unitsText, tierPoints } from '../domain/plans';
+import { tiers, planLabel, priceText, monthlyEquivalent, rangeText, tierPoints } from '../domain/plans';
+import { CONFIG } from '../domain/config';
 
 /** Tanıtım metinleri: yalnızca uygulamada bulunan özellikler (README → "Ne yapabiliyor"). */
 
@@ -73,18 +74,24 @@ export const plans = (yearly = false) => tiers().map((x: any) => ({
   id: x.id,
   name: planLabel(x.id),
   price: priceText(x, yearly),
-  per: x.price != null ? (yearly ? t('/ yıl') : t('/ ay')) : '',
+  per: x.price != null ? (yearly ? t('/ mülk / yıl') : t('/ mülk / ay')) : '',
   monthlyEq: yearly ? monthlyEquivalent(x) : '',
-  units: unitsText(x.units),
+  units: rangeText(x),
   points: tierPoints(x.id),
-  best: x.id === 'bes'
+  best: x.id === 'bes',
+  corp: x.id === 'kurumsal',
+  vat: x.price != null,
+  sub: x.id === 'kurumsal' ? t('Mülk sayına ve sektörüne göre') : undefined
 }));
 
 export const faq = () => [
   { q: t('Anahtar nedir?'), a: t('Kiracı ve mülk sahibinin aynı veriye iki taraftan baktığı bir kira yönetimi uygulamasıdır: kira ödemeleri, talepler, belgeler, giriş ve çıkış tutanağı, depozito iadesi, giderler ve sözleşme yenileme tek akışta.') },
   { q: t('Kiracı için ücretli mi?'), a: t('Hayır. Kiracı hesabı her zaman ücretsizdir; dekont yükleyebilir, talep açabilir, mesajlaşabilir ve belgelerine bakabilirsin.') },
-  { q: t('Ücretsiz deneme nasıl işliyor?'), a: t('Her paket 1 ay ücretsiz denemeyle başlar; deneme süresince 5 mülke kadar ekleyebilir, bütün özellikleri kullanabilirsin. Süre bitince kayıtların silinmez, salt okunur olur; okuma ve mesajlaşma açık kalır, kiracının işleri etkilenmez.') },
-  { q: t('Paketler arasındaki fark ne?'), a: t('Başlangıç tek mülk içindir ve ödeme, talep, belge ve hatırlatmaları kapsar. Portföy 5 mülke kadar çıkar; ekip üyeleri, Excel ile toplu aktarma, yıllık rapor ve vergi tahmini ekler. Kurumsal sınırsız mülk, aylık ve yıllık rapor e-postası, öncelikli destek ve kurulum yardımı içerir.') },
+  { q: t('Fiyat nasıl hesaplanıyor?'), a: t('Fiyat mülk başınadır ve KDV dahildir: Başlangıç mülk başına ayda ₺99,99, Portföy ₺199,99. 3 mülkün varsa Başlangıç ayda ₺299,97, Portföy ₺599,97 eder. Yıllık ödemede 2 ay ücretsizdir. 1-9 mülk için bu iki paketten birini seçersin; 10 ve üstü mülk için Kurumsal paketle iletişime geçersin.') },
+  { q: t('Ücretsiz deneme nasıl işliyor?'), a: CONFIG.billing.cardTrial
+    ? t('Her paket 1 ay ücretsiz başlar. Başlamak için kart bilgin ya da App Store / Google Play hesabın gerekir. 1 ayın sonunda iptal etmezsen seçtiğin dönem (aylık ya da yıllık) otomatik başlar ve kartından çekilir; çekimden 1 gün önce e-posta ve bildirimle hatırlatırız. İptal edersen ücret alınmaz, kayıtların silinmez, salt okunur olur.')
+    : t('Her paket 1 ay ücretsiz denemeyle başlar; deneme süresince bütün özellikleri kullanabilirsin. Süre bitince kayıtların silinmez, salt okunur olur; okuma ve mesajlaşma açık kalır, kiracının işleri etkilenmez.') },
+  { q: t('Paketler arasındaki fark ne?'), a: t('Başlangıç ödeme, talep, belge, tutanak, sözleşme yenileme, hatırlatmalar ve gider kayıtlarını kapsar. Portföy bunlara ekip üyeleri, Excel ile toplu aktarma, net getiri ve yıllık rapor, vergi tahmini ve SMS hatırlatmalarını ekler. İkisi de 1-9 mülk içindir. Kurumsal 10 ve üstü mülk, kurum hesabı ve roller, site yönetimi, ticari portföy modülleri, rapor e-postası ve öncelikli destek içindir; fiyatı bizimle görüşerek belirlenir.') },
   { q: t('Davet kodum yok, ne yapmalıyım?'), a: t('Kayıt olurken kodu boş bırakabilirsin. Hesabını açtıktan sonra ev sahibinden kodu isteyip panelden girersin; ev sahibin henüz anahtar kullanmıyorsa uygulamadan ona WhatsApp ile öneri gönderebilirsin.') },
   { q: t('Yüklediğim dekont ve belgeleri kim görür?'), a: t('Yüklenen dekont, belge ve faturalar anahtar ekibince kontrol edilir; onaylanınca yalnızca o evin kiracısı ve mülk sahibine görünür. Reddedilirse gerekçesiyle haber alırsın.') },
   { q: t('Hangi mülk tiplerini destekliyor?'), a: t('Konut, ofis, mağaza ve depo. Tutanak alanları, talep önerileri ve belge kategorileri mülk tipine göre gelir.') },

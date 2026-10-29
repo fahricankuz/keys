@@ -17,7 +17,7 @@ export const segments = (): Segment[] => [
             [t('Unutulan tarihler'), t('Sözleşme yenileme, kira artışı ve DASK tarihleri gözden kaçıyor.')],
             [t('Dağınık yazışmalar'), t('Arıza fotoğrafları ve belgeler WhatsApp’ta kayboluyor.')]],
     has: [t('Ödeme ve dekont takibi, kısmi ödeme'), t('Arıza ve tadilat talepleri, mesajlaşma'), t('Belge arşivi, giriş ve çıkış tutanağı'), t('Kira, DASK ve sözleşme hatırlatmaları'), t('Yasal kira artışı hesabı')] },
-  { slug: 'portfoy', name: t('Mülk sahibi'), sub: t('5 mülke kadar'), icon: 'grid', tone: 'butter', plan: 'bes',
+  { slug: 'portfoy', name: t('Mülk sahibi'), sub: t('1-9 mülk'), icon: 'grid', tone: 'butter', plan: 'bes',
     title: [t('Birden fazla mülkü'), t('tek'), t('ekrandan yönet.')],
     lead: t('Tüm mülklerin tahsilatı, gideri ve net getirisi bir arada. Emlakçını ve muhasebecini ekibine kat.'),
     pains: [[t('Excel karmaşası'), t('Her mülk için ayrı tablo, ayrı hesap.')],

@@ -9,7 +9,7 @@ import { Icon } from '../app-ui/blocks';
 
 const BALANCE: any = Platform.OS === 'web' ? { textWrap: 'balance' } : null;
 
-export type Plan = { id: string; name: string; price: string; per: string; monthlyEq: string; units: string; points: string[]; best: boolean };
+export type Plan = { id: string; name: string; price: string; per: string; monthlyEq: string; units: string; points: string[]; best: boolean; corp?: boolean; sub?: string; vat?: boolean };
 
 export function PlanCard({ p, cta, badge, eqLine, side, compact }: {
   p: Plan; cta: { title: string; onPress: () => void; disabled?: boolean };
@@ -43,7 +43,8 @@ export function PlanCard({ p, cta, badge, eqLine, side, compact }: {
           <RNText style={{ fontFamily: fonts.siteBold, fontSize: priceSize, lineHeight: Math.round(priceSize * 1.08), letterSpacing: -priceSize * 0.02, color: ink, ...BALANCE }}>{p.price}</RNText>
           {p.per ? <Text v="small" color={soft}>{p.per}</Text> : null}
         </View>
-        {p.monthlyEq || eqLine ? <Text v="small" color={soft}>{p.monthlyEq ? t('aylık {price}’ye denk gelir', { price: p.monthlyEq }) : ' '}</Text> : null}
+        {p.monthlyEq || eqLine ? <Text v="small" color={soft}>{p.monthlyEq ? t('mülk başına aylık {price}’ye denk gelir', { price: p.monthlyEq }) : ' '}</Text> : null}
+        {p.vat ? <Text v="small" color={soft} style={{ fontSize: 12.5 }}>{t('KDV dahil')}</Text> : p.sub ? <Text v="small" color={soft}>{p.sub}</Text> : null}
       </View>
       <Text v="small" color={dark ? c.lemon : c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('1 ay ücretsiz deneme')}</Text>
       <View>
@@ -51,7 +52,7 @@ export function PlanCard({ p, cta, badge, eqLine, side, compact }: {
           <View key={x} style={{ flexDirection: 'row', gap: 10, alignItems: 'center', minHeight: small ? 0 : 46, paddingVertical: small ? 8 : 6,
             borderTopWidth: 1, borderTopColor: rule, borderBottomWidth: k === p.points.length - 1 ? 1 : 0, borderBottomColor: rule }}>
             <Icon name="check" size={16} color={dark ? c.lemon : c.okInk} />
-            <Text v="small" color={ink} style={{ flex: 1, fontSize: 14, lineHeight: 20, opacity: dark ? 0.9 : 1 }}>{x}</Text>
+            <Text v="small" color={ink} style={{ flex: 1, fontSize: 14, lineHeight: 20, opacity: dark ? 0.9 : 1, ...(p.corp && k === 0 ? { fontFamily: fonts.bodyXBold, opacity: 1 } : {}) }}>{x}</Text>
           </View>
         ))}
       </View>

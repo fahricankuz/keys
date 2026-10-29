@@ -120,8 +120,8 @@ export function ImportScreen() {
           ) : null}
           {bad.length || tooMany || room.ok ? null : (
             <>
-              <Note warn>{t('Bu dosyayla {n} mülkün olacak; paketin {limit} mülke kadar.', { n: room.have + adding, limit: room.limit })} {room.suggest === 'kurumsal' ? t('Daha fazla mülk için Kurumsal paketi öneriyoruz.') : t('Daha fazla mülk için paketini yükselt.')}</Note>
-              <Button block title={t('Paketini yükselt')} onPress={() => open('paket', { need: room.have + adding, suggest: room.suggest })} />
+              <Note warn>{t('Bu dosyayla {n} mülkün olacak; paketin {limit} mülke kadar.', { n: room.have + adding, limit: room.limit })} {room.suggest === 'kurumsal' ? t('Daha fazla mülk için Kurumsal paketi öneriyoruz.') : t('Mülk sayını artırarak devam edebilirsin.')}</Note>
+              <Button block title={room.suggest === 'kurumsal' ? t('Kurumsal için bize ulaş') : t('Mülk adedini artır')} onPress={() => open('paket', { need: room.have + adding, suggest: room.suggest })} />
             </>
           )}
           {items.length ? (

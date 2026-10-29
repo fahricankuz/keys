@@ -267,9 +267,9 @@ test('ana sayfa: duyuru şeridi, açılır özellik menüsü, yüzen kartlar, fi
   await page.keyboard.press('Escape');
   await expect(goTo('Ödemeler')).toHaveCount(0);
   // Fiyatlar: aylık / yıllık seçimi fiyatı değiştirir; paket düğmesi "Paketi seç".
-  await expect(page.getByText('₺249,99').first()).toBeVisible();
+  await expect(page.getByText('₺99,99').first()).toBeVisible();
   await page.getByRole('tab', { name: /Yıllık/ }).click();
-  await expect(page.getByText('₺2.499,90').first()).toBeVisible();
+  await expect(page.getByText('₺999,90').first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Paketi seç' }).first()).toBeVisible();
   // SSS: soru basınca açılır, yeniden basınca kapanır.
   const q = page.getByRole('button', { name: 'Kiracı için ücretli mi?' });
@@ -474,12 +474,12 @@ test('İngilizce: üst menüden dil değişir; fiyatlar dolar; site, uygulama ve
   await expect(page.getByLabel('Türkçe', { exact: true })).toBeVisible();
   await page.getByLabel('English', { exact: true }).click();
   await expect(page.getByText('to renting.').first()).toBeVisible();
-  await expect(page.getByText('$4.99').first()).toBeVisible();
-  await expect(page.getByText('$19.99').first()).toBeVisible();
+  await expect(page.getByText('$2.00').first()).toBeVisible();
+  await expect(page.getByText('$4.00').first()).toBeVisible();
   await page.getByRole('tab', { name: /Yearly/ }).click();
-  await expect(page.getByText('$49.90').first()).toBeVisible();
-  await expect(page.getByText('$199.90').first()).toBeVisible();
-  await expect(page.getByText('₺249,99')).toHaveCount(0);
+  await expect(page.getByText('$20.00').first()).toBeVisible();
+  await expect(page.getByText('$40.00').first()).toBeVisible();
+  await expect(page.getByText('₺99,99')).toHaveCount(0);
   // Ekranlar İngilizce gezilir; sözlükte karşılığı olmayan metin toplanır.
   const missing = new Set();
   const sweep = async () => { await page.waitForTimeout(800); (await page.evaluate(() => [...(globalThis.__i18nMissing || [])])).forEach((x) => missing.add(x)); };

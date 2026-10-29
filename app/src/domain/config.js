@@ -17,14 +17,19 @@ export const CONFIG = {
   billing: {
     /** Fiyatlar tanımlanana kadar satın alma kapalıdır; herkes deneme ya da yöneticinin verdiği paketle kullanır. */
     paused: true,
-    /** Mülk sahibi paketleri: mülk sınırı (units; null = sınırsız), aylık fiyat (null = teklif) ve yıllık fiyat
-        (aylığın 10 katı: 2 ay bedava). İngilizce sitede dolar fiyatları (usd, usdYearly) gösterilir.
-        Her paket 1 ay ücretsiz denemeyle başlar. */
+    /** Mülk sahibi paketleri: fiyat MÜLK BAŞINA ve KDV dahildir (aylık ve yıllık; yıllık = aylığın 10 katı, 2 ay bedava).
+        Başlangıç ve Portföy 1–9 mülk içindir (units = en çok satın alınabilecek mülk, maxUnits); 10 ve üstü Kurumsal (teklif).
+        İngilizce sitede dolar fiyatları (usd, usdYearly) gösterilir. Her paket 1 ay ücretsiz denemeyle başlar. */
     tiers: [
-      { id:'tek', units:1, price:249.99, yearly:2499.90, usd:4.99, usdYearly:49.90 },
-      { id:'bes', units:5, price:999.99, yearly:9999.90, usd:19.99, usdYearly:199.90 },
-      { id:'kurumsal', units:null, price:null, yearly:null, usd:null, usdYearly:null }
+      { id:'tek', units:9, price:99.99, yearly:999.90, usd:2.00, usdYearly:20.00 },
+      { id:'bes', units:9, price:199.99, yearly:1999.90, usd:4.00, usdYearly:40.00 },
+      { id:'kurumsal', units:null, minUnits:10, price:null, yearly:null, usd:null, usdYearly:null }
     ],
+    /** Kendi kendine satın alınabilecek en çok mülk; üstü Kurumsal. */
+    maxUnits: 9,
+    /** Kartsız deneme kapatıldığında (sunucuda anahtar.card_trial) deneme yalnızca mağaza / ödeme aboneliğinin
+        ücretsiz ayıdır; uygulama metinleri buna göre değişir. Ödeme açılana kadar false kalır. */
+    cardTrial: false,
     /** Deneme süresince eklenebilecek mülk sayısı. */
     trialUnits: 5,
     /** Toplu içe aktarmada tek seferde en fazla satır. */

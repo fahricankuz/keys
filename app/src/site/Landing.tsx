@@ -326,7 +326,7 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
   const [who, setWho] = useState<'landlord' | 'tenant'>('landlord');
   const steps: Record<string, [string, string, string][]> = {
     landlord: [
-      ['key', t('Hesabını aç'), t('1 ay ücretsiz deneme hemen başlar. Deneme süresince 5 mülke kadar ekleyebilirsin.')],
+      ['key', t('Hesabını aç'), t('1 ay ücretsiz deneme hemen başlar. Deneme süresince bütün özellikleri kullanabilirsin.')],
       ['home', t('Mülklerini ekle'), t('Tek tek ekle ya da Excel listeni yükle. Kira, ödeme günü ve sözleşme tarihleri bir kez girilir.')],
       ['send', t('Kiracını davet et'), t('Her mülk için bir davet kodu oluşur. Kodu WhatsApp ile gönder; kiracın katılınca mülke bağlanır.')],
       ['check', t('Birlikte takip edin'), t('Dekont onayı, talepler, belgeler ve hatırlatmalar tek ekranda. Ekibini de davet edebilirsin.')]
@@ -392,10 +392,10 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
 
 /** Fiyat kartı: üstte paket ve fiyat, altında ince çizgilerle ayrılmış özellikler, en altta düğme.
     Önerilen paket (Portföy) koyu zemin, krem yazı ve sarı vurgularla öne çıkar; diğerleri açık zeminlidir. */
-function PlanCta(p: any, go: (path: string) => void) {
+function PlanCta(p: any, go: (path: string) => void, yearly: boolean) {
   return p.id === 'kurumsal'
     ? { title: t('Bize ulaşın'), onPress: () => go('/kurumsal') }
-    : { title: t('Paketi seç'), onPress: () => go('/kayit/mulk-sahibi') };
+    : { title: t('Paketi seç'), onPress: () => go('/satin-al?plan=' + p.id + '&donem=' + (yearly ? 'yillik' : 'aylik')) };
 }
 
 function Pricing({ go, anchor }: { go: (p: string) => void; anchor: (el: any) => void }) {
@@ -406,8 +406,8 @@ function Pricing({ go, anchor }: { go: (p: string) => void; anchor: (el: any) =>
   return (
     <View ref={anchor}>
       <Container style={{ paddingTop: phone ? 44 : 96, gap: phone ? 14 : 22 }}>
-        <SectionHead compact label={t('Fiyatlar')} title={t('Kiracılar için ücretsiz. Mülk sahibi portföyüne göre.')}
-          body={t('Her paket 1 ay ücretsiz denemeyle başlar. Deneme bitince kayıtların silinmez; kiracının işleri hiç etkilenmez.')} />
+        <SectionHead compact label={t('Fiyatlar')} title={t('Kiracılar için ücretsiz. Mülk sahibi mülkü kadar öder.')}
+          body={t('Fiyat mülk başınadır ve KDV dahildir: mülk ekledikçe artar, çıkardıkça düşer. Her paket 1 ay ücretsiz denemeyle başlar; deneme bitince kayıtların silinmez.')} />
         <Reveal accessibilityRole="tablist" style={{ alignSelf: 'center', flexDirection: 'row', backgroundColor: c.surface, borderRadius: radius.pill, padding: 4, borderWidth: 1, borderColor: c.line }}>
           {([[false, t('Aylık')], [true, t('Yıllık · 2 ay ücretsiz')]] as const).map(([k, label]) => {
             const on = yearly === k;
@@ -421,7 +421,7 @@ function Pricing({ go, anchor }: { go: (p: string) => void; anchor: (el: any) =>
         </Reveal>
         {/* Masaüstünde yan yana, telefonda ve tablette alt alta; her kart tam genişlikte. */}
         <Reveal style={{ flexDirection: desktop ? 'row' : 'column', gap: phone ? 12 : 16, alignItems: 'stretch', width: '100%', maxWidth: desktop ? undefined : 560, alignSelf: 'center' }}>
-          {list.map((p) => <PlanCard key={p.id} p={p} cta={PlanCta(p, go)} side={desktop} eqLine={list.some((x) => !!x.monthlyEq)} />)}
+          {list.map((p) => <PlanCard key={p.id} p={p} cta={PlanCta(p, go, yearly)} side={desktop} eqLine={list.some((x) => !!x.monthlyEq)} />)}
         </Reveal>
         <Reveal style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'center' }}>
           {phone ? null : <Icon name="check" size={16} color={c.okInk} />}

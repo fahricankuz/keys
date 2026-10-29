@@ -47,7 +47,7 @@ export default function SignupForm({ role }: { role: Role }) {
   const title = team ? t('Ekip hesabı oluştur') : landlord ? t('Mülk sahibi olarak kayıt ol') : t('Kiracı olarak kayıt ol');
   const lead = team
     ? t('Emlakçı, muhasebeci ve personel hesapları ücretsizdir. Hesabı açınca davet edildiğin ekibe katılırsın.')
-    : landlord ? t('1 ay ücretsiz dene. Deneme süresince 5 mülke kadar ekleyebilirsin.') : t('Kiracı hesabı her zaman ücretsizdir.');
+    : landlord ? (CONFIG.billing.cardTrial ? t('1 ay ücretsiz başla: kart bilgin ya da App Store / Google Play hesabın gerekir. İptal etmezsen ay sonunda seçtiğin paket başlar; çekimden 1 gün önce hatırlatırız.') : t('1 ay ücretsiz dene. Deneme süresince bütün özellikleri kullanabilirsin.')) : t('Kiracı hesabı her zaman ücretsizdir.');
 
   return (
     <AuthShell title={title} lead={lead}>
