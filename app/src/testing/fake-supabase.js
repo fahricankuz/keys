@@ -312,7 +312,7 @@ export function createClient(url, key, opts){
         return { data:id, error:null };
       }
       // Kurumlar: schema.sql 16. bölüm ile aynı kurallar (özet).
-      if (/^(my_orgs|org_|accept_org_invite|admin_org)/.test(name)){
+      if (/^(my_orgs|org_|accept_org_invite|admin_org|admin_add_property)/.test(name)){
         const T = db.tables, A = args || {};
         const PERMS = ['org.settings','org.members','units.manage','residents.manage','charges.manage','payments.approve','expenses.manage','requests.manage','announce','documents.manage','reports.view'];
         const MODS = ['kira','aidat','gider_dagitim','duyuru','ciro_kira','ortak_gider','endeksleme','doluluk','onay_akisi','rapor','api'];
@@ -415,6 +415,24 @@ export function createClient(url, key, opts){
           }
           const o = T.organizations.find(x => x.id === p.id); if (!o) return err('Kurum bulunamadı', 'P0002');
           Object.assign(o, fields, { status:p.status || o.status }); audit('org.update', o.id, { name:o.name }); return ok(o.id);
+        }
+        if (name === 'admin_add_property'){
+          // schema.sql §20 admin_add_property ile aynı kural (sınır aşılabilir, "over" bildirilir).
+          const prof = T.profiles.find(x => x.id === A.owner_uid);
+          if (!prof) return err('Hesap bulunamadı', 'P0002');
+          if (prof.role !== 'landlord') return err('Bu hesap mülk sahibi hesabı değil', '22023');
+          const q = A.p || {};
+          if (String(q.name || '').trim().length < 2) return err('Mülk adını yaz', '22023');
+          const mm = T.org_members.find(m => m.user_id === A.owner_uid && m.is_master);
+          const org = mm ? T.organizations.find(o => o.id === mm.org_id && o.status === 'active') : null;
+          const sd = q.start_date || today();
+          const row = defaults('properties', { owner_id:A.owner_uid, name:String(q.name).trim(), addr:q.addr || '', prop_type:q.prop_type || 'Konut', rent:Number(q.rent || 0), due_day:Number(q.due_day || 1),
+            deposit:Number(q.deposit || 0), start_date:sd, contract_end:q.contract_end || sd, org_id: org ? org.id : null }, db);
+          T.properties.push(row); afterInsert('properties', row, db);
+          const n = org ? T.properties.filter(x => x.org_id === org.id || x.owner_id === A.owner_uid).length : T.properties.filter(x => x.owner_id === A.owner_uid).length;
+          const lim = org ? (org.units ?? null) : null;
+          audit('property.add', row.id, { owner:A.owner_uid, name:row.name });
+          return ok({ id:row.id, count:n, limit:lim, over: lim != null && n > lim });
         }
         if (name === 'admin_org_set_master'){
           const mail = String(A.mail || '').trim().toLowerCase();

@@ -15,6 +15,7 @@ import { Card, Empty, H2, Muted, Row, Seg, Stack } from './blocks';
 import { CpiRates, Overview, Subscriptions, Support } from './admin-extra';
 import { AdminShell, PageHead } from './admin-ui';
 import { OrgDraft, Orgs, sectorFromRole } from './admin-orgs';
+import { AddProperty } from './admin-property';
 import OpenSplash from './OpenSplash';
 import { planLabel } from '../domain/plans';
 
@@ -312,10 +313,25 @@ function Users({ d, reload }: { d: Data; reload: () => void }) {
             </Row>
           </Row>
           <Muted>{t('Kayıt')}: {day(u.created_at)}</Muted>
+          {u.role === 'landlord' ? <AddForUser u={u} /> : null}
           <BanBox u={u} reload={reload} />
         </Card>
       )) : <Empty>{t('Kullanıcı yok.')}</Empty>}
     </Stack>
+  );
+}
+
+/** Mülk sahibi hesabı adına mülk ekler (anahtar ekibi). */
+function AddForUser({ u }: { u: any }) {
+  const c = useColors();
+  const [open, setOpen] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  if (open) return <AddProperty owner={{ id: u.id, name: u.name || u.email }} done={(m) => { setOpen(false); if (m) setMsg(m); }} />;
+  return (
+    <View style={{ gap: 6 }}>
+      {msg ? <Text v="small" color={c.okInk}>{msg}</Text> : null}
+      <Row><Button kind="ghost" title={t('Mülk ekle')} onPress={() => { setMsg(null); setOpen(true); }} /></Row>
+    </View>
   );
 }
 

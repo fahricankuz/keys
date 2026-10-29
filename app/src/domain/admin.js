@@ -119,3 +119,10 @@ export async function previewUrl(path){
 }
 
 export { humanError };
+
+/** Anahtar ekibi: bir müşteri (mülk sahibi ya da kurum master yöneticisi) adına mülk ekler.
+    Dönen: { id, count, limit, over } — over: sözleşme / paket sınırı aşıldı. */
+export async function adminAddProperty(ownerId, p){
+  const c = await client();
+  return must(await c.rpc('admin_add_property', { owner_uid: ownerId, p }));
+}
