@@ -12,7 +12,7 @@ import { Pill } from './org';
 const TYPES = ['Konut', 'Ofis', 'Mağaza', 'Depo'];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-export function AddProperty({ owner, count, limit, done }: { owner: { id: string; name: string }; count?: number; limit?: number | null; done: (msg?: string) => void }) {
+export function AddProperty({ owner, count, limit, done }: { owner: { id: string; name: string }; count?: number; limit?: number | null; done: (msg?: string, over?: { count: number; limit: number } | null) => void }) {
   const c = useColors();
   const [f, setF] = useState({ name: '', addr: '', type: 'Konut', rent: '', due: '1', deposit: '', start: '', end: '' });
   const [err, setErr] = useState<string | null>(null);
@@ -29,7 +29,8 @@ export function AddProperty({ owner, count, limit, done }: { owner: { id: string
     try {
       const r = await adminAddProperty(owner.id, { name: f.name, addr: f.addr, prop_type: f.type, rent: f.rent.replace(',', '.'), due_day: due,
         deposit: f.deposit.replace(',', '.'), start_date: f.start, contract_end: f.end });
-      done(r?.over ? t('Mülk eklendi. Sözleşme / paket adedi aşıldı ({count}/{limit}).', { count: r.count, limit: r.limit }) : t('Mülk eklendi.'));
+      done(r?.over ? t('Mülk eklendi. Sözleşme / paket adedi aşıldı ({count}/{limit}). Müşteriyle sözleşmedeki adedi güncelleyin.', { count: r.count, limit: r.limit }) : t('Mülk eklendi.'),
+        r?.over ? { count: r.count, limit: r.limit } : null);
     } catch (e) { setErr(humanError(e)); }
     setBusy(false);
   };

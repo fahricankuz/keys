@@ -131,6 +131,12 @@ function OrgCard({ o, reload }: { o: any; reload: () => void }) {
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const sec = sectorOf(o.sector);
+  // Sözleşmedeki adet aşıldıysa uyarı kalıcıdır; sözleşme güncellenince adet bir tıkla yeni sayıya çekilir.
+  const over = o.units != null && (o.unit_count || 0) > o.units;
+  const raise = async () => {
+    setErr(null);
+    try { await adminSaveOrg({ ...o, units: o.unit_count }); setInfo(null); reload(); } catch (e) { setErr(humanError(e)); }
+  };
   const toggleStatus = async () => {
     setErr(null);
     try { await adminSaveOrg({ ...o, status: o.status === 'active' ? 'paused' : 'active' }); reload(); } catch (e) { setErr(humanError(e)); }
@@ -150,6 +156,13 @@ function OrgCard({ o, reload }: { o: any; reload: () => void }) {
       </Row>
       <Muted>{[t('{n} yönetici', { n: o.members }), o.units ? t('{n} birim (sözleşme)', { n: o.units }) : '', t('{n} mülk ekli', { n: o.unit_count || 0 }), o.contract_until ? t('Sözleşme bitişi {d}', { d: day(o.contract_until) }) : '',
         (o.modules || []).length + ' ' + t('modül')].filter(Boolean).join(' · ')}</Muted>
+      {over ? (
+        <View style={{ backgroundColor: c.warnBg, borderRadius: radius.md, padding: 14, gap: 8 }}>
+          <Text v="small" color={c.warnInk} style={{ fontFamily: fonts.bodyBold }}>{t('Sözleşmedeki adet aşıldı: {count} mülk var, sözleşme {limit} mülk için.', { count: o.unit_count, limit: o.units })}</Text>
+          <Text v="small" color={c.warnInk}>{t('Müşteriyle sözleşmeyi güncelleyin; sonra adedi aşağıdan yeni sayıya çekin. Güncellenene kadar müşteri kendisi mülk ekleyemez.')}</Text>
+          <Row><Button title={t('Sözleşme adedini {count} yap', { count: o.unit_count })} onPress={raise} /></Row>
+        </View>
+      ) : null}
       {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
       {info ? <Text v="small" color={c.okInk}>{info}</Text> : null}
       <Row wrap>

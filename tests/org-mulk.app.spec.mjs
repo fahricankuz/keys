@@ -67,6 +67,13 @@ test('Kurumlar: master adına mülk eklenir; sözleşme adedi dolunca uyarır ve
   d = await db(page);
   expect(d.tables.properties.filter((p) => p.org_id === ORG)).toHaveLength(3);
   expect(d.tables.admin_audit.filter((a) => a.action === 'property.add')).toHaveLength(2);
+  // Aşım uyarısı kalıcıdır ve sözleşme güncellenince tek tıkla yeni adede çekilir.
+  await expect(page.getByText('Sözleşmedeki adet aşıldı: 3 mülk var, sözleşme 2 mülk için.')).toBeVisible();
+  await expect(page.getByText('Müşteriyle sözleşmedeki adedi güncelleyin.')).toBeVisible();
+  await page.getByRole('button', { name: 'Sözleşme adedini 3 yap' }).click();
+  await expect(page.getByText('3 birim (sözleşme)')).toBeVisible();
+  await expect(page.getByText('Sözleşmedeki adet aşıldı')).toHaveCount(0);
+  expect((await db(page)).tables.organizations[0].units).toBe(3);
 });
 
 test('Kullanıcılar: mülk sahibi hesabı adına mülk eklenir; kiracı hesabında düğme yok; ad zorunlu', async ({ page }) => {
