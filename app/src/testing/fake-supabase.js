@@ -596,6 +596,8 @@ export function createClient(url, key, opts){
             if (localStorage.getItem('__fakefail')) return { data:null, error:{ message:'Failed to fetch' } };
             const db = load();
             db.storage[path] = { size: blob.size || blob.byteLength || 0, type: (o && o.contentType) || blob.type || '' };
+            // Testler için görselin yüklenen boyutu (px): küçültmenin işe yaradığı buradan doğrulanır.
+            try { const bm = await createImageBitmap(new Blob([blob], { type: db.storage[path].type })); db.storage[path].w = bm.width; db.storage[path].h = bm.height; } catch(e){}
             persist(db);
             return { data:{ path }, error:null };
           },
