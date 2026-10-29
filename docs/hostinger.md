@@ -31,7 +31,7 @@ Depo → **Settings → Secrets and variables → Actions → Variables** → *N
 | Ad | Değer |
 | --- | --- |
 | `SUPABASE_URL` | `https://xxxx.supabase.co` |
-| `SUPABASE_ANON_KEY` | `anon public` anahtarı (herkese açık olabilir; veriyi sunucu kuralları korur) |
+| `SUPABASE_ANON_KEY` | `publishable` (eski adıyla `anon public`) anahtarı; herkese açıktır, veriyi sunucu kuralları korur. Boş bırakılırsa iş akışındaki projenin publishable anahtarı kullanılır |
 | `TURNSTILE_SITE_KEY` | isteğe bağlı, bot koruması (`docs/guvenlik.md` bölüm 4) |
 
 `service_role` anahtarını **asla** buraya yazmayın.
