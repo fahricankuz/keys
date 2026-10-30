@@ -4225,3 +4225,22 @@ begin
     perform cron.schedule('anahtar-site-auto', '0 6 * * *', 'select public.site_auto_run()');
   end if;
 end $$;
+
+-- =====================================================================
+-- 30. Anlık güncelleme: Realtime yayın listesi
+--     Mesaj, bildirim, talep ve ödeme değişikliklerinin açık ekranlara anında düşmesi için tablolar supabase_realtime
+--     yayınındaki yerinde olmalı. Yeniden çalıştırılabilir; eksik olanı ekler.
+-- =====================================================================
+do $$
+declare t text;
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    foreach t in array array['properties','property_shared','memberships','payments','rent_history','requests','messages',
+                             'documents','expenses','notifications','reviews','subscriptions'] loop
+      if to_regclass('public.' || t) is not null
+         and not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
+        execute format('alter publication supabase_realtime add table public.%I', t);
+      end if;
+    end loop;
+  end if;
+end $$;
