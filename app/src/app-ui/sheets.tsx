@@ -37,6 +37,8 @@ import { emptyAddress } from '../domain/address';
 import { loadRates, rateFor } from '../domain/cpi';
 import { EnterpriseForm } from '../site/EnterpriseForm';
 import { plans as sitePlans } from '../site/content';
+import { LegalDetailSheet, LegalSheet, legalAllowed } from './legal';
+import { LEGAL_PRICE } from '../domain/legal';
 
 const propOf = (pid?: string) => (pid && (S as any).props[pid] ? P(pid) : P((S as any).myHome));
 const reqOf = (p: any, id: string) => p.requests.find((r: any) => r.id === id);
@@ -192,7 +194,7 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
           ) : null}
           {myOrgs().some((o: any) => PORTFOLIO_SECTORS.includes(o.sector)) ? (
             <PressScale onPress={() => { if (!page) close(); router.push('/uygulama/site' as any); }} accessibilityRole="link" scaleTo={0.99} style={{ padding: 16, borderRadius: radius.lg, backgroundColor: c.tile, gap: 2 }}>
-              <Label>{myOrgs().some((o: any) => o.sector === 'site') ? t('Site yönetimi') : t('Profesyonel yönetimi')}</Label>
+              <Label>{myOrgs().some((o: any) => o.sector === 'site') ? t('Site yönetimi') : t('Portföy yönetimi')}</Label>
               <Row between><Text v="body" style={{ fontFamily: fonts.bodyBold }}>{t('Birimler, tahakkuk, giderler, duyurular')}</Text><Muted>›</Muted></Row>
             </PressScale>
           ) : null}
@@ -273,6 +275,7 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
       {tab === 'yardim' ? (
         <Stack>
           <List>
+              {legalAllowed() ? <LI title={t('Hukuki süreç desteği')} sub={t('Gecikme, artış, tahliye, depozito · {price}', { price: tl(LEGAL_PRICE()) })} onPress={() => open('hukuki', {})} right={<Muted>›</Muted>} /> : null}
               {link(t('Destek merkezi ve sık sorulanlar'), CONFIG.legal.support)}
               <LI title={t('Bize yaz')} sub={CONFIG.supportEmail} onPress={() => open('destek-talebi', { kind: 'genel' })} right={<Muted>›</Muted>} />
               {link(t('Kullanım ve abonelik koşulları'), CONFIG.legal.terms)}
@@ -899,16 +902,16 @@ function UpgradeSheet({ need, suggest }: { need?: number; suggest?: string }) {
 }
 
 /** "Bize ulaş": kurumsal paket, toplu içe aktarma desteği ya da genel soru. */
-function SupportSheet({ kind = 'genel', units, close }: { kind?: string; units?: number; close: () => void }) {
-  const { v, set } = useVals({ kind, units: units ? String(units) : '', phone: '', message: '' });
+function SupportSheet({ kind = 'genel', units, message, close }: { kind?: string; units?: number; message?: string; close: () => void }) {
+  const { v, set } = useVals({ kind, units: units ? String(units) : '', phone: '', message: message || '' });
   const title = kind === 'kurumsal' ? t('Kurumsal paket talebi') : kind === 'import' ? t('Toplu içe aktarma desteği') : t('Bize yaz');
   return (
     <Stack>
       <Title>{title}</Title>
-      <Muted>{kind === 'import'
+      <Muted>{message ? t('Ekibimize yaz; e-postana dönüş yaparız.') : kind === 'import'
         ? t('Tek seferde {n} mülkten fazlasını aktarmak için ekibimiz sana yardım eder.', { n: CONFIG.billing.importMax })
         : t('Portföyünü anlat; sana uygun paketi ve fiyatı iletelim.')}</Muted>
-      <NumField label={t('Mülk sayısı')} v={v} set={set} k="units" />
+      {message ? null : <NumField label={t('Mülk sayısı')} v={v} set={set} k="units" />}
       <Text2 label={t('Telefon (isteğe bağlı)')} v={v} set={set} k="phone" keyboardType="phone-pad" maxLength={20} />
       <Area label={t('Mesaj')} v={v} set={set} k="message" />
       <Actions onCancel={close} submitLabel={t('Talebi gönder')} onSubmit={() => submit('support', v)} />
@@ -953,7 +956,9 @@ export function renderSheet(name: string, p: any, close: () => void): ReactNode 
     case 'rapor-eposta': return <MailPreviewSheet />;
     case 'kurumsal-basvuru': return <EnterpriseSheet close={close} />;
     case 'paket': return <UpgradeSheet need={p.need} suggest={p.suggest} />;
-    case 'destek-talebi': return <SupportSheet kind={p.kind} units={p.units} close={close} />;
+    case 'destek-talebi': return <SupportSheet kind={p.kind} units={p.units} message={p.message} close={close} />;
+    case 'hukuki': return <LegalSheet pid={p.pid} topic={p.topic} close={close} />;
+    case 'hukuki-talep': return <LegalDetailSheet id={p.id} close={close} />;
     case 'ekip-davet': return <TeamInviteSheet close={close} />;
     case 'ekip-paylas': return <TeamShareSheet code={p.code} role={p.role} phone={p.phone} />;
     case 'ekip-uye': return <TeamMemberSheet member={p.member} close={close} />;

@@ -8,6 +8,8 @@ export const CONFIG = {
   supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
   publicUrl: 'https://anahtar.io/',
   supportEmail: 'info@anahtar.io',
+  /** Hukuki süreç desteği: talep başına, KDV dahil (sunucuda da sabit: schema.sql 22. bölüm). */
+  legalPrice: 3000,
   legal: {
     terms: 'https://anahtar.io/kosullar/',
     privacy: 'https://anahtar.io/gizlilik/',

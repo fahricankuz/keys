@@ -1,6 +1,8 @@
 /* Yönetici paneli: özet, denetim kuyruğu, ödemeler, mülk sahipleri ve kullanıcılar.
    Yalnızca admins tablosundaki hesaplar açabilir; sunucu kuralları (RLS) zaten başkasına veri vermez. */
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AdminLegal } from './legal';
+import { adminLegal } from '../domain/legal';
 import { Image, Linking, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../auth/auth';
@@ -40,6 +42,8 @@ export default function AdminPanel() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [orgDraft, setOrgDraft] = useState<OrgDraft | null>(null);
+  const [legalOpen, setLegalOpen] = useState(0);
+  useEffect(() => { adminLegal().then((d) => setLegalOpen(d.filter((r: any) => ['received', 'paid', 'forwarded'].includes(r.status)).length)).catch(() => {}); }, []);
 
   const load = useCallback(async () => {
     setBusy(true); setErr(null);
@@ -55,6 +59,7 @@ export default function AdminPanel() {
     ['orgs', t('Kurumlar'), 'office', t('Kurumsal müşteriler: sektör ve modüller, sözleşme, master yönetici, yöneticiler ve roller.')],
     ['cpi', t('Kira artış oranları'), 'chart', t('TÜFE 12 aylık ortalama: sitedeki hesaplayıcı ve uygulamadaki yenileme bu tablodan okur.')],
     ['support', t('Talepler'), 'chat', t('“Bize ulaş” formundan gelen kurumsal, içe aktarma ve genel talepler.')],
+    ['legal', t('Hukuki talepler'), 'scale', t('Hukuki süreç desteği talepleri: ödemeyi işaretle, büroya ilet, kişiye not yaz. Talebin dosyalarını büroya elle iletirsin.')],
     ['queue', t('Denetim'), 'doc', t('Yüklenen dekont, belge ve faturalar: onaylanınca karşı tarafa görünür.')],
     ['pay', t('Ödemeler'), 'chart', t('Tüm kira ödemeleri ve durumları.')],
     ['conn', t('Bağlantılar'), 'landlord', t('Mülk sahibi → mülk → kiracı ağacı.')],
@@ -63,7 +68,7 @@ export default function AdminPanel() {
     ['audit', t('İşlem kaydı'), 'flag', t('Yönetici işlemlerinin değiştirilemez kaydı.')]
   ];
   const cur = SECTIONS.find((x) => x[0] === tab) || SECTIONS[0];
-  const items = SECTIONS.map(([key, label, icon]) => ({ key, label, icon, badge: key === 'queue' ? data?.stats.pending || 0 : undefined }));
+  const items = SECTIONS.map(([key, label, icon]) => ({ key, label, icon, badge: key === 'queue' ? data?.stats.pending || 0 : key === 'legal' ? legalOpen : undefined }));
   return (
     <>
     <AdminShell items={items} active={tab} onPick={setTab} email={user?.email} onReload={load} busy={busy}
@@ -82,6 +87,7 @@ export default function AdminPanel() {
               setTab('orgs');
             }} />}
             {tab === 'cpi' && <CpiRates />}
+            {tab === 'legal' && <AdminLegal onCount={setLegalOpen} />}
             {tab === 'queue' && <Queue d={data} reload={load} />}
             {tab === 'pay' && <Payments d={data} />}
             {tab === 'conn' && <Landlords d={data} />}

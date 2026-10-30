@@ -38,6 +38,12 @@ Sahip: 👤 = sizin yapmanız gereken (hesap, sözleşme, karar) · 🤖 = kodda
       tablo `support_requests`, olay **INSERT**, tür *Supabase Edge Functions* → `lead-mail`, başlık `x-anahtar-secret: <LEAD_SECRET>`.
       Başvurular webhook kurulmadan da yönetici paneli → Talepler'de görünür.
 
+- [ ] 👤 **Hukuki süreç desteği** (şema 22. bölüm; talep başına 3.000 ₺ KDV dahil, mülk sahibi ve kiracı, tüm paketlerde):
+      ekibe e-posta için aynı `lead-mail` fonksiyonuna ikinci webhook: tablo `legal_requests`, olay **INSERT**, aynı başlık.
+      Talepler yönetici paneli → **Hukuki talepler**'de: ödemeyi işaretle (havale / fatura), dosyaları anlaşmalı büroya **elle** ilet,
+      "Büroya iletildi" ve "Sonuçlandı" ile durumu ilerlet; "Kişiye not" bildirim olarak gider, "İç not" yalnız ekipte kalır.
+      Yayına almadan önce: aydınlatma metnine hukuk bürosuyla paylaşımı ekleyin; ücret akışını (anahtar faturası, büroya ödeme) avukatınızla teyit edin.
+
 - [ ] 👤 **Kira artış oranları (TÜFE)**: TCMB EVDS'e üye olup API anahtarı alın (evds2.tcmb.gov.tr → profil → API anahtarı).
       `supabase functions deploy tufe-sync`; gizli değişkenler `TUFE_SECRET`, `EVDS_KEY`. Cron: Edge Function `tufe-sync`, POST,
       `0 9 3-6 * *`, başlık `x-anahtar-secret`. Kurulana kadar oranları **yönetici paneli → Kira artış oranları**'ndan elle girin;

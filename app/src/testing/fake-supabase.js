@@ -7,7 +7,8 @@ const KEY = '__fakedb';
 const TABLES = ['profiles','properties','property_shared','memberships','invites','payments','rent_history',
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
-                'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes'];
+                'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes',
+                'legal_requests','legal_notes'];
 
 function load(){
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d){ TABLES.forEach(t => d.tables[t] = d.tables[t] || []); d.tables.payments.forEach(r => { r.kind = r.kind || 'kira'; }); return d; } } catch(e){}
@@ -24,7 +25,7 @@ const KEYS = {
   profiles:['id'], properties:['id'], property_shared:['property_id'], memberships:['property_id','user_id'],
   invites:['code'], payments:['property_id','month','kind'], rent_history:['id'], requests:['id'], messages:['id'],
   documents:['id'], expenses:['id'], notifications:['id'], push_subscriptions:['endpoint'], subscriptions:['user_id'], device_tokens:['token'],
-  site_budgets:['org_id','year'], site_turnovers:['unit_id','month'],
+  site_budgets:['org_id','year'], site_turnovers:['unit_id','month'], legal_notes:['request_id'],
   admins:['user_id'], reviews:['kind','property_id','ref_id'], bans:['user_id'], admin_audit:['id']
 };
 
@@ -41,6 +42,13 @@ function defaults(table, row, db){
   if (table === 'site_requests'){ r.status = r.status || 0; r.reply = r.reply || ''; }
   if (table === 'invites'){ r.code = r.code || Math.random().toString(36).slice(2, 10).toUpperCase(); r.created_at = now(); r.accepted_by = null; }
   if (table === 'messages'){ r.at = r.at || now(); if (r.by_user === undefined) r.by_user = db.session?.user.id || null; }
+  if (table === 'legal_requests'){
+    // schema.sql 22. bölüm → guard_legal: numara, fiyat, durum ve iletişim sunucuda belirlenir.
+    const u = db.users.find(x => x.id === r.user_id) || {}, pr = db.tables.profiles.find(x => x.id === r.user_id) || {};
+    Object.assign(r, { id: uuid(), no: (db.tables.legal_requests.reduce((m, x) => Math.max(m, x.no || 0), 0) || 0) + 1, price: 3000, status: 'received', reply: '',
+      paid_at: null, forwarded_at: null, closed_at: null, created_at: now(), updated_at: now(), consent_at: now(), scope_at: now(),
+      files: r.files || [], context: r.context || {}, contact: { name: pr.name || '', phone: pr.phone || '', email: u.email || '' } });
+  }
   if (table === 'notifications'){ r.id = (db.tables.notifications.reduce((m, x) => Math.max(m, x.id), 0) || 0) + 1; r.created_at = now(); r.read_at = null; }
   return r;
 }
@@ -112,6 +120,8 @@ function visible(db, table, row, actor){
     if (table === 'site_requests') return row.user_id === actor;
     return false;
   }
+  if (table === 'legal_requests') return row.user_id === actor;
+  if (table === 'legal_notes') return false;
   return true;
 }
 
@@ -201,6 +211,27 @@ class Query {
       if (this.t === 'reviews'){
         if (!isAdmin(db, actor)) return { data:null, error:{ message:'Denetim kararını yalnızca yönetici verebilir', code:'42501' } };
         if (this.values.status === 'rejected' && !String(this.values.note || '').trim()) return { data:null, error:{ message:'Red için gerekçe yazılmalı', code:'22023' } };
+      }
+      if (this.t === 'legal_requests'){
+        // guard_legal / legal_after: kişi yalnız kendi "alındı" talebini iptal eder; yönetici değiştirince kişiye bildirim.
+        const adm = isAdmin(db, actor);
+        out = out.filter(r => adm || r.user_id === actor);
+        if (!adm && (out.some(r => r.status !== 'received') || Object.keys(this.values).some(k => k !== 'status') || this.values.status !== 'cancelled'))
+          return { data:null, error:{ message:'Talebi yalnız ekibimiz güncelleyebilir; inceleme başlamadan iptal edebilirsin.', code:'P0001' } };
+        const LBL = { received:'Talebin alındı', paid:'Ödemen alındı', forwarded:'Hukuk bürosuna iletildi', closed:'Sonuçlandı', cancelled:'İptal edildi' };
+        out.forEach(r => {
+          const was = { status: r.status, reply: r.reply };
+          Object.assign(r, this.values, { updated_at: now() });
+          if (r.status !== was.status){
+            if (['paid','forwarded','closed'].includes(r.status) && !r.paid_at) r.paid_at = now();
+            if (['forwarded','closed'].includes(r.status) && !r.forwarded_at) r.forwarded_at = now();
+            if (['closed','cancelled'].includes(r.status)) r.closed_at = now();
+          }
+          if (adm && (r.status !== was.status || r.reply !== was.reply))
+            notify(db, r.user_id, 'Hukuki destek H-' + String(r.no).padStart(4, '0') + ': ' + LBL[r.status], r.reply || 'Talebinin durumu güncellendi.');
+        });
+        persist(db);
+        return { data: this.one ? out[0] || null : out, error: null };
       }
       out.forEach(r => {
         const before = JSON.parse(JSON.stringify(r));

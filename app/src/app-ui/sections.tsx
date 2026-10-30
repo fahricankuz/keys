@@ -20,6 +20,7 @@ import {
   Avatar, Bar, Big, BigRoll, Card, Empty, FileLink, H2, Hero, Icon, IconBtn, Items, KV, Label, LI, List, Mid, Muted, Note, ReviewChip, Row, Seg, Stack, Steps, StatusChip, Thumbs, initials, toneOf, typeIcon, MonthLegend, YearTiles
 } from './blocks';
 import { Toggle } from './forms';
+import { LegalLink, LegalNudge } from './legal';
 import { SiteUnitCharges } from './site';
 import { useAuth } from '../auth/auth';
 import { useStore } from './hooks';
@@ -87,6 +88,16 @@ export function RentHero({ p }: { p: any }) {
   );
 }
 
+/** Kira 10 günden fazla gecikince mülk sahibine hukuki destek kartı (o ay için gizlenebilir). */
+function LateLegal({ p }: { p: any }) {
+  const per: any = period(p);
+  if (ui.role !== 'landlord' || per.status !== 'late' || -between(t0(), per.due) <= 10) return null;
+  return <LegalNudge pid={p.id} topic="gecikme" hideKey={p.id + ':' + per.key} title={t('Gecikme uzadı mı?')}
+    body={t('İhtar ve takip sürecini ekibimiz ve anlaşmalı hukuk büromuz birlikte yürütsün.')} />;
+}
+
+const renewLegal = (p: any) => <LegalLink pid={p.id} topic="artis" text={ui.role === 'tenant' ? t('Artış ya da tahliye konusunda anlaşamadınız mı?') : t('Kiracı artışa ya da tahliyeye itiraz mı ediyor?')} />;
+
 export function RenewalCard({ p }: { p: any }) {
   const { open } = useSheet();
   const rd = daysTo(p.contractEnd);
@@ -100,6 +111,7 @@ export function RenewalCard({ p }: { p: any }) {
           <View><KV k={t('Mevcut kira')} v={tl(p.rent)} /><KV k={t('Önerilen kira')} v={tl(r.amount)} /><KV k={t('Yasal üst sınır (TÜFE {pct})', { pct: percent(r.cpi, 2) })} v={tl(r.max)} /></View>
           {r.amount < r.max ? <Note>{t('Teklif yasal üst sınırın')} {tl(r.max - r.amount)} {t('altında.')}</Note> : null}
           <Row><Button title={t('Kabul et')} onPress={() => act('acceptRenewal', { pid: p.id })} style={{ flex: 1 }} /><Button kind="ghost" title={t('Görüşelim')} onPress={() => act('goMsg', { pid: p.id })} style={{ flex: 1 }} /></Row>
+          {renewLegal(p)}
         </Card>
       );
     return (
@@ -107,6 +119,7 @@ export function RenewalCard({ p }: { p: any }) {
         <Row between><H2>{t('Yenileme teklifi gönderildi')}</H2><Chip tone="warn" label={t('Yanıt bekleniyor')} /></Row>
         <Muted>{tl(r.amount)} {t('önerdin · yasal üst sınır')} {tl(r.max)}</Muted>
         {can(p.id, 'shared') ? <Button kind="ghost" title={t('Teklifi geri çek')} onPress={() => act('cancelRenewal', { pid: p.id })} /> : null}
+        {renewLegal(p)}
       </Card>
     );
   }
@@ -123,6 +136,7 @@ export function RenewalCard({ p }: { p: any }) {
       <Row between><H2>{t('Sözleşme yenileme')}</H2><Chip tone={rd <= 30 ? 'bad' : 'warn'} label={t('{n} gün', { n: rd })} /></Row>
       <Muted>{t('Sözleşme {date} tarihinde yenileniyor. Artış, son 12 aylık TÜFE ortalamasıyla sınırlıdır; iki taraf da aynı hesabı görür.', { date: fmtFull(parse(p.contractEnd)) })}</Muted>
       <Button kind={ui.role === 'landlord' && can(p.id, 'shared') ? 'primary' : 'ghost'} block title={ui.role === 'landlord' && can(p.id, 'shared') ? t('Artışı hesapla ve teklif gönder') : t('Yasal üst sınırı hesapla')} onPress={() => open('yenileme', { pid: p.id })} />
+      {renewLegal(p)}
     </Card>
   );
 }
@@ -153,6 +167,7 @@ export function SecPay({ p }: { p: any }) {
   return (
     <Stack>
       <RentHero p={p} />
+      <LateLegal p={p} />
       <RenewalCard p={p} />
       <AidatCard p={p} />
       <Card gap={4}><Label>{t('Depozito')}</Label><Text v="h3">{depositText(p)}</Text><Muted>{p.depositNote}</Muted></Card>
@@ -627,6 +642,7 @@ export function SecMoveOut({ p }: { p: any }) {
         <Button kind="ghost" block title={t('Çıkış raporunu dışa aktar')} onPress={() => act('exportMoveOut', { pid: p.id })} />
         {!mo.refunded && owner ? <Button kind="quiet" block title={t('Çıkış sürecini iptal et')} onPress={() => act('cancelMoveOut', { pid: p.id })} /> : null}
       </Card>
+      {mo.refunded ? null : <LegalLink pid={p.id} topic="depozito" text={ui.role === 'tenant' ? t('Depozito iade edilmedi mi ya da kesintilere itirazın mı var?') : t('Kesintiler ya da hasar konusunda anlaşamadınız mı?')} />}
     </Stack>
   );
 }

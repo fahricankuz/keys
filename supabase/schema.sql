@@ -3706,3 +3706,140 @@ begin
     perform cron.schedule('evim-billing-reminders', '30 6 * * *', 'select public.billing_reminders()');
   end if;
 end $$;
+
+-- =====================================================================
+-- 22. Hukuki süreç desteği (talep başına ücretli ek hizmet)
+--     Mülk sahibi ya da kiracı; kira gecikmesi, kira artışı, tahliye, depozito ve sözleşme konularında
+--     talep açar. Hizmet idari takip ve koordinasyondur; anahtar ekibi talebi inceler, ödemeyi alır ve
+--     anlaşmalı hukuk bürosuna elle iletir. Talebi yalnız açan kişi ve yöneticiler görür (karşı taraf görmez).
+--     Ekibe e-posta: lead-mail fonksiyonu (Database Webhook, legal_requests INSERT).
+-- =====================================================================
+create sequence if not exists public.legal_requests_no;
+create table if not exists public.legal_requests (
+  id            uuid primary key default gen_random_uuid(),
+  no            bigint not null unique,                 -- guard_legal verir (H-0001)
+  user_id       uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  role          text not null check (role in ('landlord','tenant')),
+  property_id   text references public.properties(id) on delete set null,
+  property_name text not null default '' check (length(property_name) <= 160),
+  topic         text not null check (topic in ('gecikme','artis','tahliye','depozito','sozlesme','diger')),
+  body          text not null check (length(btrim(body)) between 1 and 4000),
+  files         jsonb not null default '[]'::jsonb check (jsonb_typeof(files) = 'array' and jsonb_array_length(files) <= 10),
+  context       jsonb not null default '{}'::jsonb,
+  contact       jsonb not null default '{}'::jsonb,
+  price         numeric(10,2) not null default 3000,
+  consent_at    timestamptz not null default now(),
+  scope_at      timestamptz not null default now(),
+  status        text not null default 'received' check (status in ('received','paid','forwarded','closed','cancelled')),
+  reply         text not null default '' check (length(reply) <= 2000),
+  paid_at       timestamptz,
+  forwarded_at  timestamptz,
+  closed_at     timestamptz,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+create index if not exists legal_requests_user on public.legal_requests (user_id, created_at desc);
+create index if not exists legal_requests_status on public.legal_requests (status, created_at desc);
+-- Ekibin iç notu: kullanıcı görmez.
+create table if not exists public.legal_notes (
+  request_id uuid primary key references public.legal_requests(id) on delete cascade,
+  note       text not null default '' check (length(note) <= 4000),
+  updated_at timestamptz not null default now()
+);
+grant select, insert, update, delete on public.legal_requests, public.legal_notes to authenticated;
+grant usage, select on sequence public.legal_requests_no to authenticated;
+alter table public.legal_requests enable row level security;
+alter table public.legal_notes enable row level security;
+
+drop policy if exists legal_read on public.legal_requests;
+drop policy if exists legal_insert on public.legal_requests;
+drop policy if exists legal_update on public.legal_requests;
+create policy legal_read on public.legal_requests for select to authenticated
+  using (user_id = auth.uid() or public.is_admin());
+-- Mülk seçildiyse kişi o mülkte bildirdiği rolle üye olmalı (kiracı, mülk sahibinin mülkü adına talep açamaz).
+create policy legal_insert on public.legal_requests for insert to authenticated
+  with check (user_id = auth.uid() and (property_id is null or public.member_role(property_id) = role
+    or (role = 'landlord' and public.is_owner(property_id))));
+create policy legal_update on public.legal_requests for update to authenticated
+  using (user_id = auth.uid() or public.is_admin()) with check (user_id = auth.uid() or public.is_admin());
+drop policy if exists legal_notes_admin on public.legal_notes;
+create policy legal_notes_admin on public.legal_notes for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+do $$
+begin
+  execute 'drop policy if exists not_banned on public.legal_requests';
+  execute 'create policy not_banned on public.legal_requests as restrictive for all to authenticated using (not public.is_banned()) with check (not public.is_banned())';
+end $$;
+
+-- Kurallar: kullanıcı fiyatı, durumu, yanıtı belirleyemez; yalnız "alındı" durumundaki talebini iptal edebilir.
+-- Durum değişince kişiye bildirim düşer (push fonksiyonu e-postaya da taşır), yönetici işlemi kayda geçer.
+create or replace function public.guard_legal()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare adm boolean := public.is_admin();
+begin
+  if tg_op = 'INSERT' then
+    if (select count(*) from public.legal_requests where user_id = new.user_id and created_at > now() - interval '1 day') >= 5 then
+      raise exception 'Bugün için talep sınırına ulaştın; ekibimiz açık taleplerinle ilgileniyor.' using errcode = 'P0001';
+    end if;
+    new.no := nextval('public.legal_requests_no');
+    new.price := 3000; new.status := 'received'; new.reply := '';
+    new.paid_at := null; new.forwarded_at := null; new.closed_at := null;
+    new.consent_at := now(); new.scope_at := now(); new.created_at := now(); new.updated_at := now();
+    new.contact := jsonb_build_object(
+      'name', coalesce((select name from public.profiles where id = new.user_id), ''),
+      'phone', coalesce((select phone from public.profiles where id = new.user_id), ''),
+      'email', coalesce((select email from auth.users where id = new.user_id), ''));
+    return new;
+  end if;
+  -- Değişmez alanlar.
+  new.id := old.id; new.no := old.no; new.user_id := old.user_id; new.role := old.role; new.property_id := old.property_id;
+  new.property_name := old.property_name; new.topic := old.topic; new.body := old.body; new.files := old.files;
+  new.context := old.context; new.contact := old.contact; new.consent_at := old.consent_at; new.scope_at := old.scope_at;
+  new.created_at := old.created_at;
+  if not adm then
+    if not (old.status = 'received' and new.status = 'cancelled') then
+      raise exception 'Talebi yalnız ekibimiz güncelleyebilir; inceleme başlamadan iptal edebilirsin.' using errcode = 'P0001';
+    end if;
+    new.price := old.price; new.reply := old.reply;
+    new.paid_at := old.paid_at; new.forwarded_at := old.forwarded_at; new.closed_at := old.closed_at;
+  end if;
+  if new.status is distinct from old.status then
+    if new.status in ('paid','forwarded','closed') and new.paid_at is null then new.paid_at := now(); end if;
+    if new.status in ('forwarded','closed') and new.forwarded_at is null then new.forwarded_at := now(); end if;
+    if new.status in ('closed','cancelled') then new.closed_at := now(); end if;
+  end if;
+  new.updated_at := now();
+  return new;
+end $$;
+drop trigger if exists guard_legal on public.legal_requests;
+create trigger guard_legal before insert or update on public.legal_requests for each row execute function public.guard_legal();
+
+create or replace function public.legal_label(st text)
+returns text language sql immutable as $$
+  select case st when 'received' then 'Talebin alındı' when 'paid' then 'Ödemen alındı' when 'forwarded' then 'Hukuk bürosuna iletildi'
+    when 'closed' then 'Sonuçlandı' when 'cancelled' then 'İptal edildi' else st end
+$$;
+
+create or replace function public.legal_after()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare ref text := 'H-' || lpad(new.no::text, 4, '0');
+begin
+  if tg_op = 'UPDATE' and public.is_admin() then
+    if new.status is distinct from old.status or new.reply is distinct from old.reply then
+      insert into public.notifications (user_id, title, body, url)
+      values (new.user_id, 'Hukuki destek ' || ref || ': ' || public.legal_label(new.status),
+        coalesce(nullif(new.reply, ''), 'Talebinin durumu güncellendi.'), '/uygulama/talepler');
+    end if;
+    if new.status is distinct from old.status then
+      perform public.audit('legal.' || new.status, new.id::text, jsonb_build_object('no', new.no));
+    end if;
+  end if;
+  return new;
+end $$;
+drop trigger if exists legal_after on public.legal_requests;
+create trigger legal_after after update on public.legal_requests for each row execute function public.legal_after();
+
+-- Dosyalar: "hukuk-<kişi>/<dosya>" klasörüne yalnız kişinin kendisi yükler; okuma evim_read kuralıyla (yükleyen ve yönetici).
+drop policy if exists legal_files_write on storage.objects;
+create policy legal_files_write on storage.objects for insert to authenticated
+  with check (bucket_id = 'evim' and (storage.foldername(name))[1] = 'hukuk-' || auth.uid()::text);

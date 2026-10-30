@@ -35,6 +35,7 @@ export const I = {
   office:   svg('<rect x="5" y="3" width="14" height="18" rx="3"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2"/>' + R(12, 17.4, 1.6)),
   shop:     svg('<path d="M4 9.5 5.5 4h13L20 9.5a2.5 2.5 0 0 1-4 2 2.5 2.5 0 0 1-4 0 2.5 2.5 0 0 1-4 0 2.5 2.5 0 0 1-4-2z"/><path d="M5.5 13v6a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-6"/>' + R(12, 16.5, 1.6)),
   box:      svg('<path d="M4 8 12 4l8 4v8.5L12 20.5 4 16.5z"/><path d="M4 8l8 4 8-4M12 12v8.5"/>' + R(16.2, 5.9, 1.3)),
+  scale:    svg('<path d="M12 4v16M8 20h8M5 7h14"/><path d="M5 7l-2.5 6a2.5 2.5 0 0 0 5 0z"/><path d="M19 7l-2.5 6a2.5 2.5 0 0 0 5 0z"/>' + R(12, 4.5, 1.6)),
   safe:     svg('<rect x="3.5" y="5" width="17" height="14" rx="3"/><path d="M7 19v2M17 19v2"/><circle fill="{RING}" stroke="none" cx="12" cy="10.5" r="1.7"/><path fill="{RING}" stroke="none" d="M11 11.3 L10.6 14.1 H13.4 L13 11.3Z"/>'),
   meter:    svg('<path d="M4.5 17a8.5 8.5 0 1 1 15 0"/><path d="M8 17h8"/>' + R(15.2, 9.2, 1.6) + '<path d="M12 14.5l2.3-3.5"/>'),
   landlord: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/><circle fill="{RING}" stroke="none" cx="18.5" cy="5" r="1.8"/>'),

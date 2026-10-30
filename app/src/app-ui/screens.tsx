@@ -22,6 +22,7 @@ import {
 import { Toggle } from './forms';
 import { useStore } from './hooks';
 import { useSheet } from './overlays';
+import { LegalList } from './legal';
 import { MailReportCard } from './report-mail';
 import { JoinBanner } from './JoinCode';
 import { SiteTeaser } from './site';
@@ -140,7 +141,7 @@ export function TenantScreen({ tab, sub }: { tab: 'pay' | 'req' | 'msg' | 'docs'
   if (!p) return <Page title={t('Panel')}><Empty>{t('Henüz bağlı bir mülk yok.')}</Empty></Page>;
   switch (tab) {
     case 'pay': return <Page title={t('Ödemeler')} sub={p.name}><SecPay p={p} /></Page>;
-    case 'req': return <Page title={t('Talepler')} sub={p.name}><SecReq p={p} /></Page>;
+    case 'req': return <Page title={t('Talepler')} sub={p.name}><LegalList /><SecReq p={p} /></Page>;
     case 'msg': return <Page title={t('Mesajlar')} sub={p.name}><SecMsg p={p} /></Page>;
     case 'agenda': return <Page title={t('Takvim')} sub={p.name}><AgendaBody props={[p]} /></Page>;
     default:
@@ -412,6 +413,7 @@ export function AllRequests() {
   return (
     <Page title={t('Talepler')} sub={t('Tüm mülkler')}>
       <SubBanner full={false} />
+      <LegalList />
       <Seg value={tab} onChange={(v) => { ui.reqTab = v; setTab(v); }} options={[['open', t('Açık (') + openN + ')'], ['done', t('Tamamlanan (') + (allN - openN) + ')']]} />
       {cards.length ? cards : <Empty>{t('Bu listede talep yok.')}</Empty>}
     </Page>
