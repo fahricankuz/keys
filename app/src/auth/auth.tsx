@@ -171,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       if (captchaPending()) return t('Güvenlik doğrulaması bitsin, sonra tekrar dene.');
       const c = await backend.client();
-      const { error } = await c.auth.resetPasswordForEmail(email, { redirectTo: CONFIG.publicUrl, captchaToken: captchaToken() ?? undefined });
+      const { error } = await c.auth.resetPasswordForEmail(email, { redirectTo: CONFIG.publicUrl + 'yeni-sifre', captchaToken: captchaToken() ?? undefined });
       captchaSpent();
       return error ? t('Bağlantı gönderilemedi.') : null;
     } catch { return t('Bağlantı kurulamadı. Biraz sonra yeniden dene.'); }

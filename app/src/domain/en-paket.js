@@ -1,5 +1,16 @@
 /* Paketler, fiyatlar (mülk başına) ve satın alma sayfası için İngilizce. i18n.js içinde birleştirilir. */
 export const EN_PAKET = {
+  'Yeni şifre belirle': 'Set a new password',
+  'Bağlantın doğrulanıyor…': 'Checking your link…',
+  'Bağlantı geçersiz': 'Link not valid',
+  'Bu şifre yenileme bağlantısının süresi dolmuş ya da daha önce kullanılmış. Yeni bir bağlantı iste.': 'This password reset link has expired or was already used. Request a new one.',
+  'Yeni bağlantı iste': 'Request a new link',
+  'Şifren yenilendi': 'Password updated',
+  'Yeni şifrenle giriş yapabilirsin.': 'You can now sign in with your new password.',
+  'Hesabın için yeni bir şifre yaz.': 'Enter a new password for your account.',
+  'Yeni şifre': 'New password',
+  'Şifreyi kaydet': 'Save password',
+
   '{n} ve üstü mülk': '{n} or more properties',
   '1-{n} mülk': '1-{n} properties',
   'Site yönetimi · AVM · GYO · Depo ve lojistik · Emlak ofisi · Family office': 'Building management · Shopping malls · REITs · Warehouse and logistics · Real estate offices · Family offices',
