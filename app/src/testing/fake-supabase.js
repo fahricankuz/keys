@@ -271,6 +271,18 @@ export function createClient(url, key, opts){
         emit('SIGNED_IN', db.session);
         return { data:{ session:db.session, user:db.session.user, redirectType: code.startsWith('recovery') ? 'recovery' : null }, error:null };
       },
+      async setSession({ access_token, refresh_token }){
+        client._calls.push({ setSession:access_token });
+        if (access_token === 'bad') return { data:{}, error:{ message:'invalid token' } };
+        const db = load(); const u = db.users[0];
+        db.session = { user:{ id:u.id, email:u.email }, access_token };
+        persist(db); emit('SIGNED_IN', db.session);
+        return { data:{ session:db.session, user:db.session.user }, error:null };
+      },
+      async verifyOtp({ token_hash, type }){
+        client._calls.push({ verifyOtp:token_hash, type });
+        return this.setSession({ access_token: token_hash, refresh_token:'r' });
+      },
       async updateUser({ password, email }, o){
         const db = load();
         const u = db.users.find(x => x.id === db.session?.user.id);
