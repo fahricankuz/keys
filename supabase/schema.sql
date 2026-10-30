@@ -3843,3 +3843,59 @@ create trigger legal_after after update on public.legal_requests for each row ex
 drop policy if exists legal_files_write on storage.objects;
 create policy legal_files_write on storage.objects for insert to authenticated
   with check (bucket_id = 'evim' and (storage.foldername(name))[1] = 'hukuk-' || auth.uid()::text);
+
+-- =====================================================================
+-- 23. Hoş geldin e-postası (supabase/functions/welcome)
+--     Kişi paneline ilk girdiğinde uygulama welcome fonksiyonunu çağırır; fonksiyon bu iki işlevle kişinin
+--     türünü ve paketini okur, gönderimi bir kez kaydeder. İşlevler yalnız sunucu (service role) içindir.
+--     Bu bölümden önce açılmış hesaplara gönderilmez (welcome_since).
+-- =====================================================================
+create table if not exists public.welcome_mail (
+  user_id uuid primary key references public.profiles(id) on delete cascade,
+  kind    text not null,
+  sent_at timestamptz not null default now()
+);
+alter table public.welcome_mail enable row level security;   -- kural yok: yalnız sunucu yazar ve okur
+
+-- Hoş geldin e-postasının başladığı an: bu tarihten önce açılan hesaplara gitmez.
+create or replace function public.welcome_since() returns timestamptz language sql immutable as $$ select timestamptz '2026-10-30 00:00:00+03' $$;
+
+/** E-postanın türü: tenant | team | tek | bes; gönderilmeyecekse skip (eski hesap, kurum hesabı, yönetici).
+    Mülk sahibinin paketi: ücretli abonelik > kayıtta seçtiği paket (hesap bilgisi) > ayarlardaki seçim > Başlangıç. */
+create or replace function public.welcome_info(uid uuid)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare p public.profiles; s public.subscriptions; meta jsonb; pick text; kind text; trial timestamptz;
+begin
+  select * into p from public.profiles where id = uid;
+  if p.id is null then return null; end if;
+  select * into s from public.subscriptions where user_id = uid;
+  select coalesce(raw_user_meta_data, '{}'::jsonb) into meta from auth.users where id = uid;
+  if p.created_at < public.welcome_since() or exists (select 1 from public.admins where user_id = uid)
+     or exists (select 1 from public.org_members where user_id = uid) then
+    kind := 'skip';
+  elsif p.role = 'tenant' then kind := 'tenant';
+  elsif p.role = 'team' then kind := 'team';
+  else
+    pick := case when s.active and public.plan_of(s.product_id) in ('tek','bes','kurumsal') then public.plan_of(s.product_id)
+                 when meta->>'plan' in ('tek','bes') then meta->>'plan'
+                 when p.settings->'planChoice'->>'plan' in ('tek','bes') then p.settings->'planChoice'->>'plan'
+                 else 'tek' end;
+    kind := case when pick = 'kurumsal' then 'skip' else pick end;
+  end if;
+  -- Deneme bitişi: mağaza denemesindeyse aboneliğin bitişi, ücretli abonelik yoksa uygulama denemesinin bitişi.
+  trial := case when s.active and s.period_type in ('trial','intro') then s.expires_at
+                when coalesce(s.active, false) then null
+                else p.created_at + make_interval(days => public.trial_days() + coalesce(p.extra_trial_days, 0)) end;
+  return jsonb_build_object('kind', kind, 'name', p.name, 'lang', p.lang,
+    'email', (select email from auth.users where id = uid), 'trial_ends', case when kind in ('tek','bes') then trial end);
+end $$;
+revoke execute on function public.welcome_info(uuid) from public, anon, authenticated;
+
+/** Gönderimi bir kez ayırır: ilk çağrıda true, sonrakilerde false. Gönderim başarısız olursa fonksiyon kaydı siler. */
+create or replace function public.welcome_claim(uid uuid, k text)
+returns boolean language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.welcome_mail (user_id, kind) values (uid, k) on conflict (user_id) do nothing;
+  return found;
+end $$;
+revoke execute on function public.welcome_claim(uuid, text) from public, anon, authenticated;

@@ -629,6 +629,8 @@ export function createClient(url, key, opts){
         const db = load();
         client._calls.push({ fn:name });
         const me = db.session?.user.id;
+        db.invoked = [...(db.invoked || []), name];          // testler hangi fonksiyonun çağrıldığını buradan okur
+        persist(db);
         if (name === 'billing' && me && db.nextSubscription){
           db.tables.subscriptions = db.tables.subscriptions.filter(x => x.user_id !== me);
           db.tables.subscriptions.push(Object.assign({ user_id:me }, db.nextSubscription));

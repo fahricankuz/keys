@@ -7,7 +7,7 @@ import { hydrate, storage } from '../domain/storage';
 import { LIVE, CONFIG } from '../domain/config';
 import { closeLocal, openLocal, ui } from '../domain/state';
 import { t, getLang } from '../domain/i18n';
-import { account, adoptPlanChoice } from '../domain/billing';
+import { account, adoptPlanChoice, PLAN_CHOICE } from '../domain/billing';
 import * as backend from '../domain/backend';
 import { playOnNextOpen } from '../app-ui/OpenSplash';
 
@@ -85,6 +85,7 @@ async function enterLive(au: { id: string; email?: string }): Promise<User> {
       storage.removeItem(INVITE);
     }
     adoptPlanChoice(u.role);          // satın alma sayfasında seçilen paket (varsa) profile yazılır
+    backend.welcomeOnce(u.id);         // ilk girişte hoş geldin e-postası (tür ve pakete göre)
   }
   return u;
 }
@@ -149,7 +150,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const c = await backend.client();
         // Onay e-postasındaki bağlantı /dogrula sayfasına döner: oturum açılır, kişi doğrudan paneline geçer
         // (Supabase → Redirect URLs listesinde anahtar.io/** olmalı).
-        const { data, error } = await c.auth.signUp({ email, password, options: { data: { name, role, lang: getLang() }, captchaToken: captchaToken() ?? undefined,
+        // Mülk sahibinin seçtiği paket hesap bilgisine de yazılır: onayı başka cihazda yapsa da hoş geldin e-postası doğru paketi anlatır.
+        let plan: string | undefined;
+        try { const pc = JSON.parse(storage.getItem(PLAN_CHOICE) || 'null'); if (role === 'landlord' && pc && ['tek', 'bes'].includes(pc.plan)) plan = pc.plan; } catch {}
+        const { data, error } = await c.auth.signUp({ email, password, options: { data: { name, role, lang: getLang(), ...(plan ? { plan } : {}) }, captchaToken: captchaToken() ?? undefined,
           emailRedirectTo: CONFIG.publicUrl.replace(/\/?$/, '/') + 'dogrula' } });
         captchaSpent();
         if (error) return t('Hesap oluşturulamadı: {m}', { m: backend.humanError(error) });

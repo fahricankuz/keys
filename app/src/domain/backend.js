@@ -100,6 +100,18 @@ function setStatus(s){
 }
 
 /** Giriş sonrası: profil, yönetici mi, veri. Yönetici hesapları ev verisi yüklemez. */
+/** Hoş geldin e-postası (supabase/functions/welcome): hesap başına bir kez istenir; sunucu da ikinci gönderimi engeller.
+    Başarısız olursa (ağ, sunucu) bir sonraki girişte yeniden denenir. */
+export function welcomeOnce(id){
+  const k = 'anahtar-hosgeldin:' + id;
+  try { if (storage.getItem(k)) return; } catch(e){}
+  const c = sb();
+  if (!c || !c.functions) return;
+  c.functions.invoke('welcome', { body: {} })
+    .then(r => { if (!r.error) { try { storage.setItem(k, '1'); } catch(e){} } })
+    .catch(() => {});
+}
+
 export async function openSession(user){
   live.user = user;
   const c = await client();

@@ -38,6 +38,11 @@ Sahip: 👤 = sizin yapmanız gereken (hesap, sözleşme, karar) · 🤖 = kodda
       tablo `support_requests`, olay **INSERT**, tür *Supabase Edge Functions* → `lead-mail`, başlık `x-anahtar-secret: <LEAD_SECRET>`.
       Başvurular webhook kurulmadan da yönetici paneli → Talepler'de görünür.
 
+- [ ] 👤 **Hoş geldin e-postası** (`supabase/functions/welcome`, şema 23. bölüm): `supabase functions deploy welcome`; gizli değişkenler
+      rapor e-postasıyla aynı (`RESEND_API_KEY`, `EMAIL_FROM`, isteğe bağlı `APP_URL`). Kişi paneline ilk girdiğinde bir kez gider:
+      kiracıya kiracı rehberi, mülk sahibine seçtiği paketin (Başlangıç / Profesyonel) anlatımı, ekip üyesine ekip rehberi.
+      Kurum hesaplarına ve bu özellikten önce açılmış hesaplara gitmez. Önizleme: `npx playwright test tests/hosgeldin.spec.mjs` → `test-results/hosgeldin/`.
+
 - [ ] 👤 **Hukuki süreç desteği** (şema 22. bölüm; talep başına 3.000 ₺ KDV dahil, mülk sahibi ve kiracı, tüm paketlerde):
       ekibe e-posta için aynı `lead-mail` fonksiyonuna ikinci webhook: tablo `legal_requests`, olay **INSERT**, aynı başlık.
       Talepler yönetici paneli → **Hukuki talepler**'de: ödemeyi işaretle (havale / fatura), dosyaları anlaşmalı büroya **elle** ilet,
