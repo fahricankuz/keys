@@ -1,5 +1,9 @@
 /* Paketler, fiyatlar (mülk başına) ve satın alma sayfası için İngilizce. i18n.js içinde birleştirilir. */
 export const EN_PAKET = {
+  'Canlı': 'Live',
+  'Bağlanıyor…': 'Connecting…',
+  'yeni mesaj': 'new messages',
+
   'Yeni şifre belirle': 'Set a new password',
   'Bağlantın doğrulanıyor…': 'Checking your link…',
   'Bağlantı geçersiz': 'Link not valid',

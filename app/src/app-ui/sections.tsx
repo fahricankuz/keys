@@ -1,6 +1,6 @@
 /* Ekran bölümleri: views.js'in React karşılığı (aynı veri, aynı kurallar). */
-import { useEffect, useState } from 'react';
-import { Image, Linking, Pressable, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Image, KeyboardAvoidingView, Linking, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { S, ui, STEPS, CONDITIONS, docCatsFor, isCommercial } from '../domain/state';
 import { estimate, stopajRate } from '../domain/tax';
@@ -24,7 +24,7 @@ import { LegalLink, LegalNudge } from './legal';
 import { SiteUnitCharges } from './site';
 import { useAuth } from '../auth/auth';
 import { useStore } from './hooks';
-import { humanError, refreshProperty, olderMessages } from '../domain/backend';
+import { humanError, refreshProperty, olderMessages, realtimeStatus } from '../domain/backend';
 import { mySiteUnits, linkSiteUnit, unitLabel } from '../domain/site';
 import { Picked, pickImages, takePhoto } from './media';
 import { mediaSrc } from '../domain/backend';
@@ -382,16 +382,40 @@ export function SecMsg({ p }: { p: any }) {
   const lastAt = p.msgs.length ? p.msgs[p.msgs.length - 1].at : 0;
   useEffect(() => { act('markRead', { pid: p.id }); }, [p.id, lastAt]);
   let lastDay = '';
+  // Sohbet son mesajdan açılır; mesaj kutusu sabit kalır, liste kaydırılır. Aşağıdaysan yeni mesaj listeyi aşağı indirir,
+  // yukarıda eski mesajları okuyorsan sıra bozulmaz ve "yeni mesaj" düğmesi çıkar.
+  const list = useRef<any>(null);
+  const atBottom = useRef(true);
+  const seen = useRef(p.msgs.length);
+  const [unseen, setUnseen] = useState(0);
+  const live = realtimeStatus();
+  const toEnd = (animated = false) => { atBottom.current = true; setUnseen(0); list.current?.scrollToEnd({ animated }); };
+  useEffect(() => {
+    const added = p.msgs.length - seen.current;
+    seen.current = p.msgs.length;
+    if (added <= 0) return;
+    const last = p.msgs[p.msgs.length - 1];
+    if (atBottom.current || isMine(p, last)) toEnd(true);
+    else setUnseen((n) => n + added);
+  }, [p.msgs.length]);
   return (
-    <Stack>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, minHeight: 0, gap: 10 }}>
       <Card>
         <Row between>
-          <View style={{ flex: 1 }}><Label>{otherLabel()}</Label><Text v="h3">{o.name}</Text></View>
-          {o.phone ? <Button title={t('Ara|telefon')} icon={<Icon name="phone" size={16} color="#fff" />} onPress={() => Linking.openURL('tel:' + o.phone).catch(() => {})} /> : null}
-          {otherUser(p) ? <IconBtn name="flag" size={16} label={t('Bildir ya da engelle')} onPress={() => open('sikayet', { pid: p.id, kind: 'user', user: otherUser(p), name: o.name })} /> : null}
+          <View style={{ flex: 1 }}>
+            <Label>{otherLabel()}</Label>
+            <Row gap={8}><Text v="h3">{o.name}</Text>{live === 'live' ? <Chip tone="ok" label={t('Canlı')} /> : live === 'down' ? <Chip tone="warn" label={t('Bağlanıyor…')} /> : null}</Row>
+          </View>
+          <Row gap={6}>
+            <IconBtn name="doc" size={18} label={t('Yazışmayı dışa aktar')} onPress={() => act('exportChat', { pid: p.id })} />
+            {otherUser(p) ? <IconBtn name="flag" size={16} label={t('Bildir ya da engelle')} onPress={() => open('sikayet', { pid: p.id, kind: 'user', user: otherUser(p), name: o.name })} /> : null}
+            {o.phone ? <Button title={t('Ara|telefon')} icon={<Icon name="phone" size={16} color="#fff" />} onPress={() => Linking.openURL('tel:' + o.phone).catch(() => {})} /> : null}
+          </Row>
         </Row>
       </Card>
-      <View style={{ gap: 8 }}>
+      <ScrollView ref={list} style={{ flex: 1 }} contentContainerStyle={{ gap: 8, paddingVertical: 6 }} keyboardShouldPersistTaps="handled" scrollEventThrottle={50}
+        onContentSizeChange={() => { if (atBottom.current) list.current?.scrollToEnd({ animated: false }); }}
+        onScroll={(e) => { const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent; const bottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - 80; atBottom.current = bottom; if (bottom && unseen) setUnseen(0); }}>
         {p.msgs.length === 0 ? <Note>{t('Henüz mesaj yok. Yazışmalar tarihli olarak saklanır.')}</Note> : null}
         {ui.msgMore[p.id] ? <OlderMessages pid={p.id} /> : null}
         {p.msgs.map((m: any, i: number) => {
@@ -445,7 +469,8 @@ export function SecMsg({ p }: { p: any }) {
             </View>
           );
         })}
-      </View>
+      </ScrollView>
+      {unseen > 0 ? <Button title={'↓ ' + unseen + ' ' + t('yeni mesaj')} onPress={() => toEnd(true)} style={{ alignSelf: 'center' }} /> : null}
       {photo ? (
         <Row>
           {photo.dataUrl ? <Image source={{ uri: photo.dataUrl }} style={{ width: 64, height: 64, borderRadius: 12 }} accessibilityLabel={t('Eklenen fotoğraf')} /> : null}
@@ -457,13 +482,12 @@ export function SecMsg({ p }: { p: any }) {
         {Platform.OS !== 'web' ? <IconBtn name="cam" label={t('Kamerayla çek')} onPress={() => attach(true)} /> : null}
         <IconBtn name={Platform.OS !== 'web' ? 'doc' : 'cam'} label={t('Fotoğraf ekle')} onPress={() => attach(false)} />
         <TextInput value={text} onChangeText={setText} onSubmitEditing={send} placeholder={t('Mesaj yaz')} placeholderTextColor={c.muted} accessibilityLabel={t('Mesaj')}
-          style={[{ flex: 1, minHeight: 50, borderRadius: radius.pill, paddingHorizontal: 18, backgroundColor: c.surface, borderWidth: 1.5, borderColor: c.line, color: c.ink, fontFamily: fonts.body, fontSize: 16 }, { outlineStyle: 'none' } as any]} />
+          style={[{ flex: 1, minWidth: 0, minHeight: 50, borderRadius: radius.pill, paddingHorizontal: 18, backgroundColor: c.surface, borderWidth: 1.5, borderColor: c.line, color: c.ink, fontFamily: fonts.body, fontSize: 16 }, { outlineStyle: 'none' } as any]} />
         <PressScale onPress={send} accessibilityRole="button" accessibilityLabel={t('Gönder')} style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="send" size={20} color={c.accentInk} />
         </PressScale>
       </Row>
-      <Button kind="ghost" title={t('Yazışmayı dışa aktar')} onPress={() => act('exportChat', { pid: p.id })} />
-    </Stack>
+    </KeyboardAvoidingView>
   );
 }
 

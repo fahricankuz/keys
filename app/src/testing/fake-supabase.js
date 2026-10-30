@@ -696,9 +696,21 @@ export function createClient(url, key, opts){
         };
       }
     },
-    channel(){ const ch = { on(){ return ch; }, subscribe(){ return ch; } }; return ch; },
-    removeChannel(){}
+    // Anlık kanal: testler karşı tarafın değişikliğini window.__fakeRealtime.emit(tablo, olay, satır) ile gönderir,
+    // bağlantı durumunu window.__fakeRealtime.status('CHANNEL_ERROR' | 'SUBSCRIBED' | …) ile değiştirir.
+    channel(){
+      const ch = { _h: [], _cb: null,
+        on(type, f, cb){ ch._h.push({ f, cb }); return ch; },
+        subscribe(cb){ ch._cb = cb; client._rt = ch; setTimeout(() => cb && cb('SUBSCRIBED'), 0); return ch; } };
+      return ch;
+    },
+    removeChannel(ch){ if (client._rt === ch) client._rt = null; }
   };
   globalThis.__fakeClient = client;
+  if (typeof window !== 'undefined') window.__fakeRealtime = {
+    emit(table, eventType, row){ const ch = client._rt; if (ch) ch._h.filter(h => h.f && h.f.table === table).forEach(h => h.cb({ eventType, new: row, old: {} })); },
+    status(st){ const ch = client._rt; if (ch && ch._cb) ch._cb(st); },
+    channels(){ return client._rt ? 1 : 0; }
+  };
   return client;
 }
