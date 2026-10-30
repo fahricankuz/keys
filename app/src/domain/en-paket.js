@@ -1,5 +1,7 @@
 /* Paketler, fiyatlar (mülk başına) ve satın alma sayfası için İngilizce. i18n.js içinde birleştirilir. */
 export const EN_PAKET = {
+  'Eski mesajlar yükleniyor…': 'Loading older messages…',
+
   'Canlı': 'Live',
   'Bağlanıyor…': 'Connecting…',
   'yeni mesaj': 'new messages',
