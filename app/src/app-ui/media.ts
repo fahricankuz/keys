@@ -53,28 +53,67 @@ async function shrink(uri: string, preset: Preset, w?: number, h?: number): Prom
   } catch { return null; }
 }
 
-async function fromAssets(assets: ImagePickerT.ImagePickerAsset[], max: number): Promise<Picked[]> {
+/** Tarayıcıda görseli doğrudan hedef boyutta çizer (tam boyutlu bir tuval açmaz). Telefon fotoğrafları büyüktür (12-48 MP);
+    iPhone Safari'de tam boyutlu tuval sınırı aşılınca klasik küçültme sessizce başarısız olur. Bu yol o sınıra takılmaz. */
+async function shrinkCanvas(uri: string, preset: Preset): Promise<string | null> {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return null;
+  try {
+    const img = document.createElement('img');
+    img.decoding = 'async';
+    img.src = uri;
+    await img.decode();
+    const w = img.naturalWidth, h = img.naturalHeight;
+    if (!w || !h) return null;
+    const k = Math.min(1, preset.max / Math.max(w, h));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(w * k));
+    canvas.height = Math.max(1, Math.round(h * k));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    let out = canvas.toDataURL('image/webp', preset.webp);
+    if (!out.startsWith('data:image/webp')) out = canvas.toDataURL('image/jpeg', preset.jpeg);   // WebP üretemeyen tarayıcı PNG verir
+    canvas.width = canvas.height = 0;
+    return out.length > 64 ? out : null;
+  } catch { return null; }
+}
+
+/** Görseli yüklenebilir boyuta getirir: önce tam çözünürlük hedefi, olmazsa giderek daha küçük hedefler (1280 → 1024 → 800 → 600 px);
+    her kademede önce tuval yolu, sonra klasik küçültme denenir. Hepsi başarısız olursa null. */
+async function shrinkRobust(uri: string, preset: Preset, w?: number, h?: number): Promise<string | null> {
+  for (const max of [preset.max, 1024, 800, 600].filter((m, i, a) => m <= preset.max && a.indexOf(m) === i)) {
+    const p = { ...preset, max };
+    const r = (await shrinkCanvas(uri, p)) ?? (await shrink(uri, p, w, h));
+    if (r) return r;
+  }
+  return null;
+}
+
+async function fromAssets(assets: ImagePickerT.ImagePickerAsset[], max: number, onStart?: (n: number) => void): Promise<Picked[]> {
   const out: Picked[] = [];
+  onStart?.(Math.min(assets.length, max));
   for (const a of assets.slice(0, max)) {
-    const dataUrl = await shrink(a.uri, PHOTO, a.width, a.height);
+    const dataUrl = await shrinkRobust(a.uri, PHOTO, a.width, a.height);
+    if (!dataUrl) { host.notify({ title: t('Fotoğraf işlenemedi'), body: t('Bu fotoğraf küçültülemedi. Başka bir fotoğraf dene ya da ekran görüntüsü al.'), icon: 'doc' }); continue; }
     out.push({ name: a.fileName || 'foto.jpg', dataUrl, isImage: true, thumb: await thumbOf(dataUrl) });
   }
   return out;
 }
 
-export async function pickImages(max = 4): Promise<Picked[]> {
+/** `onStart`: fotoğraf seçildi ve hazırlanmaya başlandı (arayüz bekleme göstergesi gösterir). */
+export async function pickImages(max = 4, onStart?: (n: number) => void): Promise<Picked[]> {
   const ImagePicker = await picker();
   const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: max > 1, selectionLimit: max, quality: 0.8 });
-  return r.canceled ? [] : fromAssets(r.assets, max);
+  return r.canceled ? [] : fromAssets(r.assets, max, onStart);
 }
 
-export async function takePhoto(): Promise<Picked[]> {
+export async function takePhoto(onStart?: (n: number) => void): Promise<Picked[]> {
   try {
     const ImagePicker = await picker();
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) return [];
     const r = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
-    return r.canceled ? [] : fromAssets(r.assets, 1);
+    return r.canceled ? [] : fromAssets(r.assets, 1, onStart);
   } catch { return []; }
 }
 
@@ -86,7 +125,7 @@ export async function pickDocument(): Promise<Picked | null> {
   const isImage = (a.mimeType || '').startsWith('image/');
   // PDF sıkıştırılamaz: büyük dosya seçilir seçilmez, yükleme beklenmeden bildirilir.
   if (!isImage && a.size && a.size > MAX_FILE) { host.notify({ title: t('Dosya çok büyük'), body: t('En fazla 10 MB yüklenebilir.'), icon: 'doc' }); return null; }
-  const dataUrl = isImage ? await shrink(a.uri, DOC, (a as any).width, (a as any).height) : null;
+  const dataUrl = isImage ? await shrinkRobust(a.uri, DOC, (a as any).width, (a as any).height) : null;
   return { name: a.name, dataUrl, isImage, uri: a.uri, mime: a.mimeType || undefined, size: a.size || undefined, thumb: isImage ? await thumbOf(dataUrl) : null };
 }
 
