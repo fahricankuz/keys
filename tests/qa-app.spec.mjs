@@ -69,7 +69,7 @@ test('kabul: mülk sahibi kaydolur, mülk ekler, kiracı davetle katılır, deko
   await page.getByRole('button', { name: 'Caferağa Mahallesi' }).click();
   await page.getByLabel('Cadde / sokak').fill('Moda Cd.');
   await page.getByLabel('Bina no').fill('5');
-  await page.getByLabel('Alan (m²)').fill('110');
+  await page.getByLabel('Alan (m², zorunlu)').fill('110');
   await page.getByLabel('Aylık kira (₺)').fill('25000');
   await page.getByLabel('Ödeme günü').fill('5');
   await page.getByRole('button', { name: 'Kaydet ve davet et' }).click();

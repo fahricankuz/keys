@@ -599,6 +599,7 @@ function LesseeFields({ v, set, p }: { v: any; set: (k: string, x: any) => void;
 }
 
 function AddPropSheet({ close }: { close: () => void }) {
+  const [areaErr, setAreaErr] = useState('');
   const { v, set } = useVals({ type: ui.newPropType || 'Konut', name: '', address: emptyAddress(), area: '', rent: '', due: '1', phone: '', tenantKind: TENANT_KINDS[0], coName: '', coTaxNo: '', coTaxOffice: '', stopaj: true });
   const [err, setErr] = useState('');
   const ph: any = { Konut: t('Ör. Kadıköy 3+1'), Ofis: t('Ör. Levent ofis'), Mağaza: t('Ör. Bağdat Cd. mağaza'), Depo: t('Ör. Hadımköy depo') };
@@ -610,18 +611,20 @@ function AddPropSheet({ close }: { close: () => void }) {
       <H2>{t('Adres')}</H2>
       <AddressFields value={v.address} onChange={(a) => set('address', a)} />
       <H2>{t('Kira')}</H2>
-      <Row align="flex-start"><View style={{ flex: 1 }}><NumField label={t('Alan (m²)')} v={v} set={set} k="area" /></View><View style={{ flex: 1 }}><NumField label={t('Aylık kira (₺)')} v={v} set={set} k="rent" /></View></Row>
+      <Row align="flex-start"><View style={{ flex: 1 }}><NumField label={t('Alan (m², zorunlu)')} v={v} set={set} k="area" /></View><View style={{ flex: 1 }}><NumField label={t('Aylık kira (₺)')} v={v} set={set} k="rent" /></View></Row>
       <NumField label={t('Ödeme günü')} v={v} set={set} k="due" />
       {v.type !== 'Konut' ? <LesseeFields v={v} set={set} /> : null}
       <Text2 label={t('Kiracının telefonu')} v={v} set={set} k="phone" keyboardType="phone-pad" placeholder="05__ ___ __ __" />
       <Muted>{t('Kaydettiğinde kiracıya WhatsApp ile davet linki hazırlanır; katıldığında mülk iki taraflı panele dönüşür.')}</Muted>
-      <Actions onCancel={close} submitLabel={t('Kaydet ve davet et')} onSubmit={async () => { if (!v.name.trim()) { setErr(t('Mülk adı gerekli.')); return; } await submit('addProp', v); }} />
+      {areaErr ? <Text v="small" color="#A8231F">{areaErr}</Text> : null}
+      <Actions onCancel={close} submitLabel={t('Kaydet ve davet et')} onSubmit={async () => { if (!v.name.trim()) { setErr(t('Mülk adı gerekli.')); return; } if (!(Number(String(v.area).replace(',', '.')) > 0)) { setAreaErr(t('Alanı (m²) yaz.')); return; } await submit('addProp', v); }} />
     </Stack>
   );
 }
 
 function EditPropSheet({ pid, close }: { pid?: string; close: () => void }) {
   const p = propOf(pid);
+  const [areaErr, setAreaErr] = useState('');
   const { v, set } = useVals({
     name: p.name, address: p.address || { ...emptyAddress(), note: p.addr || '' }, type: p.type, area: p.area ? String(p.area) : '', rent: String(p.rent), due: String(p.dueDay),
     tenantKind: p.company ? TENANT_KINDS[1] : TENANT_KINDS[0], coName: p.company?.name || '', coTaxNo: p.company?.taxNo || '', coTaxOffice: p.company?.taxOffice || '', stopaj: !p.company || p.stopaj,
@@ -634,7 +637,7 @@ function EditPropSheet({ pid, close }: { pid?: string; close: () => void }) {
       <Text2 label={t('Mülk adı')} v={v} set={set} k="name" maxLength={60} />
       <AddressFields value={v.address} onChange={(a) => set('address', a)} />
       <Choice label={t('Mülk tipi')} options={PROP_TYPES} v={v} set={set} k="type" render={t} />
-      <Row align="flex-start"><View style={{ flex: 1 }}><NumField label={t('Alan (m²)')} v={v} set={set} k="area" /></View><View style={{ flex: 1 }}><NumField label={p.stopaj ? t('Aylık brüt kira (₺)') : t('Aylık kira (₺)')} v={v} set={set} k="rent" /></View></Row>
+      <Row align="flex-start"><View style={{ flex: 1 }}><NumField label={t('Alan (m², zorunlu)')} v={v} set={set} k="area" /></View><View style={{ flex: 1 }}><NumField label={p.stopaj ? t('Aylık brüt kira (₺)') : t('Aylık kira (₺)')} v={v} set={set} k="rent" /></View></Row>
       <NumField label={t('Ödeme günü')} v={v} set={set} k="due" />
       <LesseeFields v={v} set={set} p={p} />
       <Row align="flex-start"><View style={{ flex: 1 }}><NumField label={t('Aidat (₺)')} v={v} set={set} k="aidat" /></View></Row>
@@ -647,7 +650,8 @@ function EditPropSheet({ pid, close }: { pid?: string; close: () => void }) {
       <DateField label={t('Sözleşme bitişi')} v={v} set={set} k="contractEnd" />
       <DateField label={isCommercial(p) ? t('DASK bitişi (varsa)') : t('DASK bitişi')} v={v} set={set} k="dask" />
       {isCommercial(p) ? <Muted>{t('DASK yalnızca konutta zorunludur. İşyeri sigortasını Belgeler’e bitiş tarihiyle yüklersen hatırlatma kurulur.')}</Muted> : null}
-      <Actions onCancel={close} submitLabel={t('Kaydet')} onSubmit={() => submit('editProp', { ...v, pid: p.id })} />
+      {areaErr ? <Text v="small" color="#A8231F">{areaErr}</Text> : null}
+      <Actions onCancel={close} submitLabel={t('Kaydet')} onSubmit={() => { if (!(Number(String(v.area).replace(',', '.')) > 0)) { setAreaErr(t('Alanı (m²) yaz.')); return; } submit('editProp', { ...v, pid: p.id }); }} />
       {S.order.length > 1 ? <Button kind="quiet" block title={t('Bu mülkü kaldır')} onPress={() => act('removeProp', { pid: p.id })} /> : null}
     </Stack>
   );

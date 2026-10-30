@@ -4109,3 +4109,31 @@ begin
   end if;
   return new;
 end $$;
+
+-- =====================================================================
+-- 28. Sektör modülleri panelleri yönetir
+--     Kurum panelinde kapalı modülün bölümü görünmez (uygulama: org.js → sectorSections). Varsayılanlar gerçek ihtiyaca
+--     göre güncellendi: AVM, depo ve GYO kira artışları (endeksleme), doluluk ve duyuru içerir. Onay akışı ve API yol planında.
+--     Mevcut kurumlar hiçbir şey kaybetmesin diye modüllerine yeni varsayılanlar bir kez eklenir (geçiş kaydıyla).
+-- =====================================================================
+create or replace function public.sector_modules(sec text)
+returns text[] language sql immutable as $$
+  select case sec
+    when 'site'   then array['aidat','gider_dagitim','duyuru','rapor']
+    when 'avm'    then array['kira','ortak_gider','ciro_kira','endeksleme','doluluk','duyuru','rapor']
+    when 'depo'   then array['kira','ortak_gider','endeksleme','doluluk','duyuru','rapor']
+    when 'gyo'    then array['kira','ortak_gider','endeksleme','doluluk','duyuru','rapor']
+    else array['kira','rapor'] end
+$$;
+
+create table if not exists public.schema_migrations (id text primary key, at timestamptz not null default now());
+alter table public.schema_migrations enable row level security;   -- kural yok: yalnız şema betiği yazar
+
+do $$
+begin
+  if not exists (select 1 from public.schema_migrations where id = '2026-10-sektor-modulleri') then
+    update public.organizations o
+       set modules = array(select distinct x from unnest(coalesce(o.modules, '{}') || public.sector_modules(o.sector)) x order by 1);
+    insert into public.schema_migrations (id) values ('2026-10-sektor-modulleri');
+  end if;
+end $$;

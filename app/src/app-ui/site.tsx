@@ -2,10 +2,11 @@
    SiteAdminScreen: site yönetiminin ekranı (özet, daireler, tahakkuk, giderler, duyurular, talepler); sekmeler rol yetkisine göre.
    ResidentSiteScreen ("Sitem"): malik ya da kiracının dairesi, tahakkukları, dekont yükleme, duyurular ve yönetime talep. */
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
 import { Share, TextInput, View } from 'react-native';
 import { t } from '../domain/i18n';
 import { humanError, inviteLink, fileUrl } from '../domain/backend';
-import { myOrgs, orgCan } from '../domain/org';
+import { myOrgs, orgCan, hasModule, sectorSections } from '../domain/org';
 import {
   KINDS, MODES, kindLabel, unitLabel, distribute, unpaidOf, lateFee, loadSiteAdmin, saveUnit, deleteUnit, parseUnits, importUnits,
   saveResident, deleteResident, createCharges, deleteCharge, decideCharge, markPaid, addExpense, deleteExpense, announce, deleteAnnouncement,
@@ -20,6 +21,9 @@ import { Button, Chip, Field, Text } from '../ui/kit';
 import { Loader } from '../ui/Loader';
 import { fonts, radius, useColors } from '../ui/theme';
 import { Card, Empty, H2, Label, Muted, Note, Row, Seg, Stack, StatusChip } from './blocks';
+import { useBreakpoint } from '../ui/theme';
+import { ui } from '../domain/state';
+import { Overview, SetupWizard } from './site-overview';
 import { FileField } from './forms';
 import { useStore } from './hooks';
 import { Picked } from './media';
@@ -37,6 +41,14 @@ const money = (n: any, cur?: string) => (!cur || cur === 'TRY' ? tl(n) : (cur ==
 const CURS: [string, string][] = [['TRY', '₺ TL'], ['USD', '$ USD'], ['EUR', '€ EUR']];
 /** Bu ekranın açıldığı kurum türleri: site yönetimi ve ticari portföy (AVM, depo, GYO). */
 export const PORTFOLIO_SECTORS = ['site', 'avm', 'depo', 'gyo'];
+/** Kurum paneli bölümlerinin adresleri (/uygulama/site/<bölüm>); menü org.js → sectorSections. */
+export const SECTION_KEYS = ['ozet', 'birimler', 'tahakkuk', 'ciro', 'artis', 'giderler', 'butce', 'duyurular', 'talepler', 'rapor'];
+export const sectionPath = (k: string) => (k === 'ozet' ? '/uygulama/site' : '/uygulama/site/' + k);
+/** Kişinin yönettiği sektör kurumu (birden çoksa seçili olan). */
+export function currentPortfolioOrg() {
+  const sites = myOrgs().filter((o: any) => PORTFOLIO_SECTORS.includes(o.sector));
+  return sites.find((o: any) => o.id === ui.siteOrg) || sites[0] || null;
+}
 const REQ = () => [t('Açıldı'), t('Görüldü'), t('İşlemde'), t('Çözüldü')];
 const REQ_CAT: Record<string, string> = { ariza: 'Arıza', aidat: 'Aidat', genel: 'Genel' };
 const Spin = () => <View style={{ alignItems: 'center', paddingVertical: 20 }}><Loader size={64} /></View>;
@@ -55,73 +67,30 @@ async function shareCode(org: string, unit: string, code: string) {
 /* Yönetim                                                             */
 /* ================================================================== */
 
-function Summary({ d, oid, can, reload }: { d: any; oid: string; can: (p: string) => boolean; reload: () => void }) {
-  const c = useColors();
-  const m = thisMonth();
-  const cur = d.charges.filter((x: any) => x.month === m);
-  const total = cur.reduce((a: number, x: any) => a + Number(x.amount), 0);
-  const got = cur.reduce((a: number, x: any) => a + (x.status === 'paid' ? Number(x.amount) : x.status === 'partial' ? Number(x.paid_amount) : 0), 0);
-  const waiting = d.charges.filter((x: any) => x.status === 'review');
-  const unitBy: Record<string, any> = Object.fromEntries(d.units.map((u: any) => [u.id, u]));
-  const commercial = isCommercial(d.sector);
-  const debt: Record<string, { left: number; fee: number; n: number }> = {};
-  d.charges.forEach((x: any) => {
-    if (!overdue(x)) return;                            // vadesi geçmemiş borç listelenmez
-    const k = x.unit_id; debt[k] = debt[k] || { left: 0, fee: 0, n: 0 };
-    debt[k].left += unpaidOf(x); debt[k].fee += commercial ? 0 : lateFee(x); debt[k].n += 1;
-  });
-  const debtors = Object.entries(debt).sort((a, b) => b[1].left - a[1].left);
-  const occ = commercial ? occupancy(d) : null;
-  const pct = (x: number | null) => (x == null ? '—' : Math.round(x * 100) + '%');
+/** Sitede dairenin bilgileri: blok, no, m² (zorunlu), arsa payı, aylık aidat. */
+function FlatForm({ u, oid, done }: { u: any; oid: string; done: () => void }) {
+  const str = (v: any) => (v == null ? '' : String(v));
+  const [f, setF] = useState<any>({ block: str(u.block), no: str(u.no), area: str(u.area), share: str(u.share), aidat: str(u.aidat) });
+  const [err, setErr] = useState<string | null>(null);
+  const num = (k: string) => (v: string) => setF({ ...f, [k]: v.replace(/[^0-9.,]/g, '') });
+  const n = (v: string) => (v === '' ? null : Number(v.replace(',', '.')));
   return (
-    <Stack>
-      {occ ? (
-        <Row wrap>
-          <Card style={{ flex: 1, minWidth: 150 }} gap={4}><Label>{t('Doluluk')}</Label><Text v="h3">{pct(occ.rate)}</Text><Muted>{t('{a} / {b} birim', { a: occ.occupied, b: occ.total })}</Muted></Card>
-          <Card style={{ flex: 1, minWidth: 150 }} gap={4}><Label>{t('Alan doluluğu')}</Label><Text v="h3">{pct(occ.areaRate)}</Text><Muted>{Math.round(occ.occArea)} / {Math.round(occ.area)} m²</Muted></Card>
-          <Card style={{ flex: 1, minWidth: 150 }} gap={4}><Label>{t('90 günde biten sözleşme')}</Label><Text v="h3">{occ.expiring.length}</Text></Card>
-          <Card style={{ flex: 1, minWidth: 150 }} gap={4}><Label>{t('Ortalama kalan süre (WALT)')}</Label><Text v="h3">{occ.walt == null ? '—' : t('{n} yıl', { n: occ.walt.toFixed(1).replace('.', ',') })}</Text></Card>
-        </Row>
-      ) : null}
-      <Row wrap>
-        <Card style={{ flex: 1, minWidth: 150 }} gap={4}><Label>{t('{month} tahakkuku', { month: monthYear(m) })}</Label><Text v="h3">{tl(total)}</Text></Card>
-        <Card style={{ flex: 1, minWidth: 150 }} gap={4}><Label>{t('Tahsil edilen')}</Label><Text v="h3">{tl(got)}</Text><Muted>{total ? Math.round((got / total) * 100) + '%' : '—'}</Muted></Card>
-        <Card style={{ flex: 1, minWidth: 150 }} gap={4}><Label>{t('Onay bekleyen dekont')}</Label><Text v="h3">{waiting.length}</Text></Card>
-        <Card style={{ flex: 1, minWidth: 150 }} gap={4}><Label>{commercial ? t('Borçlu birim') : t('Borçlu daire')}</Label><Text v="h3">{debtors.length}</Text></Card>
+    <Card gap={10}>
+      <Row gap={10} wrap align="flex-end">
+        <View style={{ flexGrow: 1, flexBasis: 90 }}><Field label={t('Blok')} value={f.block} onChangeText={(v) => setF({ ...f, block: v })} maxLength={40} /></View>
+        <View style={{ flexGrow: 1, flexBasis: 90 }}><Field label={t('Daire no')} value={f.no} onChangeText={(v) => setF({ ...f, no: v })} maxLength={20} /></View>
+        <View style={{ flexGrow: 1, flexBasis: 90 }}><Field label={t('m² (zorunlu)')} value={f.area} onChangeText={num('area')} keyboardType="decimal-pad" /></View>
+        <View style={{ flexGrow: 1, flexBasis: 90 }}><Field label={t('Arsa payı')} value={f.share} onChangeText={num('share')} keyboardType="decimal-pad" /></View>
+        <View style={{ flexGrow: 1, flexBasis: 110 }}><Field label={t('Aylık aidat (₺)')} value={f.aidat} onChangeText={num('aidat')} keyboardType="decimal-pad" /></View>
       </Row>
-      {occ && (occ.vacant.length || occ.expiring.length) ? (
-        <Stack gap={8}>
-          {occ.expiring.length ? <><H2>{t('Yakında biten sözleşmeler')}</H2>
-            <Card gap={0}>{occ.expiring.map((u: any, i: number) => (
-              <Row key={u.id} between style={{ paddingVertical: 10, borderTopWidth: i ? 1 : 0, borderColor: c.line }}>
-                <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{unitLabel(u)}</Text><Muted>{day(u.lease_end)}</Muted>
-              </Row>))}</Card></> : null}
-          {occ.vacant.length ? <Muted>{t('Boş birimler')}: {occ.vacant.map((u: any) => unitLabel(u)).join(', ')}</Muted> : null}
-        </Stack>
-      ) : null}
-      {can('payments.approve') && waiting.length ? (
-        <Stack gap={8}>
-          <H2>{t('Onay bekleyen dekontlar')}</H2>
-          {waiting.map((x: any) => <ChargeRow key={x.id} x={x} unit={unitBy[x.unit_id]} can={can} reload={reload} />)}
-        </Stack>
-      ) : null}
-      <Stack gap={8}>
-        <H2>{t('Borçlular')}</H2>
-        <Muted>{commercial ? t('Vadesi geçmiş ödenmemiş tahakkuklar (vade: sözleşmedeki ödeme günü, yoksa ay sonu).')
-          : t('Vadesi (ay sonu) geçmiş ödenmemiş tahakkuklar. Gecikme tazminatı Kat Mülkiyeti Kanunu’na göre aylık %5 olarak bilgi amaçlı hesaplanır.')}</Muted>
-        {debtors.length ? (
-          <Card gap={0}>
-            {debtors.map(([uid, v], i) => (
-              <Row key={uid} between style={{ paddingVertical: 12, borderTopWidth: i ? 1 : 0, borderColor: c.line }}>
-                <View style={{ flex: 1 }}><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{unitBy[uid] ? unitLabel(unitBy[uid]) : '—'}</Text>
-                  <Muted>{t('{n} kalem', { n: v.n })}{commercial ? '' : ' · ' + t('Gecikme tazminatı') + ' ' + tl(v.fee)}</Muted></View>
-                <Text v="small" style={{ fontFamily: fonts.bodyXBold }} color={c.badInk}>{tl(v.left)}</Text>
-              </Row>
-            ))}
-          </Card>
-        ) : <Empty>{t('Gecikmiş borç yok.')}</Empty>}
-      </Stack>
-    </Stack>
+      <Err e={err} />
+      <Row wrap>
+        <Button title={t('Kaydet')} disabled={!f.no.trim() || !(Number(n(f.area)) > 0)} onPress={async () => {
+          try { await saveUnit(oid, { ...u, block: f.block.trim(), no: f.no.trim(), area: n(f.area), share: n(f.share), aidat: n(f.aidat) }); done(); } catch (e) { setErr(humanError(e)); }
+        }} />
+        <Button kind="quiet" title={t('Vazgeç')} onPress={done} />
+      </Row>
+    </Card>
   );
 }
 
@@ -140,7 +109,7 @@ function LeaseForm({ u, oid, done }: { u: any; oid: string; done: () => void }) 
         <View style={{ flexDirection: 'row', gap: 6, paddingBottom: 6 }}>{CURS.map(([k, l]) => <Pill key={k} label={l} on={f.currency === k} onPress={() => setF({ ...f, currency: k })} />)}</View>
       </Row>
       <Row gap={10} wrap align="flex-end">
-        <View style={{ flexGrow: 1, flexBasis: 120 }}><Field label="m²" value={f.area} onChangeText={num('area')} keyboardType="decimal-pad" /></View>
+        <View style={{ flexGrow: 1, flexBasis: 120 }}><Field label={t('m² (zorunlu)')} value={f.area} onChangeText={num('area')} keyboardType="decimal-pad" /></View>
         <View style={{ flexGrow: 1, flexBasis: 120 }}><Field label={t('Ciro kirası (%)')} value={f.turnover_rate} onChangeText={num('turnover_rate')} keyboardType="decimal-pad" placeholder={t('yoksa boş')} /></View>
         <View style={{ flexGrow: 1, flexBasis: 140 }}><Field label={t('Ortak gider avansı (₺/ay)')} value={f.aidat} onChangeText={num('aidat')} keyboardType="decimal-pad" /></View>
         <View style={{ flexGrow: 1, flexBasis: 110 }}><Field label={t('Ödeme günü')} value={f.due_day} onChangeText={(v) => setF({ ...f, due_day: v.replace(/\D/g, '').slice(0, 2) })} keyboardType="number-pad" placeholder="5" /></View>
@@ -162,7 +131,7 @@ function LeaseForm({ u, oid, done }: { u: any; oid: string; done: () => void }) 
       </Row>
       <Err e={err} />
       <Row wrap>
-        <Button title={t('Sözleşmeyi kaydet')} onPress={async () => {
+        <Button title={t('Sözleşmeyi kaydet')} disabled={!(Number(String(f.area).replace(',', '.')) > 0)} onPress={async () => {
           if (!okDate(f.lease_start) || !okDate(f.lease_end)) { setErr(t('Tarihleri YYYY-AA-GG biçiminde yaz.')); return; }
           setErr(null);
           try { await saveUnit(oid, { ...u, ...f }); done(); } catch (e) { setErr(humanError(e)); }
@@ -187,7 +156,7 @@ function UnitCard({ u, d, oid, org, can, reload }: { u: any; d: any; oid: string
     <Card gap={8}>
       <Row between wrap>
         <View style={{ flex: 1, minWidth: 160 }}>
-          <Text v="body" style={{ fontFamily: fonts.bodyXBold }}>{unitLabel(u)}</Text>
+          <Row gap={8}><Text v="body" style={{ fontFamily: fonts.bodyXBold }}>{unitLabel(u)}</Text>{!(Number(u.area) > 0) ? <Chip tone="warn" label={t('m² eksik')} /> : null}</Row>
           <Muted>{(commercial
             ? [u.area ? u.area + ' m²' : '', u.rent != null ? t('Kira') + ' ' + money(u.rent, u.currency) : t('Sözleşme yok'),
                u.turnover_rate ? t('Ciro %{n}', { n: u.turnover_rate }) : '', u.lease_end ? t('Bitiş') + ' ' + day(u.lease_end) : '',
@@ -196,13 +165,15 @@ function UnitCard({ u, d, oid, org, can, reload }: { u: any; d: any; oid: string
         </View>
         {commercial ? (can('units.manage') && !lease ? <Button kind="ghost" title={t('Sözleşmeyi düzenle')} onPress={() => setLease(true)} /> : null)
         : can('units.manage') ? (
-          <Row gap={6}>
+          <Row gap={6} wrap>
+            {!lease ? <Button kind="ghost" title={t('Düzenle')} onPress={() => setLease(true)} /> : null}
             <Pill label={t('Aidatı kiracı öder')} on={u.payer === 'kiraci'} onPress={() => act(() => saveUnit(oid, { ...u, payer: 'kiraci' }))} />
             <Pill label={t('Aidatı malik öder')} on={u.payer === 'malik'} onPress={() => act(() => saveUnit(oid, { ...u, payer: 'malik' }))} />
           </Row>
         ) : <Chip label={u.payer === 'malik' ? t('Aidatı malik öder') : t('Aidatı kiracı öder')} />}
       </Row>
-      {lease ? <LeaseForm u={u} oid={oid} done={() => { setLease(false); reload(); }} /> : null}
+      {lease ? (commercial ? <LeaseForm u={u} oid={oid} done={() => { setLease(false); reload(); }} />
+        : <FlatForm u={u} oid={oid} done={() => { setLease(false); reload(); }} />) : null}
       {people.map((p: any) => (
         <Row key={p.id} between wrap style={{ paddingTop: 6, borderTopWidth: 1, borderColor: c.line }}>
           <View style={{ flex: 1, minWidth: 160 }}>
@@ -249,7 +220,7 @@ function UnitCard({ u, d, oid, org, can, reload }: { u: any; d: any; oid: string
   );
 }
 
-function Units({ d, oid, org, can, reload }: { d: any; oid: string; org: string; can: (p: string) => boolean; reload: () => void }) {
+function Units({ d, oid, org, orgRow, can, reload }: { d: any; oid: string; org: string; orgRow?: any; can: (p: string) => boolean; reload: () => void }) {
   const c = useColors();
   const commercial = isCommercial(d.sector);
   const [mode, setMode] = useState<'' | 'one' | 'bulk'>('');
@@ -262,8 +233,15 @@ function Units({ d, oid, org, can, reload }: { d: any; oid: string; org: string;
   const [b, setB] = useState('all');
   const shown = d.units.filter((x: any) => b === 'all' || x.block === b);
   const act = async (fn: () => Promise<any>) => { setErr(null); setMsg(null); try { await fn(); reload(); } catch (e) { setErr(humanError(e)); } };
+  // m² zorunlu: gider dağıtımı ve doluluk m²'ye dayanır. Toplu listede m²'si eksik satırlar eklenmeden önce gösterilir.
+  const noArea = parsed.rows.filter((r: any) => !(Number(String(r.area || '').replace(',', '.')) > 0));
+  const missingArea = d.units.filter((x: any) => !(Number(x.area) > 0)).length;
+  const limit = Number(orgRow?.units) || 0;
   return (
     <Stack>
+      {can('units.manage') && !d.units.length ? <SetupWizard d={d} oid={oid} limit={limit} reload={reload} /> : null}
+      {limit && d.units.length > limit ? <Note warn>{t('Sözleşmendeki birim sayısı {n}; şu an {m} kayıt var. Sözleşmeyi güncellemek için anahtar ekibine yaz.', { n: limit, m: d.units.length })}</Note> : null}
+      {missingArea ? <Note warn>{commercial ? t('{n} birimin m²’si eksik. Ortak gider dağıtımı ve doluluk m²’ye göre hesaplanır.', { n: missingArea }) : t('{n} dairenin m²’si eksik. m²’ye göre dağıtım bu daireleri atlar.', { n: missingArea })}</Note> : null}
       {can('units.manage') ? (
         <Row wrap>
           <Button kind={mode === 'one' ? 'primary' : 'ghost'} title={commercial ? t('Birim ekle') : t('Daire ekle')} onPress={() => setMode(mode === 'one' ? '' : 'one')} />
@@ -273,9 +251,9 @@ function Units({ d, oid, org, can, reload }: { d: any; oid: string; org: string;
       {mode === 'one' ? (
         <Card gap={10}>
           <Row gap={10} wrap align="flex-end">
-            <View style={{ flexGrow: 1, flexBasis: 100 }}><Field label={commercial ? t('Kat / bölüm') : t('Blok')} value={u.block} onChangeText={(v) => setU({ ...u, block: v })} maxLength={40} placeholder={commercial ? t('Zemin kat') : 'A'} /></View>
+            <View style={{ flexGrow: 1, flexBasis: 100 }}><Field label={d.sector === 'gyo' ? t('Varlık / bina') : commercial ? t('Kat / bölüm') : t('Blok')} value={u.block} onChangeText={(v) => setU({ ...u, block: v })} maxLength={40} placeholder={commercial ? t('Zemin kat') : 'A'} /></View>
             <View style={{ flexGrow: 1, flexBasis: 100 }}><Field label={commercial ? t('Birim no') : t('Daire no')} value={u.no} onChangeText={(v) => setU({ ...u, no: v })} maxLength={20} /></View>
-            <View style={{ flexGrow: 1, flexBasis: 100 }}><Field label="m²" value={u.area} onChangeText={(v) => setU({ ...u, area: v.replace(/[^0-9.,]/g, '') })} keyboardType="decimal-pad" /></View>
+            <View style={{ flexGrow: 1, flexBasis: 100 }}><Field label={t('m² (zorunlu)')} value={u.area} onChangeText={(v) => setU({ ...u, area: v.replace(/[^0-9.,]/g, '') })} keyboardType="decimal-pad" /></View>
             {commercial ? (
               <View style={{ flexGrow: 1, flexBasis: 120 }}><Field label={t('Aylık kira')} value={u.rent} onChangeText={(v) => setU({ ...u, rent: v.replace(/[^0-9.,]/g, '') })} keyboardType="decimal-pad" /></View>
             ) : (
@@ -287,7 +265,7 @@ function Units({ d, oid, org, can, reload }: { d: any; oid: string; org: string;
           </Row>
           {commercial ? <View style={{ flexDirection: 'row', gap: 6 }}>{CURS.map(([k, l]) => <Pill key={k} label={l} on={u.currency === k} onPress={() => setU({ ...u, currency: k })} />)}</View> : null}
           <Row wrap>
-            <Button title={commercial ? t('Birimi ekle') : t('Daireyi ekle')} disabled={!u.no.trim()} onPress={() => act(async () => {
+            <Button title={commercial ? t('Birimi ekle') : t('Daireyi ekle')} disabled={!u.no.trim() || !(Number(u.area.replace(',', '.')) > 0)} onPress={() => act(async () => {
               await saveUnit(oid, { ...u, area: u.area.replace(',', '.'), share: u.share.replace(',', '.'), aidat: u.aidat === '' ? null : u.aidat.replace(',', '.') });
               setU({ ...u, no: '' }); setMsg(commercial ? t('Birim eklendi.') : t('Daire eklendi.'));
             })} />
@@ -303,7 +281,8 @@ function Units({ d, oid, org, can, reload }: { d: any; oid: string; org: string;
             placeholder={commercial ? 'Zemin kat;Z-12;200;2000;USD;Moda Giyim A.Ş.;0212…\n1. kat;101;120;85000;TRY' : 'A;1;120;2;1500;Ayşe Yılmaz;0532…\nA;2;80;1;1000'} placeholderTextColor={c.muted}
             style={{ minHeight: 140, borderRadius: radius.md, borderWidth: 1.5, borderColor: c.line, padding: 14, color: c.ink, backgroundColor: c.bg, fontFamily: fonts.body, fontSize: 15, textAlignVertical: 'top' } as any} />
           <Muted>{commercial ? t('{n} birim okundu', { n: parsed.rows.length }) : t('{n} daire okundu', { n: parsed.rows.length })}{parsed.skipped.length ? ' · ' + t('{n} satır atlandı (daire no yok)', { n: parsed.skipped.length }) : ''}</Muted>
-          <Button title={commercial ? t('Birimleri ekle') : t('Daireleri ekle')} disabled={!parsed.rows.length} onPress={() => act(async () => {
+          {noArea.length ? <Note warn>{t('m²’si eksik satırlar: {list}. m² ekleyip yeniden dene.', { list: noArea.slice(0, 8).map((r: any) => [r.block, r.no].filter(Boolean).join(' ')).join(', ') + (noArea.length > 8 ? '…' : '') })}</Note> : null}
+          <Button title={commercial ? t('Birimleri ekle') : t('Daireleri ekle')} disabled={!parsed.rows.length || noArea.length > 0} onPress={() => act(async () => {
             const n = await importUnits(oid, parsed.rows, commercial); setBulk(''); setMsg(commercial ? t('{n} birim eklendi.', { n }) : t('{n} daire eklendi.', { n }));
           })} />
         </Card>
@@ -357,7 +336,7 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
   const c = useColors();
   const commercial = isCommercial(d.sector);
   const [month, setMonth] = useState(seed?.month || thisMonth());
-  const [kind, setKind] = useState(seed?.kind || (commercial ? 'kira' : 'aidat'));
+  const [kind, setKind] = useState(seed?.kind || (commercial ? 'kira' : (d.modules || []).includes('aidat') ? 'aidat' : 'ozel'));
   const [title, setTitle] = useState(seed?.title || '');
   const [mode, setMode] = useState(seed?.mode || (commercial ? 'rent' : 'unit'));
   const [value, setValue] = useState(seed?.value ? String(seed.value) : '');
@@ -394,7 +373,7 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
             <View style={{ flexGrow: 1, flexBasis: 140 }}><Field label={t('Ay (YYYY-AA)')} value={month} onChangeText={setMonth} maxLength={7} /></View>
             {kind === 'ozel' ? <View style={{ flexGrow: 2, flexBasis: 200 }}><Field label={t('Başlık')} value={title} onChangeText={setTitle} maxLength={120} placeholder={t('ör. Çatı onarımı')} /></View> : null}
           </Row>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{KINDS(d.sector).map((k) => <Pill key={k.key} label={k.label} on={kind === k.key} onPress={() => { setKind(k.key); if (commercial) setMode(k.key === 'kira' ? 'rent' : k.key === 'ortak_gider' ? 'unit' : 'area'); }} />)}</View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{KINDS(d.sector).filter((k) => (k.key !== 'aidat' || (d.modules || []).includes('aidat')) && (k.key !== 'ortak_gider' || (d.modules || []).includes('ortak_gider'))).map((k) => <Pill key={k.key} label={k.label} on={kind === k.key} onPress={() => { setKind(k.key); if (commercial) setMode(k.key === 'kira' ? 'rent' : k.key === 'ortak_gider' ? 'unit' : 'area'); }} />)}</View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{MODES(d.sector).map((k) => <Pill key={k.key} label={k.label} on={mode === k.key} onPress={() => setMode(k.key)} />)}</View>
           {mode !== 'unit' && mode !== 'rent' ? <Field label={mode === 'fixed' ? (commercial ? t('Birim başına tutar (₺)') : t('Daire başına tutar (₺)')) : t('Dağıtılacak toplam (₺)')} value={value} onChangeText={(v) => setValue(v.replace(/[^0-9.,]/g, ''))} keyboardType="decimal-pad" /> : null}
           {curs.length ? (
@@ -417,7 +396,7 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
   );
 }
 
-function Expenses({ d, oid, can, reload, onDistribute }: { d: any; oid: string; can: (p: string) => boolean; reload: () => void; onDistribute: (e: any) => void }) {
+function Expenses({ d, oid, can, reload, onDistribute }: { d: any; oid: string; can: (p: string) => boolean; reload: () => void; onDistribute?: (e: any) => void }) {
   const [e, setE] = useState<any>({ cat: '', amount: '', spent_on: today(), note: '' });
   const [err, setErr] = useState<string | null>(null);
   const act = async (fn: () => Promise<any>) => { setErr(null); try { await fn(); reload(); } catch (x) { setErr(humanError(x)); } };
@@ -448,7 +427,7 @@ function Expenses({ d, oid, can, reload, onDistribute }: { d: any; oid: string; 
           </Row>
           {can('expenses.manage') ? (
             <Row wrap>
-              {can('charges.manage') ? <Button kind="ghost" title={t('Dairelere dağıt')} onPress={() => onDistribute(x)} /> : null}
+              {can('charges.manage') && onDistribute ? <Button kind="ghost" title={isCommercial(d.sector) ? t('Birimlere dağıt') : t('Dairelere dağıt')} onPress={() => onDistribute(x)} /> : null}
               <Button kind="quiet" title={t('Sil')} onPress={() => act(() => deleteExpense(x.id))} />
             </Row>
           ) : null}
@@ -734,57 +713,59 @@ function Increases({ d, oid, can, reload }: { d: any; oid: string; can: (p: stri
 }
 
 /** Kurumun birim/tahakkuk ekranı: site yönetimi ya da ticari portföy (AVM, depo, GYO). Birden çok kurum varsa üstte seçilir. */
-export function SiteAdminScreen() {
+const cache: { org: string | null; data: any } = { org: null, data: null };
+
+export function SiteAdminScreen({ section = 'ozet' }: { section?: string }) {
   useStore();
+  const router = useRouter();
+  const { desktop } = useBreakpoint();
   const sites = myOrgs().filter((o: any) => PORTFOLIO_SECTORS.includes(o.sector));
-  const [pick, setPick] = useState<string | null>(null);
-  const org = sites.find((o: any) => o.id === pick) || sites[0];
-  const [d, setD] = useState<any>(null);
+  const org = currentPortfolioOrg();
+  // Bölümler ayrı sayfa: son okunan veri bölüm değişince hemen gösterilir, arkada tazelenir.
+  const [d, setD] = useState<any>(() => (org && cache.org === org.id ? cache.data : null));
   const [err, setErr] = useState<string | null>(null);
-  const [tab, setTab] = useState('ozet');
-  const [seed, setSeed] = useState<any>(null);
+  const [seed] = useState<any>(() => { const s = ui.siteSeed; ui.siteSeed = null; return s; });
   const load = useCallback(async () => {
     if (!org) return;
-    try { setD(await loadSiteAdmin(org.id)); setErr(null); } catch (e) { setErr(humanError(e)); }
+    try {
+      const x: any = await loadSiteAdmin(org.id); x.modules = org.modules || [];
+      cache.org = org.id; cache.data = x; setD(x); setErr(null);
+    } catch (e) { setErr(humanError(e)); }
   }, [org?.id]);
-  useEffect(() => { setD(null); load(); }, [load]);
+  useEffect(() => { if (!(org && cache.org === org.id)) setD(null); load(); }, [load]);
   if (!org) return <Page title={t('Site')}><Note>{t('Bir site yönetiminin yöneticisi değilsin.')}</Note></Page>;
   const can = (p: string) => orgCan(org, p);
   const commercial = isCommercial(org.sector);
-  const T = terms(org.sector);
-  const tabs: [string, string][] = [['ozet', t('Özet')], ['daire', T.units], ['tahakkuk', t('Tahakkuk')]];
-  if (commercial && (d?.units || []).some((u: any) => Number(u.turnover_rate) > 0) || (d?.turnovers || []).length)
-    tabs.push(['ciro', t('Ciro') + (d ? ' (' + d.turnovers.filter((x: any) => x.status === 'reported').length + ')' : '')]);
-  if (commercial) tabs.push(['artis', t('Kira artışları')]);
-  if (can('expenses.manage') || can('reports.view')) tabs.push(['gider', t('Giderler')]);
-  if (!commercial && (can('charges.manage') || can('reports.view'))) tabs.push(['butce', t('Bütçe')]);
-  if (can('reports.view')) tabs.push(['rapor', t('Rapor')]);
-  tabs.push(['duyuru', t('Duyurular')], ['talep', t('Talepler') + (d ? ' (' + d.requests.filter((x: any) => x.status < 3).length + ')' : '')]);
+  const sections = sectorSections(org);
+  const cur = sections.find((x) => x.key === section) || sections[0];
+  const go = (k: string) => router.push(sectionPath(k) as any);
   const unitBy: Record<string, any> = d ? Object.fromEntries(d.units.map((u: any) => [u.id, u])) : {};
+  const count = d ? (commercial ? t('{n} birim', { n: d.units.length }) : t('{n} daire', { n: d.units.length })) : '';
   return (
-    <Page title={org.name} sub={(commercial ? sectorOf(org.sector).label : t('Site yönetimi')) + ' · ' + (d ? (commercial ? t('{n} birim', { n: d.units.length }) : t('{n} daire', { n: d.units.length })) : '')}>
-      {sites.length > 1 ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{sites.map((o: any) => <Pill key={o.id} label={o.name} on={o.id === org.id} onPress={() => setPick(o.id)} />)}</View> : null}
+    <Page title={cur.key === 'ozet' ? org.name : cur.label} sub={[cur.key === 'ozet' ? sectorOf(org.sector).label : org.name, count].filter(Boolean).join(' · ')}>
+      {sites.length > 1 ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{sites.map((o: any) => <Pill key={o.id} label={o.name} on={o.id === org.id} onPress={() => { ui.siteOrg = o.id; setD(null); }} />)}</View> : null}
       {org.status !== 'active' ? <Note warn>{t('Kurum askıda. Yeniden etkinleşene kadar değişiklik yapılamaz; anahtar ile iletişime geç.')}</Note> : null}
-      <Seg scroll wrap value={tab} onChange={setTab} options={tabs} />
+      {/* Telefonda menü alt çubuğa sığmaz: bölümler kaydırılabilir şeritte. */}
+      {!desktop ? <Seg scroll value={cur.key} onChange={go} options={sections.map((x) => [x.key, x.label] as [string, string])} /> : null}
       {err ? <Note warn>{err}</Note> : null}
       {!d ? (err ? null : <Spin />) : (
         <>
-          {tab === 'ozet' && <Summary d={d} oid={org.id} can={can} reload={load} />}
-          {tab === 'daire' && <Units d={d} oid={org.id} org={org.name} can={can} reload={load} />}
-          {tab === 'tahakkuk' && <Charges key={seed ? seed.title + seed.value : 'x'} d={d} oid={org.id} can={can} reload={load} seed={seed} />}
-          {tab === 'ciro' && <Turnovers d={d} can={can} reload={load} />}
-          {tab === 'artis' && <Increases d={d} oid={org.id} can={can} reload={load} />}
-          {tab === 'gider' && <Expenses d={d} oid={org.id} can={can} reload={load}
-            onDistribute={(x: any) => {
+          {cur.key === 'ozet' && <Overview d={d} org={org} can={can} reload={load} go={go} ChargeRow={ChargeRow} />}
+          {cur.key === 'birimler' && <Units d={d} oid={org.id} org={org.name} orgRow={org} can={can} reload={load} />}
+          {cur.key === 'tahakkuk' && <Charges key={seed ? seed.title + seed.value : 'x'} d={d} oid={org.id} can={can} reload={load} seed={seed} />}
+          {cur.key === 'ciro' && <Turnovers d={d} can={can} reload={load} />}
+          {cur.key === 'artis' && <Increases d={d} oid={org.id} can={can} reload={load} />}
+          {cur.key === 'giderler' && <Expenses d={d} oid={org.id} can={can} reload={load}
+            onDistribute={(commercial ? hasModule(org, 'ortak_gider') : hasModule(org, 'gider_dagitim')) ? (x: any) => {
               // Sitede gider arsa payına göre özel toplama; ticaride m²'ye göre ortak alan gideri olarak dağıtılır.
-              setSeed(commercial ? { month: String(x.spent_on).slice(0, 7), kind: 'ortak_gider', title: '', mode: 'area', value: x.amount }
-                : { month: String(x.spent_on).slice(0, 7), kind: 'ozel', title: x.cat, mode: 'share', value: x.amount });
-              setTab('tahakkuk');
-            }} />}
-          {tab === 'butce' && <Budget d={d} oid={org.id} can={can} reload={load} />}
-          {tab === 'rapor' && <Report d={d} org={org.name} />}
-          {tab === 'duyuru' && <Notes d={d} oid={org.id} can={can} reload={load} />}
-          {tab === 'talep' && (d.requests.length ? d.requests.map((x: any) => <RequestCard key={x.id} x={x} unit={unitBy[x.unit_id]} can={can} reload={load} />) : <Empty>{t('Talep yok.')}</Empty>)}
+              ui.siteSeed = commercial ? { month: String(x.spent_on).slice(0, 7), kind: 'ortak_gider', title: '', mode: 'area', value: x.amount }
+                : { month: String(x.spent_on).slice(0, 7), kind: 'ozel', title: x.cat, mode: 'share', value: x.amount };
+              go('tahakkuk');
+            } : undefined} />}
+          {cur.key === 'butce' && <Budget d={d} oid={org.id} can={can} reload={load} />}
+          {cur.key === 'rapor' && <Report d={d} org={org.name} />}
+          {cur.key === 'duyurular' && <Notes d={d} oid={org.id} can={can} reload={load} />}
+          {cur.key === 'talepler' && (d.requests.length ? d.requests.map((x: any) => <RequestCard key={x.id} x={x} unit={unitBy[x.unit_id]} can={can} reload={load} />) : <Empty>{t('Talep yok.')}</Empty>)}
         </>
       )}
     </Page>

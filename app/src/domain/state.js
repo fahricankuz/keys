@@ -441,7 +441,9 @@ export const ui = {
   team:false,      // ekip üyesi oturumu (emlakçı, muhasebeci, personel)
   teamTick:0,      // ekip listesi değişince artar
   memberRoles:{},  // mülk kimliği → ekip üyesinin o mülkteki rolü
-  msgMore:{}       // mülk kimliği → sunucuda daha eski mesaj var mı (bkz. backend.js → olderMessages)
+  msgMore:{},      // mülk kimliği → sunucuda daha eski mesaj var mı (bkz. backend.js → olderMessages)
+  siteOrg:null,    // kurum panelinde seçili kurum (birden çok kurumu yönetenler)
+  siteSeed:null    // giderden tahakkuka geçerken önerilen tahakkuk (Giderler → Dairelere dağıt)
 };
 
 export function applyTheme(){ emit(); }

@@ -6,9 +6,9 @@ import { P, openReqs, newReqs, unreadMessages } from '../domain/logic';
 import { can, canAny, isTeam, memberRole, roleLabel } from '../domain/team';
 import { t } from '../domain/i18n';
 import { toApp } from '../domain/nav';
-import { myOrgs } from '../domain/org';
+import { myOrgs, sectorSections } from '../domain/org';
 import { mySiteUnits } from '../domain/site';
-import { PORTFOLIO_SECTORS, residentTitle } from './site';
+import { PORTFOLIO_SECTORS, currentPortfolioOrg, residentTitle, sectionPath } from './site';
 import { PressScale, Text } from '../ui/kit';
 import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
 import { Icon } from './blocks';
@@ -33,7 +33,23 @@ const orgItem = (): Item[] => {
   ];
 };
 
-function items(): { tabs: Item[]; extra: Item[] } {
+/** Sektör kurumu (site, AVM, depo, GYO) yöneticisinin menüsü: kurumun bölümleri sektörün dilinde; kişinin kendi
+    mülkleri ya da evi varsa "Mülklerim" / "Evim" ayrı satır. Telefonda alt çubukta dört ana bölüm, diğerleri sayfadaki şeritte. */
+function sectorItems(org: any): { tabs: Item[]; extra: Item[]; side?: Item[] } {
+  const list = sectorSections(org).map((s) => ({ label: s.label, icon: s.icon, path: sectionPath(s.key) }));
+  const main = ['/uygulama/site', '/uygulama/site/birimler', '/uygulama/site/tahakkuk', '/uygulama/site/talepler'];
+  const own: Item[] = ui.role === 'tenant'
+    ? (S.myHome ? [{ label: t('Evim'), icon: 'home', path: '/uygulama?mulk=1' }] : [])
+    : (S.order.length ? [{ label: t('Mülklerim'), icon: 'landlord', path: '/uygulama?mulk=1' }] : []);
+  const rest: Item[] = [...own, { label: t('Kurum'), icon: 'office', path: '/uygulama/kurum' },
+    ...(mySiteUnits().length ? [{ label: residentTitle(mySiteUnits()), icon: 'home', path: '/uygulama/sitem' }] : [])];
+  // Masaüstü yan menü sektör sırasıyla; telefonda alt çubukta dört ana bölüm.
+  return { tabs: list.filter((x) => main.includes(x.path)), extra: [...list.filter((x) => !main.includes(x.path)), ...rest], side: [...list, ...rest] };
+}
+
+function items(): { tabs: Item[]; extra: Item[]; side?: Item[] } {
+  const org = currentPortfolioOrg();
+  if (org) return sectorItems(org);
   if (ui.role === 'tenant') {
     const home = P(S.myHome);
     const n = home ? openReqs(home).length : 0;
@@ -63,7 +79,9 @@ function items(): { tabs: Item[]; extra: Item[] } {
 
 function useActive() {
   const pathname = usePathname().replace(/\/$/, '');
-  return (path: string) => (path === '/uygulama' ? pathname === '/uygulama' || pathname === '/uygulama/mulk' : pathname === path || pathname.startsWith(path + '/'));
+  return (path: string) => (path === '/uygulama' || path === '/uygulama?mulk=1' ? pathname === '/uygulama' || pathname === '/uygulama/mulk'
+    : path === '/uygulama/site' ? pathname === path
+    : pathname === path || pathname.startsWith(path + '/'));
 }
 
 function TabBar({ list }: { list: Item[] }) {
@@ -129,11 +147,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
   useLangTick();
   const { desktop } = useBreakpoint();
   const c = useColors();
-  const { tabs, extra } = items();
+  const { tabs, extra, side } = items();
   return (
     <OverlayProvider renderSheet={renderSheet}>
       <View style={{ flex: 1, flexDirection: 'row', backgroundColor: c.bg }}>
-        {desktop && <SideNav list={[...tabs, ...extra, { label: t('Ayarlar'), icon: 'gear', path: SETTINGS }]} />}
+        {desktop && <SideNav list={[...(side || [...tabs, ...extra]), { label: t('Ayarlar'), icon: 'gear', path: SETTINGS }]} />}
         <View style={{ flex: 1 }}>
           <View style={{ flex: 1 }}>{children}</View>
           {!desktop && <TabBar list={tabs} />}

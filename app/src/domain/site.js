@@ -453,3 +453,34 @@ export function occupancy(d, today = new Date()){
     walt
   };
 }
+
+/* ---- Kurulum sihirbazı ------------------------------------------- */
+
+/**
+ * Sözleşmedeki birim sayısına göre birim listesi üretir (kaydetmeden önce önizleme için).
+ * groups: [{ name, floors, perFloor, custom }] — sitede blok, AVM'de kat, depoda bölge, GYO'da varlık.
+ *   custom: katlardaki birim sayıları sırayla ("4,4,4,2"); verilirse kat × kattaki yerine bu kullanılır (katlar eşit değilse).
+ * numbering: 'seq' (1, 2, 3… grup içinde) | 'floor' (kat + sıra: 101, 102, 201…) | 'block' (A-1, A-2…).
+ * Dönen satırlar importUnits'e verilir.
+ */
+/** @param {{ groups?: any[], numbering?: string, area?: number | null, aidat?: number | null, commercial?: boolean }} o */
+export function unitPlan(o){
+  const { groups = [], numbering = 'seq', area = null, aidat = null, commercial = false } = o;
+  const rows = [];
+  const int = (v) => Math.max(0, parseInt(String(v || '').replace(/\D/g, ''), 10) || 0);
+  groups.forEach((g) => {
+    const name = String(g.name || '').trim();
+    let floors = String(g.custom || '').split(/[,;\s]+/).map(int).filter((n) => n > 0);
+    if (!floors.length) floors = Array.from({ length: int(g.floors) }, () => int(g.perFloor));
+    let seq = 0;
+    floors.forEach((count, f) => {
+      for (let k = 1; k <= count; k++){
+        seq++;
+        const no = numbering === 'floor' ? String((f + 1) * 100 + k) : numbering === 'block' && name ? name + '-' + seq : String(seq);
+        rows.push(Object.assign({ block: name, no, area: Number(area) > 0 ? Number(area) : null },
+          commercial ? { rent: null, currency: 'TRY' } : { share: null, aidat: aidat === '' || aidat == null ? null : Number(aidat) }));
+      }
+    });
+  });
+  return rows;
+}

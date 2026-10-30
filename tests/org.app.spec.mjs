@@ -64,7 +64,7 @@ test('kurumsal başvurudan kurum açılır, master atanır; master rolü düzenl
 
   // 2. Master: Kurum ekranı, rol yetkisi düzenleme, davet kodu.
   await login(page, 'ev@ornek.com');
-  await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
+  await expect(page).toHaveURL(/\/uygulama\/site$/);            // kurum yöneticisi girişte kendi panelinde açılır
   await page.getByRole('link', { name: 'Kurum' }).first().click();
   await expect(page).toHaveURL(/\/uygulama\/kurum/);
   await expect(page.getByText('Atakum Sitesi').first()).toBeVisible();
@@ -82,7 +82,7 @@ test('kurumsal başvurudan kurum açılır, master atanır; master rolü düzenl
   await login(page, 'kiraci@ornek.com');
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
   await page.goto(url('/katil?kod=' + code));
-  await expect(page).toHaveURL(/\/uygulama\/?$/);
+  await expect(page).toHaveURL(/\/uygulama(\/site)?\/?$/);         // site yöneticisi olunca kurum paneline gider
   await page.goto(url('/uygulama/kurum'));
   await expect(page.getByText('Atakum Sitesi').first()).toBeVisible();
   await expect(page.getByText('Rolleri ve yetkileri master yönetici düzenler.')).toBeVisible();

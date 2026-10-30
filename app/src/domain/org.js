@@ -46,26 +46,51 @@ export const PERMS = () => [
 /** Modül kataloğu. ready: bugün üründe çalışıyor; diğerleri yol planında (kuruma şimdiden atanabilir). */
 export const MODULES = () => [
   { key: 'kira', label: t('Kira takibi'), ready: true },
-  { key: 'aidat', label: t('Aidat takibi'), ready: false },
-  { key: 'gider_dagitim', label: t('Gider dağıtımı'), ready: false },
-  { key: 'duyuru', label: t('Duyurular'), ready: false },
-  { key: 'ortak_gider', label: t('Ortak alan gideri'), ready: false },
-  { key: 'ciro_kira', label: t('Ciroya bağlı kira'), ready: false },
-  { key: 'endeksleme', label: t('Endeksleme (TÜFE, döviz)'), ready: false },
-  { key: 'doluluk', label: t('Doluluk raporu'), ready: false },
+  { key: 'aidat', label: t('Aidat takibi'), ready: true },
+  { key: 'gider_dagitim', label: t('Gider dağıtımı'), ready: true },
+  { key: 'duyuru', label: t('Duyurular'), ready: true },
+  { key: 'ortak_gider', label: t('Ortak alan gideri'), ready: true },
+  { key: 'ciro_kira', label: t('Ciroya bağlı kira'), ready: true },
+  { key: 'endeksleme', label: t('Endeksleme (TÜFE, döviz)'), ready: true },
+  { key: 'doluluk', label: t('Doluluk raporu'), ready: true },
   { key: 'onay_akisi', label: t('Onay akışı'), ready: false },
   { key: 'rapor', label: t('Aylık ve yıllık rapor'), ready: true },
   { key: 'api', label: t('API ve dışa aktarma'), ready: false }
 ];
 
-/** Sektörün varsayılan modülleri (sunucudaki sector_modules ile aynı). */
+/** Sektörün varsayılan modülleri (sunucudaki sector_modules ile aynı, schema.sql 28. bölüm). */
 export function sectorModules(sector){
   return ({
     site: ['aidat', 'gider_dagitim', 'duyuru', 'rapor'],
-    avm: ['kira', 'ortak_gider', 'ciro_kira', 'doluluk', 'rapor'],
-    depo: ['kira', 'ortak_gider', 'endeksleme', 'rapor'],
-    gyo: ['kira', 'ortak_gider', 'doluluk', 'onay_akisi', 'rapor', 'api']
+    avm: ['kira', 'ortak_gider', 'ciro_kira', 'endeksleme', 'doluluk', 'duyuru', 'rapor'],
+    depo: ['kira', 'ortak_gider', 'endeksleme', 'doluluk', 'duyuru', 'rapor'],
+    gyo: ['kira', 'ortak_gider', 'endeksleme', 'doluluk', 'duyuru', 'rapor']
   })[sector] || ['kira', 'rapor'];
+}
+
+/** Kurumda modül açık mı? Kurum yöneticisinin panelinde kapalı modülün sekmesi ve düğmesi görünmez. */
+export const hasModule = (org, key) => !!org && (org.modules || []).includes(key);
+
+/** Sektör paneli bölümleri (menü sırası). Kapalı modülün ya da yetkisi olmayanın bölümü listede yer almaz.
+    Adres: /uygulama/site (özet) ve /uygulama/site/<bölüm>. */
+export function sectorSections(org){
+  if (!org) return [];
+  const site = org.sector === 'site';
+  const can = (p) => orgCan(org, p);
+  const T = terms(org.sector);
+  const list = [
+    { key: 'ozet', label: t('Özet'), icon: 'grid' },
+    { key: 'birimler', label: T.units, icon: 'home' },
+    { key: 'tahakkuk', label: site ? t('Aidat ve tahakkuk') : t('Kira ve tahakkuk'), icon: 'card' }
+  ];
+  if (!site && hasModule(org, 'ciro_kira')) list.push({ key: 'ciro', label: t('Ciro'), icon: 'chart' });
+  if (!site && hasModule(org, 'endeksleme')) list.push({ key: 'artis', label: t('Kira artışları'), icon: 'calendar' });
+  if (can('expenses.manage') || can('reports.view')) list.push({ key: 'giderler', label: t('Giderler'), icon: 'doc' });
+  if (site && hasModule(org, 'gider_dagitim') && (can('charges.manage') || can('reports.view'))) list.push({ key: 'butce', label: t('İşletme projesi'), icon: 'safe' });
+  if (hasModule(org, 'duyuru')) list.push({ key: 'duyurular', label: t('Duyurular'), icon: 'bell' });
+  list.push({ key: 'talepler', label: t('Talepler'), icon: 'wrench' });
+  if (hasModule(org, 'rapor') && can('reports.view')) list.push({ key: 'rapor', label: t('Rapor'), icon: 'chart' });
+  return list;
 }
 
 function must(res){

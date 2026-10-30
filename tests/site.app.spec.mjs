@@ -49,10 +49,8 @@ const month = istDay().slice(0, 7);
 test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep, onay ve gider dağıtımı', async ({ page }) => {
   // 1. Yönetim: daireleri toplu ekler, kiracı ekler, aidat tahakkuk eder, duyuru yapar.
   await login(page, 'ev@ornek.com');
-  await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
-  await page.getByRole('link', { name: 'Site', exact: true }).first().click();
-  await expect(page).toHaveURL(/\/uygulama\/site/);
-  await page.getByRole('button', { name: 'Daireler' }).click();
+  await expect(page).toHaveURL(/\/uygulama\/site$/);            // kurum yöneticisi girişte kendi panelinde açılır
+  await page.getByRole('link', { name: 'Daireler', exact: true }).first().click();
   await page.getByRole('button', { name: 'Toplu ekle' }).click();
   await page.getByLabel('Daire listesi').fill('Blok;No;m2;Arsa payı;Aidat;Malik\nA;1;120;2;1500;Ali Malik;05320000000\nA;2;80;1;1000;Veli Malik');
   await expect(page.getByText('2 daire okundu')).toBeVisible();
@@ -65,11 +63,11 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await expect(page.getByText('Mehmet Kiracı')).toBeVisible();
   const code = (await db(page)).tables.site_residents.find(r => r.role === 'kiraci').code;
 
-  await page.getByRole('button', { name: 'Tahakkuk' }).click();
+  await page.getByRole('link', { name: 'Aidat ve tahakkuk', exact: true }).first().click();
   await expect(page.getByText('2 daireye toplam ₺2.500')).toBeVisible();
   await page.getByRole('button', { name: 'Tahakkuk et' }).click();
   await expect(page.getByText('2 daireye tahakkuk edildi.')).toBeVisible();
-  await page.getByRole('button', { name: 'Duyurular' }).click();
+  await page.getByRole('link', { name: 'Duyurular', exact: true }).first().click();
   await page.getByLabel('Başlık').fill('Su kesintisi');
   await page.getByLabel('Duyuru metni').fill('Yarın 10-14 arası su kesilecek.');
   await page.getByRole('button', { name: 'Duyur', exact: true }).click();
@@ -103,17 +101,17 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
 
   // 3. Yönetim: dekontu onaylar, talebi yanıtlar, gideri arsa payına göre dağıtır.
   await login(page, 'ev@ornek.com');
-  await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
+  await expect(page).toHaveURL(/\/uygulama\/site$/);            // kurum yöneticisi girişte kendi panelinde açılır
   await page.goto(url('/uygulama/site'));
   await expect(page.getByText('Onay bekleyen dekontlar')).toBeVisible();
   await page.getByRole('button', { name: 'Onayla', exact: true }).click();
   await expect.poll(async () => (await db(page)).tables.site_charges.find(x => x.id === ch.id).status).toBe('paid');
-  await page.getByRole('button', { name: 'Talepler (1)' }).click();
+  await page.getByRole('link', { name: 'Talepler', exact: true }).first().click();
   await page.getByRole('checkbox', { name: 'Çözüldü' }).click();
   await page.getByLabel('Yanıt').fill('Daire için aidatı malik ödeyecek.');
   await page.getByRole('button', { name: 'Kaydet' }).click();
-  await expect(page.getByRole('button', { name: 'Talepler (0)' })).toBeVisible();
-  await page.getByRole('button', { name: 'Giderler' }).click();
+  await expect.poll(async () => (await db(page)).tables.site_requests[0].status).toBe(3);
+  await page.getByRole('link', { name: 'Giderler', exact: true }).first().click();
   await page.getByLabel('Kalem').fill('Çatı onarımı');
   await page.getByLabel('Tutar (₺)').fill('3000');
   await page.getByRole('button', { name: 'Gideri ekle' }).click();
@@ -145,7 +143,7 @@ test('ev sahibi mülkünü site dairesine bağlar; kiracı kira ile aidatı ayn�
   });
   // 1. Ev sahibi (dairenin maliki) mülkünü daireye bağlar.
   await login(page, 'ev@ornek.com');
-  await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
+  await expect(page).toHaveURL(/\/uygulama\/site$/);            // kurum yöneticisi girişte kendi panelinde açılır
   await page.goto(url('/uygulama/mulk?pid=p1&sub=odeme'));
   await page.getByRole('button', { name: 'Atakum Sitesi · A Blok No 1' }).click();
   await expect(page.getByText('Site aidatı · Atakum Sitesi')).toBeVisible();
@@ -166,11 +164,11 @@ test('ev sahibi mülkünü site dairesine bağlar; kiracı kira ile aidatı ayn�
 
   // 3. Yönetim: bağlı kiracıyı görür; işletme projesinden aidatı günceller; rapor.
   await login(page, 'ev@ornek.com');
-  await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
+  await expect(page).toHaveURL(/\/uygulama\/site$/);            // kurum yöneticisi girişte kendi panelinde açılır
   await page.goto(url('/uygulama/site'));
-  await page.getByRole('button', { name: 'Daireler' }).click();
+  await page.getByRole('link', { name: 'Daireler', exact: true }).first().click();
   await expect(page.getByText('Kiracı · ev sahibinin anahtar hesabı üzerinden bağlı')).toBeVisible();
-  await page.getByRole('button', { name: 'Bütçe' }).click();
+  await page.getByRole('link', { name: 'İşletme projesi', exact: true }).first().click();
   await page.getByLabel('Gider kalemi').fill('Asansör bakımı');
   await page.getByLabel('Yıllık tutar (₺)').fill('48000');
   await page.getByRole('button', { name: 'Kalem ekle' }).click();
@@ -181,7 +179,7 @@ test('ev sahibi mülkünü site dairesine bağlar; kiracı kira ile aidatı ayn�
   await expect(page.getByText('İşletme projesi kaydedildi.')).toBeVisible();
   await page.getByRole('button', { name: 'Daire aidatlarını güncelle' }).click();
   await expect.poll(async () => (await db(page)).tables.site_units[0].aidat).toBe(10000);
-  await page.getByRole('button', { name: 'Rapor' }).click();
+  await page.getByRole('link', { name: 'Rapor', exact: true }).first().click();
   await expect(page.getByText(/yönetim raporu$/).first()).toBeVisible();
   await expect(page.getByText('Borçlu daireler')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Yazdır / PDF' })).toBeVisible();

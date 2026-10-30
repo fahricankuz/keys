@@ -62,6 +62,13 @@ Ekranlar sektörün diliyle konuşur (sitede *aidat*, *sakin*, *daire*; AVM'de *
       listelenir, uygulanınca `site_rent_changes`'e yazılır. Özet: doluluk (birim ve m²), 90 günde biten sözleşmeler, boş birimler,
       kira ağırlıklı kalan süre (WALT). Giderler m²'ye göre ortak alan gideri olarak dağıtılır. Hatırlatma, rapor e-postası ve bildirimler
       ticari kurumlarda da çalışır.
+- [x] **Sektör panelleri (Ekim 2026).** Site, AVM, depo ve GYO yöneticisi girişte doğrudan kurumunun panelinde açılır; menü
+      sektörün dilinde ve açık modüllere göre (`org.js → sectorSections`, adresler `/uygulama/site/<bölüm>`). Özet: sitede ayın aidatı
+      ve tahsilatı, borçlular, işletme projesi, duyurular; AVM, depo ve GYO'da ayın **kira tahakkuku** (sabit kira, ciro farkı, ortak gider;
+      döviz kurla) ve tahsilatı, geciken kiralar, doluluk ve WALT, kira artışları; AVM'de ciro ve doluluk haritası, GYO'da varlıklara
+      göre kırılım ("Varlık / bina" alanı). Kurulum sihirbazı birimleri blok/kat düzenine göre oluşturur (katlarda farklı sayılar,
+      numaralandırma, varsayılan m² ve aidat). m² zorunlu. Modül seçimi panelde bölüm ve düğmeleri açıp kapatır; şema 28. bölüm
+      mevcut kurumların modüllerine yeni varsayılanları bir kez ekler.
 - [ ] **Faz 4 — GYO'ya özel.** (Temel portföy ekranı Faz 3'te GYO'ya da açıldı.) Çok portföy, onay akışı, değerleme ve doluluk panosu, yatırımcı raporu, API — ilk GYO müşterisiyle birlikte.
 
 ## Yetkiler ve modüller
@@ -72,9 +79,12 @@ duyurular, belgeler, raporlar. Master her şeyi yapar; rolleri yalnızca master 
 Hazır roller (kurum açılınca): sitede *Muhasebe, Teknik ekip, Güvenlik ve resepsiyon, Yönetim kurulu*; diğer sektörlerde
 *Muhasebe ve finans, Operasyon ve teknik, Kiracı ilişkileri, Salt okunur*.
 
-Sektörün varsayılan modülleri: site → aidat, gider dağıtımı, duyuru, rapor · AVM → kira, ortak gider, ciro kira, doluluk, rapor ·
-depo → kira, ortak gider, endeksleme, rapor · GYO → kira, ortak gider, doluluk, onay akışı, rapor, API · diğerleri → kira, rapor.
-"Yol planında" işaretli modüller kuruma şimdiden atanabilir; geliştirildikçe kendiliğinden açılır.
+Sektörün varsayılan modülleri: site → aidat, gider dağıtımı, duyuru, rapor · AVM → kira, ortak gider, ciro kira, endeksleme,
+doluluk, duyuru, rapor · depo ve GYO → kira, ortak gider, endeksleme, doluluk, duyuru, rapor · diğerleri → kira, rapor.
+Yol planında (henüz yok): onay akışı ve API (Faz 4). Bu ikisi kuruma şimdiden atanabilir; geliştirildikçe kendiliğinden açılır.
+Modül → panel: aidat (aidat tahakkuku), gider dağıtımı ("Dairelere dağıt", işletme projesi), duyuru (Duyurular), ortak gider (ortak
+gider tahakkuku, "Birimlere dağıt"), ciro kira (Ciro), endeksleme (Kira artışları), doluluk (Özet'teki doluluk kartları ve harita),
+rapor (Rapor). Birimler, tahakkuk, giderler ve talepler her zaman açıktır.
 
 ## Canlıya alırken
 

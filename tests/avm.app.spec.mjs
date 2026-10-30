@@ -18,7 +18,7 @@ test.afterAll(() => server && server.close());
 test.beforeEach(async ({ page }) => {
   errors = watchErrors(page);
   const db = seed();
-  db.tables.organizations = [{ id: 'o1', name: 'Merkez AVM', sector: 'avm', modules: ['kira', 'ortak_gider', 'ciro_kira'], status: 'active', units: null, created_at: new Date().toISOString() }];
+  db.tables.organizations = [{ id: 'o1', name: 'Merkez AVM', sector: 'avm', modules: ['kira', 'ortak_gider', 'ciro_kira', 'endeksleme', 'doluluk', 'duyuru', 'rapor'], status: 'active', units: null, created_at: new Date().toISOString() }];
   db.tables.org_roles = [];
   db.tables.org_members = [{ org_id: 'o1', user_id: ID.landlord, role_id: null, is_master: true, created_at: new Date().toISOString() }];
   await page.addInitScript(d => { if (!localStorage.getItem('__fakedb')) localStorage.setItem('__fakedb', JSON.stringify(d)); }, db);
@@ -46,14 +46,12 @@ const prev = Mo === 1 ? (Y - 1) + '-12' : Y + '-' + String(Mo - 1).padStart(2, '
 
 test('AVM: mağaza ve sözleşme, döviz kira tahakkuku, ciro bildirimi ve farkı, kira artışı, doluluk', async ({ page }) => {
   await login(page, 'ev@ornek.com');
-  await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
-  await page.getByRole('link', { name: 'Portföy yönetimi' }).first().click();
-  await expect(page).toHaveURL(/\/uygulama\/site/);
-  await page.getByRole('button', { name: 'Mağazalar' }).click();
+  await expect(page).toHaveURL(/\/uygulama\/site$/);            // kurum yöneticisi girişte kendi panelinde açılır
+  await page.getByRole('link', { name: 'Mağazalar', exact: true }).first().click();
   await page.getByRole('button', { name: 'Birim ekle' }).click();
   await page.getByLabel('Kat / bölüm').fill('Zemin kat');
   await page.getByLabel('Birim no').fill('Z-12');
-  await page.getByLabel('m²').fill('200');
+  await page.getByLabel('m² (zorunlu)', { exact: true }).fill('200');
   await page.getByLabel('Aylık kira').fill('2000');
   await page.getByRole('checkbox', { name: '$ USD' }).click();
   await page.getByRole('button', { name: 'Birimi ekle' }).click();
@@ -75,7 +73,7 @@ test('AVM: mağaza ve sözleşme, döviz kira tahakkuku, ciro bildirimi ve fark�
   const code = (await db(page)).tables.site_residents[0].code;
 
   // Kira tahakkuku: USD kuru girilir; 2.000 × 34 × 1,20 (KDV) = 81.600; vade sözleşmedeki ödeme günü.
-  await page.getByRole('button', { name: 'Tahakkuk' }).click();
+  await page.getByRole('link', { name: 'Kira ve tahakkuk', exact: true }).first().click();
   await expect(page.getByText('Döviz kirası olan birimler için kuru yaz.')).toBeVisible();
   await page.getByLabel('USD kuru (₺)').fill('34');
   await expect(page.getByText('1 birime toplam ₺81.600')).toBeVisible();
@@ -100,20 +98,20 @@ test('AVM: mağaza ve sözleşme, döviz kira tahakkuku, ciro bildirimi ve fark�
 
   // Yönetim: ciroyu onaylar → 1.200.000 × %8 = 96.000; sabit kira 2.000 × 34 = 68.000; fark 28.000.
   await login(page, 'ev@ornek.com');
-  await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
+  await expect(page).toHaveURL(/\/uygulama\/site$/);            // kurum yöneticisi girişte kendi panelinde açılır
   await page.goto(url('/uygulama/site'));
-  await expect(page.getByText('100%').first()).toBeVisible();          // doluluk: 1 / 1 birim
-  await page.getByRole('button', { name: 'Ciro (1)' }).click();
+  await expect(page.getByText('%100').first()).toBeVisible();          // doluluk: 1 / 1 birim
+  await page.getByRole('link', { name: 'Ciro', exact: true }).first().click();
   await page.getByLabel('USD kuru (₺)').fill('34');
   await expect(page.getByText('Ciro farkı: ₺28.000')).toBeVisible();
   await page.getByRole('button', { name: 'Onayla', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Ciro (0)' })).toBeVisible();
+  await expect.poll(async () => (await db(page)).tables.site_turnovers[0].status).toBe('approved');
   d = await db(page);
   expect(d.tables.site_charges.find(x => x.kind === 'ciro')).toMatchObject({ month: prev, amount: 28000 });
   expect(d.tables.site_turnovers[0].status).toBe('approved');
 
   // Kira artışı: sabit %25 → 2.500 USD.
-  await page.getByRole('button', { name: 'Kira artışları' }).click();
+  await page.getByRole('link', { name: 'Kira artışları', exact: true }).first().click();
   await expect(page.getByText('Uygulanmadı')).toBeVisible();
   await expect(page.getByLabel('Yeni kira (USD)')).toHaveValue('2500');
   await page.getByRole('button', { name: 'Artışı uygula' }).click();

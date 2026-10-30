@@ -1,5 +1,18 @@
 # anahtar — canlıya alma yol haritası
 
+## Bekleyen işler (senin yapacakların)
+
+Test ya da yapılacaklar sorulduğunda bu liste hatırlatılır; yapılan madde işaretlenir.
+
+- [x] Supabase'de `supabase/schema.sql`'i çalıştırma (25–27. bölümler) — yapıldı.
+- [ ] Supabase'de `supabase/schema.sql`'i yeniden çalıştırma (28. bölüm: sektör modülleri).
+- [ ] expo.dev hesabı, `cd app && eas init`, GitHub'a `EXPO_TOKEN` sırrı (`docs/magaza.md` bölüm 1).
+- [ ] Web için Turnstile ve Resend'i Supabase'e özel SMTP olarak tanımlama (`docs/canliya-alma.md` bölüm 2 ve 2a).
+- [ ] İnceleme hesaplarını `app/scripts/inceleme-hesaplari.mjs` ile oluşturup mağaza konsollarına girme (`docs/magaza.md` bölüm 2).
+- [ ] Yönetici paneli → Kurumlar: "Dalyan Sitesi"nin sektörünü "Site ve bina yönetimi" yapma (şu an "Diğer"; site paneli açılmaz).
+- [ ] Açık karar: uygulamada abonelik satılacak mı (mağaza içi satın alma) — `docs/magaza.md` bölüm 3.
+
+
 Durum (27 Ekim 2026): site, uygulama ve yönetici paneli hazır; Türkçe/İngilizce çalışıyor; 249 otomatik test geçiyor.
 Eksikler kod değil, çoğunlukla **hesap / ayar / hukuk / ödeme** işleri. Aşağıdaki sıra önerilen sıradır;
 **Faz 0 bitmeden siteyi duyurmayın** (kayıtlar Supabase'e gitmez).
