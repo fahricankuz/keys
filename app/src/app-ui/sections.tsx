@@ -395,8 +395,32 @@ export function SecMsg({ p }: { p: any }) {
         {p.msgs.length === 0 ? <Note>{t('Henüz mesaj yok. Yazışmalar tarihli olarak saklanır.')}</Note> : null}
         {ui.msgMore[p.id] ? <OlderMessages pid={p.id} /> : null}
         {p.msgs.map((m: any, i: number) => {
+          const whoOf = (x: any) => (isMine(p, x) ? '' : senderName(p, x));
           const d = dayLabel(m.at);
           const sep = d !== lastDay ? (lastDay = d, <Text key={'d' + i} v="small" muted style={{ textAlign: 'center', marginTop: 6 }}>{d}</Text>) : null;
+          const rq = m.req ? p.requests.find((x: any) => x.id === m.req) : null;
+          // Talebe bağlı mesaj (kart ve talep sistem mesajları): dokununca talep açılır; durum güncel gösterilir.
+          if (rq) {
+            const sys = m.from === 'system';
+            const mineReq = !sys && isMine(p, m);
+            return (
+              <View key={i} style={{ gap: 6 }}>
+                {sep}
+                <PressScale onPress={() => open('talep', { pid: p.id, id: rq.id })} accessibilityRole="button" accessibilityLabel={t('Talebi aç') + ': ' + rq.title} scaleTo={0.98}
+                  style={{ alignSelf: sys ? 'center' : mineReq ? 'flex-end' : 'flex-start', width: '88%', backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderLeftWidth: 4, borderLeftColor: c.accent, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, gap: 4 }}>
+                  <Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyXBold, fontSize: 11, letterSpacing: 0.6 }}>{(t('Talep') + ' · ' + t(rq.cat) + (rq.urgency === 'Acil' ? ' · ' + t('Acil') : '')).toUpperCase()}</Text>
+                  <Text v="body" style={{ fontFamily: fonts.bodyXBold }}>{rq.title}</Text>
+                  {m.text ? <Text v="small" muted>{!sys && whoOf(m) ? whoOf(m) + ': ' : ''}{m.text}</Text> : null}
+                  <Row gap={6}>
+                    {rq.cat === 'Ek talep' ? (rq.decision ? <Chip tone={rq.decision === 'Onaylandı' ? 'ok' : 'bad'} label={t(rq.decision)} /> : <Chip tone="warn" label={t('Karar bekliyor')} />) : <Chip tone={rq.status === 3 ? 'ok' : 'accent'} label={t(STEPS[rq.status])} />}
+                    {(rq.quotes || []).length ? <Chip tone="neutral" label={(rq.quotes || []).length + ' ' + t('teklif')} /> : null}
+                  </Row>
+                  <Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyXBold }}>{t('Talebi aç')} →</Text>
+                  <Text v="small" muted style={{ fontSize: 11, alignSelf: 'flex-end' }}>{tm(m.at)}</Text>
+                </PressScale>
+              </View>
+            );
+          }
           if (m.from === 'system') return <View key={i} style={{ gap: 6 }}>{sep}<Text v="small" muted style={{ textAlign: 'center' }}>{m.text}</Text></View>;
           const mine = isMine(p, m);
           // Başkasının mesajına uzun basınca bildir / engelle penceresi açılır (mağaza kuralı: kullanıcı içeriği bildirilebilir).

@@ -353,24 +353,28 @@ function NewReqSheet({ pid, close }: { pid?: string; close: () => void }) {
 function QuotesSection({ p, r }: { p: any; r: any }) {
   const { open } = useSheet();
   const quotes = r.quotes || [];
+  const tenant = ui.role === 'tenant';
   const landlord = ui.role === 'landlord' && can(p.id, 'request');
-  if (!quotes.length && !landlord && !r.invoice) return null;
+  const mayAdd = landlord || tenant;                // teklifi ve faturayı iki taraf da ekler; usta seçimi mülk sahibinindir
+  if (!quotes.length && !mayAdd && !r.invoice) return null;
+  const byLabel = (q: any) => (q.by === 'tenant' ? t('Kiracı ekledi') : t('Mülk sahibi ekledi'));
   return (
     <Card gap={8}>
-      <Row between><H2>{t('Usta ve teklifler')}</H2>{landlord && r.status < 3 ? <Button kind="ghost" title={t('Teklif')} icon={<Icon name="plus" size={15} />} onPress={() => open('teklif', { pid: p.id, id: r.id })} /> : null}</Row>
+      <Row between><H2>{t('Usta ve teklifler')}</H2>{mayAdd && r.status < 3 ? <Button kind="ghost" title={t('Teklif')} icon={<Icon name="plus" size={15} />} onPress={() => open('teklif', { pid: p.id, id: r.id })} /> : null}</Row>
       {quotes.length ? quotes.slice().sort((a: any, b: any) => a.amount - b.amount).map((q: any) => (
         <Row key={q.id} between style={{ paddingVertical: 4 }}>
-          <View style={{ flex: 1 }}><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{q.vendor}</Text><Muted>{tl(q.amount)}{q.note ? ' · ' + q.note : ''}</Muted></View>
+          <View style={{ flex: 1 }}><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{q.vendor}</Text><Muted>{tl(q.amount)}{q.note ? ' · ' + q.note : ''}</Muted><Muted>{byLabel(q)}</Muted></View>
           <Row gap={6}>
             {q.chosen ? <Chip tone="ok" label={t('Seçildi')} /> : landlord && r.status < 3 ? <Button kind="ghost" title={t('Seç')} onPress={() => act('chooseQuote', { pid: p.id, id: r.id, q: q.id })} /> : null}
             {q.phone ? <IconBtn name="phone" size={16} label={t('{name} ara|telefon', { name: q.vendor })} onPress={() => Linking.openURL('tel:' + q.phone).catch(() => {})} /> : null}
-            {landlord && !q.chosen ? <IconBtn name="x" size={16} label={q.vendor} onPress={() => act('removeQuote', { pid: p.id, id: r.id, q: q.id })} /> : null}
+            {!q.chosen && (landlord || (tenant && q.by === 'tenant')) ? <IconBtn name="x" size={16} label={q.vendor} onPress={() => act('removeQuote', { pid: p.id, id: r.id, q: q.id })} /> : null}
           </Row>
         </Row>
       )) : <Muted>{t('Henüz teklif yok. Ustalardan aldığın fiyatları ekleyip karşılaştırabilirsin.')}</Muted>}
+      {tenant && quotes.length && !quotes.some((q: any) => q.chosen) ? <Muted>{t('Teklifi mülk sahibi seçer.')}</Muted> : null}
       {r.invoice
         ? <Stack gap={8}><Note>{t('Fatura:')} {tl(r.invoice.amount)} · {r.invoice.name} · {fmtFull(parse(r.invoice.date))}{r.invoice.expenseId ? ' ' + t('· gider defterine işlendi') : ''}</Note><FileLink path={r.invoice.path} label={t('Faturayı aç')} /><ReviewChip kind="invoice" pid={p.id} id={r.id} /></Stack>
-        : landlord ? <Button kind="ghost" title={t('Fatura ekle')} onPress={() => open('fatura', { pid: p.id, id: r.id })} /> : null}
+        : mayAdd ? <Button kind="ghost" title={t('Fatura ekle')} onPress={() => open('fatura', { pid: p.id, id: r.id })} /> : null}
     </Card>
   );
 }
@@ -413,7 +417,7 @@ function ReqSheet({ pid, id, close }: { pid?: string; id: string; close: () => v
       {ctrl}
       <QuotesSection p={p} r={r} />
       {(r.log || []).length ? <Stack gap={8}><H2>{t('Geçmiş')}</H2><Items data={(r.log || []).slice().reverse()} render={(e: any, last, i) => <LI key={i} last={last} title={e.text} sub={ago(e.at)} />} /></Stack> : null}
-      {can(p.id, 'message') ? <Button kind="ghost" block title={t('Bu talep hakkında yaz')} onPress={() => { close(); act('goMsg', { pid: p.id }); }} /> : null}
+      {can(p.id, 'message') ? <Button block title={landlord ? t('Kiracıyla iletişime geç') : t('Mülk sahibiyle iletişime geç')} onPress={() => { close(); act('askAbout', { pid: p.id, id: r.id }); }} /> : null}
     </Stack>
   );
 }

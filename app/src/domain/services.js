@@ -56,7 +56,8 @@ function lesseeFrom(fd){
 }
 
 function pushMsg(p, m){ p.msgs.push(Object.assign({ id: uid('m') }, m)); }
-function sysMsg(p, text){ pushMsg(p, { from:'system', text, at:Date.now() }); }
+/** Sistem mesajı; `req` verilirse talebe bağlanır (mesajlarda dokununca talep açılır). */
+function sysMsg(p, text, req){ pushMsg(p, Object.assign({ from:'system', text, at:Date.now() }, req ? { req } : {})); }
 function logReq(r, text){ (r.log = r.log || []).push({ at:Date.now(), text }); }
 function reqOf(p, id){ return p.requests.find(r => r.id === id); }
 function resetMoveOutApprovals(p){
@@ -177,12 +178,22 @@ export async function importProps(rows){
 
 export const A = {
   goMsg: d => go(ui.role === 'tenant' ? '/kiraci/mesajlar' : '/mulk-sahibi/mulk/'+d.pid+'/mesaj'),
+  /** Talepten "iletişime geç": talebe bağlı otomatik mesaj karşı tarafın mesajlarına düşer, mesajlar açılır.
+      Aynı talep için kart varsa yenisi açılmaz. */
+  askAbout: d => {
+    const p = P(d.pid), r = reqOf(p, d.id);
+    if (r && !p.msgs.some(m => m.req === r.id && m.from !== 'system')){
+      pushMsg(p, { from:ui.role, by:ui.role === 'tenant' ? meTenant(p)?.id : undefined, text:t('Bu talep hakkında yazıyorum.'), at:Date.now(), req:r.id });
+      save();
+    }
+    A.goMsg(d);
+  },
 
   advance: d => {
     const p = P(d.pid), r = reqOf(p, d.id);
     r.status = Math.min(3, r.status + 1);
     logReq(r, (t('Durum:')+' ')+t(STEPS[r.status]));
-    sysMsg(p, (t('Talep durumu:')+' ')+r.title+' · '+t(STEPS[r.status]));
+    sysMsg(p, (t('Talep durumu:')+' ')+r.title+' · '+t(STEPS[r.status]), r.id);
     // Çözülen talepte seçili teklif varsa ve fatura yoksa teklif tutarı gidere işlenir (fatura gelince güncellenir).
     const chosen = (r.quotes || []).find(q => q.chosen);
     if (r.status === 3 && chosen && r.costOk && !r.invoice && ownerShare(r, chosen.amount) > 0 && can(p.id, 'expense')
@@ -205,7 +216,7 @@ export const A = {
     const p = P(d.pid), r = reqOf(p, d.id);
     r.decision = d.v; r.status = 3;
     logReq(r, (t('Karar:')+' ')+d.v);
-    sysMsg(p, (t('Ek talep:')+' ')+r.title+' · '+d.v);
+    sysMsg(p, (t('Ek talep:')+' ')+r.title+' · '+d.v, r.id);
     save();
     notify({ title:t('Karar kaydedildi'), body:r.title+': '+d.v, icon:'wrench' });
   },
@@ -213,7 +224,7 @@ export const A = {
     const p = P(d.pid), r = reqOf(p, d.id);
     r.costOk = true;
     logReq(r, (t('Masraf paylaşımı onaylandı:')+' ')+t(r.cost));
-    sysMsg(p, (t('Masraf paylaşımı onaylandı:')+' ')+t(r.cost));
+    sysMsg(p, (t('Masraf paylaşımı onaylandı:')+' ')+t(r.cost), r.id);
     save();
   },
   setCost: d => {
@@ -221,14 +232,14 @@ export const A = {
     r.cost = d.v;
     r.costOk = false;
     logReq(r, (t('Masraf önerisi:')+' ')+t(r.cost));
-    sysMsg(p, (t('Masraf önerisi:')+' ')+r.cost+' ('+r.title+')');
+    sysMsg(p, (t('Masraf önerisi:')+' ')+r.cost+' ('+r.title+')', r.id);
     save();
   },
   closeReq: d => {
     const p = P(d.pid), r = reqOf(p, d.id);
     r.status = 3;
     logReq(r, t('Kiracı talebi çözüldü olarak işaretledi'));
-    sysMsg(p, (t('Talep kapatıldı:')+' ')+r.title);
+    sysMsg(p, (t('Talep kapatıldı:')+' ')+r.title, r.id);
     save();
     notify({ title:t('Talep kapatıldı'), body:r.title, icon:'wrench' });
   },
@@ -450,14 +461,15 @@ export const A = {
     r.quotes.forEach(q => { q.chosen = q.id === d.q; });
     const q = r.quotes.find(x => x.chosen);
     logReq(r, (t('Teklif seçildi:')+' ')+q.vendor+' · '+tl(q.amount));
-    sysMsg(p, (t('Talep için usta seçildi:')+' ')+q.vendor+' ('+tl(q.amount)+') · '+r.title);
+    sysMsg(p, (t('Talep için usta seçildi:')+' ')+q.vendor+' ('+tl(q.amount)+') · '+r.title, r.id);
     if (r.status < 2){ r.status = 2; logReq(r, (t('Durum:')+' ')+t(STEPS[2])); }
     save();
     notify({ title:t('Usta seçildi'), body:q.vendor+' · '+tl(q.amount)+t('. Kiracıya bildirildi.'), icon:'wrench' });
   },
   removeQuote: d => {
     const p = P(d.pid), r = reqOf(p, d.id);
-    r.quotes = r.quotes.filter(q => q.id !== d.q);
+    const own = ui.role === 'tenant';
+    r.quotes = r.quotes.filter(q => q.id !== d.q || q.chosen || (own && q.by !== 'tenant'));
     save();
   },
   removeExpense: async d => {
@@ -590,7 +602,7 @@ export async function submit(type, v){
     };
     if (!r.title) return false;
     p.requests.unshift(r);
-    sysMsg(p, (t('Yeni talep açıldı:')+' ')+r.title);
+    sysMsg(p, (t('Yeni talep açıldı:')+' ')+r.title, r.id);
     save(); host.closeSheet();
     go(ui.role === 'tenant' ? '/kiraci/talepler' : '/mulk-sahibi/mulk/'+p.id+'/talep');
     notify({ title:t('Talep gönderildi'), body:t('Mülk sahibine bildirildi. Durum değiştikçe haber vereceğiz.'), icon:'wrench' });
@@ -749,11 +761,12 @@ export async function submit(type, v){
   if (type === 'quote'){
     const r = reqOf(p, v.id);
     const q = { id:uid('q'), vendor:String(fd.get('vendor') || '').trim(), phone:String(fd.get('phone') || '').trim(),
-      amount:Number(fd.get('amount')) || 0, note:String(fd.get('note') || '').trim(), chosen:false };
+      amount:Number(fd.get('amount')) || 0, note:String(fd.get('note') || '').trim(), chosen:false, by:ui.role === 'tenant' ? 'tenant' : 'landlord' };
     if (!q.vendor) return false;
     r.quotes = r.quotes || [];
     r.quotes.push(q);
     logReq(r, (t('Teklif eklendi:')+' ')+q.vendor+' · '+tl(q.amount));
+    sysMsg(p, (t('Yeni usta teklifi:')+' ')+q.vendor+' ('+tl(q.amount)+') · '+r.title, r.id);
     save(); host.closeSheet();
     return true;
   }
@@ -769,7 +782,7 @@ export async function submit(type, v){
     const name = file ? fileName(p.name, 'fatura', date, p.requests.map(x => x.invoice && x.invoice.name).filter(Boolean), file) : 'fatura';
     r.invoice = Object.assign({ amount, date, name, expenseId }, path ? { path } : {});
     logReq(r, (t('Fatura işlendi:')+' ')+tl(amount));
-    sysMsg(p, (t('Talep faturası:')+' ')+r.title+' · '+tl(amount));
+    sysMsg(p, (t('Talep faturası:')+' ')+r.title+' · '+tl(amount), r.id);
     save(); host.closeSheet();
     notify({ title:t('Fatura kaydedildi'), body: expenseId ? t('Gider defterine de işlendi.') : t('Gider defterine eklenmedi.'), icon:'doc' }, false);
     return true;
