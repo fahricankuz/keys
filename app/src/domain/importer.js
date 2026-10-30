@@ -2,7 +2,8 @@
    Şablon üretir, dosyayı okur, satırları denetler ve kaydedilecek kayıtlara çevirir.
    Hata metinleri çeviri anahtarıdır ({msg, p}); ekran t() ile gösterir. */
 
-import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
+// fflate (zip) yalnız Excel şablonu ve .xlsx okuma anında yüklenir; her sayfanın ortak paketine girmez.
+const zip = () => import('fflate');
 
 export const COLUMNS = [
   { key:'name', header:'Mülk adı', required:true, example:'Moda 3+1', aliases:['mulk','mulk adi','ad','name','property','property name'] },
@@ -43,7 +44,8 @@ export function templateCsv(){
   return '﻿' + [COLUMNS.map(c => c.header), COLUMNS.map(c => c.example)].map(r => r.map(cell).join(';')).join('\r\n') + '\r\n';
 }
 
-export function templateXlsx(){
+export async function templateXlsx(){
+  const { zipSync, strToU8 } = await zip();
   const rows = [COLUMNS.map(c => c.header), COLUMNS.map(c => c.example)];
   const files = {
     '[Content_Types].xml': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>',
@@ -95,9 +97,10 @@ const colIndex = ref => {
 const runText = xml => [...xml.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map(m => unxml(m[1])).join('');
 
 /** .xlsx: ilk sayfayı satır satır okur (paylaşılan metinler, satır içi metin, sayı, doğru/yanlış). */
-export function parseXlsx(bytes){
-  const zip = unzipSync(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
-  const read = p => zip[p] ? strFromU8(zip[p]) : '';
+export async function parseXlsx(bytes){
+  const { unzipSync, strFromU8 } = await zip();
+  const files = unzipSync(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
+  const read = p => files[p] ? strFromU8(files[p]) : '';
   const shared = [...read('xl/sharedStrings.xml').matchAll(/<si>([\s\S]*?)<\/si>/g)].map(m => runText(m[1]));
   let path = 'xl/worksheets/sheet1.xml';
   const rid = (/<sheet\b[^>]*r:id="([^"]+)"/.exec(read('xl/workbook.xml')) || [])[1];
@@ -130,7 +133,7 @@ export function parseXlsx(bytes){
 }
 
 /** Dosya türünü içerikten anlar: "PK" ile başlıyorsa xlsx, değilse UTF-8 CSV. */
-export function readTable(bytes){
+export async function readTable(bytes){
   const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   return b[0] === 80 && b[1] === 75 ? parseXlsx(b) : parseCsv(new TextDecoder('utf-8').decode(b));
 }

@@ -163,5 +163,11 @@ export const EN_PAKET = {
   'İç not (yalnız ekip görür)': 'Internal note (team only)',
   // E-posta onayı ile doğrudan giriş
   'Onay bağlantısının süresi dolmuş ya da daha önce kullanılmış olabilir. E-postan doğrulandıysa giriş yaparak devam edebilirsin.': 'The confirmation link may have expired or already been used. If your email is confirmed, sign in to continue.',
-  'Sorun sürerse info@anahtar.io adresine yaz.': 'If the problem continues, write to info@anahtar.io.'
+  'Sorun sürerse info@anahtar.io adresine yaz.': 'If the problem continues, write to info@anahtar.io.',
+  // Hız: sayfalı listeler
+  'Daha fazla göster ({n} kaldı)': 'Show more ({n} left)',
+  'Onaylanan ve reddedilenlerden son 500 karar gösterilir.': 'The latest 500 approved and rejected decisions are shown.',
+  '{from} ve sonrası gösteriliyor.': 'Showing {from} and later.',
+  'Daha eski ödemeleri yükle': 'Load older payments',
+  'Daha eski mesajlar': 'Older messages'
 };

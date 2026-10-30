@@ -73,6 +73,14 @@ const titleFor = (file) => {
 const cssFile = join(out, 'site.css');
 const cssV = existsSync(cssFile) ? createHash('sha256').update(readFileSync(cssFile)).digest('hex').slice(0, 10) : '';
 
+// Sunucuyla konuşan sayfalar (giriş, kayıt, şifre, davet, panel, hesaplayıcı) bağlantıyı önceden açar: ilk istek
+// DNS/TLS beklemez. Ana sayfa ve tanıtım sayfaları açmaz (oturumu olmayan ziyaretçi sunucuya hiç bağlanmaz).
+const API_PAGES = /^(giris|kayit|sifre|yeni-sifre|dogrula|katil|uygulama|admin|satin-al|kira-artis-hesaplama)(\/|$)/;
+const preconnect = (file) => {
+  const key = relative(out, file).replace(/\.html$/, '').replace(/(^|\/)index$/, '');
+  return api && API_PAGES.test(key) ? `<link rel="preconnect" href="${api}" crossorigin=""/>` : '';
+};
+
 let count = 0;
 for (const file of walk(out)) {
   let html = readFileSync(file, 'utf8');
@@ -109,7 +117,7 @@ for (const file of walk(out)) {
     `<link rel="apple-touch-icon" href="${base}/apple-touch-icon.png"/>`
   ].join('');
   // CSP en başta olmalı ki sonraki kaynaklara da uygulansın; çerçeve koruması hemen ardından.
-  html = html.replace('<head>', `<head>${head}${guard}${own ? '' : fontCss()}`);
+  html = html.replace('<head>', `<head>${head}${guard}${preconnect(file)}${own ? '' : fontCss()}`);
   writeFileSync(file, html);
   count++;
 }

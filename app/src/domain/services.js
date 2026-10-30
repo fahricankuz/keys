@@ -331,7 +331,8 @@ export const A = {
       ('\n\n'+t('Kiracı onayı:')+' ')+(p.inspect.tenantOk ? t('var') : t('yok'))+('\n'+t('Mülk sahibi onayı:')+' ')+(p.inspect.landlordOk ? t('var') : t('yok'));
     openText(t('Tutanak dökümü'), body);
   },
-  exportChat: d => {
+  exportChat: async d => {
+    if (LIVE) await backend.allMessages(d.pid).catch(() => {});      // döküm yazışmanın tamamını içersin
     const p = P(d.pid);
     const body = p.name+' · '+p.addr+'\n\n' + p.msgs.map(m =>
       new Date(m.at).toLocaleString(locale())+' · '+senderName(p, m)+': '+(m.text || '')+(m.img ? ' ['+t('fotoğraf')+']' : '')).join('\n');
@@ -366,9 +367,9 @@ export const A = {
     host.saveFile(file + '.csv', toCsv(sheets, locale() === 'en-GB' ? 'en' : 'tr'), 'text/csv;charset=utf-8');
     notify({ title:t('CSV hazır'), body:t('Ödemeler ve giderler dosyası hazırlandı.'), icon:'chart' }, false);
   },
-  exportXlsx: d => {
+  exportXlsx: async d => {
     const { sheets, file } = exportSheets(d && d.pid);
-    host.saveFile(file + '.xlsx', toXlsx(sheets), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    host.saveFile(file + '.xlsx', await toXlsx(sheets), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     notify({ title:t('Excel dosyası hazır'), body:t('Ödemeler ve giderler ayrı sayfalarda.'), icon:'chart' }, false);
   },
   /** Yazışma açıldı: okunmamış sayacı sıfırlanır, sunucuda da işaretlenir. */

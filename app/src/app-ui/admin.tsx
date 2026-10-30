@@ -1,6 +1,6 @@
 /* Yönetici paneli: özet, denetim kuyruğu, ödemeler, mülk sahipleri ve kullanıcılar.
    Yalnızca admins tablosundaki hesaplar açabilir; sunucu kuralları (RLS) zaten başkasına veri vermez. */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminLegal } from './legal';
 import { adminLegal } from '../domain/legal';
 import { Image, Linking, ScrollView, View } from 'react-native';
@@ -45,11 +45,13 @@ export default function AdminPanel() {
   const [legalOpen, setLegalOpen] = useState(0);
   useEffect(() => { adminLegal().then((d) => setLegalOpen(d.filter((r: any) => ['received', 'paid', 'forwarded'].includes(r.status)).length)).catch(() => {}); }, []);
 
+  // Ödemeler son 12 ay yüklenir; "Daha eski ödemeleri yükle" 12'şer ay geriye gider.
+  const [months, setMonths] = useState(12);
   const load = useCallback(async () => {
     setBusy(true); setErr(null);
-    try { setData(await loadAdmin()); } catch (e) { setErr(humanError(e)); }
+    try { setData(await loadAdmin({ months })); } catch (e) { setErr(humanError(e)); }
     setBusy(false);
-  }, []);
+  }, [months]);
   useEffect(() => { load(); }, [load]);
 
   // Bölümler: yan menü sırası, simge ve başlık / açıklama.
@@ -89,7 +91,7 @@ export default function AdminPanel() {
             {tab === 'cpi' && <CpiRates />}
             {tab === 'legal' && <AdminLegal onCount={setLegalOpen} />}
             {tab === 'queue' && <Queue d={data} reload={load} />}
-            {tab === 'pay' && <Payments d={data} />}
+            {tab === 'pay' && <Payments d={data} onOlder={() => setMonths((m) => m + 12)} busy={busy} />}
             {tab === 'conn' && <Landlords d={data} />}
             {tab === 'msgs' && <Messages d={data} reload={load} />}
             {tab === 'users' && <Users d={data} reload={load} />}
@@ -99,6 +101,18 @@ export default function AdminPanel() {
       ) : null}
     </AdminShell>
     <OpenSplash />
+    </>
+  );
+}
+
+/** Uzun listeler 100'er kayıt çizilir; "Daha fazla göster" sonrakileri ekler (binlerce kart ekranı yavaşlatmasın). */
+function Shown<T>({ list, render, step = 100 }: { list: T[]; render: (x: T) => ReactNode; step?: number }) {
+  const [n, setN] = useState(step);
+  useEffect(() => { setN(step); }, [list.length]);
+  return (
+    <>
+      {list.slice(0, n).map(render)}
+      {list.length > n ? <Button kind="ghost" title={t('Daha fazla göster ({n} kaldı)', { n: list.length - n })} onPress={() => setN(n + step)} style={{ alignSelf: 'center' }} /> : null}
     </>
   );
 }
@@ -115,7 +129,8 @@ function Queue({ d, reload }: { d: Data; reload: () => void }) {
         <Seg scroll value={f} onChange={setF} options={[['pending', t('Bekleyen')], ['rejected', t('Reddedilen')], ['approved', t('Onaylanan')], ['all', t('Tümü')]]} />
         <Seg scroll value={kind} onChange={setKind} options={[['all', t('Hepsi')], ['payment', t('Dekont')], ['document', t('Belge')], ['invoice', t('Fatura')]]} />
       </Row>
-      {list.length ? list.map((r: any) => <ReviewCard key={r.kind + r.property_id + r.ref_id} r={r} reload={reload} />)
+      {f !== 'pending' ? <Muted>{t('Onaylanan ve reddedilenlerden son 500 karar gösterilir.')}</Muted> : null}
+      {list.length ? <Shown list={list} render={(r: any) => <ReviewCard key={r.kind + r.property_id + r.ref_id} r={r} reload={reload} />} />
         : <Empty>{f === 'pending' ? t('Bekleyen yükleme yok. Yeni dekont, belge ve faturalar burada görünür.') : t('Kayıt yok.')}</Empty>}
     </Stack>
   );
@@ -180,7 +195,7 @@ function ReviewCard({ r, reload }: { r: any; reload: () => void }) {
 
 /* ---------------- ödemeler ---------------- */
 
-function Payments({ d }: { d: Data }) {
+function Payments({ d, onOlder, busy }: { d: Data; onOlder: () => void; busy: boolean }) {
   const c = useColors();
   const [q, setQ] = useState('');
   const [st, setSt] = useState('all');
@@ -192,7 +207,7 @@ function Payments({ d }: { d: Data }) {
       <Field label={t('Ara')} value={q} onChangeText={setQ} placeholder={t('Kiracı, mülk sahibi, mülk ya da ay')} />
       <Seg scroll value={st} onChange={setSt} options={[['all', t('Hepsi')], ['review', t('Onay bekliyor')], ['approved', t('Onaylandı')], ['rejected', t('Reddedildi')], ['partial', t('Kısmi')]]} />
       <Muted>{list.length} {t('kayıt')} · {t('Onaylı toplam')}: {tl(total)}</Muted>
-      {list.length ? list.map((p: any) => {
+      {list.length ? <Shown list={list} render={(p: any) => {
         const [pt, tone] = PAY[p.status] || ['—', 'neutral'];
         return (
           <Card key={p.property_id + p.month + (p.kind || '')} gap={6}>
@@ -209,7 +224,9 @@ function Payments({ d }: { d: Data }) {
             {p.reject_reason ? <Text v="small" color={c.badInk}>{p.reject_reason}</Text> : null}
           </Card>
         );
-      }) : <Empty>{t('Ödeme kaydı yok.')}</Empty>}
+      }} /> : <Empty>{t('Ödeme kaydı yok.')}</Empty>}
+      <Muted>{t('{from} ve sonrası gösteriliyor.', { from: monthLabel(d.paymentsFrom) })}</Muted>
+      <Button kind="ghost" title={t('Daha eski ödemeleri yükle')} loading={busy} disabled={busy} onPress={onOlder} style={{ alignSelf: 'flex-start' }} />
     </Stack>
   );
 }
@@ -308,7 +325,7 @@ function Users({ d, reload }: { d: Data; reload: () => void }) {
     <Stack>
       <Field label={t('Ara')} value={q} onChangeText={setQ} placeholder={t('Ad, e-posta ya da telefon')} />
       <Seg scroll value={f} onChange={setF} options={[['all', t('Hepsi')], ['landlord', t('Mülk sahibi')], ['tenant', t('Kiracı')], ['banned', t('Askıda')]]} />
-      {list.length ? list.map((u: any) => (
+      {list.length ? <Shown list={list} render={(u: any) => (
         <Card key={u.id} gap={8}>
           <Row between wrap>
             <View style={{ flex: 1, minWidth: 200 }}><H2>{u.name || u.email}</H2><Muted>{u.email}{u.phone ? ' · ' + u.phone : ''}</Muted></View>
@@ -322,7 +339,7 @@ function Users({ d, reload }: { d: Data; reload: () => void }) {
           {u.role === 'landlord' ? <AddForUser u={u} /> : null}
           <BanBox u={u} reload={reload} />
         </Card>
-      )) : <Empty>{t('Kullanıcı yok.')}</Empty>}
+      )} /> : <Empty>{t('Kullanıcı yok.')}</Empty>}
     </Stack>
   );
 }

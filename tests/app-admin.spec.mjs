@@ -72,7 +72,8 @@ test('kiracı dekont yükler; denetim kaydı düşer, mülk sahibi onaydan önce
   expect(d.tables.reviews[0]).toMatchObject({ kind: 'payment', status: 'pending', property_id: 'p1' });
   expect(d.tables.reviews[0].path).toMatch(/^p1\/.+\.(webp|jpg)$/);              // dosya depoya yüklendi
   expect(d.tables.payments).toHaveLength(1);
-  expect(Object.keys(d.storage)).toHaveLength(1);
+  expect(Object.keys(d.storage).filter((k) => !k.endsWith('.k'))).toHaveLength(1);   // asıl dosya …
+  expect(Object.keys(d.storage)).toContain(d.tables.reviews[0].path + '.k');          // … ve listeler için küçük kopyası
 
   await login(page, 'ev@ornek.com');
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();

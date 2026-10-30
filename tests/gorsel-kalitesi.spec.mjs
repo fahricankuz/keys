@@ -50,10 +50,12 @@ async function tenant(page) {
   await page.getByRole('button', { name: 'Giriş yap' }).click();
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
 }
-async function sent(page) {
-  await expect.poll(async () => Object.keys((await db(page)).storage).length).toBe(1);
-  const [o] = Object.values((await db(page)).storage);
-  return o;
+/** Yüklenen asıl görsel (yanında listeler için ".k" ile biten küçük kopyası da saklanır). */
+async function sent(page, thumb = false) {
+  await expect.poll(async () => Object.keys((await db(page)).storage).filter((k) => !k.endsWith('.k')).length).toBe(1);
+  const s = (await db(page)).storage;
+  const key = Object.keys(s).find((k) => thumb ? k.endsWith('.k') : !k.endsWith('.k'));
+  return s[key];
 }
 
 test('dekont görseli uzun kenarı 1280 px\'e küçültülür, WebP/JPEG olarak ve çok daha küçük yüklenir', async ({ page }) => {
@@ -71,6 +73,11 @@ test('dekont görseli uzun kenarı 1280 px\'e küçültülür, WebP/JPEG olarak 
   expect(o.w).toBeGreaterThan(o.h);                               // yatay oran korunur
   expect(Math.abs(o.w / o.h - 3000 / 2200)).toBeLessThan(0.01);
   expect(o.size).toBeLessThan(300 * 1024);                        // 3000×2200 görselin ham hali ≈ 20 MB
+  // Listelerdeki küçük kareler için 320 px kopya: tam boy görsel indirilmez.
+  await expect.poll(async () => Object.keys((await db(page)).storage).some((k) => k.endsWith('.k'))).toBe(true);
+  const th = await sent(page, true);
+  expect(Math.max(th.w, th.h)).toBe(320);
+  expect(th.size).toBeLessThan(o.size / 4);
 });
 
 test('dikey belge görselinde de uzun kenar (yükseklik) 1280 px olur', async ({ page }) => {

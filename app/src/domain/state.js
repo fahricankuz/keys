@@ -440,7 +440,8 @@ export const ui = {
   role:'tenant',   // 'tenant' | 'landlord'
   team:false,      // ekip üyesi oturumu (emlakçı, muhasebeci, personel)
   teamTick:0,      // ekip listesi değişince artar
-  memberRoles:{}   // mülk kimliği → ekip üyesinin o mülkteki rolü
+  memberRoles:{},  // mülk kimliği → ekip üyesinin o mülkteki rolü
+  msgMore:{}       // mülk kimliği → sunucuda daha eski mesaj var mı (bkz. backend.js → olderMessages)
 };
 
 export function applyTheme(){ emit(); }

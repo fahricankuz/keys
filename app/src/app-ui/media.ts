@@ -1,22 +1,31 @@
 /* Fotoğraf ve belge seçimi. Görseller küçültülüp veri adresine (data URL) çevrilir ve depoya öyle yüklenir (depolama maliyeti);
    PDF'ler olduğu gibi yüklenir, en fazla 10 MB (bkz. backend.js → storeFile). */
-import * as ImagePicker from 'expo-image-picker';
+import type * as ImagePickerT from 'expo-image-picker';
+import type * as ImageManipulatorT from 'expo-image-manipulator';
 import * as DocumentPicker from 'expo-document-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
 import { Image, Platform } from 'react-native';
 import { t } from '../domain/i18n';
 import { host } from '../domain/host';
 
+// Fotoğraf seçici ve küçültücü yalnız kullanıldığı anda yüklenir; her sayfanın ortak paketine girmez.
+const picker = () => import('expo-image-picker');
+const manipulator = () => import('expo-image-manipulator');
+
 /** PDF ve diğer sıkıştırılmayan dosyalar için üst sınır (bayt). */
 export const MAX_FILE = 10 * 1024 * 1024;
 
-export type Picked = { name: string; dataUrl: string | null; isImage: boolean; uri?: string; mime?: string; size?: number };
+export type Picked = { name: string; dataUrl: string | null; isImage: boolean; uri?: string; mime?: string; size?: number;
+  /** Listelerdeki küçük önizleme için 320 px kopya (yüklemede ayrıca saklanır; bkz. backend.js → storeFile). */
+  thumb?: string | null };
 
 /** Küçültme ayarı (tüm görseller): uzun kenar 1280 px, WebP kalite 0,75 (JPEG yedeği 0,70). Tipik bir telefon fotoğrafı
     ≈ 2 MB'tan ≈ 55 KB'a iner; dekont ve belgelerdeki yazılar okunur kalır. */
 type Preset = { max: number; webp: number; jpeg: number };
 const PHOTO: Preset = { max: 1280, webp: 0.75, jpeg: 0.7 };
 const DOC: Preset = PHOTO;
+/** Küçük önizleme: listelerdeki 48–120 px kareler için (yüksek çözünürlüklü ekranda da net). */
+const THUMB: Preset = { max: 320, webp: 0.7, jpeg: 0.7 };
+const thumbOf = (dataUrl: string | null) => (dataUrl ? shrink(dataUrl, THUMB) : Promise.resolve(null));
 
 /** Görselin boyutu (px); okunamazsa null. */
 function dimsOf(uri: string, w?: number, h?: number): Promise<[number, number] | null> {
@@ -28,11 +37,12 @@ function dimsOf(uri: string, w?: number, h?: number): Promise<[number, number] |
     Web'de WebP denenir (aynı kalitede çok daha küçük); tarayıcı WebP üretemezse (bazı Safari sürümleri sessizce PNG verir)
     JPEG'e dönülür. WebP dosyası "RIFF" (base64: UklGR) ile başlar. */
 async function shrink(uri: string, preset: Preset, w?: number, h?: number): Promise<string | null> {
+  const ImageManipulator = await manipulator();
   const dims = await dimsOf(uri, w, h);
-  const actions: ImageManipulator.Action[] = !dims ? [{ resize: { width: preset.max } }]
+  const actions: ImageManipulatorT.Action[] = !dims ? [{ resize: { width: preset.max } }]
     : Math.max(dims[0], dims[1]) <= preset.max ? []
     : dims[0] >= dims[1] ? [{ resize: { width: preset.max } }] : [{ resize: { height: preset.max } }];
-  const run = (format: ImageManipulator.SaveFormat, compress: number) => ImageManipulator.manipulateAsync(uri, actions, { compress, format, base64: true });
+  const run = (format: ImageManipulatorT.SaveFormat, compress: number) => ImageManipulator.manipulateAsync(uri, actions, { compress, format, base64: true });
   try {
     if (Platform.OS === 'web') {
       const wp = await run(ImageManipulator.SaveFormat.WEBP, preset.webp);
@@ -43,22 +53,24 @@ async function shrink(uri: string, preset: Preset, w?: number, h?: number): Prom
   } catch { return null; }
 }
 
-async function fromAssets(assets: ImagePicker.ImagePickerAsset[], max: number): Promise<Picked[]> {
+async function fromAssets(assets: ImagePickerT.ImagePickerAsset[], max: number): Promise<Picked[]> {
   const out: Picked[] = [];
   for (const a of assets.slice(0, max)) {
     const dataUrl = await shrink(a.uri, PHOTO, a.width, a.height);
-    out.push({ name: a.fileName || 'foto.jpg', dataUrl, isImage: true });
+    out.push({ name: a.fileName || 'foto.jpg', dataUrl, isImage: true, thumb: await thumbOf(dataUrl) });
   }
   return out;
 }
 
 export async function pickImages(max = 4): Promise<Picked[]> {
+  const ImagePicker = await picker();
   const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: max > 1, selectionLimit: max, quality: 0.8 });
   return r.canceled ? [] : fromAssets(r.assets, max);
 }
 
 export async function takePhoto(): Promise<Picked[]> {
   try {
+    const ImagePicker = await picker();
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) return [];
     const r = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
@@ -74,7 +86,8 @@ export async function pickDocument(): Promise<Picked | null> {
   const isImage = (a.mimeType || '').startsWith('image/');
   // PDF sıkıştırılamaz: büyük dosya seçilir seçilmez, yükleme beklenmeden bildirilir.
   if (!isImage && a.size && a.size > MAX_FILE) { host.notify({ title: t('Dosya çok büyük'), body: t('En fazla 10 MB yüklenebilir.'), icon: 'doc' }); return null; }
-  return { name: a.name, dataUrl: isImage ? await shrink(a.uri, DOC, (a as any).width, (a as any).height) : null, isImage, uri: a.uri, mime: a.mimeType || undefined, size: a.size || undefined };
+  const dataUrl = isImage ? await shrink(a.uri, DOC, (a as any).width, (a as any).height) : null;
+  return { name: a.name, dataUrl, isImage, uri: a.uri, mime: a.mimeType || undefined, size: a.size || undefined, thumb: isImage ? await thumbOf(dataUrl) : null };
 }
 
 /** JSON içe aktarma için metin dosyası. */

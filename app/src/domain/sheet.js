@@ -1,7 +1,6 @@
 /* Tablo dışa aktarma: CSV (Excel'in Türkçe ayarıyla açılır, ";" ayraçlı) ve gerçek .xlsx.
    sheets: [{ name, columns:[{ header, type:'text'|'money'|'date' }], rows:[[...]], totals?:[sütun], totalLabel? }] */
 
-import { zipSync, strToU8 } from 'fflate';
 
 export function money(v, lang = 'tr'){
   return (Number(v) || 0).toLocaleString(lang === 'en' ? 'en-GB' : 'tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -83,8 +82,9 @@ function worksheet(sh){
     + '</cols><sheetData>' + rows.join('') + '</sheetData></worksheet>';
 }
 
-/** Çok sayfalı .xlsx dosyası (Uint8Array). */
-export function toXlsx(sheets){
+/** Çok sayfalı .xlsx dosyası (Uint8Array). fflate (zip) yalnız bu anda yüklenir. */
+export async function toXlsx(sheets){
+  const { zipSync, strToU8 } = await import('fflate');
   const used = new Set();
   const names = sheets.map(s => sheetName(s.name, used));
   const files = {

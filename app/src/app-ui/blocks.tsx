@@ -281,7 +281,7 @@ export function Thumbs({ srcs, onRemove, size = 72 }: { srcs: string[]; onRemove
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
       {srcs.map((s, j) => (
         <View key={j} style={{ width: size, height: size, borderRadius: radius.sm, overflow: 'hidden', backgroundColor: c.surface2 }}>
-          <Image source={{ uri: mediaSrc(s) }} style={{ width: size, height: size }} resizeMode="cover" />
+          <Image source={{ uri: mediaSrc(s, size <= 120) }} style={{ width: size, height: size }} resizeMode="cover" />
           {onRemove && (
             <Pressable onPress={() => onRemove(j)} accessibilityLabel="Fotoğrafı sil" style={{ position: 'absolute', top: 2, right: 2, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' }}>
               <Text v="small" color="#fff" style={{ lineHeight: 18 }}>×</Text>

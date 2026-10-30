@@ -2,7 +2,6 @@
    Uygulama (/uygulama) yalnızca oturumla açılır. */
 import { CAPTCHA_KEY, captchaPending, captchaSpent, captchaToken } from './captcha';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import * as Crypto from 'expo-crypto';
 import { hydrate, storage } from '../domain/storage';
 import { LIVE, CONFIG } from '../domain/config';
 import { closeLocal, openLocal, ui } from '../domain/state';
@@ -25,7 +24,9 @@ const INVITE = 'kiracim-davet';
 type Account = User & { hash: string; salt: string; createdAt?: number };
 
 const readAccounts = (): Account[] => { try { return JSON.parse(storage.getItem(ACCOUNTS) || '[]'); } catch { return []; } };
-const hashPw = (pw: string, salt: string) => Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, salt + ':' + pw);
+// Yerel hesap (sunucusuz kurulum) şifre özeti ve kimlikleri: expo-crypto yalnız bu anda yüklenir.
+const crypto = () => import('expo-crypto');
+const hashPw = async (pw: string, salt: string) => { const C = await crypto(); return C.digestStringAsync(C.CryptoDigestAlgorithm.SHA256, salt + ':' + pw); };
 
 type Ctx = {
   user: User | null; ready: boolean; live: boolean;
@@ -98,11 +99,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         await hydrate();
+        // Kayıtlı oturum yoksa sunucu kütüphanesi yüklenmez (herkese açık sayfalar daha hızlı açılır).
         if (LIVE) {
-          const c = await backend.client();
-          const { data } = await c.auth.getSession();
-          const s = data.session;
-          if (s) setUser(await enterLive(s.user));
+          if (await backend.hasStoredSession()) {
+            const c = await backend.client();
+            const { data } = await c.auth.getSession();
+            const s = data.session;
+            if (s) setUser(await enterLive(s.user));
+          }
         } else {
           const id = storage.getItem(SESSION);
           const a = id && readAccounts().find((x) => x.id === id);
@@ -163,6 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (role === 'team') return t('Ekip hesapları yalnızca sunucuya bağlı kurulumda açılır.');
       const list = readAccounts();
       if (list.some((x) => x.email === email)) return t('Bu e-posta ile bir hesap zaten var.');
+      const Crypto = await crypto();
       const salt = Crypto.randomUUID();
       const id = Crypto.randomUUID().slice(0, 12);
       const createdAt = Date.now();
@@ -270,7 +275,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const a = readAccounts().find((x) => x.id === user.id);
       if (!a || a.hash !== (await hashPw(current, a.salt))) return t('Mevcut şifren yanlış.');
-      const salt = Crypto.randomUUID();
+      const salt = (await crypto()).randomUUID();
       patchLocal(user.id, { salt, hash: await hashPw(next, salt) });
       return null;
     } catch (e) { return backend.humanError(e); }

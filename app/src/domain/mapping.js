@@ -75,10 +75,7 @@ export function buildProperty(d){
       cost: owner(r.cost), costOk: !!r.cost_ok, decision: r.decision || null, date: r.req_date,
       photos: r.photos || 0, shots: r.shots || [], log: r.log || [], quotes: r.quotes || [], invoice: r.invoice || null
     })).sort((a, b) => a.date === b.date ? (a.id < b.id ? 1 : -1) : (a.date < b.date ? 1 : -1)),
-    msgs: (d.messages || []).map(m => clean({
-      id: m.id, from: m.from_role, by: m.by_user || undefined, text: m.body, at: ms(m.at),
-      img: m.image_path ? SB + m.image_path : undefined
-    })).sort((a, b) => a.at - b.at),
+    msgs: (d.messages || []).map(messageFromRow).sort((a, b) => a.at - b.at),
     docs: (d.documents || []).map(x => clean({
       id: x.id, cat: x.cat, name: x.name, at: x.uploaded_on, until: x.until || undefined, path: x.path || undefined, note: x.note || undefined
     })),
@@ -89,6 +86,11 @@ export function buildProperty(d){
     moveOut: sh.move_out || null,
     renewal: sh.renewal || null
   };
+}
+
+/** Mesaj satırı → uygulamadaki mesaj. */
+export function messageFromRow(m){
+  return clean({ id: m.id, from: m.from_role, by: m.by_user || undefined, text: m.body, at: ms(m.at), img: m.image_path ? SB + m.image_path : undefined });
 }
 
 /** Eski kayıtlardaki "Ev sahibi" değeri (v3 öncesi) yeni adıyla okunur. */

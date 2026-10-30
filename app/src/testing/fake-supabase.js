@@ -166,6 +166,11 @@ class Query {
   delete(){ this.op = 'delete'; return this; }
   eq(k, v){ this.filters.push(r => r[k] === v); return this; }
   in(k, v){ this.filters.push(r => v.includes(r[k])); return this; }
+  lt(k, v){ this.filters.push(r => r[k] < v); return this; }
+  gte(k, v){ this.filters.push(r => r[k] >= v); return this; }
+  neq(k, v){ this.filters.push(r => r[k] !== v); return this; }
+  range(a, b){ this.rng = [a, b]; return this; }
+  gt(k, v){ this.filters.push(r => r[k] > v); return this; }
   is(k, v){ this.filters.push(r => (r[k] ?? null) === v); return this; }
   order(k, o){ this.orderBy = [k, o?.ascending !== false]; return this; }
   limit(n){ this.lim = n; return this; }
@@ -192,6 +197,7 @@ class Query {
     if (this.op === 'select'){
       out = list.filter(r => pass(r) && visible(db, this.t, r, actor)).map(r => JSON.parse(JSON.stringify(r)));
       if (this.orderBy){ const [k, asc] = this.orderBy; out.sort((a, b) => (a[k] < b[k] ? -1 : a[k] > b[k] ? 1 : 0) * (asc ? 1 : -1)); }
+      if (this.rng) out = out.slice(this.rng[0], this.rng[1] + 1);
       if (this.lim) out = out.slice(0, this.lim);
     } else if (this.op === 'insert' || this.op === 'upsert'){
       out = [];
@@ -330,6 +336,16 @@ export function createClient(url, key, opts){
       if (localStorage.getItem('__fakefail') === '2') return { data:null, error:{ message:'Failed to fetch' } };
       const db = load();
       const me = db.session?.user.id;
+      // schema.sql 24. bölüm: mülk başına son `lim` mesaj (üyelik kuralıyla), eskiden yeniye.
+      if (name === 'recent_messages'){
+        const mine = new Set(db.tables.memberships.filter(m => m.user_id === me).map(m => m.property_id));
+        const out = [];
+        for (const pid of args.pids || []){
+          if (!mine.has(pid)) continue;
+          out.push(...db.tables.messages.filter(m => m.property_id === pid).sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, args.lim || 200));
+        }
+        return { data: out.sort((a, b) => (a.at < b.at ? -1 : 1)).map(r => JSON.parse(JSON.stringify(r))), error: null };
+      }
       if (name === 'accept_invite'){
         const inv = db.tables.invites.find(i => i.code === String(args.invite_code).toUpperCase().trim());
         if (!inv) return { data:null, error:{ message:'Davet kodu bulunamadı' } };

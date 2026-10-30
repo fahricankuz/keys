@@ -13,7 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { t } from './i18n.js';
 import { CONFIG, LIVE } from './config.js';
 import { S, ui, VERSION, useStorageKey, replaceState, saveLocal, hooks, emit } from './state.js';
-import { buildProperty, diffProperty, pendingMedia, storedPaths, storedPath, isStored, SB } from './mapping.js';
+import { buildProperty, diffProperty, pendingMedia, storedPath, isStored, SB, messageFromRow } from './mapping.js';
 import { host } from './host.js';
 import { storage } from './storage.js';
 import { uid } from './util.js';
@@ -74,8 +74,9 @@ function must(res){
 /** @returns {Promise<any>} */
 export async function client(){
   if (live.client) return live.client;
-  if (CONFIG.supabaseUrl.startsWith('fake:')){
-    // Yalnızca testler: tarayıcıda çalışan sahte sunucu (app/src/testing/fake-supabase.js).
+  // Yalnızca testler: tarayıcıda çalışan sahte sunucu (app/src/testing/fake-supabase.js). Koşul derlemede sabitlenir
+  // (EXPO_PUBLIC_* değişkenleri gömülür); yayın derlemesinde dal ve sahte sunucu dosyası pakete hiç girmez.
+  if (process.env.EXPO_PUBLIC_SUPABASE_URL === 'fake:'){
     const { createClient } = await import('../testing/fake-supabase.js');
     live.client = createClient();
   } else {
@@ -100,6 +101,17 @@ function setStatus(s){
 }
 
 /** Giriş sonrası: profil, yönetici mi, veri. Yönetici hesapları ev verisi yüklemez. */
+/** Cihazda kayıtlı bir oturum var mı? Yoksa (ilk kez gelen ziyaretçi) herkese açık sayfalarda sunucu kütüphanesi
+    hiç yüklenmez; giriş ve kayıt sayfaları onu açılır açılmaz arka planda hazırlar (bkz. AuthShell).
+    Anahtar adı supabase-js'in varsayılanıdır: sb-<proje>-auth-token. */
+export async function hasStoredSession(){
+  if (process.env.EXPO_PUBLIC_SUPABASE_URL === 'fake:') return true;
+  try {
+    const ref = new URL(CONFIG.supabaseUrl).hostname.split('.')[0];
+    return !!(await AsyncStorage.getItem('sb-' + ref + '-auth-token'));
+  } catch(e){ return true; }
+}
+
 /** Hoş geldin e-postası (supabase/functions/welcome): hesap başına bir kez istenir; sunucu da ikinci gönderimi engeller.
     Başarısız olursa (ağ, sunucu) bir sonraki girişte yeniden denenir. */
 export function welcomeOnce(id){
@@ -117,18 +129,22 @@ export async function openSession(user){
   const c = await client();
   let base = null;
   try { base = JSON.parse(storage.getItem(BASE(user.id))); } catch(e){}
-  try {
-    live.profile = must(await c.from('profiles').select('*').eq('id', user.id).single());
-  } catch(e){
+  // Profil, yönetici ve askı denetimi birbirinden bağımsız: aynı anda istenir (girişte bekleme turu azalır).
+  const [prof, adm, banRes] = await Promise.all([
+    c.from('profiles').select('*').eq('id', user.id).single().then(r => r, e => ({ error: e })),
+    c.rpc('is_admin').then(r => r, () => ({ data: false })),
+    c.from('bans').select('reason').eq('user_id', user.id).maybeSingle().then(r => r, () => ({ data: null }))
+  ]);
+  if (prof.error){
     if (base && base.profile) live.profile = base.profile;          // çevrimdışı açılış: son bilinen profil
-    else throw e;
-  }
+    else throw prof.error;
+  } else live.profile = prof.data;
   ui.team = live.profile?.role === 'team';
   ui.memberRoles = (base && base.roles) || {};
-  live.isAdmin = !!(await c.rpc('is_admin')).data;
+  live.isAdmin = !!adm.data;
   if (live.isAdmin) return { admin: true, profile: live.profile };
   // Askıya alınmış hesap: Auth girişi zaten kapalıdır; bu, açık kalmış oturumu da kapatır.
-  const ban = (await c.from('bans').select('reason').eq('user_id', user.id).maybeSingle()).data;
+  const ban = banRes.data;
   if (ban) { await closeSession(); const e = new Error('banned'); e.banned = ban.reason || ''; throw e; }
   useStorageKey('kiracim-live:' + user.id);
   let cached = null;
@@ -144,7 +160,7 @@ export async function openSession(user){
   }
   hooks.afterSave = scheduleSync;
   if (live.loaded && hasUnsynced()) await flush();          // kuyrukta bekleyen yerel değişiklikleri önce gönder
-  await loadAll();
+  await loadAll({ profile: !prof.error });                  // profil az önce okundu: yeniden istenmez
   subscribe();
   return { admin: false, profile: live.profile };
 }
@@ -162,12 +178,10 @@ export async function closeSession(){
 
 export async function refreshAccess(redraw = true){
   if (!me()) return null;
-  try {
-    live.access = must(await sb().rpc('my_access'));
-  } catch(e){
-    console.warn('Erişim durumu okunamadı', e);
-  }
-  await Promise.all([refreshOrgs(false), refreshSiteUnits(false)]);
+  await Promise.all([
+    sb().rpc('my_access').then(must).then(a => { live.access = a; }, e => console.warn('Erişim durumu okunamadı', e)),
+    refreshOrgs(false), refreshSiteUnits(false)
+  ]);
   if (redraw) emit();
   return live.access;
 }
@@ -201,7 +215,13 @@ function emptyState(){
   };
 }
 
+/** Girişte mülk başına yüklenen son mesaj sayısı; eskileri "Daha eski mesajlar" ile gelir (olderMessages). */
+export const MSG_PAGE = 200;
+
 async function fetchRows(ids, single){
+  // Mesajlar mülk başına son MSG_PAGE kadar (bir mülkte daha fazlası yüklüyse o kadar) istenir: uzun yazışmalar girişi
+  // yavaşlatmaz ve sunucunun tek istekteki satır sınırına (1000) takılmaz.
+  const msgLim = Math.max(MSG_PAGE, ...ids.map(id => (S.props[id]?.msgs || []).length));
   const byProp = (table, col = 'property_id') => single
     ? sb().from(table).select('*').eq(col, ids[0])
     : sb().from(table).select('*').in(col, ids);
@@ -214,7 +234,7 @@ async function fetchRows(ids, single){
     byProp('payments'),
     byProp('rent_history'),
     byProp('requests'),
-    byProp('messages').order('at', { ascending: true }),
+    sb().rpc('recent_messages', { pids: ids, lim: msgLim }),
     byProp('documents'),
     byProp('expenses')
   ].map(p => p.then(must)));
@@ -230,6 +250,8 @@ async function fetchRows(ids, single){
     list.forEach(r => (g[r[key]] = g[r[key]] || []).push(r));
     return g;
   };
+  const perProp = group(messages);
+  ids.forEach(id => { ui.msgMore[id] = (perProp[id] || []).length >= msgLim; });
   const G = {
     shared: group(shared), members: group(members), invites: group(invites), payments: group(payments),
     history: group(history), requests: group(requests), messages: group(messages),
@@ -271,17 +293,23 @@ export async function loadAll(opts = {}){
   }
   setStatus('syncing');
   try {
-    live.profile = must(await sb().from('profiles').select('*').eq('id', me()).single());
-    await refreshAccess(false);
-    const mine = must(await sb().from('memberships').select('property_id, role').eq('user_id', me()));
-    const ids = mine.map(m => m.property_id);
+    // Birbirinden bağımsız okumalar aynı anda: profil, erişim, üyelikler (ardından mülk verisi), denetim durumu,
+    // bildirimler ve okundu bilgisi. Eskiden sırayla ~8 tur sürüyordu.
+    const membersThenRows = sb().from('memberships').select('property_id, role').eq('user_id', me()).then(must).then(async mine => {
+      const ids = mine.map(m => m.property_id);
+      return { mine, built: ids.length ? await fetchRows(ids, false) : [] };
+    });
+    const [prof, , { mine, built }, , notes, reads] = await Promise.all([
+      opts.profile ? Promise.resolve(live.profile) : sb().from('profiles').select('*').eq('id', me()).single().then(must),
+      refreshAccess(false),
+      membersThenRows,
+      loadReviews(),
+      sb().from('notifications').select('*').eq('user_id', me()).order('created_at', { ascending: false }).limit(40).then(must),
+      sb().from('message_reads').select('property_id, read_at').eq('user_id', me())
+    ]);
+    live.profile = prof;
     ui.memberRoles = Object.fromEntries(mine.map(m => [m.property_id, m.role]));
-    const built = ids.length ? await fetchRows(ids, false) : [];
     built.sort((a, b) => String(a.created).localeCompare(String(b.created)));
-    await loadReviews();
-
-    const notes = must(await sb().from('notifications').select('*').eq('user_id', me())
-      .order('created_at', { ascending: false }).limit(40));
 
     const next = emptyState();
     next.lang = S.lang || live.profile.lang || 'tr';
@@ -296,7 +324,6 @@ export async function loadAll(opts = {}){
     });
     next.myHome = (built.find(b => b.myRole === 'tenant') || {}).p?.id || null;
     // Okundu bilgisi cihazlar arasında eşitlenir; ilk açılışta mevcut mesajlar okunmuş sayılır.
-    const reads = await sb().from('message_reads').select('property_id, read_at').eq('user_id', me());
     next.reads = Object.fromEntries((reads.data || []).map(r => [r.property_id, Date.parse(r.read_at)]));
     if (!reads.error){
       const fresh = next.order.filter(pid => next.reads[pid] === undefined);
@@ -311,13 +338,37 @@ export async function loadAll(opts = {}){
     live.loaded = true;
     persistBase();
     setStatus('synced');
-    resolveMedia(Object.values(next.props).flatMap(storedPaths));
+    // Dosya adresleri girişte toplu istenmez; ekranda görünen dosya için mediaSrc ister (bkz. resolveMedia).
     emit();
   } catch(e){
     console.warn('Yükleme hatası', e);
     setStatus(typeof navigator !== 'undefined' && navigator.onLine === false ? 'offline' : 'error');
     if (!live.loaded) throw e;
   }
+}
+
+/** Bir mülkün daha eski mesajlarını (MSG_PAGE kadar) yükler; eşitleme tabanına da eklenir ki yeniden gönderilmesin. */
+export async function olderMessages(pid){
+  const p = S.props[pid];
+  if (!p || !live.client) return 0;
+  const oldest = p.msgs.length ? new Date(Number(p.msgs[0].at)).toISOString() : new Date().toISOString();
+  const rows = must(await sb().from('messages').select('*').eq('property_id', pid).lt('at', oldest)
+    .order('at', { ascending: false }).limit(MSG_PAGE)) || [];
+  const have = new Set(p.msgs.map(m => m.id));
+  const add = rows.map(messageFromRow).filter(m => !have.has(m.id)).sort((a, b) => a.at - b.at);
+  ui.msgMore[pid] = rows.length >= MSG_PAGE;
+  if (add.length){
+    p.msgs = [...add, ...p.msgs];
+    if (synced[pid]){ const b = JSON.parse(synced[pid]); b.msgs = [...add, ...(b.msgs || [])]; synced[pid] = JSON.stringify(b); }
+    saveLocal();
+  }
+  emit();
+  return add.length;
+}
+
+/** Dışa aktarma için yazışmanın tamamı: eksik eski mesajlar sayfa sayfa yüklenir. */
+export async function allMessages(pid){
+  while (ui.msgMore[pid] && await olderMessages(pid) > 0);
 }
 
 /** Tek bir evi sunucudan yeniden okur (başka cihazdan değişiklik geldiğinde). */
@@ -343,7 +394,6 @@ export async function refreshProperty(pid){
   S.props[pid] = p;
   if (!S.order.includes(pid)) S.order.push(pid);
   saveLocal();
-  resolveMedia(storedPaths(p));
   emit();
 }
 
@@ -473,8 +523,8 @@ function dataUrlParts(u){
 
 const extOf = type => ({ 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'application/pdf':'pdf' }[type] || 'bin');
 
-async function upload(pid, bytes, mime){
-  const path = pid + '/' + uid('') + '.' + extOf(mime);
+async function upload(pid, bytes, mime, at){
+  const path = at || pid + '/' + uid('') + '.' + extOf(mime);
   must(await sb().storage.from('evim').upload(path, bytes, { contentType: mime, upsert: false }));
   return path;
 }
@@ -490,8 +540,13 @@ export async function storeFile(pid, file){
   try {
     if (small){
       const { mime, bytes } = dataUrlParts(small);
-      const path = await upload(pid, bytes, mime);
+      // Küçük kopyası olan görsel "k_" ile adlandırılır; kopyası aynı adın sonuna ".k" eklenerek saklanır (thumbPath).
+      const path = await upload(pid, bytes, mime, file.thumb ? pid + '/k_' + uid('') + '.' + extOf(mime) : undefined);
       ui.media[path] = small;
+      if (file.thumb){
+        try { const th = dataUrlParts(file.thumb); await upload(pid, th.bytes, th.mime, thumbPath(path)); ui.media[thumbPath(path)] = file.thumb; }
+        catch(e){ console.warn('Küçük kopya yüklenemedi', e); }
+      }
       return SB + path;
     }
     if (file.uri){
@@ -533,10 +588,16 @@ const TRANSPARENT = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABA
 const pendingResolve = new Set();
 let resolveTimer = null;
 
-/** "sb:" değerini görüntülenebilir adrese çevirir; imzalı bağlantı yoksa ister. */
-export function mediaSrc(v){
+/** Görselin küçük kopyasının yolu (yalnız "k_" ile adlandırılmış yeni yüklemelerde vardır). */
+export const thumbPath = (path) => path + '.k';
+const hasThumb = (path) => /\/k_[^/]+$/.test(path) && !path.endsWith('.k');
+
+/** "sb:" değerini görüntülenebilir adrese çevirir; imzalı bağlantı yoksa ister.
+    small: listelerdeki küçük kareler için küçük kopya (varsa) istenir; tam boy görsel indirilmez. */
+export function mediaSrc(v, small = false){
   if (!isStored(v)) return v;
-  const path = storedPath(v);
+  let path = storedPath(v);
+  if (small && hasThumb(path) && !(ui.media[path] || '').startsWith('data:')) path = thumbPath(path);
   if (ui.media[path]) return ui.media[path];
   resolveMedia([path]);
   return TRANSPARENT;

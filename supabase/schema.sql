@@ -316,9 +316,10 @@ grant execute on function public.is_banned() to authenticated;
 create or replace function public.storage_path(v text)
 returns text language sql immutable as $$ select nullif(regexp_replace(coalesce(v, ''), '^sb:', ''), '') $$;
 
+-- Görselin küçük kopyası (yol + '.k') asıl dosyanın denetim durumunu izler: onaylanmamış dekontun önizlemesi de görünmez.
 create or replace function public.file_review_ok(pth text)
 returns boolean language sql stable security definer set search_path = public as $$
-  select not exists (select 1 from public.reviews where path = pth and status <> 'approved')
+  select not exists (select 1 from public.reviews where path in (pth, regexp_replace(pth, '\.k$', '')) and status <> 'approved')
 $$;
 
 create or replace function public.review_ok(k text, pid text, rid text)
@@ -3899,3 +3900,19 @@ begin
   return found;
 end $$;
 revoke execute on function public.welcome_claim(uuid, text) from public, anon, authenticated;
+
+-- =====================================================================
+-- 24. Hız: yazışmalarda mülk başına son mesajlar
+--     Uygulama girişte her mülkün son mesajlarını alır, eskileri isteyince sayfa sayfa yükler. Çağıranın yetkisiyle
+--     çalışır (security invoker): satır kuralları (RLS) aynen uygulanır.
+-- =====================================================================
+create or replace function public.recent_messages(pids text[], lim int default 200)
+returns setof public.messages language sql stable as $$
+  select m.* from (
+    select x.*, row_number() over (partition by x.property_id order by x.at desc) as rn
+      from public.messages x where x.property_id = any(pids)
+  ) m0 join public.messages m on m.id = m0.id
+  where m0.rn <= greatest(1, least(coalesce(lim, 200), 5000))
+  order by m.at
+$$;
+grant execute on function public.recent_messages(text[], int) to authenticated;

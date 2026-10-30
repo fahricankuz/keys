@@ -24,7 +24,7 @@ import { LegalLink, LegalNudge } from './legal';
 import { SiteUnitCharges } from './site';
 import { useAuth } from '../auth/auth';
 import { useStore } from './hooks';
-import { humanError, refreshProperty } from '../domain/backend';
+import { humanError, refreshProperty, olderMessages } from '../domain/backend';
 import { mySiteUnits, linkSiteUnit, unitLabel } from '../domain/site';
 import { Picked, pickImages, takePhoto } from './media';
 import { mediaSrc } from '../domain/backend';
@@ -348,6 +348,15 @@ export function SecReq({ p }: { p: any }) {
 
 const isMine = isMineMsg;
 
+/** Girişte son mesajlar yüklenir; eskileri bu düğmeyle sayfa sayfa gelir. */
+function OlderMessages({ pid }: { pid: string }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button kind="quiet" title={t('Daha eski mesajlar')} loading={busy} disabled={busy} style={{ alignSelf: 'center' }}
+      onPress={async () => { setBusy(true); try { await olderMessages(pid); } catch {} setBusy(false); }} />
+  );
+}
+
 export function SecMsg({ p }: { p: any }) {
   const c = useColors();
   const o: any = otherPerson(p);
@@ -376,6 +385,7 @@ export function SecMsg({ p }: { p: any }) {
       </Card>
       <View style={{ gap: 8 }}>
         {p.msgs.length === 0 ? <Note>{t('Henüz mesaj yok. Yazışmalar tarihli olarak saklanır.')}</Note> : null}
+        {ui.msgMore[p.id] ? <OlderMessages pid={p.id} /> : null}
         {p.msgs.map((m: any, i: number) => {
           const d = dayLabel(m.at);
           const sep = d !== lastDay ? (lastDay = d, <Text key={'d' + i} v="small" muted style={{ textAlign: 'center', marginTop: 6 }}>{d}</Text>) : null;

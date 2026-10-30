@@ -10,17 +10,37 @@ function must(res){
 }
 
 /** Tüm veriyi okur ve panelin kullanacağı biçime çevirir. */
-export async function loadAdmin(){
+/** Sunucu tek istekte en çok 1000 satır döndürür: listeler sayfa sayfa (sıralı) okunur, hiçbiri sessizce eksik kalmaz. */
+const PAGE = 1000;
+async function all(make){
+  const out = [];
+  for (let from = 0; ; from += PAGE){
+    const q = make();
+    if (typeof q.range !== 'function') return must(await q) || [];
+    const rows = must(await q.range(from, from + PAGE - 1)) || [];
+    out.push(...rows);
+    if (rows.length < PAGE) return out;
+  }
+}
+/** Ödemeler son `months` ay (panelde "Daha eski ödemeleri yükle" ile artar); denetimde bekleyenlerin hepsi ve son 500 karar. */
+const monthsAgo = (n) => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - (n - 1)); return d.toISOString().slice(0, 7); };
+
+export async function loadAdmin({ months = 12 } = {}){
   const c = await client();
-  const [users, props, members, invites, payments, reviews] = await Promise.all([
-    c.rpc('admin_users'),
-    c.from('properties').select('id, owner_id, name, addr, rent, due_day, prop_type, created_at'),
-    c.from('memberships').select('property_id, user_id, role, display_name, phone, email'),
-    c.from('invites').select('code, property_id, name, email, phone, accepted_by, expires_at'),
-    c.from('payments').select('property_id, month, kind, status, amount, paid_on, receipt_name, receipt_path, reject_reason, updated_at'),
+  const from = monthsAgo(months);
+  const [users, props, members, invites, payments, pending, decided] = await Promise.all([
+    all(() => { const q = c.rpc('admin_users'); return typeof q.order === 'function' ? q.order('id') : q; }),
+    all(() => c.from('properties').select('id, owner_id, name, addr, rent, due_day, prop_type, created_at').order('id')),
+    all(() => c.from('memberships').select('property_id, user_id, role, display_name, phone, email').order('property_id').order('user_id')),
+    all(() => c.from('invites').select('code, property_id, name, email, phone, accepted_by, expires_at').order('code')),
+    all(() => c.from('payments').select('property_id, month, kind, status, amount, paid_on, receipt_name, receipt_path, reject_reason, updated_at')
+      .gte('month', from).order('month', { ascending: false }).order('property_id').order('kind')),
+    all(() => c.from('reviews').select('kind, property_id, ref_id, uploader, label, path, amount, status, note, reviewed_at, created_at')
+      .eq('status', 'pending').order('created_at')),
     c.from('reviews').select('kind, property_id, ref_id, uploader, label, path, amount, status, note, reviewed_at, created_at')
-  ].map(p => p.then(must)));
-  return derive({ users, props, members, invites, payments, reviews });
+      .neq('status', 'pending').order('created_at', { ascending: false }).limit(500).then(must)
+  ]);
+  return Object.assign(derive({ users, props, members, invites, payments, reviews: [...pending, ...(decided || [])] }), { months, paymentsFrom: from });
 }
 
 export { derive };

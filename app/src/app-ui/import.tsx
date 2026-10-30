@@ -48,7 +48,7 @@ export function ImportScreen() {
     const mine = S.order.map((id: string) => P(id)).filter((p: any) => !p.ownerId || !me || p.ownerId === me).map((p: any) => ({ id: p.id, name: p.name, addr: p.addr }));
     setFile(f.name);
     try {
-      const r = validate(readTable(f.bytes), mine, iso(t0()));
+      const r = validate(await readTable(f.bytes), mine, iso(t0()));
       setFatal(r.fatal); setItems(r.items);
     } catch {
       setFatal([{ msg: 'Dosya okunamadı. Excel (.xlsx) ya da CSV dosyası seç.' }]); setItems([]);
@@ -169,7 +169,7 @@ export function ImportScreen() {
           </Card>
           <Row wrap>
             <Button kind="ghost" style={{ flex: 1 }} title={t('Excel şablonu')} icon={<Icon name="doc" size={16} />}
-              onPress={() => host.saveFile('anahtar-mulk-sablonu.xlsx', templateXlsx(), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')} />
+              onPress={async () => host.saveFile('anahtar-mulk-sablonu.xlsx', await templateXlsx(), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')} />
             <Button kind="ghost" style={{ flex: 1 }} title={t('CSV şablonu')} icon={<Icon name="doc" size={16} />}
               onPress={() => host.saveFile('anahtar-mulk-sablonu.csv', templateCsv(), 'text/csv;charset=utf-8')} />
           </Row>

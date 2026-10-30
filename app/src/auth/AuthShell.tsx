@@ -1,8 +1,10 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { t } from '../domain/i18n';
+import { LIVE } from '../domain/config';
+import { client } from '../domain/backend';
 import { PressScale, Text } from '../ui/kit';
 import { Wordmark } from '../ui/Wordmark';
 import { Grain } from '../ui/Grain';
@@ -17,6 +19,8 @@ export default function AuthShell({ title, lead, children, side, wide }: {
   const c = useColors();
   const router = useRouter();
   const { desktop } = useBreakpoint();
+  // Giriş, kayıt ve şifre sayfaları sunucu kütüphanesini açılır açılmaz arka planda hazırlar (gönder'e basınca beklenmesin).
+  useEffect(() => { if (LIVE) client().catch(() => {}); }, []);
   return (
     <View style={{ flex: 1, flexDirection: desktop ? 'row' : 'column', backgroundColor: c.cream }}>
       {desktop && (
