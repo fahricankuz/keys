@@ -3951,3 +3951,31 @@ begin
   end if;
   if new.status <> old.status and new.status <> 3 then
     raise exception 'Kiracı talebi yalnızca kapatabilir' using errcode = '42501';
+  end if;
+  new.updated_at := now();
+  return new;
+end $$;
+
+-- Yeni teklif gelince karşı tarafa bildirim.
+create or replace function public.on_request_change()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  steps text[] := array['Açıldı','Görüldü','İşlemde','Çözüldü'];
+  turl  text := '#/kiraci/talepler/' || new.id;
+  lurl  text := '#/mulk-sahibi/mulk/' || new.property_id || '/talep?s=talep&id=' || new.id;
+begin
+  if tg_op = 'INSERT' then
+    perform public.notify_members(new.property_id, 'landlord', public.prop_name(new.property_id) || ': yeni talep',
+      new.title || case when new.urgency = 'Acil' then ' · Acil' else '' end, turl, lurl);
+  elsif new.status <> old.status then
+    perform public.notify_members(new.property_id, null, 'Talep güncellendi',
+      new.title || ' → ' || steps[new.status + 1], turl, lurl);
+  elsif new.cost is distinct from old.cost then
+    perform public.notify_members(new.property_id, 'tenant', 'Masraf önerisi',
+      new.title || ': masraf ' || new.cost || ' olarak önerildi.', turl, lurl);
+  elsif jsonb_array_length(coalesce(new.quotes, '[]'::jsonb)) > jsonb_array_length(coalesce(old.quotes, '[]'::jsonb)) then
+    perform public.notify_members(new.property_id, case when public.member_role(new.property_id) = 'tenant' then 'landlord' else 'tenant' end,
+      'Yeni teklif', new.title || ': yeni bir usta teklifi eklendi.', turl, lurl);
+  end if;
+  return new;
+end $$;
