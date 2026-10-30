@@ -89,3 +89,17 @@ test('bağlantı rozeti; kanal kopunca kaçan mesaj yedek sorguyla ve yeniden ba
   // Yeniden bağlanınca rozet döner.
   await expect(page.getByText('Canlı', { exact: true })).toBeVisible({ timeout: 15000 });
 });
+
+test('kanal "canlı" görünse bile olay gelmezse (Realtime kapalı) sohbet açıkken yedek sorgu mesajı 4-5 sn içinde getirir', async ({ page }) => {
+  await open(page);
+  await expect(page.getByText('Canlı', { exact: true })).toBeVisible();
+  // Gerçek olay yok; yalnızca sunucuya (sahte veritabanına) düşer.
+  await page.evaluate((r) => { const d = JSON.parse(localStorage.getItem('__fakedb')); d.tables.messages.push(r); localStorage.setItem('__fakedb', JSON.stringify(d)); }, row(41, 'landlord', { body: 'Olay gelmeyen mesaj' }));
+  await expect(page.getByText('Olay gelmeyen mesaj', { exact: true })).toBeInViewport({ timeout: 12000 });
+});
+
+test('bildirim de olay gelmese yedek sorguyla düşer', async ({ page }) => {
+  await open(page);
+  await page.evaluate((id) => { const d = JSON.parse(localStorage.getItem('__fakedb')); d.tables.notifications.push({ id: 9001, user_id: id, property_id: 'p1', title: 'Yedekten gelen bildirim', body: 'Test', url: '#/kiraci/mesajlar', created_at: new Date().toISOString(), read_at: null }); localStorage.setItem('__fakedb', JSON.stringify(d)); }, ID.tenant);
+  await expect(page.getByText('Yedekten gelen bildirim').first()).toBeVisible({ timeout: 12000 });
+});

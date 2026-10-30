@@ -183,7 +183,7 @@ export function expireSession(){
 
 export async function closeSession(){
   if (channel && live.client){ live.client.removeChannel(channel); channel = null; }
-  clearTimeout(rtTimer); rt = 'idle'; rtRetry = 0;
+  clearTimeout(rtTimer); rt = 'idle'; rtRetry = 0; activeChat = null;
   const uidWas = me();
   try { await live.client?.auth.signOut(); } catch(e){}
   if (uidWas){ storage.removeItem('kiracim-live:' + uidWas); storage.removeItem(BASE(uidWas)); }
@@ -681,16 +681,21 @@ function addInbox(n){
 
 /** Kaçan mesaj ve bildirimleri tamamlar (kanal kopmuşken, sekmeye dönünce, internet gelince). */
 let catching = false;
-async function catchUp(){
+let activeChat = null;      // açık sohbetin evi (varsa): sık sorulur
+/** Açık sohbeti bildirir (null: kapandı). Açılınca hemen bir tamamlama yapılır. */
+export function setActiveChat(pid){ activeChat = pid || null; if (pid) catchUp({ pid }); }
+
+async function catchUp(opts){
   if (catching || !live.user || !live.loaded || !live.client) return;
   catching = true;
   try {
     let changed = false;
-    for (const pid of S.order.slice()){
+    for (const pid of (opts && opts.pid ? [opts.pid] : S.order.slice())){
       const p = S.props[pid];
       if (!p) continue;
+      // Mesaj saati gönderenin cihazından gelir; saat farkı mesajı kaçırmasın diye 10 dakika geriden sorulur (kimlikle tekrar elenir).
       const last = p.msgs && p.msgs.length ? p.msgs[p.msgs.length - 1].at : 0;
-      const rows = must(await sb().from('messages').select('*').eq('property_id', pid).gt('at', new Date(last).toISOString()).order('at', { ascending: true }));
+      const rows = must(await sb().from('messages').select('*').eq('property_id', pid).gt('at', new Date(Math.max(0, last - 10 * 60000)).toISOString()).order('at', { ascending: true }));
       rows.forEach(r => { if (applyMessage(r)) changed = true; });
     }
     const lastNote = S.inbox.length ? S.inbox[S.inbox.length - 1].at : 0;
@@ -711,12 +716,17 @@ function reconnectNow(){
 
 function startPolling(){
   if (pollTimer) return;
-  // Kanal kapalıyken (Realtime kapalı ya da ağ sorunu) görünür sekmede 5 sn'de bir yalnızca yeni mesajlar sorulur.
+  // Güvenlik ağı: canlı kanal "bağlı" görünse bile (Realtime kapalı, tablo yayında değil, ağ yarı kopuk) mesaj ve bildirim
+  // gecikmesin. Sohbet açıkken 4 sn'de bir o evin yeni mesajları ve bildirimler, değilse 20 sn'de bir bütün evler sorulur.
+  // Görünmeyen sekmede sorulmaz; sekmeye dönünce hemen tamamlanır.
+  let tick = 0;
   pollTimer = setInterval(() => {
-    if (rt === 'live' || !live.user || !live.loaded) return;
+    if (!live.user || !live.loaded) return;
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-    catchUp();
-  }, 5000);
+    tick++;
+    if (activeChat) catchUp({ pid: activeChat });
+    else if (tick % 5 === 0) catchUp();
+  }, 4000);
 }
 
 function subscribe(){
