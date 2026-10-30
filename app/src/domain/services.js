@@ -745,9 +745,17 @@ export async function submit(type, v){
     if (!name) return false;
     if (LIVE){
       try {
-        const code = await backend.createInvite(p.id, { name, email:String(fd.get('email') || '').trim(), phone:String(fd.get('phone') || '').trim() });
+        const email = String(fd.get('email') || '').trim();
+        const code = await backend.createInvite(p.id, { name, email, phone:String(fd.get('phone') || '').trim() });
         host.closeSheet();
         setTimeout(() => host.openSheet('davet-paylas', { pid:p.id, code }), 60);
+        // E-posta girildiyse davet kodu ve hazır doldurulmuş kayıt bağlantısı kiracıya e-postayla gider.
+        if (email){
+          backend.sendInviteMail(code).then(r => {
+            if (r === 'sent') notify({ title:t('Davet e-postası gönderildi'), body:email, icon:'mail' }, false);
+            else if (r === 'error') notify({ title:t('Davet e-postası gönderilemedi'), body:t('Kodu WhatsApp ya da bağlantıyla paylaşabilirsin.'), icon:'bell' }, false);
+          });
+        }
       } catch(e){ failed(t('Davet oluşturulamadı'), e); }
       return true;
     }

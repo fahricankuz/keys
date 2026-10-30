@@ -838,6 +838,18 @@ export async function createInvite(pid, { name, email, phone }){
   return row.code;
 }
 
+/** Kiracı davet e-postası (supabase/functions/invite-mail): kod ve hazır doldurulmuş kayıt bağlantısı kiracının e-postasına gider.
+    Dönüş: 'sent' | 'throttled' (az önce gönderildi) | 'none' (e-postasız ya da kullanılmış davet) | 'error'. */
+export async function sendInviteMail(code){
+  try {
+    const c = await client();
+    if (!c.functions) return 'error';
+    const r = await c.functions.invoke('invite-mail', { body: { code } });
+    if (r.error || !r.data) return 'error';
+    return r.data.sent ? 'sent' : r.data.reason === 'throttled' ? 'throttled' : 'none';
+  } catch(e){ return 'error'; }
+}
+
 export async function deleteInvite(pid, code){
   must(await sb().from('invites').delete().eq('code', code));
   await refreshProperty(pid);

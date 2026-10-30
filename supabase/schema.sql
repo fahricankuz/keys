@@ -4244,3 +4244,32 @@ begin
     end loop;
   end if;
 end $$;
+
+-- =====================================================================
+-- 31. Kiracı davet e-postası (supabase/functions/invite-mail)
+--     Mülk sahibi e-postalı kiracı eklediğinde davet kodunu ve hazır doldurulmuş kayıt bağlantısını içeren e-posta gider.
+--     Fonksiyon yalnız daveti oluşturan kişinin jetonuyla çalışır; aynı davet 2 dakikada bir kez e-postalanır.
+-- =====================================================================
+alter table public.invites add column if not exists mailed_at timestamptz;
+
+/** Gönderilecek e-postanın bilgisi ve gönderim hakkı (atomik). Yalnızca sunucu fonksiyonu çağırır.
+    Dönüş: null (davet yok, başkasının, kullanılmış ya da e-postasız), {throttled:true} ya da gönderim bilgisi. */
+create or replace function public.invite_mail_claim(uid uuid, invite_code text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare i public.invites; o public.profiles; pname text;
+begin
+  select * into i from public.invites where code = upper(trim(invite_code)) and created_by = uid for update;
+  if not found or i.accepted_by is not null or i.expires_at <= now() or btrim(i.email) = '' or i.role <> 'tenant' then return null; end if;
+  if i.mailed_at is not null and i.mailed_at > now() - interval '2 minutes' then return jsonb_build_object('throttled', true); end if;
+  update public.invites set mailed_at = now() where code = i.code;
+  select * into o from public.profiles where id = uid;
+  select name into pname from public.properties where id = i.property_id;
+  return jsonb_build_object('code', i.code, 'email', i.email, 'name', i.name, 'owner', coalesce(o.name, ''),
+                            'property', coalesce(pname, ''), 'lang', coalesce(o.lang, 'tr'), 'expires', i.expires_at);
+end $$;
+revoke execute on function public.invite_mail_claim(uuid, text) from public, anon, authenticated;
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    grant execute on function public.invite_mail_claim(uuid, text) to service_role;
+  end if;
+end $$;

@@ -12,7 +12,7 @@ import {
 import { P, period, statusOf, remaining, ST, reminders, rentAt, expectedAt, moveOutSummary, search, otherPerson, payMap, statusFor, dueOf, aidatByTenant, METHOD } from '../domain/logic';
 import { t, LANGS, getLang } from '../domain/i18n';
 import { CONFIG, LIVE } from '../domain/config';
-import { inviteLink, mediaSrc } from '../domain/backend';
+import { inviteLink, mediaSrc, sendInviteMail } from '../domain/backend';
 import { act, submit } from '../domain/services';
 import { access, trialDaysLeft, planLabel, unitsText, unitLimit, hasFeature, maxUnits, ownedCount, roomFor, paused } from '../domain/billing';
 import { can, isTeam, memberRole, roleLabel } from '../domain/team';
@@ -689,6 +689,7 @@ function InviteSheet({ pid, code }: { pid?: string; code?: string }) {
   const c = useColors();
   if (!code) return null;
   const link = LIVE ? inviteLink(code) : CONFIG.publicUrl + 'katil?kod=' + code;
+  const invitedEmail = ((p.tenants || []).find((x: any) => x.code === code) || {}).email || '';
   const text = t('Merhaba,') + ' ' + p.name + ' ' + t('için anahtar’da ortak panelimize katılır mısın? Davet kodun:') + ' ' + code + ' — ' + link;
   return (
     <Stack>
@@ -699,6 +700,12 @@ function InviteSheet({ pid, code }: { pid?: string; code?: string }) {
         <Button title={t('Kopyala')} icon={<Icon name="doc" size={16} color="#fff" />} style={{ flex: 1 }} onPress={async () => { try { await Clipboard.setStringAsync(link); host.notify({ title: t('Kopyalandı'), body: t('Davet bağlantısı panoya alındı.'), icon: 'doc' }); } catch {} }} />
         <Button kind="ghost" title={t('WhatsApp')} style={{ flex: 1 }} onPress={() => Linking.openURL('https://wa.me/?text=' + encodeURIComponent(text))} />
       </Row>
+      {LIVE && invitedEmail ? (
+        <Button kind="ghost" block title={t('Davet e-postasını yeniden gönder')} onPress={async () => {
+          const r = await sendInviteMail(code);
+          host.notify({ title: r === 'sent' ? t('Davet e-postası gönderildi') : r === 'throttled' ? t('Az önce gönderildi') : t('Davet e-postası gönderilemedi'), body: r === 'throttled' ? t('Birkaç dakika sonra yeniden deneyebilirsin.') : invitedEmail, icon: 'mail' });
+        }} />
+      ) : null}
       <Button kind="ghost" block title={t('E-posta ile gönder')} onPress={() => Linking.openURL('mailto:?subject=' + encodeURIComponent(t('anahtar daveti')) + '&body=' + encodeURIComponent(text))} />
       {!LIVE && <Note>{t('Demo modunda davet gerçek değildir; kod yalnızca akışı göstermek içindir.')}</Note>}
     </Stack>
