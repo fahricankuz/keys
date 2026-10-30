@@ -3706,3 +3706,67 @@ begin
     perform cron.schedule('evim-billing-reminders', '30 6 * * *', 'select public.billing_reminders()');
   end if;
 end $$;
+
+
+-- =====================================================================
+-- 22. Talep akışı: kiracı teklif ve fatura ekler, mesajdan talebe bağlantı
+-- =====================================================================
+-- Mesaj, bir talebe bağlı olabilir (talep kartı ve talep sistem mesajları); dokununca talep açılır.
+alter table public.messages add column if not exists req_id text;
+
+-- Kiracının teklif listesinde yapabileceği değişiklik: yalnız kendi (by = 'tenant') ve seçilmemiş teklifleri
+-- ekleyebilir, değiştirebilir, silebilir. Geri kalan teklifler (mülk sahibinin, seçilmiş olanlar) aynen kalmalı.
+create or replace function public.quotes_tenant_ok(o jsonb, n jsonb)
+returns boolean language sql immutable as $$
+  select coalesce((select jsonb_agg(e order by i) from jsonb_array_elements(coalesce(o, '[]'::jsonb)) with ordinality t(e, i)
+                   where not (coalesce(e ->> 'by', '') = 'tenant' and coalesce((e ->> 'chosen')::boolean, false) = false)), '[]'::jsonb)
+       = coalesce((select jsonb_agg(e order by i) from jsonb_array_elements(coalesce(n, '[]'::jsonb)) with ordinality t(e, i)
+                   where not (coalesce(e ->> 'by', '') = 'tenant' and coalesce((e ->> 'chosen')::boolean, false) = false)), '[]'::jsonb);
+$$;
+
+create or replace function public.guard_requests()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare r text := public.member_role(new.property_id);
+begin
+  if auth.uid() is null or r in ('landlord','agent','staff') then new.updated_at := now(); return new; end if;
+  if r <> 'tenant' then raise exception 'Bu rol talepleri değiştiremez' using errcode = '42501'; end if;
+  if new.cost is distinct from old.cost or new.decision is distinct from old.decision then
+    raise exception 'Masraf ve kararı yalnızca mülk sahibi değiştirebilir' using errcode = '42501';
+  end if;
+  if new.quotes is distinct from old.quotes and not public.quotes_tenant_ok(old.quotes, new.quotes) then
+    raise exception 'Kiracı yalnızca kendi teklifini ekleyip silebilir; teklifi mülk sahibi seçer' using errcode = '42501';
+  end if;
+  -- Kiracı fatura ekleyebilir; mülk sahibinin eklediği faturayı değiştiremez.
+  if new.invoice is distinct from old.invoice and old.invoice is not null then
+    raise exception 'Faturayı yalnızca mülk sahibi değiştirebilir' using errcode = '42501';
+  end if;
+  if new.status <> old.status and new.status <> 3 then
+    raise exception 'Kiracı talebi yalnızca kapatabilir' using errcode = '42501';
+  end if;
+  new.updated_at := now();
+  return new;
+end $$;
+
+-- Yeni teklif gelince karşı tarafa bildirim.
+create or replace function public.on_request_change()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  steps text[] := array['Açıldı','Görüldü','İşlemde','Çözüldü'];
+  turl  text := '#/kiraci/talepler/' || new.id;
+  lurl  text := '#/mulk-sahibi/mulk/' || new.property_id || '/talep?s=talep&id=' || new.id;
+begin
+  if tg_op = 'INSERT' then
+    perform public.notify_members(new.property_id, 'landlord', public.prop_name(new.property_id) || ': yeni talep',
+      new.title || case when new.urgency = 'Acil' then ' · Acil' else '' end, turl, lurl);
+  elsif new.status <> old.status then
+    perform public.notify_members(new.property_id, null, 'Talep güncellendi',
+      new.title || ' → ' || steps[new.status + 1], turl, lurl);
+  elsif new.cost is distinct from old.cost then
+    perform public.notify_members(new.property_id, 'tenant', 'Masraf önerisi',
+      new.title || ': masraf ' || new.cost || ' olarak önerildi.', turl, lurl);
+  elsif jsonb_array_length(coalesce(new.quotes, '[]'::jsonb)) > jsonb_array_length(coalesce(old.quotes, '[]'::jsonb)) then
+    perform public.notify_members(new.property_id, case when public.member_role(new.property_id) = 'tenant' then 'landlord' else 'tenant' end,
+      'Yeni teklif', new.title || ': yeni bir usta teklifi eklendi.', turl, lurl);
+  end if;
+  return new;
+end $$;

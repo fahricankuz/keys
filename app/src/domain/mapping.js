@@ -77,7 +77,7 @@ export function buildProperty(d){
     })).sort((a, b) => a.date === b.date ? (a.id < b.id ? 1 : -1) : (a.date < b.date ? 1 : -1)),
     msgs: (d.messages || []).map(m => clean({
       id: m.id, from: m.from_role, by: m.by_user || undefined, text: m.body, at: ms(m.at),
-      img: m.image_path ? SB + m.image_path : undefined
+      img: m.image_path ? SB + m.image_path : undefined, req: m.req_id || undefined
     })).sort((a, b) => a.at - b.at),
     docs: (d.documents || []).map(x => clean({
       id: x.id, cat: x.cat, name: x.name, at: x.uploaded_on, until: x.until || undefined, path: x.path || undefined, note: x.note || undefined
@@ -141,7 +141,9 @@ export function requestRow(pid, r){
 }
 
 export function messageRow(pid, m, meId){
-  return { id: m.id, property_id: pid, from_role: m.from, by_user: meId, body: m.text || '', at: isoTs(m.at), image_path: storedPath(m.img) };
+  const row = { id: m.id, property_id: pid, from_role: m.from, by_user: meId, body: m.text || '', at: isoTs(m.at), image_path: storedPath(m.img) };
+  if (m.req) row.req_id = m.req;                       // yalnız talebe bağlı mesajlarda (schema.sql 22. bölüm)
+  return row;
 }
 
 export function documentRow(pid, d){

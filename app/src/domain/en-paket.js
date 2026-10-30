@@ -1,5 +1,15 @@
 /* Paketler, fiyatlar (mülk başına) ve satın alma sayfası için İngilizce. i18n.js içinde birleştirilir. */
 export const EN_PAKET = {
+  'Kiracı ekledi': 'Added by tenant',
+  'Mülk sahibi ekledi': 'Added by landlord',
+  'Teklifi mülk sahibi seçer.': 'The landlord picks the quote.',
+  'Kiracıyla iletişime geç': 'Contact the tenant',
+  'Mülk sahibiyle iletişime geç': 'Contact the landlord',
+  'Bu talep hakkında yazıyorum.': 'I’m writing about this request.',
+  'Yeni usta teklifi:': 'New contractor quote:',
+  'Karar bekliyor': 'Awaiting decision',
+  'teklif': 'quote(s)',
+
   '{n} ve üstü mülk': '{n} or more properties',
   '1-{n} mülk': '1-{n} properties',
   'Site yönetimi · AVM · GYO · Depo ve lojistik · Emlak ofisi · Aile ofisi': 'Building management · Shopping malls · REITs · Warehouse and logistics · Real estate offices · Family offices',
