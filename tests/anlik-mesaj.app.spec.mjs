@@ -103,3 +103,17 @@ test('bildirim de olay gelmese yedek sorguyla düşer', async ({ page }) => {
   await page.evaluate((id) => { const d = JSON.parse(localStorage.getItem('__fakedb')); d.tables.notifications.push({ id: 9001, user_id: id, property_id: 'p1', title: 'Yedekten gelen bildirim', body: 'Test', url: '#/kiraci/mesajlar', created_at: new Date().toISOString(), read_at: null }); localStorage.setItem('__fakedb', JSON.stringify(d)); }, ID.tenant);
   await expect(page.getByText('Yedekten gelen bildirim').first()).toBeVisible({ timeout: 12000 });
 });
+
+test('karşı taraf "dürtünce" (Broadcast) mesaj yedek sorguyu beklemeden anında düşer', async ({ page }) => {
+  await open(page);
+  await page.evaluate((r) => { const d = JSON.parse(localStorage.getItem('__fakedb')); d.tables.messages.push(r); localStorage.setItem('__fakedb', JSON.stringify(d)); window.__fakeRealtime.nudge('p1', { m: true, d: false }); }, row(41, 'landlord', { body: 'Dürtmeyle gelen mesaj' }));
+  await expect(page.getByText('Dürtmeyle gelen mesaj', { exact: true })).toBeInViewport({ timeout: 1500 });
+});
+
+test('mesaj gönderen taraf evin kanalına dürtme yollar', async ({ page }) => {
+  await open(page);
+  await page.getByPlaceholder('Mesaj yaz').fill('Merhaba dürtme');
+  await page.getByRole('button', { name: 'Gönder' }).click();
+  await expect(page.getByText('Merhaba dürtme', { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window.__fakeSent || []).filter((x) => x.channel === 'evim-p1').map((x) => [x.event, x.payload.m, x.payload.d]))).toContainEqual(['nudge', true, false]);
+});

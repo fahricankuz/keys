@@ -184,6 +184,7 @@ export function expireSession(){
 export async function closeSession(){
   if (channel && live.client){ live.client.removeChannel(channel); channel = null; }
   clearTimeout(rtTimer); rt = 'idle'; rtRetry = 0; activeChat = null;
+  nudgeChans.forEach(c => { try { live.client && live.client.removeChannel(c); } catch(e){} }); nudgeChans.clear();
   const uidWas = me();
   try { await live.client?.auth.signOut(); } catch(e){}
   if (uidWas){ storage.removeItem('kiracim-live:' + uidWas); storage.removeItem(BASE(uidWas)); }
@@ -457,6 +458,7 @@ async function flush(){
       const after = afterJson ? JSON.parse(afterJson) : null;
       const ops = diffProperty(before, after, roleIn(after || before));
       for (const op of ops) await apply(op);
+      if (ops.length) sendNudge(pid, ops.some(o => o.table === 'messages'), ops.some(o => o.table !== 'messages'));
       if (afterJson) synced[pid] = afterJson; else delete synced[pid];
       persistBase();
     }
@@ -729,12 +731,41 @@ function startPolling(){
   }, 4000);
 }
 
+/* Anında dürtme (Realtime Broadcast): bir değişikliği kaydeden taraf, evin kanalına "yeni bir şey var" der (içerik göndermez);
+   karşı taraf hemen yetkili sorguyla yeni mesaj ve bildirimleri çeker. Veritabanı yayın ayarına (postgres_changes) bağlı değildir,
+   bu yüzden o ayar eksik olsa da mesajlar WhatsApp gibi anında düşer. Kanal adı bir ev kimliğidir; içeriği gizli kalır. */
+const nudgeChans = new Map();
+
+function sendNudge(pid, m, d){
+  const ch = nudgeChans.get(pid);
+  if (!ch) return;
+  try { Promise.resolve(ch.send({ type:'broadcast', event:'nudge', payload:{ m: !!m, d: !!d } })).catch(() => {}); } catch(e){}
+}
+
+function onNudge(pid, payload){
+  if (!S.props[pid]) return;
+  catchUp({ pid });                                   // yeni mesajlar ve bildirimler
+  if (payload && payload.d) queueRefresh(pid);        // ödeme, talep gibi diğer değişiklikler
+}
+
+function openNudgeChannels(ids){
+  nudgeChans.forEach(ch => { try { sb().removeChannel(ch); } catch(e){} });
+  nudgeChans.clear();
+  ids.forEach(pid => {
+    const ch = sb().channel('evim-' + pid, { config: { broadcast: { self: false } } });
+    ch.on('broadcast', { event:'nudge' }, msg => onNudge(pid, msg && msg.payload));
+    ch.subscribe();
+    nudgeChans.set(pid, ch);
+  });
+}
+
 function subscribe(){
   if (!live.client || !me()) return;
   if (channel) sb().removeChannel(channel);
   const ids = S.order.slice();
   const ch = channel = sb().channel('kiracim-' + me());
   startPolling();
+  openNudgeChannels(ids);
 
   if (ids.length){
     const inList = 'in.(' + ids.join(',') + ')';
