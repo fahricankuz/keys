@@ -1,6 +1,6 @@
 /* Ekran bölümleri: views.js'in React karşılığı (aynı veri, aynı kurallar). */
 import { useEffect, useRef, useState } from 'react';
-import { Image, KeyboardAvoidingView, Linking, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Linking, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { S, ui, STEPS, CONDITIONS, docCatsFor, isCommercial } from '../domain/state';
 import { estimate, stopajRate } from '../domain/tax';
@@ -370,13 +370,22 @@ export function SecMsg({ p }: { p: any }) {
   const [text, setText] = useState('');
   const [photo, setPhoto] = useState<Picked | null>(null);
   const { open } = useSheet();
+  const [prep, setPrep] = useState(false);       // fotoğraf hazırlanıyor (seçildi, küçültülüyor)
+  const [sending, setSending] = useState(false);
   const send = async () => {
-    const { submit } = await import('../domain/services');
-    if (await submit('msg', { pid: p.id, text, files: photo ? [photo] : [] })) { setText(''); setPhoto(null); }
+    if (prep || sending) return;
+    setSending(true);
+    try {
+      const { submit } = await import('../domain/services');
+      if (await submit('msg', { pid: p.id, text, files: photo ? [photo] : [] })) { setText(''); setPhoto(null); }
+    } finally { setSending(false); }
   };
   const attach = async (camera?: boolean) => {
-    const f = camera ? await takePhoto() : await pickImages(1);
-    if (f[0]) setPhoto(f[0]);
+    setPhoto(null);
+    try {
+      const f = camera ? await takePhoto(() => setPrep(true)) : await pickImages(1, () => setPrep(true));
+      if (f[0]) setPhoto(f[0]);
+    } finally { setPrep(false); }
   };
   // Yazışma açıkken gelen mesajlar okunmuş sayılır.
   const lastAt = p.msgs.length ? p.msgs[p.msgs.length - 1].at : 0;
@@ -496,10 +505,15 @@ export function SecMsg({ p }: { p: any }) {
         })}
       </ScrollView>
       {unseen > 0 ? <Button title={'↓ ' + unseen + ' ' + t('yeni mesaj')} onPress={() => toEnd(true)} style={{ alignSelf: 'center' }} /> : null}
-      {photo ? (
+      {prep ? (
+        <Row>
+          <View style={{ width: 64, height: 64, borderRadius: 12, backgroundColor: c.tile, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={c.accent} accessibilityLabel={t('Fotoğraf hazırlanıyor')} /></View>
+          <Muted style={{ flex: 1 }}>{t('Fotoğraf hazırlanıyor…')}</Muted>
+        </Row>
+      ) : photo ? (
         <Row>
           {photo.dataUrl ? <Image source={{ uri: photo.dataUrl }} style={{ width: 64, height: 64, borderRadius: 12 }} accessibilityLabel={t('Eklenen fotoğraf')} /> : null}
-          <Muted style={{ flex: 1 }}>{photo.name}</Muted>
+          <View style={{ flex: 1 }}><Muted>{photo.name}</Muted><Row gap={4}><Icon name="check" size={16} color={c.okInk} /><Text v="small" color={c.okInk} accessibilityLabel={t('Fotoğraf hazır')}>{t('Hazır')}</Text></Row></View>
           <IconBtn name="x" size={16} label={t('Fotoğrafı kaldır')} onPress={() => setPhoto(null)} />
         </Row>
       ) : null}
@@ -508,8 +522,8 @@ export function SecMsg({ p }: { p: any }) {
         <IconBtn name={Platform.OS !== 'web' ? 'doc' : 'cam'} label={t('Fotoğraf ekle')} onPress={() => attach(false)} />
         <TextInput value={text} onChangeText={setText} onSubmitEditing={send} placeholder={t('Mesaj yaz')} placeholderTextColor={c.muted} accessibilityLabel={t('Mesaj')}
           style={[{ flex: 1, minWidth: 0, minHeight: 50, borderRadius: radius.pill, paddingHorizontal: 18, backgroundColor: c.surface, borderWidth: 1.5, borderColor: c.line, color: c.ink, fontFamily: fonts.body, fontSize: 16 }, { outlineStyle: 'none' } as any]} />
-        <PressScale onPress={send} accessibilityRole="button" accessibilityLabel={t('Gönder')} style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="send" size={20} color={c.accentInk} />
+        <PressScale onPress={send} disabled={prep || sending} accessibilityRole="button" accessibilityLabel={t('Gönder')} style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: c.accent, opacity: prep ? 0.5 : 1, alignItems: 'center', justifyContent: 'center' }}>
+          {sending ? <ActivityIndicator color={c.accentInk} /> : <Icon name="send" size={20} color={c.accentInk} />}
         </PressScale>
       </Row>
     </KeyboardAvoidingView>
