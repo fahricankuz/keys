@@ -39,7 +39,7 @@ export default function SignupForm({ role }: { role: Role }) {
     setBusy(true); setErr(null); setSent(true);
     const e = await signUp({ name, email, password: pw, role });
     setBusy(false);
-    if (e === 'CONFIRM') { setSent(false); setInfo(t('E-postana bir onay bağlantısı gönderdik. Onayladıktan sonra giriş yapabilirsin.') + (withCode && code.trim() ? ' ' + t('Davet kodun kaydedildi; ilk girişte otomatik kullanılacak.') : '')); }
+    if (e === 'CONFIRM') { setSent(false); setInfo(t('E-postana bir onay bağlantısı gönderdik. Bağlantıya tıklayınca hesabın açılır ve doğrudan paneline geçersin.') + (withCode && code.trim() ? ' ' + t('Davet kodun kaydedildi; ilk girişte otomatik kullanılacak.') : '')); }
     else if (e) { setSent(false); setErr(e); }
     else router.replace('/uygulama');
   };

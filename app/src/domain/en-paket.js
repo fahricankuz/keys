@@ -160,5 +160,8 @@ export const EN_PAKET = {
   'İnceleme başlamadan iptal edebilirsin; ücret alınmaz.': 'You can cancel before the review starts; no fee is charged.',
   'İptal edildi': 'Cancelled',
   'İptal edilemedi': 'Could not cancel',
-  'İç not (yalnız ekip görür)': 'Internal note (team only)'
+  'İç not (yalnız ekip görür)': 'Internal note (team only)',
+  // E-posta onayı ile doğrudan giriş
+  'Onay bağlantısının süresi dolmuş ya da daha önce kullanılmış olabilir. E-postan doğrulandıysa giriş yaparak devam edebilirsin.': 'The confirmation link may have expired or already been used. If your email is confirmed, sign in to continue.',
+  'Sorun sürerse info@anahtar.io adresine yaz.': 'If the problem continues, write to info@anahtar.io.'
 };

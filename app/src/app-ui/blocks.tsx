@@ -154,14 +154,15 @@ export function Items<T>({ data, render }: { data: T[]; render: (x: T, last: boo
 export function Seg({ options, value, onChange, scroll, wrap }: { options: [string, string][]; value: string; onChange: (v: string) => void; scroll?: boolean; wrap?: boolean }) {
   const c = useColors();
   const { phone } = useBreakpoint();
-  // Geniş ekranda çok sekmeli satır tek parça bir şeritte durur: sekmeler eşit paylaşır, satır kırılmaz.
+  // Geniş ekranda çok sekmeli satır tek parça bir şeritte durur: sekmeler eşit paylaşır, satır kırılmaz;
+  // sekme ve şerit adından dar olmaz (yan yana iki şerit sıkışınca adlar kesilmez, satır alta geçer).
   // wrap: sekme çoksa (adlar kesilmesin diye) geniş ekranda sekmeler kendi genişliğinde, gerekirse alt satıra geçer.
   const track = scroll && !phone && !wrap;
   const items = options.map(([v, l]) => {
     const on = v === value;
     return (
       <PressScale key={v} onPress={() => onChange(v)} accessibilityRole="button" accessibilityState={{ selected: on }} scaleTo={0.96}
-        wrapStyle={track ? { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 } : undefined}
+        wrapStyle={track ? { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 'max-content' as any } : undefined}
         style={{ paddingHorizontal: track ? 10 : 16, minHeight: 40, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? c.ink : 'transparent',
           borderWidth: track ? 0 : 1, borderColor: on ? c.ink : c.line, flexGrow: scroll && !track ? 0 : 1 }}>
         <Text v="small" numberOfLines={1} color={on ? c.bg : c.ink} style={{ fontFamily: fonts.bodyXBold, fontSize: track ? 13.5 : undefined }}>{l}</Text>
@@ -170,7 +171,7 @@ export function Seg({ options, value, onChange, scroll, wrap }: { options: [stri
   });
   // Telefonda yatay kaydırılır (son sekme tam görünsün diye sağda pay).
   if (scroll && phone) return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>{items}</ScrollView>;
-  if (track) return <View style={{ flexDirection: 'row', gap: 2, padding: 4, borderRadius: radius.pill, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line }}>{items}</View>;
+  if (track) return <View style={{ flexDirection: 'row', gap: 2, padding: 4, borderRadius: radius.pill, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, minWidth: 'max-content' as any }}>{items}</View>;
   if (wrap) return <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{items}</View>;
   return <View style={{ flexDirection: 'row', gap: 8 }}>{items}</View>;
 }

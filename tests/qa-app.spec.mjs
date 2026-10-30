@@ -518,10 +518,10 @@ test('üst menü sırası; çözümlerde tek "Mülk sahibi"; eski /cozumler/port
   await expect(page).toHaveURL(/\/cozumler\/mulk-sahibi/);
 });
 
-test('e-posta onay bağlantısı (eski biçim, ana sayfaya #access_token ile dönen) giriş sayfasına yönlenir, jeton adreste kalmaz', async ({ page }) => {
-  await page.goto(url('/#access_token=x.y.z&expires_in=3600&refresh_token=abc&token_type=bearer&type=signup'));
-  await expect(page).toHaveURL(/\/giris\?dogrulandi=1$/);
-  await expect(page.getByText('E-posta adresin doğrulandı. Şimdi hesap türünü seçip giriş yapabilirsin.')).toBeVisible();
+test('e-posta onay bağlantısı (eski biçim, ana sayfaya #access_token ile dönen) oturumu açıp panele geçer, jeton adreste kalmaz', async ({ page }) => {
+  await page.goto(url('/#access_token=tok-kiraci@ornek.com&expires_in=3600&refresh_token=abc&token_type=bearer&type=signup'));
+  await expect(page).toHaveURL(/\/uygulama$/);
+  await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
   expect(page.url()).not.toContain('access_token');
 });
 

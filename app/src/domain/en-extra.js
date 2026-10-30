@@ -3,7 +3,7 @@ export const EN_EXTRA = {
   'Bu sürümde hesap bu cihazda tutulur. Sunucu kurulunca hesaplar cihazlar arası çalışır.': 'In this version your account lives on this device. Once the server is set up, accounts work across devices.',
   'Hesabın yok mu? Kayıt ol': 'No account? Sign up',
   'Devam etmek için koşulları kabul etmelisin.': 'You need to accept the terms to continue.',
-  'E-postana bir onay bağlantısı gönderdik. Onayladıktan sonra giriş yapabilirsin.': 'We sent a confirmation link to your email. You can log in after confirming.',
+  'E-postana bir onay bağlantısı gönderdik. Bağlantıya tıklayınca hesabın açılır ve doğrudan paneline geçersin.': 'We sent a confirmation link to your email. Click it and your account opens straight into your dashboard.',
   'Kiracılar ücretsiz. Mülk sahipleri 14 gün kartsız dener.': 'Free for tenants. Landlords try it for 14 days without a card.',
   'Hesabın var mı? Giriş yap': 'Have an account? Log in',
   'Bağlantı gönderildi. E-postanı kontrol et.': 'Link sent. Check your email.',

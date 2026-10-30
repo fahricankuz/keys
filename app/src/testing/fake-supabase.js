@@ -305,7 +305,8 @@ export function createClient(url, key, opts){
       async setSession({ access_token, refresh_token }){
         client._calls.push({ setSession:access_token });
         if (access_token === 'bad') return { data:{}, error:{ message:'invalid token' } };
-        const db = load(); const u = db.users[0];
+        // "tok-<e-posta>" jetonu o kişinin oturumunu açar; diğerleri ilk kullanıcıyı.
+        const db = load(); const u = db.users.find(x => access_token === 'tok-' + x.email) || db.users[0];
         db.session = { user:{ id:u.id, email:u.email }, access_token };
         persist(db); emit('SIGNED_IN', db.session);
         return { data:{ session:db.session, user:db.session.user }, error:null };

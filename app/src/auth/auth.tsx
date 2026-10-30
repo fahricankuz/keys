@@ -33,6 +33,8 @@ type Ctx = {
   signIn(e: string, p: string, as?: Entry): Promise<string | null>;
   signUp(a: { name: string; email: string; password: string; role: Role }): Promise<string | null>;
   reset(email: string): Promise<string | null>;
+  /** E-posta onay bağlantısıyla açılan oturumu benimser (panel açılırken giriş geçişi oynar). */
+  adopt(): Promise<User | null>;
   signOut(): Promise<void>;
   deleteAccount(): Promise<void>;
   /** Davet koduyla mülke bağlan (gerçek hesap, kiracı). */
@@ -145,9 +147,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (LIVE) {
         if (captchaPending()) return t('Güvenlik doğrulaması bitsin, sonra tekrar dene.');
         const c = await backend.client();
-        // Onay e-postasındaki bağlantı giriş sayfasına döner (Supabase → Redirect URLs listesinde anahtar.io/** olmalı).
+        // Onay e-postasındaki bağlantı /dogrula sayfasına döner: oturum açılır, kişi doğrudan paneline geçer
+        // (Supabase → Redirect URLs listesinde anahtar.io/** olmalı).
         const { data, error } = await c.auth.signUp({ email, password, options: { data: { name, role, lang: getLang() }, captchaToken: captchaToken() ?? undefined,
-          emailRedirectTo: CONFIG.publicUrl.replace(/\/?$/, '/') + 'giris?dogrulandi=1' } });
+          emailRedirectTo: CONFIG.publicUrl.replace(/\/?$/, '/') + 'dogrula' } });
         captchaSpent();
         if (error) return t('Hesap oluşturulamadı: {m}', { m: backend.humanError(error) });
         if (!data.session) return 'CONFIRM';
@@ -165,6 +168,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const u = { id, email, name, role, createdAt };
       playOnNextOpen(); enter(u); setUser(u); return null;
     } catch { return t('Bağlantı kurulamadı. Biraz sonra yeniden dene.'); }
+  }, []);
+
+  const adopt = useCallback(async () => {
+    if (!LIVE) return null;
+    const c = await backend.client();
+    const { data } = await c.auth.getSession();
+    if (!data.session) return null;
+    const u = await enterLive(data.session.user);
+    playOnNextOpen(); setUser(u); setReady(true);
+    return u;
   }, []);
 
   const reset = useCallback(async (email: string) => {
@@ -259,7 +272,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) { return backend.humanError(e); }
   }, [user]);
 
-  const value = useMemo(() => ({ user, ready, live: LIVE, signIn, signUp, reset, signOut, deleteAccount, join, saveProfile, changeEmail, changePassword }),
-    [user, ready, signIn, signUp, reset, signOut, deleteAccount, join, saveProfile, changeEmail, changePassword]);
+  const value = useMemo(() => ({ user, ready, live: LIVE, signIn, signUp, reset, adopt, signOut, deleteAccount, join, saveProfile, changeEmail, changePassword }),
+    [user, ready, signIn, signUp, reset, adopt, signOut, deleteAccount, join, saveProfile, changeEmail, changePassword]);
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }
