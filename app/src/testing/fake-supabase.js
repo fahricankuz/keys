@@ -698,18 +698,21 @@ export function createClient(url, key, opts){
     },
     // Anlık kanal: testler karşı tarafın değişikliğini window.__fakeRealtime.emit(tablo, olay, satır) ile gönderir,
     // bağlantı durumunu window.__fakeRealtime.status('CHANNEL_ERROR' | 'SUBSCRIBED' | …) ile değiştirir.
-    channel(){
-      const ch = { _h: [], _cb: null,
-        on(type, f, cb){ ch._h.push({ f, cb }); return ch; },
-        subscribe(cb){ ch._cb = cb; client._rt = ch; setTimeout(() => cb && cb('SUBSCRIBED'), 0); return ch; } };
+    channel(name){
+      const ch = { name, _h: [], _cb: null,
+        on(type, f, cb){ ch._h.push({ type, f, cb }); return ch; },
+        send(msg){ window.__fakeSent = [...(window.__fakeSent || []), { channel: name, ...msg }]; return Promise.resolve('ok'); },
+        subscribe(cb){ ch._cb = cb; if (/^evim-/.test(name)){ (client._chs = client._chs || {})[name] = ch; } else client._rt = ch; setTimeout(() => cb && cb('SUBSCRIBED'), 0); return ch; } };
       return ch;
     },
-    removeChannel(ch){ if (client._rt === ch) client._rt = null; }
+    removeChannel(ch){ if (client._rt === ch) client._rt = null; if (client._chs && ch && client._chs[ch.name] === ch) delete client._chs[ch.name]; }
   };
   globalThis.__fakeClient = client;
   if (typeof window !== 'undefined') window.__fakeRealtime = {
-    emit(table, eventType, row){ const ch = client._rt; if (ch) ch._h.filter(h => h.f && h.f.table === table).forEach(h => h.cb({ eventType, new: row, old: {} })); },
+    emit(table, eventType, row){ const ch = client._rt; if (ch) ch._h.filter(h => h.type === 'postgres_changes' && h.f && h.f.table === table).forEach(h => h.cb({ eventType, new: row, old: {} })); },
     status(st){ const ch = client._rt; if (ch && ch._cb) ch._cb(st); },
+    // Karşı tarafın "dürtmesi" (Broadcast): kanal evim-<ev kimliği>
+    nudge(pid, payload){ const ch = client._chs && client._chs['evim-' + pid]; if (ch) ch._h.filter(h => h.type === 'broadcast').forEach(h => h.cb({ payload })); },
     channels(){ return client._rt ? 1 : 0; }
   };
   return client;

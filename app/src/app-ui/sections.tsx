@@ -24,7 +24,7 @@ import { LegalLink, LegalNudge } from './legal';
 import { SiteUnitCharges } from './site';
 import { useAuth } from '../auth/auth';
 import { useStore } from './hooks';
-import { humanError, refreshProperty, olderMessages, realtimeStatus } from '../domain/backend';
+import { humanError, refreshProperty, olderMessages, realtimeStatus, setActiveChat } from '../domain/backend';
 import { mySiteUnits, linkSiteUnit, unitLabel } from '../domain/site';
 import { Picked, pickImages, takePhoto } from './media';
 import { mediaSrc } from '../domain/backend';
@@ -390,6 +390,7 @@ export function SecMsg({ p }: { p: any }) {
   const [unseen, setUnseen] = useState(0);
   const live = realtimeStatus();
   const { phone } = useBreakpoint();
+  useEffect(() => { setActiveChat(p.id); return () => setActiveChat(null); }, [p.id]);
   const toEnd = (animated = false) => { atBottom.current = true; setUnseen(0); list.current?.scrollToEnd({ animated }); };
   useEffect(() => {
     const added = p.msgs.length - seen.current;

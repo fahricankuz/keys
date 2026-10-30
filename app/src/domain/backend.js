@@ -183,7 +183,8 @@ export function expireSession(){
 
 export async function closeSession(){
   if (channel && live.client){ live.client.removeChannel(channel); channel = null; }
-  clearTimeout(rtTimer); rt = 'idle'; rtRetry = 0;
+  clearTimeout(rtTimer); rt = 'idle'; rtRetry = 0; activeChat = null;
+  nudgeChans.forEach(c => { try { live.client && live.client.removeChannel(c); } catch(e){} }); nudgeChans.clear();
   const uidWas = me();
   try { await live.client?.auth.signOut(); } catch(e){}
   if (uidWas){ storage.removeItem('kiracim-live:' + uidWas); storage.removeItem(BASE(uidWas)); }
@@ -457,6 +458,7 @@ async function flush(){
       const after = afterJson ? JSON.parse(afterJson) : null;
       const ops = diffProperty(before, after, roleIn(after || before));
       for (const op of ops) await apply(op);
+      if (ops.length) sendNudge(pid, ops.some(o => o.table === 'messages'), ops.some(o => o.table !== 'messages'));
       if (afterJson) synced[pid] = afterJson; else delete synced[pid];
       persistBase();
     }
@@ -681,16 +683,21 @@ function addInbox(n){
 
 /** Kaçan mesaj ve bildirimleri tamamlar (kanal kopmuşken, sekmeye dönünce, internet gelince). */
 let catching = false;
-async function catchUp(){
+let activeChat = null;      // açık sohbetin evi (varsa): sık sorulur
+/** Açık sohbeti bildirir (null: kapandı). Açılınca hemen bir tamamlama yapılır. */
+export function setActiveChat(pid){ activeChat = pid || null; if (pid) catchUp({ pid }); }
+
+async function catchUp(opts){
   if (catching || !live.user || !live.loaded || !live.client) return;
   catching = true;
   try {
     let changed = false;
-    for (const pid of S.order.slice()){
+    for (const pid of (opts && opts.pid ? [opts.pid] : S.order.slice())){
       const p = S.props[pid];
       if (!p) continue;
+      // Mesaj saati gönderenin cihazından gelir; saat farkı mesajı kaçırmasın diye 10 dakika geriden sorulur (kimlikle tekrar elenir).
       const last = p.msgs && p.msgs.length ? p.msgs[p.msgs.length - 1].at : 0;
-      const rows = must(await sb().from('messages').select('*').eq('property_id', pid).gt('at', new Date(last).toISOString()).order('at', { ascending: true }));
+      const rows = must(await sb().from('messages').select('*').eq('property_id', pid).gt('at', new Date(Math.max(0, last - 10 * 60000)).toISOString()).order('at', { ascending: true }));
       rows.forEach(r => { if (applyMessage(r)) changed = true; });
     }
     const lastNote = S.inbox.length ? S.inbox[S.inbox.length - 1].at : 0;
@@ -711,12 +718,45 @@ function reconnectNow(){
 
 function startPolling(){
   if (pollTimer) return;
-  // Kanal kapalıyken (Realtime kapalı ya da ağ sorunu) görünür sekmede 5 sn'de bir yalnızca yeni mesajlar sorulur.
+  // Güvenlik ağı: canlı kanal "bağlı" görünse bile (Realtime kapalı, tablo yayında değil, ağ yarı kopuk) mesaj ve bildirim
+  // gecikmesin. Sohbet açıkken 4 sn'de bir o evin yeni mesajları ve bildirimler, değilse 20 sn'de bir bütün evler sorulur.
+  // Görünmeyen sekmede sorulmaz; sekmeye dönünce hemen tamamlanır.
+  let tick = 0;
   pollTimer = setInterval(() => {
-    if (rt === 'live' || !live.user || !live.loaded) return;
+    if (!live.user || !live.loaded) return;
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-    catchUp();
-  }, 5000);
+    tick++;
+    if (activeChat) catchUp({ pid: activeChat });
+    else if (tick % 5 === 0) catchUp();
+  }, 4000);
+}
+
+/* Anında dürtme (Realtime Broadcast): bir değişikliği kaydeden taraf, evin kanalına "yeni bir şey var" der (içerik göndermez);
+   karşı taraf hemen yetkili sorguyla yeni mesaj ve bildirimleri çeker. Veritabanı yayın ayarına (postgres_changes) bağlı değildir,
+   bu yüzden o ayar eksik olsa da mesajlar WhatsApp gibi anında düşer. Kanal adı bir ev kimliğidir; içeriği gizli kalır. */
+const nudgeChans = new Map();
+
+function sendNudge(pid, m, d){
+  const ch = nudgeChans.get(pid);
+  if (!ch) return;
+  try { Promise.resolve(ch.send({ type:'broadcast', event:'nudge', payload:{ m: !!m, d: !!d } })).catch(() => {}); } catch(e){}
+}
+
+function onNudge(pid, payload){
+  if (!S.props[pid]) return;
+  catchUp({ pid });                                   // yeni mesajlar ve bildirimler
+  if (payload && payload.d) queueRefresh(pid);        // ödeme, talep gibi diğer değişiklikler
+}
+
+function openNudgeChannels(ids){
+  nudgeChans.forEach(ch => { try { sb().removeChannel(ch); } catch(e){} });
+  nudgeChans.clear();
+  ids.forEach(pid => {
+    const ch = sb().channel('evim-' + pid, { config: { broadcast: { self: false } } });
+    ch.on('broadcast', { event:'nudge' }, msg => onNudge(pid, msg && msg.payload));
+    ch.subscribe();
+    nudgeChans.set(pid, ch);
+  });
 }
 
 function subscribe(){
@@ -725,6 +765,7 @@ function subscribe(){
   const ids = S.order.slice();
   const ch = channel = sb().channel('kiracim-' + me());
   startPolling();
+  openNudgeChannels(ids);
 
   if (ids.length){
     const inList = 'in.(' + ids.join(',') + ')';
