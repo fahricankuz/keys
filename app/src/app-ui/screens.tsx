@@ -32,13 +32,19 @@ import {
 
 /* ---------------- sayfa iskeleti ---------------- */
 
-export function Page({ title, sub, back, children }: { title: string; sub?: string; back?: string; children: ReactNode }) {
+function Shell({ fill, children }: { fill?: boolean; children: ReactNode }) {
+  if (fill) return <View style={{ flex: 1, minHeight: 0, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, width: '100%', maxWidth: 760, alignSelf: 'center' }}>{children}</View>;
+  return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120, width: '100%', maxWidth: 760, alignSelf: 'center' }} keyboardShouldPersistTaps="handled">{children}</ScrollView>;
+}
+
+/** `fill`: sayfa kaydırılmaz, içerik ekranı doldurur (sohbet: mesaj kutusu sabit, yalnız mesaj listesi kaydırılır). */
+export function Page({ title, sub, back, children, fill }: { title: string; sub?: string; back?: string; children: ReactNode; fill?: boolean }) {
   const { open } = useSheet();
   const go = useGo();
   useStore();
   const n = unreadCount();
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120, width: '100%', maxWidth: 760, alignSelf: 'center' }} keyboardShouldPersistTaps="handled">
+    <Shell fill={fill}>
       <Row between align="flex-start">
         <Row align="flex-start" style={{ flex: 1 }}>
           {back ? <IconBtn name="back" label={t('Geri')} onPress={() => go(back)} /> : null}
@@ -53,11 +59,11 @@ export function Page({ title, sub, back, children }: { title: string; sub?: stri
           <IconBtn name="gear" label={t('Ayarlar')} onPress={() => go('/uygulama/ayarlar')} />
         </Row>
       </Row>
-      <Animated.View entering={FadeIn.duration(280)} style={{ gap: 16, marginTop: 18 }}>
+      <Animated.View entering={FadeIn.duration(280)} style={fill ? { flex: 1, minHeight: 0, gap: 12, marginTop: 12 } : { gap: 16, marginTop: 18 }}>
         {ui.role === 'tenant' && !S.myHome ? <JoinBanner /> : null}
         {children}
       </Animated.View>
-    </ScrollView>
+    </Shell>
   );
 }
 
@@ -142,7 +148,7 @@ export function TenantScreen({ tab, sub }: { tab: 'pay' | 'req' | 'msg' | 'docs'
   switch (tab) {
     case 'pay': return <Page title={t('Ödemeler')} sub={p.name}><SecPay p={p} /></Page>;
     case 'req': return <Page title={t('Talepler')} sub={p.name}><LegalList /><SecReq p={p} /></Page>;
-    case 'msg': return <Page title={t('Mesajlar')} sub={p.name}><SecMsg p={p} /></Page>;
+    case 'msg': return <Page fill title={t('Mesajlar')} sub={p.name}><SecMsg p={p} /></Page>;
     case 'agenda': return <Page title={t('Takvim')} sub={p.name}><AgendaBody props={[p]} /></Page>;
     default:
       if (sub === 'tutanak') return <Page title={t('Tutanak')} sub={p.name} back="/kiraci/belgeler"><InspectTabs p={p} active="giris" /><SecInspect p={p} /></Page>;
@@ -392,10 +398,10 @@ export function PropDetail({ pid, sub = 'ozet' }: { pid: string; sub?: string })
   else if (sub === 'rapor') body = <PropReport p={p} />;
   const strip = sub === 'cikis' ? 'tutanak' : sub;
   return (
-    <Page title={p.name} sub={p.addr} back="/mulk-sahibi">
+    <Page fill={sub === 'mesaj'} title={p.name} sub={p.addr} back="/mulk-sahibi">
       <SubBanner full={false} />
       <Seg scroll value={strip} onChange={(v) => go('/mulk-sahibi/mulk/' + p.id + '/' + v)} options={subs} />
-      {body}
+      {sub === 'mesaj' ? <View style={{ flex: 1, minHeight: 0 }}>{body}</View> : body}
     </Page>
   );
 }

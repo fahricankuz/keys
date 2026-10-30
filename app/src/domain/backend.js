@@ -86,7 +86,10 @@ export async function client(){
     });
   }
   if (typeof window !== 'undefined' && window.addEventListener){
-    window.addEventListener('online', () => { if (live.user) { setStatus('syncing'); scheduleSync(0); } });
+    window.addEventListener('online', () => { if (live.user) { setStatus('syncing'); scheduleSync(0); reconnectNow(); } });
+    // Sekmeye ya da uygulamaya dönünce kaçan mesaj ve bildirimler tamamlanır; kopuk kanal hemen yeniden kurulur.
+    window.addEventListener('focus', () => reconnectNow());
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reconnectNow(); });
     window.addEventListener('offline', () => setStatus('offline'));
     // Çevrimdışı/hatalı kalan eşitleme 30 saniyede bir yeniden denenir (tarayıcı "online" olayı göndermese de).
     setInterval(() => { if (live.user && live.loaded && (live.status === 'offline' || live.status === 'error')) scheduleSync(0); }, 30000);
@@ -167,6 +170,7 @@ export async function openSession(user){
 
 export async function closeSession(){
   if (channel && live.client){ live.client.removeChannel(channel); channel = null; }
+  clearTimeout(rtTimer); rt = 'idle'; rtRetry = 0;
   const uidWas = me();
   try { await live.client?.auth.signOut(); } catch(e){}
   if (uidWas){ storage.removeItem('kiracim-live:' + uidWas); storage.removeItem(BASE(uidWas)); }
@@ -634,30 +638,115 @@ export async function fileUrl(v){
 
 const PROPERTY_TABLES = ['property_shared','memberships','invites','payments','rent_history','requests','messages','documents','expenses'];
 
+/* Canlı bağlantı: 'live' (kanal açık), 'down' (koptu, yeniden deneniyor), 'idle' (henüz kurulmadı). */
+let rt = 'idle', rtTimer = null, rtRetry = 0, pollTimer = null;
+export const realtimeStatus = () => rt;
+function setRt(v){ if (rt !== v){ rt = v; emit(); } }
+
+/** Sunucudan gelen mesaj satırını sohbete doğrudan ekler (evin tamamını yeniden indirmeden). Eklediyse true. */
+function applyMessage(row){
+  const p = row && S.props[row.property_id];
+  if (!p || !row.id || (p.msgs || []).some(m => m.id === row.id)) return false;
+  const m = messageFromRow(row);
+  const add = (list) => { list.push(m); list.sort((a, b) => a.at - b.at); };
+  p.msgs = p.msgs || [];
+  add(p.msgs);
+  // Sunucudan gelen mesaj "eşitlenmiş" sayılır; yoksa eşitleme onu yerel değişiklik sanır.
+  if (synced[row.property_id]){
+    try { const b = JSON.parse(synced[row.property_id]); b.msgs = b.msgs || []; add(b.msgs); synced[row.property_id] = JSON.stringify(b); } catch(e){}
+  }
+  return true;
+}
+
+function addInbox(n){
+  if (!n || S.inbox.some(x => x.id === n.id)) return null;
+  const item = noteToInbox(n);
+  S.inbox.push(item);
+  if (S.inbox.length > 40) S.inbox.shift();
+  return item;
+}
+
+/** Kaçan mesaj ve bildirimleri tamamlar (kanal kopmuşken, sekmeye dönünce, internet gelince). */
+let catching = false;
+async function catchUp(){
+  if (catching || !live.user || !live.loaded || !live.client) return;
+  catching = true;
+  try {
+    let changed = false;
+    for (const pid of S.order.slice()){
+      const p = S.props[pid];
+      if (!p) continue;
+      const last = p.msgs && p.msgs.length ? p.msgs[p.msgs.length - 1].at : 0;
+      const rows = must(await sb().from('messages').select('*').eq('property_id', pid).gt('at', new Date(last).toISOString()).order('at', { ascending: true }));
+      rows.forEach(r => { if (applyMessage(r)) changed = true; });
+    }
+    const lastNote = S.inbox.length ? S.inbox[S.inbox.length - 1].at : 0;
+    const notes = must(await sb().from('notifications').select('*').eq('user_id', me()).gt('created_at', new Date(lastNote).toISOString()).order('created_at', { ascending: true }));
+    const added = notes.map(addInbox).filter(Boolean);
+    if (added.length){ changed = true; const n = added[added.length - 1]; host.notify({ title: n.title, body: n.body, icon:'bell' }); }
+    if (changed){ saveLocal(); emit(); }
+  } catch(e){ /* ağ yok: sonraki denemede */ }
+  finally { catching = false; }
+}
+
+/** Dönüşte ya da bağlantı gelince: kopuk kanalı hemen yeniden kur, kaçanları tamamla. */
+function reconnectNow(){
+  if (!live.user || !live.loaded) return;
+  if (rt !== 'live'){ clearTimeout(rtTimer); subscribe(); }
+  catchUp();
+}
+
+function startPolling(){
+  if (pollTimer) return;
+  // Kanal kapalıyken (Realtime kapalı ya da ağ sorunu) görünür sekmede 5 sn'de bir yalnızca yeni mesajlar sorulur.
+  pollTimer = setInterval(() => {
+    if (rt === 'live' || !live.user || !live.loaded) return;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    catchUp();
+  }, 5000);
+}
+
 function subscribe(){
   if (!live.client || !me()) return;
   if (channel) sb().removeChannel(channel);
   const ids = S.order.slice();
-  channel = sb().channel('kiracim-' + me());
+  const ch = channel = sb().channel('kiracim-' + me());
+  startPolling();
 
   if (ids.length){
     const inList = 'in.(' + ids.join(',') + ')';
-    PROPERTY_TABLES.forEach(table => channel.on('postgres_changes',
+    PROPERTY_TABLES.forEach(table => ch.on('postgres_changes',
       { event:'*', schema:'public', table, filter:'property_id=' + inList },
-      payload => queueRefresh((payload.new && payload.new.property_id) || (payload.old && payload.old.property_id))));
-    channel.on('postgres_changes', { event:'*', schema:'public', table:'properties', filter:'id=' + inList },
+      payload => {
+        // Yeni mesaj doğrudan sohbete eklenir; diğer değişiklikler evi tazeler.
+        if (table === 'messages' && payload.eventType === 'INSERT' && payload.new && applyMessage(payload.new)){ saveLocal(); emit(); return; }
+        if (table === 'messages' && payload.eventType === 'INSERT' && payload.new && S.props[payload.new.property_id]) return;   // zaten var
+        queueRefresh((payload.new && payload.new.property_id) || (payload.old && payload.old.property_id));
+      }));
+    ch.on('postgres_changes', { event:'*', schema:'public', table:'properties', filter:'id=' + inList },
       payload => queueRefresh((payload.new && payload.new.id) || (payload.old && payload.old.id)));
   }
   // Denetim kararı: ilgili evi tazele (ör. dekont onaylanınca mülk sahibi görmeye başlar).
-  channel.on('postgres_changes', { event:'*', schema:'public', table:'reviews' },
+  ch.on('postgres_changes', { event:'*', schema:'public', table:'reviews' },
     payload => queueRefresh((payload.new && payload.new.property_id) || (payload.old && payload.old.property_id)));
-  channel.on('postgres_changes', { event:'*', schema:'public', table:'memberships', filter:'user_id=eq.' + me() },
+  ch.on('postgres_changes', { event:'*', schema:'public', table:'memberships', filter:'user_id=eq.' + me() },
     () => loadAll().then(subscribe));
-  channel.on('postgres_changes', { event:'INSERT', schema:'public', table:'notifications', filter:'user_id=eq.' + me() },
+  ch.on('postgres_changes', { event:'INSERT', schema:'public', table:'notifications', filter:'user_id=eq.' + me() },
     payload => onNotification(payload.new));
-  channel.on('postgres_changes', { event:'*', schema:'public', table:'subscriptions', filter:'user_id=eq.' + me() },
+  ch.on('postgres_changes', { event:'*', schema:'public', table:'subscriptions', filter:'user_id=eq.' + me() },
     () => refreshAccess());
-  channel.subscribe();
+  ch.subscribe(status => {
+    if (ch !== channel) return;                       // yerine yenisi kurulmuş ya da oturum kapanmış kanal
+    if (status === 'SUBSCRIBED'){
+      const was = rt === 'down';
+      rtRetry = 0; setRt('live');
+      if (was) catchUp();
+    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED'){
+      setRt('down');
+      clearTimeout(rtTimer);
+      rtTimer = setTimeout(() => { if (live.user && ch === channel) subscribe(); }, Math.min(30000, 1000 * 2 ** Math.min(rtRetry++, 5)));
+    }
+  });
 }
 
 function noteToInbox(n){
@@ -666,9 +755,8 @@ function noteToInbox(n){
 
 function onNotification(n){
   if (!n) return;
-  const item = noteToInbox(n);
-  S.inbox.push(item);
-  if (S.inbox.length > 40) S.inbox.shift();
+  const item = addInbox(n);
+  if (!item) return;
   saveLocal();
   emit();
   host.notify({ title: item.title, body: item.body, icon:'bell' });
