@@ -3916,3 +3916,38 @@ returns setof public.messages language sql stable as $$
   order by m.at
 $$;
 grant execute on function public.recent_messages(text[], int) to authenticated;
+
+-- =====================================================================
+-- 25. Talep akışı: kiracı teklif ve fatura ekler, mesajdan talebe bağlantı
+-- =====================================================================
+-- Mesaj, bir talebe bağlı olabilir (talep kartı ve talep sistem mesajları); dokununca talep açılır.
+alter table public.messages add column if not exists req_id text;
+
+-- Kiracının teklif listesinde yapabileceği değişiklik: yalnız kendi (by = 'tenant') ve seçilmemiş teklifleri
+-- ekleyebilir, değiştirebilir, silebilir. Geri kalan teklifler (mülk sahibinin, seçilmiş olanlar) aynen kalmalı.
+create or replace function public.quotes_tenant_ok(o jsonb, n jsonb)
+returns boolean language sql immutable as $$
+  select coalesce((select jsonb_agg(e order by i) from jsonb_array_elements(coalesce(o, '[]'::jsonb)) with ordinality t(e, i)
+                   where not (coalesce(e ->> 'by', '') = 'tenant' and coalesce((e ->> 'chosen')::boolean, false) = false)), '[]'::jsonb)
+       = coalesce((select jsonb_agg(e order by i) from jsonb_array_elements(coalesce(n, '[]'::jsonb)) with ordinality t(e, i)
+                   where not (coalesce(e ->> 'by', '') = 'tenant' and coalesce((e ->> 'chosen')::boolean, false) = false)), '[]'::jsonb);
+$$;
+
+create or replace function public.guard_requests()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare r text := public.member_role(new.property_id);
+begin
+  if auth.uid() is null or r in ('landlord','agent','staff') then new.updated_at := now(); return new; end if;
+  if r <> 'tenant' then raise exception 'Bu rol talepleri değiştiremez' using errcode = '42501'; end if;
+  if new.cost is distinct from old.cost or new.decision is distinct from old.decision then
+    raise exception 'Masraf ve kararı yalnızca mülk sahibi değiştirebilir' using errcode = '42501';
+  end if;
+  if new.quotes is distinct from old.quotes and not public.quotes_tenant_ok(old.quotes, new.quotes) then
+    raise exception 'Kiracı yalnızca kendi teklifini ekleyip silebilir; teklifi mülk sahibi seçer' using errcode = '42501';
+  end if;
+  -- Kiracı fatura ekleyebilir; mülk sahibinin eklediği faturayı değiştiremez.
+  if new.invoice is distinct from old.invoice and old.invoice is not null then
+    raise exception 'Faturayı yalnızca mülk sahibi değiştirebilir' using errcode = '42501';
+  end if;
+  if new.status <> old.status and new.status <> 3 then
+    raise exception 'Kiracı talebi yalnızca kapatabilir' using errcode = '42501';
