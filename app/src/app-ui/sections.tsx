@@ -389,6 +389,7 @@ export function SecMsg({ p }: { p: any }) {
   const seen = useRef(p.msgs.length);
   const [unseen, setUnseen] = useState(0);
   const live = realtimeStatus();
+  const { phone } = useBreakpoint();
   const toEnd = (animated = false) => { atBottom.current = true; setUnseen(0); list.current?.scrollToEnd({ animated }); };
   useEffect(() => {
     const added = p.msgs.length - seen.current;
@@ -401,15 +402,17 @@ export function SecMsg({ p }: { p: any }) {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, minHeight: 0, gap: 10 }}>
       <Card>
-        <Row between>
-          <View style={{ flex: 1 }}>
-            <Label>{otherLabel()}</Label>
-            <Row gap={8}><Text v="h3">{o.name}</Text>{live === 'live' ? <Chip tone="ok" label={t('Canlı')} /> : live === 'down' ? <Chip tone="warn" label={t('Bağlanıyor…')} /> : null}</Row>
+        <Row between align="center" gap={8}>
+          <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+            <Row gap={8} wrap><Label>{otherLabel()}</Label>{live === 'live' ? <Chip tone="ok" label={t('Canlı')} /> : live === 'down' ? <Chip tone="warn" label={t('Bağlanıyor…')} /> : null}</Row>
+            <Text v="h3" numberOfLines={1}>{o.name}</Text>
           </View>
-          <Row gap={6}>
+          <Row gap={6} style={{ flexShrink: 0 }}>
             <IconBtn name="doc" size={18} label={t('Yazışmayı dışa aktar')} onPress={() => act('exportChat', { pid: p.id })} />
             {otherUser(p) ? <IconBtn name="flag" size={16} label={t('Bildir ya da engelle')} onPress={() => open('sikayet', { pid: p.id, kind: 'user', user: otherUser(p), name: o.name })} /> : null}
-            {o.phone ? <Button title={t('Ara|telefon')} icon={<Icon name="phone" size={16} color="#fff" />} onPress={() => Linking.openURL('tel:' + o.phone).catch(() => {})} /> : null}
+            {o.phone ? (phone
+              ? <IconBtn name="phone" size={18} label={t('Ara|telefon')} onPress={() => Linking.openURL('tel:' + o.phone).catch(() => {})} />
+              : <Button title={t('Ara|telefon')} icon={<Icon name="phone" size={16} color="#fff" />} onPress={() => Linking.openURL('tel:' + o.phone).catch(() => {})} />) : null}
           </Row>
         </Row>
       </Card>

@@ -43,13 +43,14 @@ export function Page({ title, sub, back, children, fill }: { title: string; sub?
   const go = useGo();
   useStore();
   const n = unreadCount();
+  const compact = useBreakpoint().phone;   // sohbet gibi sayfayı dolduran ekranlarda telefonda başlık küçülür (mesaj alanına yer kalsın)
   return (
     <Shell fill={fill}>
       <Row between align="flex-start">
         <Row align="flex-start" style={{ flex: 1 }}>
           {back ? <IconBtn name="back" label={t('Geri')} onPress={() => go(back)} /> : null}
           <View style={{ flex: 1, gap: 2 }}>
-            <Text v="h1" style={{ fontSize: 36, lineHeight: 38, letterSpacing: -1.2 }}>{title}</Text>
+            <Text v="h1" numberOfLines={fill ? 1 : undefined} style={fill && compact ? { fontSize: 26, lineHeight: 30, letterSpacing: -0.8 } : { fontSize: 36, lineHeight: 38, letterSpacing: -1.2 }}>{title}</Text>
             {sub ? <Muted>{sub}</Muted> : null}
           </View>
         </Row>
@@ -399,8 +400,11 @@ export function PropDetail({ pid, sub = 'ozet' }: { pid: string; sub?: string })
   const strip = sub === 'cikis' ? 'tutanak' : sub;
   return (
     <Page fill={sub === 'mesaj'} title={p.name} sub={p.addr} back="/mulk-sahibi">
-      <SubBanner full={false} />
-      <Seg scroll value={strip} onChange={(v) => go('/mulk-sahibi/mulk/' + p.id + '/' + v)} options={subs} />
+      {/* Sohbet ekranı sayfayı doldurur: üstteki bant ve sekme şeridi esnemesin (yoksa dikeyde uzarlar). */}
+      <View style={{ flexGrow: 0, flexShrink: 0, gap: 16 }}>
+        <SubBanner full={false} />
+        <Seg scroll value={strip} onChange={(v) => go('/mulk-sahibi/mulk/' + p.id + '/' + v)} options={subs} />
+      </View>
       {sub === 'mesaj' ? <View style={{ flex: 1, minHeight: 0 }}>{body}</View> : body}
     </Page>
   );
