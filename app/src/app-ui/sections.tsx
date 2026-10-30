@@ -390,6 +390,17 @@ export function SecMsg({ p }: { p: any }) {
   const [unseen, setUnseen] = useState(0);
   const live = realtimeStatus();
   const { phone } = useBreakpoint();
+  // Eski mesajlar yukarı kaydırdıkça sayfa sayfa gelir (uygulama başta az mesaj yükler); gelince okunan yer kaymaz.
+  const loadingOld = useRef(false);
+  const geo = useRef({ y: 0, h: 0 });
+  const keepPos = useRef(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadOlder = async () => {
+    if (loadingOld.current || !ui.msgMore[p.id]) return;
+    loadingOld.current = true; keepPos.current = true; setLoadingMore(true);
+    try { await olderMessages(p.id); } catch { keepPos.current = false; }
+    setLoadingMore(false); loadingOld.current = false;
+  };
   const toEnd = (animated = false) => { atBottom.current = true; setUnseen(0); list.current?.scrollToEnd({ animated }); };
   useEffect(() => {
     const added = p.msgs.length - seen.current;
@@ -417,10 +428,20 @@ export function SecMsg({ p }: { p: any }) {
         </Row>
       </Card>
       <ScrollView ref={list} style={{ flex: 1 }} contentContainerStyle={{ gap: 8, paddingVertical: 6 }} keyboardShouldPersistTaps="handled" scrollEventThrottle={50}
-        onContentSizeChange={() => { if (atBottom.current) list.current?.scrollToEnd({ animated: false }); }}
-        onScroll={(e) => { const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent; const bottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - 80; atBottom.current = bottom; if (bottom && unseen) setUnseen(0); }}>
+        onContentSizeChange={(_w, h) => {
+          if (keepPos.current) { keepPos.current = false; list.current?.scrollTo({ y: Math.max(0, geo.current.y + (h - geo.current.h)), animated: false }); }
+          else if (atBottom.current) list.current?.scrollToEnd({ animated: false });
+          geo.current.h = h;
+        }}
+        onScroll={(e) => {
+          const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+          const bottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - 80;
+          atBottom.current = bottom; geo.current = { y: contentOffset.y, h: contentSize.height };
+          if (bottom && unseen) setUnseen(0);
+          if (contentOffset.y < 120 && ui.msgMore[p.id]) loadOlder();
+        }}>
         {p.msgs.length === 0 ? <Note>{t('Henüz mesaj yok. Yazışmalar tarihli olarak saklanır.')}</Note> : null}
-        {ui.msgMore[p.id] ? <OlderMessages pid={p.id} /> : null}
+        {ui.msgMore[p.id] ? (loadingMore ? <Muted style={{ textAlign: 'center' }}>{t('Eski mesajlar yükleniyor…')}</Muted> : <OlderMessages pid={p.id} />) : null}
         {p.msgs.map((m: any, i: number) => {
           const whoOf = (x: any) => (isMine(p, x) ? '' : senderName(p, x));
           const d = dayLabel(m.at);

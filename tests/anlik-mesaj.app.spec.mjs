@@ -35,6 +35,15 @@ async function open(page) {
   await page.goto(url('/uygulama/mesajlar'));
   await expect(page.getByPlaceholder('Mesaj yaz')).toBeVisible();
 }
+// En üste kadar kaydırır; eski mesajlar sayfa sayfa geldikçe devam eder.
+async function scrollToTop(page) {
+  await page.getByText('Mesaj numarası 40', { exact: true }).hover();
+  for (let i = 0; i < 12; i++) {
+    await page.mouse.wheel(0, -4000);
+    await page.waitForTimeout(200);
+    if (await page.getByText('Mesaj numarası 1', { exact: true }).isVisible() && await page.getByText('Mesaj numarası 1', { exact: true }).evaluate((e) => { const r = e.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; })) return;
+  }
+}
 const emit = (page, r) => page.evaluate((x) => window.__fakeRealtime.emit('messages', 'INSERT', x), r);
 const status = (page, s) => page.evaluate((x) => window.__fakeRealtime.status(x), s);
 
@@ -45,8 +54,7 @@ test('sohbet son mesajdan açılır; mesaj kutusu sabit kalır ve liste kaydır�
   const before = await page.getByPlaceholder('Mesaj yaz').boundingBox();
   expect(before.y + before.height).toBeLessThanOrEqual(960);
   // Yukarı kaydırınca eski mesaj görünür, kutu yerinde kalır.
-  await page.getByText('Mesaj numarası 40', { exact: true }).hover();
-  await page.mouse.wheel(0, -6000);
+  await scrollToTop(page);
   await expect(page.getByText('Mesaj numarası 1', { exact: true })).toBeInViewport();
   const after = await page.getByPlaceholder('Mesaj yaz').boundingBox();
   expect(Math.round(after.y)).toBe(Math.round(before.y));
@@ -66,8 +74,7 @@ test('karşı tarafın mesajı yenilemeden düşer ve liste aşağı iner; aynı
 
 test('yukarıda okurken gelen mesaj sırayı bozmaz; "yeni mesaj" düğmesi listeyi aşağı indirir', async ({ page }) => {
   await open(page);
-  await page.getByText('Mesaj numarası 40', { exact: true }).hover();
-  await page.mouse.wheel(0, -6000);
+  await scrollToTop(page);
   await expect(page.getByText('Mesaj numarası 1', { exact: true })).toBeInViewport();
   await emit(page, row(41, 'landlord', { body: 'Yeni mesaj geldi' }));
   const jump = page.getByRole('button', { name: /↓ 1 yeni mesaj/ });
