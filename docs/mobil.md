@@ -1,5 +1,11 @@
 # iOS ve Android uygulaması
 
+> **Güncel yol (Ekim 2026):** Mağaza sürümü bugünkü uygulamadan (`app/`, Expo) EAS ile derlenir: `docs/magaza.md`.
+> Aşağıda anlatılan Capacitor kabuğu (kökteki `ios/`, `android/`, `assets/js`) eski uygulamayı paketler ve **kullanım dışıdır**;
+> iş akışı yalnız elle çalıştırılabilir (`.github/workflows/mobile.yml`). Yerel özellikler (anlık bildirim, Face ID, mağaza
+> ödemesi) Expo uygulamasına taşınınca bu bölüm kaldırılacak.
+
+
 anahtar'ın telefon uygulaması, web sürümüyle **aynı koddan** üretilir:
 [Capacitor](https://capacitorjs.com) web uygulamasını yerel bir iOS/Android
 kabuğunun içinde çalıştırır ve telefonun yeteneklerine (bildirim, Face ID,

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
-import { Slot, usePathname } from 'expo-router';
+import { Slot, usePathname, type ErrorBoundaryProps } from 'expo-router';
 import { useFonts } from 'expo-font';
 import { FONT_FILES } from '../ui/fontFiles';
 import { hydrate } from '../domain/storage';
@@ -9,10 +9,29 @@ import { boot } from '../domain/state';
 import { AuthProvider } from '../auth/auth';
 import { useColors } from '../ui/theme';
 import titles from '../site/titles.json';
+import { installErrorReporting, reportError } from '../domain/errors';
+import { t } from '../domain/i18n';
+import { Button, Text } from '../ui/kit';
+import { fonts } from '../ui/theme';
+
+/** Beklenmeyen ekran hatası: boş ekran yerine açıklama ve yeniden deneme; hata sunucuya kaydedilir (yönetici → Hatalar). */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const c = useColors();
+  useEffect(() => { reportError(error, 'render'); }, [error]);
+  return (
+    <View accessibilityRole="alert" style={{ flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 14 }}>
+      <Text v="h2" style={{ fontFamily: fonts.siteBold, textAlign: 'center' }}>{t('Bir şeyler ters gitti')}</Text>
+      <Text v="body" muted style={{ textAlign: 'center', maxWidth: 420 }}>{t('Ekran yüklenirken beklenmeyen bir hata oluştu. Kayıtların güvende; hatayı ekibimize ilettik.')}</Text>
+      <Button title={t('Yeniden dene')} onPress={retry} />
+      <Button kind="ghost" title={t('Ana sayfaya dön')} onPress={() => { if (typeof window !== 'undefined' && window.location) window.location.assign('/'); else retry(); }} />
+    </View>
+  );
+}
 
 export default function Root() {
   const [fontsOk] = useFonts(FONT_FILES);
   const [stored, setStored] = useState(false);
+  useEffect(() => { installErrorReporting(); }, []);
   useEffect(() => {
     // Web'de sunucu HTML'i Türkçe üretilir; kayıtlı dil, hidrasyon bittikten sonra uygulanır
     // (aksi halde metinler sunucu çıktısıyla uyuşmaz).

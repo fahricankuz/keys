@@ -30,7 +30,9 @@ export const live = {
   loaded: false,
   access: null,        // my_access(): rol, deneme, abonelik (bkz. billing.js)
   orgs: null,          // my_orgs(): yöneticisi olduğu kurumlar (bkz. org.js)
-  siteUnits: null      // my_site_units(): malik ya da kiracısı olduğu site daireleri (bkz. site.js)
+  siteUnits: null,     // my_site_units(): malik ya da kiracısı olduğu site daireleri (bkz. site.js)
+  blocks: null,        // engellediği kişiler (bkz. moderation.js)
+  legal: null          // hukuki destek talepleri (bkz. legal.js)
 };
 
 const DEFAULT_SETTINGS = { rentDays:3, renewDays:60, insDays:30, evictDays:90, reqUpdates:true, lateNotice:true };
@@ -163,6 +165,17 @@ export async function openSession(user){
   await loadAll({ profile: !prof.error });                  // profil az önce okundu: yeniden istenmez
   subscribe();
   return { admin: false, profile: live.profile };
+}
+
+/** Oturum kendiliğinden düştü (başka cihazda şifre değişti, hesap askıya alındı, yenileme anahtarı geçersiz):
+    bağlantı kapanır ama bu cihazdaki kayıtlar silinmez. Aynı kişi yeniden girince gönderilmemiş değişiklikler
+    önce sunucuya gönderilir (openSession → flush). */
+export function expireSession(){
+  if (channel && live.client){ try { live.client.removeChannel(channel); } catch(e){} channel = null; }
+  clearTimeout(flushTimer);
+  live.user = null; live.profile = null; live.access = null; live.orgs = null; live.siteUnits = null; live.loaded = false; live.isAdmin = false;
+  hooks.afterSave = null;
+  useStorageKey(null);
 }
 
 export async function closeSession(){

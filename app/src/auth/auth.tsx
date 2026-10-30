@@ -9,6 +9,7 @@ import { t, getLang } from '../domain/i18n';
 import { account, adoptPlanChoice, PLAN_CHOICE } from '../domain/billing';
 import * as backend from '../domain/backend';
 import { playOnNextOpen } from '../app-ui/OpenSplash';
+import { refreshBlocks } from '../domain/moderation';
 
 export type Role = 'tenant' | 'landlord' | 'team';
 export type Entry = 'tenant' | 'landlord' | 'admin';
@@ -59,6 +60,21 @@ function enter(u: User) {
 /** Oturum kapanınca arayüz durumunu sıfırlar. */
 function leave() { ui.role = 'tenant'; ui.team = false; ui.memberRoles = {}; }
 
+/* Oturum olayları: sunucu oturumu kapatırsa (yenileme anahtarı geçersiz, başka cihazda şifre değişti, hesap askıya
+   alındı) supabase-js SIGNED_OUT yayar. Kişi kendisi çıkış yapmıyorsa giriş sayfasına yönlenir ve bir açıklama görür;
+   bu cihazdaki gönderilmemiş değişiklikler silinmez. */
+let watching = false;
+let leaving = false;
+let onExpired: (() => void) | null = null;
+async function watchSession() {
+  if (!LIVE || watching) return;
+  watching = true;
+  const c = await backend.client();
+  c.auth.onAuthStateChange((event: string) => {
+    if (event === 'SIGNED_OUT' && !leaving && backend.live.user) onExpired?.();
+  });
+}
+
 /** Bekleyen davet kodu (/katil bağlantısından gelir); giriş sonrası kabul edilir. */
 export const keepInvite = (code: string) => { try { storage.setItem(INVITE, code.trim().toUpperCase()); } catch {} };
 /** Kayıt formunda gösterilecek bekleyen davet kodu. */
@@ -87,6 +103,7 @@ async function enterLive(au: { id: string; email?: string }): Promise<User> {
     }
     adoptPlanChoice(u.role);          // satın alma sayfasında seçilen paket (varsa) profile yazılır
     backend.welcomeOnce(u.id);         // ilk girişte hoş geldin e-postası (tür ve pakete göre)
+    refreshBlocks(false);              // engellediği kişiler (bildir / engelle)
   }
   return u;
 }
@@ -94,6 +111,11 @@ async function enterLive(au: { id: string; email?: string }): Promise<User> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
+  onExpired = () => {
+    backend.expireSession(); closeLocal(); leave();
+    ui.authMsg = t('Oturumun sona erdi. Devam etmek için yeniden giriş yap; kaydedilmemiş değişikliklerin bu cihazda duruyor.');
+    setUser(null);
+  };
 
   useEffect(() => {
     (async () => {
@@ -105,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const c = await backend.client();
             const { data } = await c.auth.getSession();
             const s = data.session;
-            if (s) setUser(await enterLive(s.user));
+            if (s) { setUser(await enterLive(s.user)); watchSession(); }
           }
         } else {
           const id = storage.getItem(SESSION);
@@ -129,8 +151,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) return backend.humanError(error);
         const u = await enterLive(data.user);
         const wrong = as && wrongEntry(u, as);
-        if (wrong) { await backend.closeSession(); closeLocal(); leave(); return wrong; }
-        playOnNextOpen(); setUser(u); return null;
+        if (wrong) { leaving = true; try { await backend.closeSession(); } finally { leaving = false; } closeLocal(); leave(); return wrong; }
+        playOnNextOpen(); setUser(u); watchSession(); ui.authMsg = null; return null;
       }
       if (as === 'admin') return t('Yönetici girişi yalnızca sunucuya bağlı kurulumda çalışır.');
       const a = readAccounts().find((x) => x.email === email);
@@ -162,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         captchaSpent();
         if (error) return t('Hesap oluşturulamadı: {m}', { m: backend.humanError(error) });
         if (!data.session) return 'CONFIRM';
-        playOnNextOpen(); setUser(await enterLive(data.user!)); return null;
+        playOnNextOpen(); setUser(await enterLive(data.user!)); watchSession(); return null;
       }
       if (role === 'team') return t('Ekip hesapları yalnızca sunucuya bağlı kurulumda açılır.');
       const list = readAccounts();
@@ -185,7 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data } = await c.auth.getSession();
     if (!data.session) return null;
     const u = await enterLive(data.session.user);
-    playOnNextOpen(); setUser(u); setReady(true);
+    playOnNextOpen(); setUser(u); setReady(true); watchSession();
     return u;
   }, []);
 
@@ -203,7 +225,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    leaving = true;
     try { if (LIVE) await backend.closeSession(); } catch {}
+    leaving = false;
     storage.removeItem(SESSION);
     closeLocal(); leave(); setUser(null);
   }, []);
@@ -211,7 +235,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /** Hesabı ve bu cihazdaki verisini siler (mağaza kuralı: uygulama içinden hesap silme). */
   const deleteAccount = useCallback(async () => {
     const id = user?.id;
-    if (LIVE) { try { await backend.deleteAccount(); } catch {} storage.removeItem(SESSION); closeLocal(); leave(); setUser(null); return; }
+    if (LIVE) { leaving = true; try { await backend.deleteAccount(); } catch {} leaving = false; storage.removeItem(SESSION); closeLocal(); leave(); setUser(null); return; }
     if (id) {
       storage.setItem(ACCOUNTS, JSON.stringify(readAccounts().filter((x) => x.id !== id)));
       storage.removeItem('kiracim-veri-' + id);

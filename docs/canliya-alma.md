@@ -11,7 +11,8 @@ aynı veriyi göremez, davet kodları çalışmaz. Gerçek kullanıcı almadan �
    çalıştırılabilir; yeni sürümde ekip, paketler, destek talepleri, işlem kaydı, toplu içe aktarma ve
    okundu bilgisi için 12. bölüm eklendi.
 3. **Authentication → URL Configuration**: Site URL `https://anahtar.io`, Redirect URLs `https://anahtar.io/**`.
-4. **Authentication → Providers → Email**: "Confirm email" açık kalsın.
+4. **Authentication → Providers → Email**: "Confirm email" kapalıysa kişi kayıt olur olmaz paneline girer (Ekim 2026 kararı);
+   bu durumda bot koruması (bölüm 2a) mutlaka açık olmalı. Açıksa onay bağlantısı `/dogrula` sayfasından doğrudan panele götürür.
 5. **Project Settings → API**: `Project URL` ve `anon public` anahtarını al.
 6. Hostinger'daki derleme ayarlarına ortam değişkeni olarak gir (bkz. `docs/hostinger.md`):
    `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`. `service_role` anahtarını asla girme.
@@ -23,6 +24,16 @@ Supabase'in yerleşik e-postası saatte birkaç iletiyle sınırlıdır. Doğrul
 e-postaları için **Project Settings → Authentication → SMTP** bölümüne kendi gönderici bilgilerini gir
 (Resend, Brevo ya da Hostinger e-postası). Gönderen: `info@anahtar.io`. Alan adına SPF ve DKIM
 kayıtlarını eklemeyi unutma; yoksa e-postalar gereksiz klasörüne düşer.
+
+## 2a. Bot koruması (Cloudflare Turnstile) — zorunlu
+
+E-posta onayı kapalıyken botlar sınırsız hesap açabilir ve hoş geldin e-postası başkasının adresine gidebilir.
+1. dash.cloudflare.com → Turnstile → Add site: alan adı `anahtar.io`, mod *Managed*. Site key ve Secret key'i al.
+2. Supabase → Authentication → **Attack Protection** → CAPTCHA: Turnstile, Secret key.
+3. Site key'i Hostinger derleme ortamına `EXPO_PUBLIC_TURNSTILE_SITE_KEY` olarak (GitHub'da `TURNSTILE_SITE_KEY` değişkeni) gir ve
+   siteyi yeniden derle. Kod hazırdır: giriş, kayıt ve şifre sıfırlama formlarında kutu görünür, CSP kendiliğinden izin verir.
+4. Telefon uygulaması mağazaya çıkmadan önce bkz. `docs/magaza.md` bölüm 6 (uygulamada Turnstile henüz yok).
+5. Supabase → Authentication → **Rate Limits**: kayıt ve giriş sınırlarını gözden geçir.
 
 ## 3. Yasal metinler — zorunlu
 

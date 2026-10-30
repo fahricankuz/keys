@@ -38,6 +38,7 @@ import { loadRates, rateFor } from '../domain/cpi';
 import { EnterpriseForm } from '../site/EnterpriseForm';
 import { plans as sitePlans } from '../site/content';
 import { LegalDetailSheet, LegalSheet, legalAllowed } from './legal';
+import { BlockedList, ReportSheet } from './moderation';
 import { LEGAL_PRICE } from '../domain/legal';
 
 const propOf = (pid?: string) => (pid && (S as any).props[pid] ? P(pid) : P((S as any).myHome));
@@ -205,6 +206,7 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
             </PressScale>
           ) : null}
           <ProfileForm />
+          {LIVE ? <BlockedList /> : null}
           <Button kind="ghost" block title={t('Çıkış yap')} onPress={async () => { close(); await signOut(); router.replace('/'); }} />
           <Button kind="quiet" block title={t('Hesabı sil')} onPress={async () => {
             if (!await host.ask({ title: t('Hesabın silinsin mi?'), body: t('Hesabın ve tüm verilerin kalıcı olarak silinir. Önce verini Yardım sekmesinden indirebilirsin.'), ok: t('Hesabı sil'), danger: true })) return;
@@ -957,6 +959,7 @@ export function renderSheet(name: string, p: any, close: () => void): ReactNode 
     case 'kurumsal-basvuru': return <EnterpriseSheet close={close} />;
     case 'paket': return <UpgradeSheet need={p.need} suggest={p.suggest} />;
     case 'destek-talebi': return <SupportSheet kind={p.kind} units={p.units} message={p.message} close={close} />;
+    case 'sikayet': return <ReportSheet pid={p.pid} kind={p.kind} ref={p.ref} user={p.user} name={p.name} snapshot={p.snapshot} close={close} />;
     case 'hukuki': return <LegalSheet pid={p.pid} topic={p.topic} close={close} />;
     case 'hukuki-talep': return <LegalDetailSheet id={p.id} close={close} />;
     case 'ekip-davet': return <TeamInviteSheet close={close} />;

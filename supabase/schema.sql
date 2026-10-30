@@ -3916,3 +3916,133 @@ returns setof public.messages language sql stable as $$
   order by m.at
 $$;
 grant execute on function public.recent_messages(text[], int) to authenticated;
+
+-- =====================================================================
+-- 25. Uygulama hata kaydı (üretimde beklenmeyen hatalar)
+--     Ekran hatası (ErrorBoundary), yakalanmamış hata ve söz (promise) reddi tarayıcıdan/telefondan report_error ile
+--     yazılır; yönetici paneli → Hatalar'da gruplanmış görünür. Kişisel veri yazılmaz (yalnız hata metni, ekran yolu,
+--     sürüm, platform). Sıklık sınırı: kişi başına saatte 30, oturumsuz ziyaretçilerden toplam saatte 500 kayıt.
+-- =====================================================================
+create table if not exists public.client_errors (
+  id         bigserial primary key,
+  at         timestamptz not null default now(),
+  user_id    uuid references public.profiles(id) on delete set null,
+  route      text not null default '',
+  message    text not null default '',
+  stack      text not null default '',
+  kind       text not null default 'error' check (kind in ('error','rejection','render')),
+  platform   text not null default '',
+  version    text not null default '',
+  agent      text not null default ''
+);
+create index if not exists client_errors_at on public.client_errors (at desc);
+alter table public.client_errors enable row level security;
+drop policy if exists client_errors_admin on public.client_errors;
+create policy client_errors_admin on public.client_errors for select to authenticated using (public.is_admin());
+drop policy if exists client_errors_admin_del on public.client_errors;
+create policy client_errors_admin_del on public.client_errors for delete to authenticated using (public.is_admin());
+
+create or replace function public.report_error(p jsonb)
+returns void language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid();
+begin
+  if uid is not null and (select count(*) from public.client_errors where user_id = uid and at > now() - interval '1 hour') >= 30 then return; end if;
+  if uid is null and (select count(*) from public.client_errors where user_id is null and at > now() - interval '1 hour') >= 500 then return; end if;
+  insert into public.client_errors (user_id, route, message, stack, kind, platform, version, agent)
+  values (uid, left(coalesce(p->>'route', ''), 200), left(coalesce(p->>'message', ''), 1000), left(coalesce(p->>'stack', ''), 4000),
+          case when p->>'kind' in ('error','rejection','render') then p->>'kind' else 'error' end,
+          left(coalesce(p->>'platform', ''), 20), left(coalesce(p->>'version', ''), 40), left(coalesce(p->>'agent', ''), 300));
+end $$;
+revoke execute on function public.report_error(jsonb) from public;
+grant execute on function public.report_error(jsonb) to anon, authenticated;
+
+-- =====================================================================
+-- 26. Kullanıcı içeriği: bildir ve engelle (App Store 1.2, Google Play kullanıcı içeriği politikası)
+--     Kişi aynı mülkteki birinin mesajını, fotoğrafını ya da kendisini bildirir; bildirim yönetici paneli → Şikâyetler'e
+--     düşer (24 saat içinde incelenir). Engellenen kişinin mesajlarını engelleyen görmez ve ondan mesaj bildirimi almaz.
+-- =====================================================================
+create table if not exists public.content_reports (
+  id            uuid primary key default gen_random_uuid(),
+  reporter      uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  property_id   text references public.properties(id) on delete cascade,
+  kind          text not null check (kind in ('message','photo','request','user')),
+  ref_id        text not null default '',
+  reported_user uuid references public.profiles(id) on delete set null,
+  reason        text not null check (reason in ('taciz','uygunsuz','spam','diger')),
+  note          text not null default '' check (length(note) <= 1000),
+  snapshot      text not null default '' check (length(snapshot) <= 2000),
+  status        text not null default 'open' check (status in ('open','done')),
+  resolution    text not null default '' check (length(resolution) <= 500),
+  created_at    timestamptz not null default now()
+);
+create index if not exists content_reports_status on public.content_reports (status, created_at desc);
+create table if not exists public.user_blocks (
+  user_id    uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  blocked    uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, blocked),
+  check (user_id <> blocked)
+);
+grant select, insert, update, delete on public.content_reports, public.user_blocks to authenticated;
+alter table public.content_reports enable row level security;
+alter table public.user_blocks enable row level security;
+
+drop policy if exists reports_insert on public.content_reports;
+drop policy if exists reports_read on public.content_reports;
+drop policy if exists reports_admin on public.content_reports;
+-- Yalnız üyesi olduğu mülkteki içerik bildirilir; günde en çok 20 bildirim (kötüye kullanım).
+create policy reports_insert on public.content_reports for insert to authenticated
+  with check (reporter = auth.uid() and status = 'open' and resolution = ''
+              and (property_id is null or public.is_member(property_id))
+              and (select count(*) from public.content_reports r where r.reporter = auth.uid() and r.created_at > now() - interval '1 day') < 20);
+create policy reports_read on public.content_reports for select to authenticated
+  using (reporter = auth.uid() or public.is_admin());
+create policy reports_admin on public.content_reports for update to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists blocks_own on public.user_blocks;
+create policy blocks_own on public.user_blocks for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+do $$
+begin
+  execute 'drop policy if exists not_banned on public.content_reports';
+  execute 'create policy not_banned on public.content_reports as restrictive for all to authenticated using (not public.is_banned()) with check (not public.is_banned())';
+end $$;
+
+-- Engellenen kişinin mesajları görünmez (yönetici ve sistem mesajları hariç).
+drop policy if exists messages_select on public.messages;
+create policy messages_select on public.messages for select to authenticated
+  using (public.is_member(property_id) and public.member_role(property_id) <> 'accountant'
+         and (by_user is null or from_role = 'system'
+              or not exists (select 1 from public.user_blocks b where b.user_id = auth.uid() and b.blocked = messages.by_user)));
+
+-- Mesaj bildirimi: gönderenin engellediği değil, gönderenini engelleyen kişiye gitmez.
+create or replace function public.on_message()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare sender text;
+begin
+  if new.from_role = 'system' then return new; end if;
+  select display_name into sender from public.memberships where property_id = new.property_id and user_id = new.by_user;
+  insert into public.notifications (user_id, property_id, title, body, url)
+  select m.user_id, new.property_id, coalesce(nullif(sender, ''), 'Yeni mesaj'), left(coalesce(nullif(new.body, ''), 'Fotoğraf gönderdi'), 240),
+         case when m.role = 'tenant' then '#/kiraci/mesajlar' else '#/mulk-sahibi/mulk/' || new.property_id || '/mesaj' end
+    from public.memberships m
+   where m.property_id = new.property_id and m.user_id <> coalesce(new.by_user, '00000000-0000-0000-0000-000000000000'::uuid)
+     and not exists (select 1 from public.user_blocks b where b.user_id = m.user_id and b.blocked = new.by_user)
+  on conflict do nothing;
+  return new;
+end $$;
+
+-- Yönetici bildirime karar verince bildiren kişiye haber verilir ve işlem kaydına yazılır.
+create or replace function public.report_after()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.is_admin() and new.status = 'done' and old.status is distinct from 'done' then
+    insert into public.notifications (user_id, property_id, title, body, url)
+    values (new.reporter, new.property_id, 'Bildirimin incelendi', coalesce(nullif(new.resolution, ''), 'Teşekkürler; ekibimiz gerekli işlemi yaptı.'), '/uygulama');
+    perform public.audit('report.done', new.id::text, jsonb_build_object('kind', new.kind, 'resolution', new.resolution));
+  end if;
+  return new;
+end $$;
+drop trigger if exists report_after on public.content_reports;
+create trigger report_after after update on public.content_reports for each row execute function public.report_after();

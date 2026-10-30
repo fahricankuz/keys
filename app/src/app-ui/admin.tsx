@@ -2,6 +2,8 @@
    Yalnızca admins tablosundaki hesaplar açabilir; sunucu kuralları (RLS) zaten başkasına veri vermez. */
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminLegal } from './legal';
+import { AdminErrors, AdminReports } from './moderation';
+import { adminReports } from '../domain/moderation';
 import { adminLegal } from '../domain/legal';
 import { Image, Linking, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -43,6 +45,8 @@ export default function AdminPanel() {
   const [busy, setBusy] = useState(false);
   const [orgDraft, setOrgDraft] = useState<OrgDraft | null>(null);
   const [legalOpen, setLegalOpen] = useState(0);
+  const [reportsOpen, setReportsOpen] = useState(0);
+  useEffect(() => { adminReports().then((d) => setReportsOpen(d.filter((r: any) => r.status === 'open').length)).catch(() => {}); }, []);
   useEffect(() => { adminLegal().then((d) => setLegalOpen(d.filter((r: any) => ['received', 'paid', 'forwarded'].includes(r.status)).length)).catch(() => {}); }, []);
 
   // Ödemeler son 12 ay yüklenir; "Daha eski ödemeleri yükle" 12'şer ay geriye gider.
@@ -61,6 +65,8 @@ export default function AdminPanel() {
     ['orgs', t('Kurumlar'), 'office', t('Kurumsal müşteriler: sektör ve modüller, sözleşme, master yönetici, yöneticiler ve roller.')],
     ['cpi', t('Kira artış oranları'), 'chart', t('TÜFE 12 aylık ortalama: sitedeki hesaplayıcı ve uygulamadaki yenileme bu tablodan okur.')],
     ['support', t('Talepler'), 'chat', t('“Bize ulaş” formundan gelen kurumsal, içe aktarma ve genel talepler.')],
+    ['reports', t('Şikâyetler'), 'flag', t('Kullanıcıların bildirdiği mesaj ve kişiler: 24 saat içinde incele, gerekirse mesajı sil ya da hesabı askıya al.')],
+    ['errors', t('Hatalar'), 'chart', t('Uygulamada kullanıcıların karşılaştığı beklenmeyen hatalar (ekran yolu, platform, sürüm).')],
     ['legal', t('Hukuki talepler'), 'scale', t('Hukuki süreç desteği talepleri: ödemeyi işaretle, büroya ilet, kişiye not yaz. Talebin dosyalarını büroya elle iletirsin.')],
     ['queue', t('Denetim'), 'doc', t('Yüklenen dekont, belge ve faturalar: onaylanınca karşı tarafa görünür.')],
     ['pay', t('Ödemeler'), 'chart', t('Tüm kira ödemeleri ve durumları.')],
@@ -70,7 +76,7 @@ export default function AdminPanel() {
     ['audit', t('İşlem kaydı'), 'flag', t('Yönetici işlemlerinin değiştirilemez kaydı.')]
   ];
   const cur = SECTIONS.find((x) => x[0] === tab) || SECTIONS[0];
-  const items = SECTIONS.map(([key, label, icon]) => ({ key, label, icon, badge: key === 'queue' ? data?.stats.pending || 0 : key === 'legal' ? legalOpen : undefined }));
+  const items = SECTIONS.map(([key, label, icon]) => ({ key, label, icon, badge: key === 'queue' ? data?.stats.pending || 0 : key === 'legal' ? legalOpen : key === 'reports' ? reportsOpen : undefined }));
   return (
     <>
     <AdminShell items={items} active={tab} onPick={setTab} email={user?.email} onReload={load} busy={busy}
@@ -90,6 +96,8 @@ export default function AdminPanel() {
             }} />}
             {tab === 'cpi' && <CpiRates />}
             {tab === 'legal' && <AdminLegal onCount={setLegalOpen} />}
+            {tab === 'reports' && <AdminReports onCount={setReportsOpen} />}
+            {tab === 'errors' && <AdminErrors />}
             {tab === 'queue' && <Queue d={data} reload={load} />}
             {tab === 'pay' && <Payments d={data} onOlder={() => setMonths((m) => m + 12)} busy={busy} />}
             {tab === 'conn' && <Landlords d={data} />}

@@ -5,6 +5,7 @@ import AuthShell from './AuthShell';
 import { useAuth } from './auth';
 import SignedIn from './SignedIn';
 import { t } from '../domain/i18n';
+import { ui } from '../domain/state';
 import { PressScale, Text } from '../ui/kit';
 import { fonts, radius, useColors } from '../ui/theme';
 import { Icon } from '../app-ui/blocks';
@@ -27,6 +28,12 @@ export default function RolePicker({ mode }: { mode: 'giris' | 'kayit' }) {
   ];
   return (
     <AuthShell title={login ? t('Giriş yap') : t('Kayıt ol')} lead={login ? t('Hesap türünü seç.') : t('Kiracılar ücretsiz. Mülk sahipleri 1 ay ücretsiz dener.')}>
+      {ui.authMsg && login ? (
+        <View accessibilityRole="alert" style={{ flexDirection: 'row', gap: 10, alignItems: 'center', backgroundColor: c.tile, borderRadius: radius.md, padding: 14 }}>
+          <Icon name="key" size={18} />
+          <Text v="small" style={{ flex: 1, fontFamily: fonts.bodyBold }}>{ui.authMsg}</Text>
+        </View>
+      ) : null}
       {verified && login ? (
         <View accessibilityRole="alert" style={{ flexDirection: 'row', gap: 10, alignItems: 'center', backgroundColor: c.okBg, borderRadius: radius.md, padding: 14 }}>
           <Icon name="check" size={18} color={c.okInk} />

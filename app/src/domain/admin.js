@@ -146,3 +146,15 @@ export async function adminAddProperty(ownerId, p){
   const c = await client();
   return must(await c.rpc('admin_add_property', { owner_uid: ownerId, p }));
 }
+
+/** Uygulama hata kaydı (schema.sql 25. bölüm): son 500 kayıt, yeniden eskiye. */
+export async function loadErrors(){
+  const c = await client();
+  return must(await c.from('client_errors').select('id, at, user_id, route, message, stack, kind, platform, version')
+    .order('at', { ascending: false }).limit(500)) || [];
+}
+/** Tüm hata kayıtlarını siler (düzeltilen sürüm yayınlandıktan sonra). */
+export async function clearErrors(){
+  const c = await client();
+  must(await c.from('client_errors').delete().gte('id', 0));
+}

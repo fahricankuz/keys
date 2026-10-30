@@ -1,11 +1,11 @@
-name: Mobil derleme
+name: Eski mobil derleme (Capacitor, kullanım dışı)
 
+# KULLANIM DIŞI: bu iş akışı eski uygulamayı (kökteki assets/js) Capacitor ile paketler. Mağaza sürümü artık bugünkü
+# uygulamadan (app/, Expo) üretilir: .github/workflows/expo-mobile.yml ve docs/mobil.md. Yalnız elle çalıştırılabilir.
 # iOS ve Android projelerinin derlendiğini doğrular; Android için test edilebilir
 # bir APK üretir (Actions → çalıştırma → Artifacts). Mağaza sürümü imzası için
 # docs/mobil.md → "Mağaza sürümü".
 on:
-  push:
-    paths: ['assets/**', 'android/**', 'ios/**', 'native/**', 'capacitor.config.json', 'package*.json', 'scripts/build.mjs', 'index.html', '.github/workflows/mobile.yml']
   workflow_dispatch:
 
 jobs:

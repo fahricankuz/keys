@@ -1,0 +1,61 @@
+name: Mobil uygulama (Expo)
+
+# Bugünkü uygulamanın (app/) iOS ve Android sürümü. Her değişiklikte telefon paketlerinin derlendiği doğrulanır
+# (expo export: telefonda çalışmayacak web'e özel kod varsa burada kırılır). Mağaza derlemesi EAS ile yapılır:
+# Actions → "Mobil uygulama (Expo)" → Run workflow → profile: production (depo sırrı EXPO_TOKEN gerekir).
+# Ayrıntılar: docs/mobil.md ve docs/magaza.md.
+on:
+  push:
+    paths: ['app/**', '.github/workflows/expo-mobile.yml']
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'EAS profili (preview: test APK, production: mağaza)'
+        default: 'preview'
+        type: choice
+        options: [preview, production]
+      platform:
+        description: 'Platform'
+        default: 'all'
+        type: choice
+        options: [all, android, ios]
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - working-directory: app
+        run: npm ci
+      - name: Tür denetimi
+        working-directory: app
+        run: npx tsc --noEmit
+      - name: iOS ve Android paketleri
+        working-directory: app
+        run: npx expo export -p ios -p android --output-dir /tmp/native-export
+
+  eas:
+    if: github.event_name == 'workflow_dispatch'
+    needs: bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - working-directory: app
+        run: npm ci
+      - name: EAS derlemesi
+        working-directory: app
+        run: eas build --non-interactive --no-wait --profile ${{ inputs.profile }} --platform ${{ inputs.platform }}

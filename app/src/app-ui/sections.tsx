@@ -348,6 +348,13 @@ export function SecReq({ p }: { p: any }) {
 
 const isMine = isMineMsg;
 
+/** Yazışmadaki karşı taraf (bildir / engelle için): kiracıya mülk sahibi, mülk sahibine tek kiracı. */
+function otherUser(p: any): string | null {
+  if (ui.role === 'tenant') return p.ownerId || null;
+  const real = (p.tenants || []).filter((x: any) => !x.pending);
+  return real.length === 1 ? real[0].id : null;
+}
+
 /** Girişte son mesajlar yüklenir; eskileri bu düğmeyle sayfa sayfa gelir. */
 function OlderMessages({ pid }: { pid: string }) {
   const [busy, setBusy] = useState(false);
@@ -379,8 +386,9 @@ export function SecMsg({ p }: { p: any }) {
     <Stack>
       <Card>
         <Row between>
-          <View><Label>{otherLabel()}</Label><Text v="h3">{o.name}</Text></View>
+          <View style={{ flex: 1 }}><Label>{otherLabel()}</Label><Text v="h3">{o.name}</Text></View>
           {o.phone ? <Button title={t('Ara|telefon')} icon={<Icon name="phone" size={16} color="#fff" />} onPress={() => Linking.openURL('tel:' + o.phone).catch(() => {})} /> : null}
+          {otherUser(p) ? <IconBtn name="flag" size={16} label={t('Bildir ya da engelle')} onPress={() => open('sikayet', { pid: p.id, kind: 'user', user: otherUser(p), name: o.name })} /> : null}
         </Row>
       </Card>
       <View style={{ gap: 8 }}>
@@ -391,11 +399,15 @@ export function SecMsg({ p }: { p: any }) {
           const sep = d !== lastDay ? (lastDay = d, <Text key={'d' + i} v="small" muted style={{ textAlign: 'center', marginTop: 6 }}>{d}</Text>) : null;
           if (m.from === 'system') return <View key={i} style={{ gap: 6 }}>{sep}<Text v="small" muted style={{ textAlign: 'center' }}>{m.text}</Text></View>;
           const mine = isMine(p, m);
+          // Başkasının mesajına uzun basınca bildir / engelle penceresi açılır (mağaza kuralı: kullanıcı içeriği bildirilebilir).
+          const report = !mine && m.by ? () => open('sikayet', { pid: p.id, kind: 'message', ref: m.id, user: m.by, name: senderName(p, m), snapshot: m.text || (m.img ? t('Fotoğraf') : '') }) : undefined;
           const who = !mine && (p.tenants.length > 1 || (ui.role === 'tenant' && m.from === 'tenant')) ? senderName(p, m) : null;
           return (
             <View key={i} style={{ gap: 6 }}>
               {sep}
-              <View style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '82%', backgroundColor: mine ? c.ink : c.surface, borderWidth: mine ? 0 : 1, borderColor: c.line, borderRadius: 20, borderBottomRightRadius: mine ? 6 : 20, borderBottomLeftRadius: mine ? 20 : 6, paddingHorizontal: 14, paddingVertical: 10, gap: 2 }}>
+              <Pressable onLongPress={report} delayLongPress={450} disabled={!report} accessibilityHint={report ? t('Uzun basarak bildir') : undefined}
+                style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '82%' }}>
+              <View style={{ backgroundColor: mine ? c.ink : c.surface, borderWidth: mine ? 0 : 1, borderColor: c.line, borderRadius: 20, borderBottomRightRadius: mine ? 6 : 20, borderBottomLeftRadius: mine ? 20 : 6, paddingHorizontal: 14, paddingVertical: 10, gap: 2 }}>
                 {who ? <Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyXBold }}>{who}</Text> : null}
                 {m.img ? (
                   <PressScale onPress={() => open('foto', { src: m.img })} accessibilityRole="imagebutton" accessibilityLabel={t('Fotoğrafı büyüt')} scaleTo={0.98}>
@@ -405,6 +417,7 @@ export function SecMsg({ p }: { p: any }) {
                 {m.text ? <Text v="body" color={mine ? c.bg : c.ink} style={{ fontSize: 15, lineHeight: 21 }}>{m.text}</Text> : null}
                 <Text v="small" color={mine ? c.heroMuted : c.muted} style={{ fontSize: 11, alignSelf: 'flex-end' }}>{tm(m.at)}</Text>
               </View>
+              </Pressable>
             </View>
           );
         })}

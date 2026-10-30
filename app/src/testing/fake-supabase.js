@@ -8,7 +8,7 @@ const TABLES = ['profiles','properties','property_shared','memberships','invites
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
                 'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes',
-                'legal_requests','legal_notes'];
+                'legal_requests','legal_notes','client_errors','content_reports','user_blocks'];
 
 function load(){
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d){ TABLES.forEach(t => d.tables[t] = d.tables[t] || []); d.tables.payments.forEach(r => { r.kind = r.kind || 'kira'; }); return d; } } catch(e){}
@@ -25,7 +25,7 @@ const KEYS = {
   profiles:['id'], properties:['id'], property_shared:['property_id'], memberships:['property_id','user_id'],
   invites:['code'], payments:['property_id','month','kind'], rent_history:['id'], requests:['id'], messages:['id'],
   documents:['id'], expenses:['id'], notifications:['id'], push_subscriptions:['endpoint'], subscriptions:['user_id'], device_tokens:['token'],
-  site_budgets:['org_id','year'], site_turnovers:['unit_id','month'], legal_notes:['request_id'],
+  site_budgets:['org_id','year'], site_turnovers:['unit_id','month'], legal_notes:['request_id'], user_blocks:['user_id','blocked'],
   admins:['user_id'], reviews:['kind','property_id','ref_id'], bans:['user_id'], admin_audit:['id']
 };
 
@@ -49,6 +49,8 @@ function defaults(table, row, db){
       paid_at: null, forwarded_at: null, closed_at: null, created_at: now(), updated_at: now(), consent_at: now(), scope_at: now(),
       files: r.files || [], context: r.context || {}, contact: { name: pr.name || '', phone: pr.phone || '', email: u.email || '' } });
   }
+  if (table === 'content_reports'){ r.id = r.id || uuid(); r.status = 'open'; r.resolution = ''; r.created_at = now(); }
+  if (table === 'user_blocks'){ r.created_at = now(); }
   if (table === 'notifications'){ r.id = (db.tables.notifications.reduce((m, x) => Math.max(m, x.id), 0) || 0) + 1; r.created_at = now(); r.read_at = null; }
   return r;
 }
@@ -121,7 +123,11 @@ function visible(db, table, row, actor){
     return false;
   }
   if (table === 'legal_requests') return row.user_id === actor;
-  if (table === 'legal_notes') return false;
+  // schema.sql 26. bölüm: engellenen kişinin mesajları görünmez (sistem mesajları hariç).
+  if (table === 'messages') return row.from_role === 'system' || !row.by_user || !(db.tables.user_blocks || []).some(b => b.user_id === actor && b.blocked === row.by_user);
+  if (table === 'legal_notes' || table === 'client_errors') return false;
+  if (table === 'content_reports') return row.reporter === actor;
+  if (table === 'user_blocks') return row.user_id === actor;
   return true;
 }
 
@@ -261,6 +267,8 @@ class Query {
 export function createClient(url, key, opts){
   const listeners = [];
   const emit = (evt, session) => listeners.forEach(cb => setTimeout(() => cb(evt, session), 0));
+  // Testler: sunucunun oturumu kapatmasını taklit eder (yenileme anahtarı geçersiz, başka cihazda şifre değişti).
+  if (typeof window !== 'undefined') window.__fakeExpire = () => { const d = load(); d.session = null; persist(d); emit('SIGNED_OUT', null); };
 
   const client = {
     _calls: [],
@@ -337,12 +345,19 @@ export function createClient(url, key, opts){
       const db = load();
       const me = db.session?.user.id;
       // schema.sql 24. bölüm: mülk başına son `lim` mesaj (üyelik kuralıyla), eskiden yeniye.
+      if (name === 'report_error'){
+        const p = args.p || {};
+        db.tables.client_errors.push({ id: db.tables.client_errors.length + 1, at: now(), user_id: me || null, route: p.route || '', message: p.message || '',
+          stack: p.stack || '', kind: p.kind || 'error', platform: p.platform || '', version: p.version || '', agent: '' });
+        persist(db);
+        return { data: null, error: null };
+      }
       if (name === 'recent_messages'){
         const mine = new Set(db.tables.memberships.filter(m => m.user_id === me).map(m => m.property_id));
         const out = [];
         for (const pid of args.pids || []){
           if (!mine.has(pid)) continue;
-          out.push(...db.tables.messages.filter(m => m.property_id === pid).sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, args.lim || 200));
+          out.push(...db.tables.messages.filter(m => m.property_id === pid && visible(db, 'messages', m, me)).sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, args.lim || 200));
         }
         return { data: out.sort((a, b) => (a.at < b.at ? -1 : 1)).map(r => JSON.parse(JSON.stringify(r))), error: null };
       }
