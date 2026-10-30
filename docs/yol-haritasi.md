@@ -5,7 +5,9 @@
 Test ya da yapılacaklar sorulduğunda bu liste hatırlatılır; yapılan madde işaretlenir.
 
 - [x] Supabase'de `supabase/schema.sql`'i çalıştırma (25–27. bölümler) — yapıldı.
-- [ ] Supabase'de `supabase/schema.sql`'i yeniden çalıştırma (28. bölüm: sektör modülleri).
+- [ ] Supabase'de `supabase/schema.sql`'i yeniden çalıştırma (28. bölüm: sektör modülleri; 29. bölüm: site daveti ve otomatik aidat).
+- [ ] Davet e-postası fonksiyonu: `supabase functions deploy site-invite` (gizli değişkenler hoş geldin e-postasıyla aynı: `RESEND_API_KEY`, `EMAIL_FROM`).
+- [ ] Açık karar: kartla aidat / kira ödemesi için ödeme kuruluşu (iyzico, PayTR…) seçimi ve sözleşmesi. İşlem ücreti %2,5 (ödeme kuruluşuna %2, anahtar'a %0,5) hazır; sağlayıcı bağlanana kadar kartla ödeme "yakında" görünür (`app/src/domain/config.js` → `cardPay`). Siteler adına tahsilat için alt üye işyeri (pazar yeri) modeli ve hukuki görüş gerekir.
 - [ ] expo.dev hesabı, `cd app && eas init`, GitHub'a `EXPO_TOKEN` sırrı (`docs/magaza.md` bölüm 1).
 - [ ] Web için Turnstile ve Resend'i Supabase'e özel SMTP olarak tanımlama (`docs/canliya-alma.md` bölüm 2 ve 2a).
 - [ ] İnceleme hesaplarını `app/scripts/inceleme-hesaplari.mjs` ile oluşturup mağaza konsollarına girme (`docs/magaza.md` bölüm 2).

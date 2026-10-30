@@ -8,6 +8,7 @@ import { Button, Field, Text } from '../ui/kit';
 import { fonts, useColors } from '../ui/theme';
 import { Card, H2, Muted, Row } from './blocks';
 import { Pill } from './org';
+import { MoneyField } from './forms';
 
 const TYPES = ['Konut', 'Ofis', 'Mağaza', 'Depo'];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -46,9 +47,9 @@ export function AddProperty({ owner, count, limit, done }: { owner: { id: string
         {TYPES.map((x) => <Pill key={x} label={t(x)} on={f.type === x} onPress={() => set('type')(x)} />)}
       </View>
       <Row gap={10} wrap>
-        <View style={{ flexGrow: 1, flexBasis: 150 }}><Field label={t('Aylık kira')} value={f.rent} onChangeText={set('rent')} keyboardType="numeric" /></View>
+        <View style={{ flexGrow: 1, flexBasis: 150 }}><MoneyField label={t('Aylık kira')} value={f.rent} onChange={set('rent')} /></View>
         <View style={{ flexGrow: 1, flexBasis: 150 }}><Field label={t('Ödeme günü (1-28)')} value={f.due} onChangeText={set('due')} keyboardType="numeric" /></View>
-        <View style={{ flexGrow: 1, flexBasis: 150 }}><Field label={t('Depozito')} value={f.deposit} onChangeText={set('deposit')} keyboardType="numeric" /></View>
+        <View style={{ flexGrow: 1, flexBasis: 150 }}><MoneyField label={t('Depozito')} value={f.deposit} onChange={set('deposit')} /></View>
       </Row>
       <Row gap={10} wrap>
         <View style={{ flexGrow: 1, flexBasis: 200 }}><Field label={t('Sözleşme başı (YYYY-AA-GG)')} value={f.start} onChangeText={set('start')} autoCapitalize="none" /></View>

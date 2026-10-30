@@ -22,7 +22,7 @@ import { tl, fmtFull, monthYear, parse, iso, t0, ago } from '../domain/util';
 import { Button, Chip, Field, PressScale, Text } from '../ui/kit';
 import { fonts, radius, useColors } from '../ui/theme';
 import { Card, H2, Icon, IconBtn, Items, KV, Label, LI, List, Muted, Note, Row, Seg, Stack, Thumbs, Empty, FileLink, ReviewChip } from './blocks';
-import { Actions, Area, Choice, DateField, FileField, NumField, Text2, Title, Toggle, useVals } from './forms';
+import { Actions, Area, Choice, DateField, FileField, MoneyField, NumField, Text2, Title, Toggle, useVals } from './forms';
 import { useAuth } from '../auth/auth';
 import { stopajLine, useGo } from './sections';
 import { pickJson } from './media';
@@ -39,6 +39,7 @@ import { EnterpriseForm } from '../site/EnterpriseForm';
 import { plans as sitePlans } from '../site/content';
 import { LegalDetailSheet, LegalSheet, legalAllowed } from './legal';
 import { BlockedList, ReportSheet } from './moderation';
+import { SitePersonSheet } from './site-people';
 import { LEGAL_PRICE } from '../domain/legal';
 
 const propOf = (pid?: string) => (pid && (S as any).props[pid] ? P(pid) : P((S as any).myHome));
@@ -570,7 +571,7 @@ function RenewalSheet({ pid, close }: { pid?: string; close: () => void }) {
       <Note>{!has ? t('Oranı girince yasal üst sınır burada görünür.') : over ? t('Önerdiğin tutar yasal üst sınırı (') + tl(max) + t(') aşıyor; teklif sınırla gönderilir.') : `${t('Yasal üst sınır:')} ${tl(max)} (+${tl(max - p.rent)})`}</Note>
       {ui.role === 'landlord' && can(p.id, 'shared') ? (
         <>
-          <Field label={t('Önereceğin kira')} value={amount} keyboardType="numeric" onChangeText={(x) => { const n = x.replace(/\D/g, ''); setAmount(n); ui.renewal.amount = n === '' ? null : Number(n); }} />
+          <MoneyField label={t('Önereceğin kira')} value={amount} decimals={0} onChange={(n) => { setAmount(n); ui.renewal.amount = n === '' ? null : Number(n); }} />
           <Button block title={t('Teklifi kiracıya gönder')} disabled={!has} onPress={() => act('sendRenewal', { pid: p.id })} />
         </>
       ) : null}
@@ -972,6 +973,7 @@ export function renderSheet(name: string, p: any, close: () => void): ReactNode 
     case 'hukuki-talep': return <LegalDetailSheet id={p.id} close={close} />;
     case 'ekip-davet': return <TeamInviteSheet close={close} />;
     case 'ekip-paylas': return <TeamShareSheet code={p.code} role={p.role} phone={p.phone} />;
+    case 'site-kisi': return <SitePersonSheet oid={p.oid} org={p.org} unit={p.unit} commercial={p.commercial} person={p.person} manage={p.manage} reload={p.reload} close={close} />;
     case 'ekip-uye': return <TeamMemberSheet member={p.member} close={close} />;
     default: return null;
   }

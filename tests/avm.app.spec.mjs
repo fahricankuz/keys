@@ -57,6 +57,7 @@ test('AVM: mağaza ve sözleşme, döviz kira tahakkuku, ciro bildirimi ve fark�
   await page.getByRole('button', { name: 'Birimi ekle' }).click();
   await expect(page.getByText('Birim eklendi.')).toBeVisible();
   await expect(page.getByText('Zemin kat · Z-12')).toBeVisible();
+  await page.getByRole('button', { name: 'Zemin kat · Z-12 için diğer işlemler' }).click();
   await page.getByRole('button', { name: 'Sözleşmeyi düzenle' }).click();
   await page.getByLabel('Ciro kirası (%)').fill('8');
   await page.getByLabel('Ödeme günü').fill('5');
@@ -65,10 +66,13 @@ test('AVM: mağaza ve sözleşme, döviz kira tahakkuku, ciro bildirimi ve fark�
   await page.getByLabel('Yıllık artış oranı (%)').fill('25');
   await page.getByRole('checkbox', { name: 'KDV eklenir (%20)' }).click();
   await page.getByRole('button', { name: 'Sözleşmeyi kaydet' }).click();
-  await expect(page.getByText(/Kira \$2\.000 · Ciro %8/)).toBeVisible();
+  await expect(page.getByText('Kira $2.000 + KDV')).toBeVisible();
+  await expect(page.getByText(/Ciro %8/).first()).toBeVisible();
   await page.getByRole('button', { name: 'Kiracı ekle' }).click();
   await page.getByLabel('Kiracı firma ya da ad soyad').fill('Moda Giyim A.Ş.');
-  await page.getByRole('button', { name: 'Kişiyi ekle' }).click();
+  await page.getByRole('button', { name: 'Davet gönder' }).click();
+  await expect(page.getByText('Davet hazır')).toBeVisible();
+  await page.getByRole('button', { name: 'Tamam' }).click();
   await expect(page.getByText('Moda Giyim A.Ş.')).toBeVisible();
   const code = (await db(page)).tables.site_residents[0].code;
 
@@ -113,7 +117,7 @@ test('AVM: mağaza ve sözleşme, döviz kira tahakkuku, ciro bildirimi ve fark�
   // Kira artışı: sabit %25 → 2.500 USD.
   await page.getByRole('link', { name: 'Kira artışları', exact: true }).first().click();
   await expect(page.getByText('Uygulanmadı')).toBeVisible();
-  await expect(page.getByLabel('Yeni kira (USD)')).toHaveValue('2500');
+  await expect(page.getByLabel('Yeni kira (USD)')).toHaveValue('2.500');           // tutar alanı binlik ayırıcıyla gösterilir
   await page.getByRole('button', { name: 'Artışı uygula' }).click();
   await expect(page.getByText('Artış geçmişi')).toBeVisible();
   d = await db(page);

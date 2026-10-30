@@ -7,7 +7,7 @@ const KEY = '__fakedb';
 const TABLES = ['profiles','properties','property_shared','memberships','invites','payments','rent_history',
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
-                'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes',
+                'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto',
                 'legal_requests','legal_notes','client_errors','content_reports','user_blocks'];
 
 function load(){
@@ -25,7 +25,7 @@ const KEYS = {
   profiles:['id'], properties:['id'], property_shared:['property_id'], memberships:['property_id','user_id'],
   invites:['code'], payments:['property_id','month','kind'], rent_history:['id'], requests:['id'], messages:['id'],
   documents:['id'], expenses:['id'], notifications:['id'], push_subscriptions:['endpoint'], subscriptions:['user_id'], device_tokens:['token'],
-  site_budgets:['org_id','year'], site_turnovers:['unit_id','month'], legal_notes:['request_id'], user_blocks:['user_id','blocked'],
+  site_budgets:['org_id','year'], site_auto:['org_id'], site_turnovers:['unit_id','month'], legal_notes:['request_id'], user_blocks:['user_id','blocked'],
   admins:['user_id'], reviews:['kind','property_id','ref_id'], bans:['user_id'], admin_audit:['id']
 };
 
@@ -287,7 +287,7 @@ export function createClient(url, key, opts){
         const meta = (options && options.data) || {};
         const user = { id: uuid(), email };
         db.users.push({ ...user, password, meta });
-        db.tables.profiles.push({ id:user.id, role: meta.role === 'landlord' ? 'landlord' : 'tenant', name: meta.name || email, phone:'', lang:'tr', settings:{}, created_at: now() });
+        db.tables.profiles.push({ id:user.id, role: meta.role === 'landlord' ? 'landlord' : 'tenant', name: meta.name || email, phone: meta.phone || '', lang:'tr', settings:{}, created_at: now() });
         // Doğrulama gerektiren kayıt: e-posta 'dogrula' ile başlıyorsa oturum açılmaz.
         if (/^dogrula/.test(email)){ persist(db); return { data:{ user, session:null }, error:null }; }
         db.session = { user, access_token:'fake' };
@@ -546,6 +546,13 @@ export function createClient(url, key, opts){
         return { data: T.properties.filter(p => p.site_unit_id && (T.site_units.find(u => u.id === p.site_unit_id) || {}).org_id === args.oid)
           .flatMap(p => T.memberships.filter(m => m.property_id === p.id && m.role === 'tenant').map(m => ({ unit_id:p.site_unit_id, name:m.display_name }))), error:null };
       }
+      if (name === 'site_invite_info'){
+        const T = db.tables, r = T.site_residents.find(x => x.code === String(args.invite_code || '').trim().toUpperCase());
+        if (!r) return { data:null, error:null };
+        const u = T.site_units.find(x => x.id === r.unit_id) || {}, o = (T.organizations || []).find(x => x.id === r.org_id) || {};
+        const unit = o.sector === 'site' ? (u.block ? u.block + ' Blok ' : '') + (/^\d/.test(String(u.no)) ? 'No ' : '') + u.no : (u.block ? u.block + ' · ' : '') + u.no;
+        return { data: r.user_id ? { org:o.name, unit, used:true } : { org:o.name, sector:o.sector, unit, role:r.role, name:r.name, phone:r.phone, email:r.email, used:false }, error:null };
+      }
       if (name === 'accept_site_invite'){
         const r = db.tables.site_residents.find(x => x.code === String(args.invite_code).trim().toUpperCase());
         if (!r) return { data:null, error:{ message:'Davet kodu bulunamadı', code:'P0002' } };
@@ -656,11 +663,12 @@ export function createClient(url, key, opts){
     },
     functions: {
       // Gerçekte billing fonksiyonu RevenueCat'ten okur; testte satırı db.nextSubscription belirler.
-      async invoke(name){
+      async invoke(name, opts){
         const db = load();
         client._calls.push({ fn:name });
         const me = db.session?.user.id;
         db.invoked = [...(db.invoked || []), name];          // testler hangi fonksiyonun çağrıldığını buradan okur
+        db.invokedBodies = [...(db.invokedBodies || []), { name, body: (opts && opts.body) || null }];
         persist(db);
         if (name === 'billing' && me && db.nextSubscription){
           db.tables.subscriptions = db.tables.subscriptions.filter(x => x.user_id !== me);

@@ -14,6 +14,7 @@ import { Button, Chip, Field, PressScale, Text } from '../ui/kit';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 import { Card, Empty, H2, Label, Muted, Note, Row, Stack } from './blocks';
 import { Pill } from './org';
+import { MoneyField } from './forms';
 
 const thisMonth = () => mkey(new Date());
 const day = (v?: string) => (v ? fmtFull(parse(String(v).slice(0, 10))) : '—');
@@ -286,59 +287,97 @@ export function Overview({ d, org, can, reload, go, ChargeRow }: {
 
 type Group = { name: string; floors: string; perFloor: string; custom: string };
 
-/** Sözleşmedeki birim sayısına göre kayıtları tek seferde oluşturur. Katlarda eşit olmayan birim sayısı "Katlardaki birim
-    sayıları" alanına sırayla yazılır (ör. 4,4,4,2); oluşturulan her kayıt sonra tek tek düzenlenebilir ya da silinebilir. */
+/** Sözleşmedeki birim sayısına göre kayıtları tek seferde oluşturur. Sitede yapı seçilir: apartman blokları, villalar ya da
+    ikisi birden. Katlarda eşit olmayan daire sayısı "Katlardaki sayılar" alanına sırayla yazılır (ör. 4,4,4,2); oluşturulan
+    her kayıt sonra tek tek düzenlenebilir ya da silinebilir. */
 export function SetupWizard({ d, oid, limit, reload }: { d: any; oid: string; limit: number; reload: () => void }) {
   const c = useColors();
   const sector = d.sector;
   const commercial = isCommercial(sector);
+  const site = sector === 'site';
   const T = terms(sector);
-  const groupWord = sector === 'site' ? t('Blok') : sector === 'gyo' ? t('Varlık') : sector === 'avm' ? t('Kat') : t('Bölge');
-  const [groups, setGroups] = useState<Group[]>(() => sector === 'site'
+  const groupWord = site ? t('Blok') : sector === 'gyo' ? t('Varlık') : sector === 'avm' ? t('Kat') : t('Bölge');
+  const [shape, setShape] = useState<'blok' | 'villa' | 'karma'>('blok');
+  const [groups, setGroups] = useState<Group[]>(() => site
     ? [{ name: 'A', floors: '', perFloor: '', custom: '' }]
     : [{ name: sector === 'avm' ? t('Zemin kat') : sector === 'gyo' ? '' : 'A', floors: '1', perFloor: limit ? String(limit) : '', custom: '' }]);
+  const [villas, setVillas] = useState({ count: '', naming: 'villa' });
   const [numbering, setNumbering] = useState(commercial ? 'block' : 'seq');
   const [area, setArea] = useState('');
   const [aidat, setAidat] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const rows = unitPlan({ groups, numbering, area: Number(area.replace(',', '.')) || null, aidat: aidat === '' ? null : Number(aidat.replace(',', '.')), commercial });
+  const withBlocks = !site || shape !== 'villa';
+  const withVillas = site && shape !== 'blok';
+  const rows = unitPlan({ groups: withBlocks ? groups : [], villas: withVillas ? villas : null, numbering, area: Number(area) || null,
+    aidat: aidat === '' ? null : Number(aidat), commercial });
   const set = (i: number, k: keyof Group, v: string) => setGroups(groups.map((g, j) => (j === i ? { ...g, [k]: v } : g)));
-  const word = T.unit.toLocaleLowerCase('tr');
-  const okArea = Number(area.replace(',', '.')) > 0;
+  const word = (withVillas && !withBlocks ? t('Villa') : T.unit).toLocaleLowerCase('tr');
+  const okArea = Number(area) > 0;
+  const cell = (basis: number, grow = 1) => ({ flexGrow: grow, flexBasis: basis, minWidth: 0 });
   return (
-    <Card gap={12} style={{ borderWidth: 2, borderColor: c.accent }}>
+    <Card gap={14} style={{ borderWidth: 2, borderColor: c.accent }}>
       <Label>{t('Kurulum')}</Label>
-      <H2>{limit ? t('Sözleşmende {n} {w} var, oluşturalım.', { n: limit, w: word }) : t('{w} kayıtlarını oluşturalım.', { w: T.unit })}</H2>
-      <Muted>{t('Kayıtlar gerçek numaralarınla oluşur. Katlarda {w} sayısı eşit değilse “Katlardaki sayılar” alanına sırayla yaz (ör. 4,4,4,2). Oluşturduktan sonra her birini düzenleyebilir, ekleyip silebilirsin.', { w: word })}</Muted>
-      {groups.map((g, i) => (
-        <Row key={i} gap={10} wrap align="flex-end">
-          <View style={{ flexGrow: 1, flexBasis: 120 }}><Field label={groupWord} value={g.name} onChangeText={(v) => set(i, 'name', v)} maxLength={40} /></View>
-          {sector === 'site' ? (
+      <H2>{limit ? t('Sözleşmende {n} {w} var, oluşturalım.', { n: limit, w: T.unit.toLocaleLowerCase('tr') }) : t('{w} kayıtlarını oluşturalım.', { w: T.unit })}</H2>
+      <Muted>{site
+        ? t('Kayıtlar gerçek numaralarınla oluşur. Katlarda daire sayısı eşit değilse “Katlardaki sayılar” alanına sırayla yaz (ör. 4,4,4,2). Oluşturduktan sonra her birini düzenleyebilir, ekleyip silebilirsin.')
+        : t('Kayıtlar gerçek numaralarınla oluşur. Oluşturduktan sonra her birini düzenleyebilir, ekleyip silebilirsin.')}</Muted>
+      {site ? (
+        <View style={{ gap: 8 }}>
+          <Label>{t('Sitenin yapısı')}</Label>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            <Pill label={t('Apartman blokları')} on={shape === 'blok'} onPress={() => setShape('blok')} />
+            <Pill label={t('Villalar')} on={shape === 'villa'} onPress={() => setShape('villa')} />
+            <Pill label={t('Bloklar + villalar')} on={shape === 'karma'} onPress={() => setShape('karma')} />
+          </View>
+        </View>
+      ) : null}
+      {withBlocks ? groups.map((g, i) => (
+        <Row key={i} gap={10} wrap align="flex-start">
+          <View style={cell(110)}><Field label={groupWord} value={g.name} onChangeText={(v) => set(i, 'name', v)} maxLength={40} /></View>
+          {site ? (
             <>
-              <View style={{ flexGrow: 1, flexBasis: 90 }}><Field label={t('Kat sayısı')} value={g.floors} onChangeText={(v) => set(i, 'floors', v.replace(/\D/g, ''))} keyboardType="number-pad" /></View>
-              <View style={{ flexGrow: 1, flexBasis: 90 }}><Field label={t('Katta daire')} value={g.perFloor} onChangeText={(v) => set(i, 'perFloor', v.replace(/\D/g, ''))} keyboardType="number-pad" /></View>
-              <View style={{ flexGrow: 2, flexBasis: 160 }}><Field label={t('Katlardaki sayılar (isteğe bağlı)')} value={g.custom} onChangeText={(v) => set(i, 'custom', v.replace(/[^0-9, ]/g, ''))} placeholder="4,4,4,2" /></View>
+              <View style={cell(110)}><Field label={t('Kat sayısı')} value={g.floors} onChangeText={(v) => set(i, 'floors', v.replace(/\D/g, ''))} keyboardType="number-pad" /></View>
+              <View style={cell(110)}><Field label={t('Katta daire')} value={g.perFloor} onChangeText={(v) => set(i, 'perFloor', v.replace(/\D/g, ''))} keyboardType="number-pad" /></View>
+              <View style={cell(200, 2)}><Field label={t('Katlardaki sayılar (isteğe bağlı)')} value={g.custom} onChangeText={(v) => set(i, 'custom', v.replace(/[^0-9, ]/g, ''))} placeholder="4,4,4,2" /></View>
             </>
           ) : (
-            <View style={{ flexGrow: 1, flexBasis: 120 }}><Field label={t('{w} sayısı', { w: T.unit })} value={g.perFloor} onChangeText={(v) => set(i, 'perFloor', v.replace(/\D/g, ''))} keyboardType="number-pad" /></View>
+            <View style={cell(140)}><Field label={t('{w} sayısı', { w: T.unit })} value={g.perFloor} onChangeText={(v) => set(i, 'perFloor', v.replace(/\D/g, ''))} keyboardType="number-pad" /></View>
           )}
-          {groups.length > 1 ? <Button kind="quiet" title={t('Kaldır')} onPress={() => setGroups(groups.filter((_, j) => j !== i))} /> : null}
+          {groups.length > 1 ? <Button kind="quiet" title={t('Kaldır')} onPress={() => setGroups(groups.filter((_, j) => j !== i))} style={{ marginTop: 28 }} /> : null}
         </Row>
-      ))}
-      <Button kind="ghost" title={t('{w} ekle', { w: groupWord })} style={{ alignSelf: 'flex-start' }}
-        onPress={() => setGroups([...groups, sector === 'site'
-          ? { name: String.fromCharCode(65 + groups.length), floors: groups[groups.length - 1]?.floors || '', perFloor: groups[groups.length - 1]?.perFloor || '', custom: '' }
-          : { name: '', floors: '1', perFloor: '', custom: '' }])} />
-      <Label>{t('Numaralandırma')}</Label>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-        <Pill label={t('1, 2, 3…')} on={numbering === 'seq'} onPress={() => setNumbering('seq')} />
-        {sector === 'site' ? <Pill label={t('Kat + sıra (101, 102…)')} on={numbering === 'floor'} onPress={() => setNumbering('floor')} /> : null}
-        <Pill label={t('{w} + no (A-1, A-2…)', { w: groupWord })} on={numbering === 'block'} onPress={() => setNumbering('block')} />
-      </View>
-      <Row gap={10} wrap align="flex-end">
-        <View style={{ flexGrow: 1, flexBasis: 180 }}><Field label={t('Varsayılan m² (zorunlu)')} value={area} onChangeText={(v) => setArea(v.replace(/[^0-9.,]/g, ''))} keyboardType="decimal-pad" hint={t('Sonra tek tek değiştirebilirsin.')} /></View>
-        {!commercial ? <View style={{ flexGrow: 1, flexBasis: 180 }}><Field label={t('Varsayılan aylık aidat (isteğe bağlı)')} value={aidat} onChangeText={(v) => setAidat(v.replace(/[^0-9.,]/g, ''))} keyboardType="decimal-pad" /></View> : null}
+      )) : null}
+      {withBlocks ? (
+        <Button kind="ghost" title={t('{w} ekle', { w: groupWord })} style={{ alignSelf: 'flex-start' }}
+          onPress={() => setGroups([...groups, site
+            ? { name: String.fromCharCode(65 + groups.length), floors: groups[groups.length - 1]?.floors || '', perFloor: groups[groups.length - 1]?.perFloor || '', custom: '' }
+            : { name: '', floors: '1', perFloor: '', custom: '' }])} />
+      ) : null}
+      {withVillas ? (
+        <Row gap={10} wrap align="flex-start">
+          <View style={cell(140)}><Field label={t('Villa sayısı')} value={villas.count} onChangeText={(v) => setVillas({ ...villas, count: v.replace(/\D/g, '').slice(0, 4) })} keyboardType="number-pad" /></View>
+          <View style={{ ...cell(240, 2), gap: 8 }}>
+            <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{t('Adlandırma')}</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+              <Pill label={t('Villa 1, Villa 2…')} on={villas.naming === 'villa'} onPress={() => setVillas({ ...villas, naming: 'villa' })} />
+              <Pill label="V-1, V-2…" on={villas.naming === 'v'} onPress={() => setVillas({ ...villas, naming: 'v' })} />
+            </View>
+          </View>
+        </Row>
+      ) : null}
+      {withBlocks ? (
+        <View style={{ gap: 8 }}>
+          <Label>{t('Numaralandırma')}</Label>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            <Pill label={t('1, 2, 3…')} on={numbering === 'seq'} onPress={() => setNumbering('seq')} />
+            {site ? <Pill label={t('Kat + sıra (101, 102…)')} on={numbering === 'floor'} onPress={() => setNumbering('floor')} /> : null}
+            <Pill label={t('{w} + no (A-1, A-2…)', { w: groupWord })} on={numbering === 'block'} onPress={() => setNumbering('block')} />
+          </View>
+        </View>
+      ) : null}
+      <Row gap={10} wrap align="flex-start">
+        <View style={cell(200)}><MoneyField label={t('Varsayılan m² (zorunlu)')} value={area} onChange={setArea} hint={t('Sonra tek tek değiştirebilirsin.')} /></View>
+        {!commercial ? <View style={cell(200)}><MoneyField label={t('Varsayılan aylık aidat (isteğe bağlı)')} value={aidat} onChange={setAidat} hint={t('Boş bırakırsan sonra girersin.')} /></View> : null}
       </Row>
       <Label>{t('Önizleme · {n} {w}', { n: rows.length, w: word })}</Label>
       {rows.length ? (
@@ -346,8 +385,9 @@ export function SetupWizard({ d, oid, limit, reload }: { d: any; oid: string; li
           {rows.slice(0, 24).map((r, i) => <View key={i} style={{ backgroundColor: c.tile, borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 5 }}><Text v="small" style={{ fontFamily: fonts.bodyBold }}>{[r.block, r.no].filter(Boolean).join(' · ')}</Text></View>)}
           {rows.length > 24 ? <Muted>{t('+{n} daha', { n: rows.length - 24 })}</Muted> : null}
         </View>
-      ) : <Muted>{t('Grup bilgilerini gir; önizleme burada görünür.')}</Muted>}
-      {limit && rows.length && rows.length !== limit ? <Note warn>{t('Sözleşmendeki sayı {n}, burada {m}. Fazlası da oluşturulabilir; sözleşmeyi güncellemek için anahtar ekibine yaz.', { n: limit, m: rows.length })}</Note> : null}
+      ) : <Muted>{t('Bilgileri gir; önizleme burada görünür.')}</Muted>}
+      {limit && rows.length > limit ? <Note warn>{t('Sözleşmendeki sayı {n}, burada {m}. Fazlası da oluşturulabilir; sözleşmeyi güncellemek için anahtar ekibine yaz.', { n: limit, m: rows.length })}</Note>
+        : limit && rows.length && rows.length < limit ? <Muted>{t('Sözleşmende {n} kayıt var; kalan {k} kaydı sonra ekleyebilirsin.', { n: limit, k: limit - rows.length })}</Muted> : null}
       {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
       <Button title={t('{n} {w} oluştur', { n: rows.length, w: word })} loading={busy} disabled={busy || !rows.length || !okArea || rows.length > 2000} style={{ alignSelf: 'flex-start' }}
         onPress={async () => { setBusy(true); setErr(null); try { await importUnits(oid, rows, commercial); reload(); } catch (e) { setErr(humanError(e)); } setBusy(false); }} />

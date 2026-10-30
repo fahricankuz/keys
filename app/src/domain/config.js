@@ -16,6 +16,9 @@ export const CONFIG = {
     deletion: 'https://anahtar.io/hesap-silme/',
     support: 'https://anahtar.io/destek/'
   },
+  /** Sakinin aidat / kira ödemesinde kartla ödeme (sanal POS). İşlem ücreti ödeyene yansır: %2 ödeme kuruluşunun komisyonu,
+      %0,5 anahtar hizmet bedeli. Ödeme kuruluşu sözleşmesi yapılıp provider yazılana kadar kartla ödeme "yakında" görünür. */
+  cardPay: { provider: '', feeRate: 0.025, providerRate: 0.02 },
   billing: {
     /** Fiyatlar tanımlanana kadar satın alma kapalıdır; herkes deneme ya da yöneticinin verdiği paketle kullanır. */
     paused: true,

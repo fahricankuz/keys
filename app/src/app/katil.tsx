@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import AuthShell from '../auth/AuthShell';
-import { keepInvite, useAuth } from '../auth/auth';
+import { keepInvite, keepPrefill, useAuth } from '../auth/auth';
 import { t } from '../domain/i18n';
 import { invitePreview } from '../domain/backend';
 import { isOrgCode } from '../domain/org';
-import { isSiteCode } from '../domain/site';
+import { isSiteCode, siteInviteInfo } from '../domain/site';
 import { roleLabel } from '../domain/team';
 import { Button, Text } from '../ui/kit';
 import { View } from 'react-native';
@@ -22,6 +22,7 @@ export default function Katil() {
   // Statik çıktıda adres parametresi yoktur; hidrasyon uyuşsun diye kod bağlandıktan sonra çizilir.
   const [mounted, setMounted] = useState(false);
   const [info, setInfo] = useState<Preview | null>(null);
+  const [siteInfo, setSiteInfo] = useState<any>(null);
   useEffect(() => setMounted(true), []);
   const code = mounted ? String(Array.isArray(kod) ? kod[0] : kod || '').toUpperCase() : '';
   useEffect(() => {
@@ -29,6 +30,11 @@ export default function Katil() {
     if (!code) { router.replace('/giris'); return; }
     keepInvite(code);
     if (live && !isOrgCode(code) && !isSiteCode(code)) invitePreview(code).then(setInfo).catch(() => {});
+    // Site daveti: yönetimin girdiği ad, telefon ve e-posta kayıt formunu doldurur.
+    if (live && isSiteCode(code) && !user) siteInviteInfo(code).then((x) => {
+      setSiteInfo(x);
+      if (x && !x.used) keepPrefill({ code, name: x.name || '', phone: x.phone || '', email: x.email || '' });
+    }).catch(() => {});
     if (ready && live && user && !user.admin) join(code).then(() => router.replace('/uygulama'));
   }, [mounted, code, ready, live, user, join, router]);
 
@@ -51,6 +57,8 @@ export default function Katil() {
       {code ? (
         <View style={{ backgroundColor: c.cream, borderRadius: 20, padding: 16, alignItems: 'center', gap: 4 }}>
           <Text v="h2" selectable style={{ letterSpacing: 4, fontFamily: fonts.siteBold }}>{code}</Text>
+          {siteInfo ? <Text v="small" muted>{[siteInfo.org, siteInfo.unit].filter(Boolean).join(' · ')}</Text> : null}
+          {siteInfo && siteInfo.used ? <Text v="small" color={c.badInk}>{t('Bu davet kullanılmış. Yönetiminden yeni davet iste.')}</Text> : null}
           {info ? <Text v="small" muted>{info.property}{team ? ' · ' + (info.scope === 'portfolio' ? t('tüm portföy') : t('tek mülk')) : ''}</Text> : null}
           {info && !info.valid ? <Text v="small" color={c.badInk}>{t('Bu davet kullanılmış ya da süresi dolmuş. Mülk sahibinden yeni kod iste.')}</Text> : null}
         </View>

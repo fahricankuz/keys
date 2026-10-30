@@ -4,10 +4,12 @@
    Sunucu kuralları: supabase/schema.sql 17. bölüm (RLS ve guard_site_charges). */
 
 import { t } from './i18n.js';
-import { client, live, storeFile } from './backend.js';
+import { client, live, storeFile, inviteLink } from './backend.js';
+import { waLink } from './wa.js';
 import { storedPath } from './mapping.js';
 import { emit } from './state.js';
 import { iso, mkey } from './util.js';
+import { CONFIG } from './config.js';
 
 function must(res){
   if (res.error) throw res.error;
@@ -40,10 +42,10 @@ export const MODES = (sector) => (isCommercial(sector) ? [
   { key: 'share', label: t('Toplamı arsa payına göre böl') }
 ]);
 
-/** Birim etiketi: sitede "A Blok No 3", ticaride "Zemin kat · Z-12" (schema.sql → unit_label ile aynı). */
+/** Birim etiketi: sitede "A Blok No 3" (villada "Villa 3"), ticaride "Zemin kat · Z-12" (schema.sql → unit_label ile aynı). */
 export const unitLabel = (u) => (isCommercial(u.sector)
   ? (u.block ? u.block + ' · ' : '') + u.no
-  : (u.block ? u.block + ' ' + t('Blok') + ' ' : '') + t('No') + ' ' + u.no);
+  : (u.block ? u.block + ' ' + t('Blok') + ' ' : '') + (/^\d/.test(String(u.no)) ? t('No') + ' ' : '') + u.no);
 export const sortUnits = (a, b) => String(a.block).localeCompare(String(b.block), 'tr', { numeric: true }) || String(a.no).localeCompare(String(b.no), 'tr', { numeric: true });
 
 /**
@@ -107,7 +109,7 @@ export function lateFee(c, today = new Date()){
 export async function loadSiteAdmin(oid){
   const c = await db();
   const since = (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 12); return mkey(d); })();
-  const [units, residents, charges, expenses, notes, requests, budgets, linked, turnovers, rentChanges, orgRow] = await Promise.all([
+  const [units, residents, charges, expenses, notes, requests, budgets, linked, turnovers, rentChanges, orgRow, auto] = await Promise.all([
     c.from('site_units').select('*').eq('org_id', oid),
     c.from('site_residents').select('*').eq('org_id', oid),
     c.from('site_charges').select('*').eq('org_id', oid),
@@ -118,11 +120,12 @@ export async function loadSiteAdmin(oid){
     c.rpc('site_linked_tenants', { oid }),
     c.from('site_turnovers').select('*').eq('org_id', oid),
     c.from('site_rent_changes').select('*').eq('org_id', oid),
-    c.from('organizations').select('sector').eq('id', oid)
+    c.from('organizations').select('sector').eq('id', oid),
+    c.from('site_auto').select('*').eq('org_id', oid)
   ].map((p) => p.then((r) => (r.error ? [] : r.data || []))));
   const sector = (orgRow[0] || {}).sector || 'site';
   return {
-    sector, units: units.map((u) => Object.assign(u, { sector })).sort(sortUnits), residents, budgets, linked,
+    sector, units: units.map((u) => Object.assign(u, { sector })).sort(sortUnits), residents, budgets, linked, auto: auto[0] || null,
     turnovers: turnovers.sort((a, b) => b.month.localeCompare(a.month)),
     rentChanges: rentChanges.sort((a, b) => String(b.from_date).localeCompare(String(a.from_date))),
     charges: charges.filter((x) => x.month >= since).sort((a, b) => b.month.localeCompare(a.month)),
@@ -187,6 +190,70 @@ export async function saveResident(oid, r){
   return must(await c.from('site_residents').insert(row).select().single());
 }
 export async function deleteResident(id){ must(await (await db()).from('site_residents').delete().eq('id', id)); }
+
+/* ---- Davet: e-posta (site-invite fonksiyonu) ve WhatsApp ---------- */
+
+/** Kişinin davet durumu: hesabı bağlı, davet gönderildi ya da henüz davet edilmedi. */
+export const inviteState = (r) => (r.user_id ? 'linked' : r.invited_at ? 'invited' : 'none');
+export function inviteText(org, unit, code, commercial = false){
+  if (commercial) return t('{org} yönetimi seni {unit} için anahtar’a davet etti. Kiranı, faturalarını ve taleplerini buradan izleyeceksin. Ücretsiz hesabını aç: {url} (davet kodu: {code})', { org, unit, url: inviteLink(code), code });
+  return t('{org} sitesindeki {unit} dairen için anahtar daveti. Bağlantıdan ücretsiz hesabını aç: {url} (davet kodu: {code})', { org, unit, url: inviteLink(code), code });
+}
+export const inviteWa = (r, org, unit, commercial = false) => waLink(r.phone, inviteText(org, unit, r.code, commercial));
+/** Davet e-postası (e-posta girildiyse) gönderilir ve davet "gönderildi" olarak işaretlenir. E-posta gönderilemezse WhatsApp yine çalışır. */
+export async function sendSiteInvite(r){
+  const c = await db();
+  let mailed = false;
+  if (r.email){
+    try {
+      const res = await c.functions.invoke('site-invite', { body: { resident: r.id } });
+      mailed = !res.error;
+    } catch(e){ console.warn('Davet e-postası gönderilemedi', e); }
+  }
+  await markInvited(r.id);
+  return mailed;
+}
+export async function markInvited(id){
+  try { await (await db()).from('site_residents').update({ invited_at: new Date().toISOString() }).eq('id', id); } catch(e){}
+}
+/** /katil sayfası: kodun sitesi ve dairesi; kullanılmamışsa yönetimin girdiği ad, telefon ve e-posta (kayıt formunu doldurmak için). */
+export async function siteInviteInfo(code){
+  const r = await (await db()).rpc('site_invite_info', { invite_code: String(code || '').trim().toUpperCase() });
+  return r.error ? null : r.data;
+}
+
+/* ---- Otomatik aidat (schema.sql 29. bölüm → site_auto_run) -------- */
+
+const nextMonthKey = (d) => mkey(new Date(d.getFullYear(), d.getMonth() + 1, 1));
+/** Ayar kaydı. Açılırken (ya da gün değişirken) ilk ay seçilir: tahakkuk günü bu ay geçtiyse ilk otomatik tahakkuk gelecek ay. */
+export async function saveAuto(oid, a, prev = null, today = new Date()){
+  const run = Math.min(28, Math.max(1, Number(a.run_day) || 1)), due = Math.min(28, Math.max(1, Number(a.due_day) || 10));
+  const fresh = a.enabled && (!prev || !prev.enabled || Number(prev.run_day) !== run);
+  const start = fresh ? (today.getDate() <= run ? mkey(today) : nextMonthKey(today)) : prev ? prev.start_month : null;
+  must(await (await db()).from('site_auto').upsert({ org_id: oid, enabled: !!a.enabled, run_day: run, due_day: due, start_month: start, updated_at: new Date().toISOString() }));
+}
+/** Sonraki otomatik tahakkuk: { date, due } (kapalıysa null). */
+export function nextAuto(a, today = new Date()){
+  if (!a || !a.enabled) return null;
+  const run = Number(a.run_day) || 1, due = Number(a.due_day) || 10;
+  const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  let d = new Date(today.getFullYear(), today.getMonth(), run);
+  const doneThis = a.last_month === mkey(today) || (a.start_month && a.start_month > mkey(today));
+  if (d < t0 || doneThis) d = new Date(today.getFullYear(), today.getMonth() + 1, run);
+  if (a.start_month && mkey(d) < a.start_month) { const [y, m] = a.start_month.split('-').map(Number); d = new Date(y, m - 1, run); }
+  const dd = new Date(d.getFullYear(), d.getMonth() + (due < run ? 1 : 0), due);
+  return { date: iso(d), due: iso(dd), month: mkey(d) };
+}
+
+/* ---- Kartla ödeme (sanal POS; ödeme kuruluşu bağlanınca açılır) ---- */
+
+const r2 = (x) => Math.round(x * 100) / 100;
+export const cardReady = () => !!(CONFIG.cardPay && CONFIG.cardPay.provider);
+/** Kartla ödenecek toplam: tutar + işlem ücreti (%2,5; %2 ödeme kuruluşu, %0,5 anahtar). */
+export function cardTotal(amount){
+  const fee = r2((Number(amount) || 0) * CONFIG.cardPay.feeRate);
+  return { amount: r2(Number(amount) || 0), fee, total: r2((Number(amount) || 0) + fee) };
+}
 
 /** Vade günü: birimin sözleşmesindeki ödeme günü (yoksa vade ay sonu). */
 const dueOn = (u, month) => (u && Number(u.due_day) ? month + '-' + String(u.due_day).padStart(2, '0') : null);
@@ -463,9 +530,10 @@ export function occupancy(d, today = new Date()){
  * numbering: 'seq' (1, 2, 3… grup içinde) | 'floor' (kat + sıra: 101, 102, 201…) | 'block' (A-1, A-2…).
  * Dönen satırlar importUnits'e verilir.
  */
-/** @param {{ groups?: any[], numbering?: string, area?: number | null, aidat?: number | null, commercial?: boolean }} o */
+/** villas: { count, naming: 'villa' (Villa 1, Villa 2…) | 'v' (V-1, V-2…) } — blok yerine (ya da bloklara ek) müstakil villalar. */
+/** @param {{ groups?: any[], numbering?: string, area?: number | null, aidat?: number | null, commercial?: boolean, villas?: { count?: any, naming?: string } | null }} o */
 export function unitPlan(o){
-  const { groups = [], numbering = 'seq', area = null, aidat = null, commercial = false } = o;
+  const { groups = [], numbering = 'seq', area = null, aidat = null, commercial = false, villas = null } = o;
   const rows = [];
   const int = (v) => Math.max(0, parseInt(String(v || '').replace(/\D/g, ''), 10) || 0);
   groups.forEach((g) => {
@@ -482,5 +550,10 @@ export function unitPlan(o){
       }
     });
   });
+  const vc = villas ? int(villas.count) : 0;
+  for (let k = 1; k <= vc; k++){
+    rows.push({ block: '', no: villas && villas.naming === 'v' ? 'V-' + k : t('Villa') + ' ' + k, area: Number(area) > 0 ? Number(area) : null,
+      share: null, aidat: aidat === '' || aidat == null ? null : Number(aidat) });
+  }
   return rows;
 }

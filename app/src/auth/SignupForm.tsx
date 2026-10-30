@@ -3,7 +3,7 @@ import { Linking, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import AuthShell from './AuthShell';
 import SignedIn from './SignedIn';
-import { keepInvite, pendingInvite, Role, useAuth } from './auth';
+import { keepInvite, pendingInvite, pendingPrefill, Role, useAuth } from './auth';
 import { Captcha } from './captcha';
 import { CONFIG } from '../domain/config';
 import { t } from '../domain/i18n';
@@ -25,7 +25,13 @@ export default function SignupForm({ role }: { role: Role }) {
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
-  useEffect(() => { const k = pendingInvite(); if (k) setCode(k); }, []);
+  const [phone, setPhone] = useState('');
+  useEffect(() => {
+    const k = pendingInvite(); if (k) setCode(k);
+    // Site davetinden gelindiyse yönetimin girdiği bilgiler hazır gelir (kişi değiştirebilir).
+    const pre = role === 'tenant' ? pendingPrefill() : null;
+    if (pre) { if (pre.name) setName(pre.name); if (pre.email) setEmail(pre.email); if (pre.phone) setPhone(pre.phone); }
+  }, [role]);
   if (ready && user && !sent) return <SignedIn user={user} />;
 
   const landlord = role === 'landlord';
@@ -37,7 +43,7 @@ export default function SignupForm({ role }: { role: Role }) {
     if (!consent) { setErr(t('Devam etmek için koşulları kabul etmelisin.')); return; }
     if (withCode && code.trim()) keepInvite(code);
     setBusy(true); setErr(null); setSent(true);
-    const e = await signUp({ name, email, password: pw, role });
+    const e = await signUp({ name, email, password: pw, role, phone });
     setBusy(false);
     if (e === 'CONFIRM') { setSent(false); setInfo(t('E-postana bir onay bağlantısı gönderdik. Bağlantıya tıklayınca hesabın açılır ve doğrudan paneline geçersin.') + (withCode && code.trim() ? ' ' + t('Davet kodun kaydedildi; ilk girişte otomatik kullanılacak.') : '')); }
     else if (e) { setSent(false); setErr(e); }
@@ -53,6 +59,7 @@ export default function SignupForm({ role }: { role: Role }) {
     <AuthShell title={title} lead={lead}>
       <Field label={t('Ad soyad')} value={name} onChangeText={setName} autoComplete="name" maxLength={60} />
       <Field label={t('E-posta')} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
+      {role === 'tenant' ? <Field label={t('Telefon (isteğe bağlı)')} value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" maxLength={30} /> : null}
       <Field label={t('Şifre')} value={pw} onChangeText={setPw} secureTextEntry autoComplete="new-password" hint={t('En az 8 karakter.')} />
       <Field label={t('Şifre (tekrar)')} value={pw2} onChangeText={setPw2} secureTextEntry autoComplete="new-password" />
       {withCode ? (

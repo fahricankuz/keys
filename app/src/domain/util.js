@@ -37,6 +37,25 @@ export function percent(v, digits = 1){
   return locale().startsWith('tr') ? '%' + n : n + '%';
 }
 export function tl(n){ return '₺' + Math.round(Number(n)||0).toLocaleString(locale()); }
+/** Tutar alanı: kayıtlı ham değer "20000.5" → ekranda "20.000,5" (İngilizcede "20,000.5"). */
+export function numShow(raw){
+  const s = String(raw ?? '');
+  if (!s) return '';
+  const en = locale().startsWith('en');
+  const [i, d] = s.split('.');
+  const int = i.replace(/\D/g, '').replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, en ? ',' : '.');
+  return d === undefined ? int : int + (en ? '.' : ',') + d;
+}
+/** Yazılanı ham değere çevirir: binlik ayırıcılar atılır, ondalık "." olur, en çok 2 hane. */
+export function numRaw(text, decimals = 2){
+  const en = locale().startsWith('en');
+  let s = String(text ?? '').split(en ? ',' : '.').join('');
+  if (!en) s = s.replace(',', '.');
+  s = s.replace(/[^0-9.]/g, '');
+  const [i, ...rest] = s.split('.');
+  if (!rest.length || !decimals) return i;
+  return i + '.' + rest.join('').slice(0, decimals);
+}
 export function tm(ts){ return new Date(ts).toLocaleTimeString(locale(),{hour:'2-digit',minute:'2-digit'}); }
 
 /** Bugün / dün / tarih — sohbet gün ayraçları için. */

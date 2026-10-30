@@ -33,7 +33,7 @@ type Ctx = {
   user: User | null; ready: boolean; live: boolean;
   /** `as`: hangi girişten gelindi; hesap türü uyuşmazsa oturum açılmaz. */
   signIn(e: string, p: string, as?: Entry): Promise<string | null>;
-  signUp(a: { name: string; email: string; password: string; role: Role }): Promise<string | null>;
+  signUp(a: { name: string; email: string; password: string; role: Role; phone?: string }): Promise<string | null>;
   reset(email: string): Promise<string | null>;
   /** E-posta onay bağlantısıyla açılan oturumu benimser (panel açılırken giriş geçişi oynar). */
   adopt(): Promise<User | null>;
@@ -77,6 +77,12 @@ async function watchSession() {
 
 /** Bekleyen davet kodu (/katil bağlantısından gelir); giriş sonrası kabul edilir. */
 export const keepInvite = (code: string) => { try { storage.setItem(INVITE, code.trim().toUpperCase()); } catch {} };
+/** Site davetinde yönetimin girdiği ad, telefon ve e-posta (kayıt formu bunlarla dolu açılır). */
+const PREFILL = 'anahtar-davet-bilgi';
+export const keepPrefill = (o: { code: string; name?: string; phone?: string; email?: string }) => { try { storage.setItem(PREFILL, JSON.stringify(o)); } catch {} };
+export const pendingPrefill = (): { code: string; name?: string; phone?: string; email?: string } | null => {
+  try { const o = JSON.parse(storage.getItem(PREFILL) || 'null'); return o && o.code === pendingInvite() ? o : null; } catch { return null; }
+};
 /** Kayıt formunda gösterilecek bekleyen davet kodu. */
 export const pendingInvite = (): string => { try { return storage.getItem(INVITE) || ''; } catch { return ''; } };
 
@@ -167,8 +173,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const signUp = useCallback(async ({ name, email, password, role }: { name: string; email: string; password: string; role: Role }) => {
-    email = email.trim().toLowerCase(); name = name.trim();
+  const signUp = useCallback(async ({ name, email, password, role, phone = '' }: { name: string; email: string; password: string; role: Role; phone?: string }) => {
+    email = email.trim().toLowerCase(); name = name.trim(); phone = phone.trim().slice(0, 30);
     if (!name || !email || password.length < 8) return t('Adını, e-postanı ve en az 8 karakterli bir şifre gir.');
     try {
       if (LIVE) {
@@ -179,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Mülk sahibinin seçtiği paket hesap bilgisine de yazılır: onayı başka cihazda yapsa da hoş geldin e-postası doğru paketi anlatır.
         let plan: string | undefined;
         try { const pc = JSON.parse(storage.getItem(PLAN_CHOICE) || 'null'); if (role === 'landlord' && pc && ['tek', 'bes'].includes(pc.plan)) plan = pc.plan; } catch {}
-        const { data, error } = await c.auth.signUp({ email, password, options: { data: { name, role, lang: getLang(), ...(plan ? { plan } : {}) }, captchaToken: captchaToken() ?? undefined,
+        const { data, error } = await c.auth.signUp({ email, password, options: { data: { name, role, lang: getLang(), ...(plan ? { plan } : {}), ...(phone ? { phone } : {}) }, captchaToken: captchaToken() ?? undefined,
           emailRedirectTo: CONFIG.publicUrl.replace(/\/?$/, '/') + 'dogrula' } });
         captchaSpent();
         if (error) return t('Hesap oluşturulamadı: {m}', { m: backend.humanError(error) });

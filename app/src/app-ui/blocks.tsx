@@ -157,7 +157,9 @@ export function Seg({ options, value, onChange, scroll, wrap }: { options: [stri
   // Geniş ekranda çok sekmeli satır tek parça bir şeritte durur: sekmeler eşit paylaşır, satır kırılmaz;
   // sekme ve şerit adından dar olmaz (yan yana iki şerit sıkışınca adlar kesilmez, satır alta geçer).
   // wrap: sekme çoksa (adlar kesilmesin diye) geniş ekranda sekmeler kendi genişliğinde, gerekirse alt satıra geçer.
-  const track = scroll && !phone && !wrap;
+  // Çok seçenekli şerit (ör. 12 ay) geniş ekranda da kaydırılır; tek parça şerit ekrandan taşmasın.
+  const many = options.length > 6;
+  const track = scroll && !phone && !wrap && !many;
   const items = options.map(([v, l]) => {
     const on = v === value;
     return (
@@ -170,10 +172,35 @@ export function Seg({ options, value, onChange, scroll, wrap }: { options: [stri
     );
   });
   // Telefonda yatay kaydırılır (son sekme tam görünsün diye sağda pay).
-  if (scroll && phone) return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>{items}</ScrollView>;
+  if (scroll && (phone || many)) return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>{items}</ScrollView>;
   if (track) return <View style={{ flexDirection: 'row', gap: 2, padding: 4, borderRadius: radius.pill, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, minWidth: 'max-content' as any }}>{items}</View>;
   if (wrap) return <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{items}</View>;
   return <View style={{ flexDirection: 'row', gap: 8 }}>{items}</View>;
+}
+
+/** Dönem seçici: ‹ Ekim 2026 › (aylar ya da yıllar arasında bir adım ileri / geri). */
+export function Stepper({ label, onPrev, onNext, prev = true, next = true, name }: { label: string; onPrev: () => void; onNext: () => void; prev?: boolean; next?: boolean; name: string }) {
+  const c = useColors();
+  const btn = (on: boolean, fn: () => void, ch: string, a11y: string) => (
+    <PressScale onPress={on ? fn : () => {}} accessibilityRole="button" accessibilityLabel={a11y} accessibilityState={{ disabled: !on }} scaleTo={0.9}
+      style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', opacity: on ? 1 : 0.35 }}>
+      <Text v="body" style={{ fontFamily: fonts.bodyXBold, fontSize: 20, lineHeight: 22 }}>{ch}</Text>
+    </PressScale>
+  );
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', borderRadius: radius.pill, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, padding: 2 }}>
+      {btn(prev, onPrev, '‹', t('Önceki {x}', { x: name }))}
+      <Text v="small" accessibilityLiveRegion="polite" style={{ fontFamily: fonts.bodyXBold, minWidth: 120, textAlign: 'center' }}>{label}</Text>
+      {btn(next, onNext, '›', t('Sonraki {x}', { x: name }))}
+    </View>
+  );
+}
+
+/** Ay seçici: değer "YYYY-AA"; en çok bu ay (max), en erken min. */
+export function MonthStepper({ value, onChange, min, max }: { value: string; onChange: (m: string) => void; min?: string; max?: string }) {
+  const step = (n: number) => mkey(addM(parse(value + '-01'), n));
+  return <Stepper name={t('ay')} label={monthYear(value)} prev={!min || step(-1) >= min} next={!max || step(1) <= max}
+    onPrev={() => onChange(step(-1))} onNext={() => onChange(step(1))} />;
 }
 
 export function Bar({ pct, exp }: { pct: number; exp?: number }) {

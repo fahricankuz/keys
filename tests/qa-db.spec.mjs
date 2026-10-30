@@ -44,6 +44,7 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
     // Kurumlar: org_* ve my_orgs → çağıranın kurum üyeliği / master'lığı / rol yetkisi; is_org_* ve org_can yalnız çağıranı sorar;
     // accept_org_invite → kodu bilen (süre ve tek kullanım denetimiyle).
     // Site: accept_site_invite → kodu bilen (tek kullanım); site_role, is_site_resident, my_site_units, site_folder_ok → yalnız çağıranı sorar;
+    // site_invite_info → kodu bilen (kullanılmış kodda kişisel bilgi yok); site_invite_mail → "Malik ve kiracılar" yetkisi.
     // link_site_unit → mülk sahibi ve dairenin maliki; site_linked_tenants → kurum üyesi; site_report → Raporlar yetkisi.
     'accept_invite', 'accept_org_invite', 'accept_site_invite', 'activity_feed', 'admin_add_property', 'admin_audit_log', 'admin_delete_message', 'admin_extend_trial', 'admin_kpis', 'admin_messages',
     'admin_org_save', 'admin_org_set_master', 'admin_orgs',
@@ -53,7 +54,7 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
     'member_can', 'member_role', 'msg_side', 'my_access', 'my_orgs', 'my_site_units',
     'org_can', 'org_detail', 'org_invite_create', 'org_invite_delete', 'org_member_remove', 'org_member_set', 'org_role_delete', 'org_role_save',
     'org_transfer_master',
-    'report_error', 'review_ok', 'shares_property', 'site_folder_ok', 'site_linked_tenants', 'site_report', 'site_role', 'submit_lead', 'team_list', 'team_remove', 'team_set'
+    'report_error', 'review_ok', 'shares_property', 'site_folder_ok', 'site_invite_info', 'site_invite_mail', 'site_linked_tenants', 'site_report', 'site_role', 'submit_lead', 'team_list', 'team_remove', 'team_set'
   ]);
 });
 

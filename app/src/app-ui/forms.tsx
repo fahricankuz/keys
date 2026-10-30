@@ -1,6 +1,7 @@
 import { ReactNode, useState } from 'react';
 import { Platform, TextInput, View } from 'react-native';
 import { t } from '../domain/i18n';
+import { numRaw, numShow } from '../domain/util';
 import { Button, Field, PressScale, Text } from '../ui/kit';
 import { fonts, radius, useColors } from '../ui/theme';
 import { Icon, Muted, Row } from './blocks';
@@ -23,9 +24,14 @@ export function Text2({ label, v, set, k, ...rest }: { label: string; v: Vals; s
   return <Field label={label} value={String(v[k] ?? '')} onChangeText={(x) => set(k, x)} {...rest} />;
 }
 
+/** Tutar ve sayı alanı: yazarken binlik ayırıcıyla gösterilir (20.000; İngilizcede 20,000); değer ham kalır ("20000.5"). */
+export function MoneyField({ value, onChange, decimals = 2, ...rest }: { label: string; value: any; onChange: (raw: string) => void; decimals?: number; hint?: string; placeholder?: string; error?: string | null; editable?: boolean }) {
+  return <Field {...rest} value={numShow(value)} keyboardType={decimals ? 'decimal-pad' : 'number-pad'} inputMode={decimals ? 'decimal' : 'numeric'}
+    onChangeText={(x) => onChange(numRaw(x, decimals))} />;
+}
+
 export function NumField({ label, v, set, k, hint }: { label: string; v: Vals; set: (k: string, x: any) => void; k: string; hint?: string }) {
-  return <Field label={label} hint={hint} value={String(v[k] ?? '')} keyboardType="numeric" inputMode="numeric"
-    onChangeText={(x) => set(k, x.replace(/[^0-9.,]/g, '').replace(',', '.'))} />;
+  return <MoneyField label={label} hint={hint} value={v[k]} onChange={(x) => set(k, x)} />;
 }
 
 /** Tarih: web'de yerel tarih seçici, cihazda GG.AA.YYYY maskeli metin (değer YYYY-AA-GG). */

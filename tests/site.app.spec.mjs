@@ -57,11 +57,26 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await page.getByRole('button', { name: 'Daireleri ekle' }).click();
   await expect(page.getByText('2 daire eklendi.')).toBeVisible();
   await expect(page.getByText('Ali Malik')).toBeVisible();
-  await page.getByRole('button', { name: 'Malik ya da kiracı ekle' }).first().click();
+  // Kişi ekle → Davet gönder: e-posta fonksiyonu çağrılır, WhatsApp hazır mesajla (bağlantı ve kod) açılır.
+  await page.getByRole('button', { name: 'Kişi ekle' }).first().click();
   await page.getByLabel('Ad soyad').fill('Mehmet Kiracı');
-  await page.getByRole('button', { name: 'Kişiyi ekle' }).click();
+  await page.getByLabel('Telefon', { exact: true }).fill('0532 123 45 67');
+  await page.getByLabel('E-posta (isteğe bağlı)').fill('mehmet@ornek.com');
+  await page.context().route('https://wa.me/**', (r) => r.fulfill({ body: 'WhatsApp' }));   // dış ağa çıkılmaz
+  const popup = page.waitForEvent('popup');
+  await page.getByRole('button', { name: 'Davet gönder' }).click();
+  const wa = await popup;
+  await expect(page.getByText('Davet hazır')).toBeVisible();
+  const kiraci = (await db(page)).tables.site_residents.find(r => r.role === 'kiraci');
+  const code = kiraci.code;
+  await expect.poll(() => wa.url()).toContain('wa.me/905321234567');
+  expect(decodeURIComponent(wa.url())).toContain('katil?kod=' + code);
+  await wa.close();
+  await expect.poll(async () => (await db(page)).invokedBodies || []).toContainEqual({ name: 'site-invite', body: { resident: kiraci.id } });
+  await expect.poll(async () => !!(await db(page)).tables.site_residents.find(r => r.id === kiraci.id).invited_at).toBe(true);
+  await page.getByRole('button', { name: 'Tamam' }).click();
   await expect(page.getByText('Mehmet Kiracı')).toBeVisible();
-  const code = (await db(page)).tables.site_residents.find(r => r.role === 'kiraci').code;
+  await expect(page.getByText('Davet gönderildi')).toBeVisible();
 
   await page.getByRole('link', { name: 'Aidat ve tahakkuk', exact: true }).first().click();
   await expect(page.getByText('2 daireye toplam ₺2.500')).toBeVisible();
@@ -72,6 +87,16 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await page.getByLabel('Duyuru metni').fill('Yarın 10-14 arası su kesilecek.');
   await page.getByRole('button', { name: 'Duyur', exact: true }).click();
   await expect(page.getByText('Yarın 10-14 arası su kesilecek.')).toBeVisible();
+
+  // Davet bağlantısı oturumsuz açılınca kayıt formu yönetimin girdiği bilgilerle dolu gelir.
+  await page.evaluate(() => { const d = JSON.parse(localStorage.getItem('__fakedb')); d.session = null; localStorage.setItem('__fakedb', JSON.stringify(d)); });
+  await page.goto(url('/katil?kod=' + code));
+  await expect(page.getByText('Atakum Sitesi · A Blok No 1')).toBeVisible();
+  await page.getByRole('button', { name: 'Ücretsiz hesap oluştur' }).click();
+  await expect(page.getByLabel('Ad soyad')).toHaveValue('Mehmet Kiracı');
+  await expect(page.getByLabel('E-posta')).toHaveValue('mehmet@ornek.com');
+  await expect(page.getByLabel('Telefon (isteğe bağlı)')).toHaveValue('0532 123 45 67');
+  await expect(page.getByLabel('Davet kodu (isteğe bağlı)')).toHaveValue(code);
 
   // 2. Kiracı: davet bağlantısıyla bağlanır; yalnız kendi dairesini görür; dekont yükler, talep açar.
   await login(page, 'kiraci@ornek.com');
@@ -167,7 +192,7 @@ test('ev sahibi mülkünü site dairesine bağlar; kiracı kira ile aidatı ayn�
   await expect(page).toHaveURL(/\/uygulama\/site$/);            // kurum yöneticisi girişte kendi panelinde açılır
   await page.goto(url('/uygulama/site'));
   await page.getByRole('link', { name: 'Daireler', exact: true }).first().click();
-  await expect(page.getByText('Kiracı · ev sahibinin anahtar hesabı üzerinden bağlı')).toBeVisible();
+  await expect(page.getByText('Ev sahibi üzerinden')).toBeVisible();              // kiracı ev sahibinin anahtar hesabı üzerinden bağlı
   await page.getByRole('link', { name: 'İşletme projesi', exact: true }).first().click();
   await page.getByLabel('Gider kalemi').fill('Asansör bakımı');
   await page.getByLabel('Yıllık tutar (₺)').fill('48000');

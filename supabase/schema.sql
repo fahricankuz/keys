@@ -626,12 +626,13 @@ create trigger touch_payments before update on public.payments
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  insert into public.profiles (id, role, name, lang)
+  insert into public.profiles (id, role, name, lang, phone)
   values (
     new.id,
     case when new.raw_user_meta_data ->> 'role' = 'landlord' then 'landlord' else 'tenant' end,
     coalesce(new.raw_user_meta_data ->> 'name', split_part(new.email, '@', 1)),
-    coalesce(new.raw_user_meta_data ->> 'lang', 'tr')
+    coalesce(new.raw_user_meta_data ->> 'lang', 'tr'),
+    left(coalesce(new.raw_user_meta_data ->> 'phone', ''), 30)
   )
   on conflict (id) do nothing;
   return new;
@@ -2929,7 +2930,7 @@ revoke execute on function public.org_people(uuid, text) from public, anon, auth
 
 create or replace function public.unit_label(unit uuid)
 returns text language sql stable security definer set search_path = public as $$
-  select case when block <> '' then block || ' Blok ' else '' end || 'No ' || no from public.site_units where id = unit
+  select case when block <> '' then block || ' Blok ' else '' end || case when no ~ '^[0-9]' then 'No ' else '' end || no from public.site_units where id = unit
 $$;
 
 /** Tahakkuk kaleminin bildirimdeki adı ("Kasım aidatı", "Kasım kirası"…). */
@@ -3310,7 +3311,7 @@ end $$;
 /** Birim etiketi: sitede "A Blok No 3", ticari kurumlarda "Zemin kat · Z-12". */
 create or replace function public.unit_label(unit uuid)
 returns text language sql stable security definer set search_path = public as $$
-  select case when o.sector = 'site' then case when u.block <> '' then u.block || ' Blok ' else '' end || 'No ' || u.no
+  select case when o.sector = 'site' then case when u.block <> '' then u.block || ' Blok ' else '' end || case when u.no ~ '^[0-9]' then 'No ' else '' end || u.no
               else case when u.block <> '' then u.block || ' · ' else '' end || u.no end
   from public.site_units u join public.organizations o on o.id = u.org_id where u.id = unit
 $$;
@@ -4135,5 +4136,92 @@ begin
     update public.organizations o
        set modules = array(select distinct x from unnest(coalesce(o.modules, '{}') || public.sector_modules(o.sector)) x order by 1);
     insert into public.schema_migrations (id) values ('2026-10-sektor-modulleri');
+  end if;
+end $$;
+
+
+-- =====================================================================
+-- 29. Site daveti (e-posta, WhatsApp, dolu kayıt formu) ve otomatik aidat
+--     Yönetim kişiyi ad, telefon ve isteğe bağlı e-postayla ekler; "Davet gönder" e-postayı (site-invite fonksiyonu) gönderir
+--     ve WhatsApp'ı hazır mesajla açar. Davet bağlantısı açılınca kayıt formu yönetimin girdiği bilgilerle dolu gelir.
+--     Otomatik aidat: ayın seçilen gününde dairelerin aylık aidatı tahakkuk edilir (pg_cron, her gün 09:00 İstanbul);
+--     vade günü ayrıca seçilir, hatırlatmalar 18. bölümdeki site_reminders ile gider.
+-- =====================================================================
+alter table public.site_residents add column if not exists invited_at timestamptz;
+
+/** /katil sayfası (oturumsuz da): kodun sitesi ve dairesi; kullanılmamışsa yönetimin girdiği ad, telefon ve e-posta.
+    Kod 8 haneli ve tek kullanımlıktır; kullanılmış kodda kişisel bilgi dönmez. */
+create or replace function public.site_invite_info(invite_code text)
+returns jsonb language sql stable security definer set search_path = public as $$
+  select case when r.user_id is null
+    then jsonb_build_object('org', o.name, 'sector', o.sector, 'unit', public.unit_label(r.unit_id), 'role', r.role,
+                            'name', r.name, 'phone', r.phone, 'email', r.email, 'used', false)
+    else jsonb_build_object('org', o.name, 'unit', public.unit_label(r.unit_id), 'used', true) end
+  from public.site_residents r join public.organizations o on o.id = r.org_id
+  where r.code = upper(btrim(coalesce(invite_code, ''))) and length(btrim(coalesce(invite_code, ''))) = 8
+$$;
+grant execute on function public.site_invite_info(text) to anon, authenticated;
+
+/** Davet e-postasının içeriği (site-invite fonksiyonu yöneticinin oturumuyla çağırır): yalnız "Malik ve kiracılar" yetkisi
+    olan yönetici, kayıtlı e-postası olan ve henüz katılmamış kişi için. Gönderim zamanı işlenir. */
+create or replace function public.site_invite_mail(rid uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare r public.site_residents; o public.organizations;
+begin
+  select * into r from public.site_residents where id = rid;
+  if r.id is null then raise exception 'Kişi bulunamadı' using errcode = 'P0002'; end if;
+  if not public.org_can(r.org_id, 'residents.manage') then raise exception 'Davet yetkin yok' using errcode = '42501'; end if;
+  if r.user_id is not null then raise exception 'Bu kişi zaten katıldı' using errcode = '22023'; end if;
+  if r.email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then raise exception 'E-posta adresi yok' using errcode = '22023'; end if;
+  select * into o from public.organizations where id = r.org_id;
+  update public.site_residents set invited_at = now() where id = rid;
+  return jsonb_build_object('email', r.email, 'name', r.name, 'role', r.role, 'code', r.code, 'org', o.name, 'sector', o.sector,
+    'unit', public.unit_label(r.unit_id), 'by', (select name from public.profiles where id = auth.uid()));
+end $$;
+grant execute on function public.site_invite_mail(uuid) to authenticated;
+
+create table if not exists public.site_auto (
+  org_id      uuid primary key references public.organizations(id) on delete cascade,
+  enabled     boolean not null default false,
+  run_day     int not null default 1 check (run_day between 1 and 28),
+  due_day     int not null default 10 check (due_day between 1 and 28),
+  start_month text check (start_month is null or start_month ~ '^\d{4}-(0[1-9]|1[0-2])$'),
+  last_month  text,
+  updated_at  timestamptz not null default now()
+);
+alter table public.site_auto enable row level security;
+drop policy if exists sauto_read on public.site_auto;
+create policy sauto_read on public.site_auto for select to authenticated using (public.is_org_member(org_id) or public.is_admin());
+drop policy if exists sauto_write on public.site_auto;
+create policy sauto_write on public.site_auto for all to authenticated
+  using (public.org_can(org_id, 'charges.manage')) with check (public.org_can(org_id, 'charges.manage'));
+
+/** Otomatik aidat: günü gelen (ya da kaçırılan) sitelerde o ayın aidatı, aidatı tanımlı her daireye tahakkuk edilir.
+    Aynı ay için ikinci çalıştırma bir şey eklemez. Vade: seçilen gün (tahakkuk gününden önceyse sonraki ayın o günü). */
+create or replace function public.site_auto_run(today date default (now() at time zone 'Europe/Istanbul')::date)
+returns int language plpgsql security definer set search_path = public as $$
+declare a record; m text := to_char(today, 'YYYY-MM'); m0 date := date_trunc('month', today)::date; n int := 0; k int;
+begin
+  for a in select s.* from public.site_auto s join public.organizations o on o.id = s.org_id and o.status = 'active'
+           where s.enabled and o.sector = 'site' and extract(day from today) >= s.run_day
+             and coalesce(s.last_month, '') < m and m >= coalesce(s.start_month, m) loop
+    insert into public.site_charges (org_id, unit_id, month, kind, title, amount, due_on)
+    select a.org_id, u.id, m, 'aidat', '', u.aidat,
+           (m0 + (a.due_day - 1) + case when a.due_day < a.run_day then interval '1 month' else interval '0' end)::date
+    from public.site_units u where u.org_id = a.org_id and u.aidat > 0
+    on conflict (unit_id, month, kind, title) do nothing;
+    get diagnostics k = row_count;
+    n := n + k;
+    update public.site_auto set last_month = m where org_id = a.org_id;
+  end loop;
+  return n;
+end $$;
+revoke execute on function public.site_auto_run(date) from public, anon, authenticated;
+
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    perform cron.unschedule(jobid) from cron.job where jobname = 'anahtar-site-auto';
+    perform cron.schedule('anahtar-site-auto', '0 6 * * *', 'select public.site_auto_run()');
   end if;
 end $$;
