@@ -233,8 +233,8 @@ function emptyState(){
   };
 }
 
-/** Girişte mülk başına yüklenen son mesaj sayısı; eskileri "Daha eski mesajlar" ile gelir (olderMessages). */
-export const MSG_PAGE = 200;
+/** Girişte mülk başına yüklenen son mesaj sayısı; eskileri sohbet yukarı kaydırılınca sayfa sayfa gelir (olderMessages). */
+export const MSG_PAGE = 30;
 
 async function fetchRows(ids, single){
   // Mesajlar mülk başına son MSG_PAGE kadar (bir mülkte daha fazlası yüklüyse o kadar) istenir: uzun yazışmalar girişi

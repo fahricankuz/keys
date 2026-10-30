@@ -1,4 +1,4 @@
-// Hız iyileştirmeleri, uygulama tarafı: yazışmada son 200 mesaj yüklenir, eskileri "Daha eski mesajlar" ile gelir;
+// Hız iyileştirmeleri, uygulama tarafı: yazışmada son 30 mesaj yüklenir, eskileri yukarı kaydırdıkça (ya da "Daha eski mesajlar" ile) gelir;
 // yüklenen görselin küçük kopyası da saklanır; yönetici panelinde uzun listeler 100'er kayıt çizilir ve ödemeler son 12 ay
 // gelir ("Daha eski ödemeleri yükle"); oturumu olmayan ziyaretçi ana sayfada sunucu kütüphanesini yüklemez.
 import { test, expect } from '@playwright/test';
@@ -26,7 +26,7 @@ async function login(page, email) {
 }
 const withSeed = (page, d) => page.addInitScript((x) => { if (!localStorage.getItem('__fakedb')) localStorage.setItem('__fakedb', JSON.stringify(x)); }, d);
 
-test('yazışma: son 200 mesaj yüklenir, "Daha eski mesajlar" kalanları getirir', async ({ page }) => {
+test('yazışma: son 30 mesaj yüklenir; yukarı kaydırınca eskiler otomatik gelir, "Daha eski mesajlar" kalanları getirir', async ({ page }) => {
   const d = seed();
   for (let i = 0; i < 250; i++) d.tables.messages.push({ id: 'b' + i, property_id: 'p1', from_role: i % 2 ? 'tenant' : 'landlord', by_user: i % 2 ? ID.tenant : ID.landlord,
     body: 'Mesaj ' + i, at: new Date(Date.now() - (300 - i) * 60000).toISOString() });
@@ -35,8 +35,16 @@ test('yazışma: son 200 mesaj yüklenir, "Daha eski mesajlar" kalanları getiri
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
   await page.goto(url('/uygulama/mesajlar'));
   await expect(page.getByText('Mesaj 249', { exact: true })).toBeVisible();
-  await expect(page.getByText('Mesaj 49', { exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Daha eski mesajlar' }).click();
+  await expect(page.getByText('Mesaj 219', { exact: true })).toHaveCount(0);                       // yalnız son 30 (220-249) yüklü
+  // Yukarı kaydırınca eski mesajlar kendiliğinden gelir; okunan yer kaymaz.
+  await page.getByText('Mesaj 249', { exact: true }).hover();
+  await page.mouse.wheel(0, -8000);
+  await expect(page.getByText('Mesaj 219', { exact: true })).toBeAttached({ timeout: 8000 });
+  // Kalan eskiler de sayfa sayfa gelir (düğme ya da kaydırma); sonunda düğme kalkar.
+  for (let i = 0; i < 12 && await page.getByRole('button', { name: 'Daha eski mesajlar' }).count(); i++) {
+    await page.getByRole('button', { name: 'Daha eski mesajlar' }).click({ timeout: 1500 }).catch(() => {});
+    await page.waitForTimeout(250);
+  }
   await expect(page.getByText('Mesaj 0', { exact: true })).toBeAttached();
   await expect(page.getByRole('button', { name: 'Daha eski mesajlar' })).toHaveCount(0);
   // Yüklenen eski mesajlar yeniden gönderilmez.
