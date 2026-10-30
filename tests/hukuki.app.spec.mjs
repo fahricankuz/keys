@@ -41,7 +41,7 @@ function seedWithRequest() {
   db.tables.legal_requests = [{ id: 'lr1', no: 1, user_id: db.users[0].id, role: 'landlord', property_id: 'p1', property_name: 'Moda Dairesi', topic: 'gecikme',
     body: 'İki aydır kira ödenmiyor.', files: [], price: 3000, status: 'received', reply: '', paid_at: null, forwarded_at: null, closed_at: null,
     consent_at: at, scope_at: at, created_at: at, updated_at: at, contact: { name: 'Ayşe Mülk', email: 'ev@ornek.com', phone: '' },
-    context: { property: { name: 'Moda Dairesi', addr: 'Kadıköy', rent: 30000, deposit: 60000, landlord: 'Ayşe Mülk', tenant: 'Mehmet Kiracı' },
+    context: { property: { name: 'Moda Dairesi', addr: 'Kadıköy', rent: 30000, deposit: 60000, end: END, landlord: 'Ayşe Mülk', tenant: 'Mehmet Kiracı' },
       docs: [], payments: [{ month: START.slice(0, 7), status: 'late', expected: 30000, paid: null, date: null }] } }];
   return db;
 }
@@ -142,6 +142,8 @@ test('yönetici ödemeyi işaretler ve not yazar; mülk sahibi bildirim, durum v
   await page.getByRole('button', { name: /^Hukuki talepler/ }).click();
   await expect(page.getByText(/H-0001 · Ayşe Mülk/)).toBeVisible();
   await expect(page.getByText(/Geciken aylar:/).first()).toBeVisible();
+  const end = new Date(END + 'T00:00:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+  await expect(page.getByText('Sözleşme bitişi ' + end).first()).toBeVisible();   // "9 Aralık 2026" biçiminde
   const card = page.locator('div').filter({ has: page.getByText(/H-0001 · Ayşe Mülk/) }).filter({ has: page.getByRole('button', { name: 'Ödeme alındı' }) }).last();
   await card.getByLabel('Kişiye not (bildirimle gider)').fill('Ödemen alındı, ihtarname hazırlanıyor.');
   await card.getByLabel('İç not (yalnız ekip görür)').fill('Av. ile görüşüldü');

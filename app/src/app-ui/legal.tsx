@@ -5,7 +5,7 @@ import { View } from 'react-native';
 import { S, ui } from '../domain/state';
 import { P, ST } from '../domain/logic';
 import { t, locale } from '../domain/i18n';
-import { tl, monthYear } from '../domain/util';
+import { tl, monthYear, fmtFull, parse } from '../domain/util';
 import { humanError } from '../domain/backend';
 import { storage } from '../domain/storage';
 import { isTeam } from '../domain/team';
@@ -281,7 +281,7 @@ function AdminLegalCard({ r, reload }: { r: any; reload: () => void }) {
       </Row>
       {pr ? (
         <Muted>{[pr.name, pr.addr, pr.rent ? t('Kira') + ' ' + tl(pr.rent) : '', pr.deposit ? t('Depozito') + ' ' + tl(pr.deposit) : '',
-          pr.end ? t('Sözleşme bitişi') + ' ' + pr.end : '', r.role === 'tenant' ? t('Mülk sahibi') + ': ' + pr.landlord : t('Kiracı') + ': ' + pr.tenant].filter(Boolean).join(' · ')}</Muted>
+          pr.end ? t('Sözleşme bitişi') + ' ' + fmtFull(parse(pr.end)) : '', r.role === 'tenant' ? t('Mülk sahibi') + ': ' + pr.landlord : t('Kiracı') + ': ' + pr.tenant].filter(Boolean).join(' · ')}</Muted>
       ) : null}
       <Text v="small" selectable>{r.body}</Text>
       {late.length ? <Note warn>{t('Geciken aylar:')} {late.map((x: any) => monthYear(x.month) + ' (' + tl(x.expected) + ')').join(', ')}</Note> : null}
