@@ -6,6 +6,8 @@ export type InviteInput = { name?: string; role?: string; org: string; unit: str
 const C = { tugla: '#C8302E', kirec: '#FAF5F0', kart: '#FFFDFB', baca: '#1D1A19', kahve: '#5C4F4A', duman: '#A39A95',
             kil: '#E8DDD5', bal: '#F2B544', gulKoyu: '#A8231F', zemin: '#F3ECE5' };
 const FONT = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`;
+/** Marka logosu (kenarlıksız, koyu zeminli; anahtar.io/mail altında yayında durur). */
+const LOGO_URL = 'https://anahtar.io/mail/anahtar-logo-mail.png';
 const esc = (s: string) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
 export function renderInvite(o: InviteInput): { subject: string; html: string; text: string } {
@@ -37,7 +39,7 @@ export function renderInvite(o: InviteInput): { subject: string; html: string; t
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.kirec};padding:24px 0"><tr><td align="center">
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:${C.kart};border-radius:28px;overflow:hidden;border:1px solid ${C.kil}">
 <tr><td style="background:${C.baca};padding:26px 32px 30px">
-<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="width:30px;height:30px;background:${C.tugla};border-radius:9px;color:${C.kirec};font:900 20px/28px ${FONT};text-align:center">a</td><td style="padding-left:8px;font:800 24px ${FONT};color:${C.kirec};letter-spacing:-.6px">anahtar</td></tr></table>
+<img src="${LOGO_URL}" width="168" height="31" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none">
 <div style="display:inline-block;margin-top:22px;background:${C.bal};color:${C.baca};font:700 12px ${FONT};padding:5px 12px;border-radius:999px">${esc(badge)}</div>
 <div style="font:800 32px/1.12 ${FONT};color:#FFF3EA;letter-spacing:-1px;margin-top:12px">${esc(title)}</div>
 <div style="font:400 15px/1.55 ${FONT};color:#BDB1AB;margin-top:10px">${esc(lead)}</div></td></tr>

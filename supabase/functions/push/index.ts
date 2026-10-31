@@ -19,6 +19,7 @@ import webpush from 'npm:web-push@3.6.7';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { sendApns, sendFcm } from './native.ts';
 import { sendSms, smsEnabled } from './sms.ts';
+import { renderNotice } from './template.ts';
 
 type NotificationRow = {
   id: number; user_id: string; property_id: string | null; title: string; body: string; url: string; tag: string | null;
@@ -138,7 +139,7 @@ Deno.serve(async (req) => {
             from: env('EMAIL_FROM'),
             to,
             subject: n.title,
-            text: `${n.body}\n\n${link}\n\n— anahtar`
+            ...renderNotice({ title: n.title, body: n.body, link })
           })
         });
         mailed = res.ok;
