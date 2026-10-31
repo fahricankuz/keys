@@ -38,9 +38,9 @@ export function renderInvite(o: InviteInput): { subject: string; html: string; t
 <div style="display:none;max-height:0;overflow:hidden">${esc(lead)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.kirec};padding:24px 0"><tr><td align="center">
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:${C.kart};border-radius:28px;overflow:hidden;border:1px solid ${C.kil}">
+<tr><td style="background:${C.kart};padding:24px 32px 22px"><img src="${LOGO_URL}" width="168" height="31" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none"></td></tr>
 <tr><td style="background:${C.baca};padding:26px 32px 30px">
-<img src="${LOGO_URL}" width="168" height="31" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none">
-<div style="display:inline-block;margin-top:22px;background:${C.bal};color:${C.baca};font:700 12px ${FONT};padding:5px 12px;border-radius:999px">${esc(badge)}</div>
+<div style="display:inline-block;margin-top:0;background:${C.bal};color:${C.baca};font:700 12px ${FONT};padding:5px 12px;border-radius:999px">${esc(badge)}</div>
 <div style="font:800 32px/1.12 ${FONT};color:#FFF3EA;letter-spacing:-1px;margin-top:12px">${esc(title)}</div>
 <div style="font:400 15px/1.55 ${FONT};color:#BDB1AB;margin-top:10px">${esc(lead)}</div></td></tr>
 <tr><td style="padding:26px 32px 4px;font:400 15px/1.55 ${FONT};color:${C.baca}">${first ? `Merhaba ${esc(first)},` : 'Merhaba,'}</td></tr>
