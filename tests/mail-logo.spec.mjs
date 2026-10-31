@@ -7,7 +7,7 @@ import { renderInvite as renderTenantInvite } from '../supabase/functions/invite
 import { renderInvite as renderSiteInvite } from '../supabase/functions/site-invite/template.ts';
 import { renderNotice } from '../supabase/functions/push/template.ts';
 
-const LOGO = 'https://anahtar.io/mail/anahtar-logo-mail.png';
+const LOGO = 'https://anahtar.io/mail/anahtar-logo-mail-v2.png';
 const root = (p) => new URL('../' + p, import.meta.url).pathname;
 const img = new RegExp(`<img src="${LOGO.replace(/[.]/g, '\\.')}"[^>]*alt="anahtar"`);
 
@@ -30,12 +30,13 @@ test('rapor ve talep e-postaları da logoyu kullanır (şablon kaynağı)', () =
 test('logo dosyaları: doğru boyut, şeffaf zemin (açık başlıkta durur), başka sitelerden yüklenebilir', () => {
   const png = (p) => readFileSync(root(p));
   const dims = (b) => [b.readUInt32BE(16), b.readUInt32BE(20)];
-  expect(dims(png('app/public/mail/anahtar-logo-mail.png'))).toEqual([480, 88]);
+  expect(dims(png('app/public/mail/anahtar-logo-mail-v2.png'))).toEqual([480, 88]);
+  expect(png('app/public/mail/anahtar-logo-mail-v2.png').equals(png('app/public/mail/anahtar-logo-mail.png'))).toBe(true);   // eski adres (gönderilmiş e-postalar) aynı yeni logoyu verir
   expect(dims(png('app/public/mail/anahtar-ikon-mail.png'))).toEqual([192, 192]);
   expect(dims(png('app/public/marka/anahtar-logo.png'))).toEqual([2000, 366]);
   expect(dims(png('app/public/marka/anahtar-ikon.png'))).toEqual([1024, 1024]);
   // Yazılı logo şeffaf zeminlidir (PNG renk türü 6 = RGBA) ve e-postalarda koyu değil açık başlıkta durur.
-  expect(png('app/public/mail/anahtar-logo-mail.png')[25]).toBe(6);
+  expect(png('app/public/mail/anahtar-logo-mail-v2.png')[25]).toBe(6);
   expect(png('app/public/marka/anahtar-logo.png')[25]).toBe(6);
   expect(readFileSync(root('app/public/.htaccess'), 'utf8')).toMatch(/anahtar-\(logo\|ikon\)-mail[\s\S]*Cross-Origin-Resource-Policy "cross-origin"/);
 });
@@ -58,5 +59,5 @@ test('derlemede /mail ve /marka klasörleri siteyle birlikte yayına çıkar', a
   const dist = root('app/dist-fake');
   test.setTimeout(300_000);
   await ensureDist(dist);
-  for (const f of ['mail/anahtar-logo-mail.png', 'mail/anahtar-ikon-mail.png', 'marka/anahtar-logo.png', 'marka/anahtar-ikon.png']) expect(existsSync(dist + '/' + f), f).toBe(true);
+  for (const f of ['mail/anahtar-logo-mail-v2.png', 'mail/anahtar-ikon-mail.png', 'marka/anahtar-logo.png', 'marka/anahtar-ikon.png']) expect(existsSync(dist + '/' + f), f).toBe(true);
 });
