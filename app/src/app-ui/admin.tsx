@@ -5,17 +5,17 @@ import { AdminLegal } from './legal';
 import { AdminErrors, AdminReports } from './moderation';
 import { adminReports } from '../domain/moderation';
 import { adminLegal } from '../domain/legal';
-import { Image, Linking, ScrollView, View } from 'react-native';
+import { Image, Linking, ScrollView, Text as RNText, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../auth/auth';
-import { loadAdmin, decide, previewUrl, humanError, setBan, loadThreads, loadMessages, deleteMessage, loadAudit } from '../domain/admin';
+import { loadAdmin, decide, previewUrl, humanError, setBan, deleteUser, loadThreads, loadMessages, deleteMessage, loadAudit } from '../domain/admin';
 import { t, locale } from '../domain/i18n';
 import { tl } from '../domain/util';
 import { Button, Chip, Field, PressScale, Text } from '../ui/kit';
 import { Wordmark } from '../ui/Wordmark';
 import { Loader } from '../ui/Loader';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
-import { Card, Empty, H2, Muted, Row, Seg, Stack } from './blocks';
+import { Card, Empty, H2, Muted, Row, Seg, Stack, initials } from './blocks';
 import { CpiRates, Overview, Subscriptions, Support } from './admin-extra';
 import { AdminShell, PageHead } from './admin-ui';
 import { OrgDraft, Orgs, sectorFromRole } from './admin-orgs';
@@ -72,7 +72,7 @@ export default function AdminPanel() {
     ['pay', t('Ödemeler'), 'chart', t('Tüm kira ödemeleri ve durumları.')],
     ['conn', t('Bağlantılar'), 'landlord', t('Mülk sahibi → mülk → kiracı ağacı.')],
     ['msgs', t('Mesajlar'), 'send', t('Yazışmaları okuma ve gerektiğinde silme (her işlem kayda düşer).')],
-    ['users', t('Kullanıcılar'), 'key', t('Tüm hesaplar; yasaklama ve yasak kaldırma.')],
+    ['users', t('Kullanıcılar'), 'key', t('Tüm hesaplar; yasaklama, yasak kaldırma ve (yasaklanmış hesap için) kalıcı silme.')],
     ['audit', t('İşlem kaydı'), 'flag', t('Yönetici işlemlerinin değiştirilemez kaydı.')]
   ];
   const cur = SECTIONS.find((x) => x[0] === tab) || SECTIONS[0];
@@ -324,30 +324,102 @@ function BanBox({ u, reload }: { u: any; reload: () => void }) {
   );
 }
 
+/** Yasaklanmış hesabı kalıcı siler: e-postayı yazarak onay ister (yanlışlıkla silmeyi önler). */
+function DeleteBox({ u, reload }: { u: any; reload: () => void }) {
+  const c = useColors();
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  if (!u.banned || u.is_admin) return null;
+  const ok = typed.trim().toLocaleLowerCase('tr') === String(u.email || '').trim().toLocaleLowerCase('tr');
+  const run = async () => {
+    setBusy(true); setErr(null);
+    try { await deleteUser(u.id, u.ban_reason || ''); await reload(); } catch (e) { setErr(humanError(e)); setBusy(false); }
+  };
+  if (!open) return <Button kind="ghost" title={t('Hesabı sil')} onPress={() => setOpen(true)} style={{ borderColor: c.badInk }} />;
+  return (
+    <View style={{ gap: 8, padding: 12, borderRadius: 14, backgroundColor: c.badBg }}>
+      <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 13.5, color: c.badInk }}>{t('Kalıcı silme')}</RNText>
+      <RNText style={{ fontFamily: fonts.body, fontSize: 12.5, lineHeight: 18, color: c.badInk }}>{t('Bu işlem geri alınamaz. Hesap, sahibi olduğu mülkler ve verileri silinir; işlem kayda yazılır.')}</RNText>
+      <Field label={t('Onay için hesabın e-postasını yaz')} value={typed} onChangeText={setTyped} placeholder={u.email} autoCapitalize="none" keyboardType="email-address" />
+      <Row wrap>
+        <Button kind="ghost" title={t('Vazgeç')} onPress={() => { setOpen(false); setTyped(''); setErr(null); }} />
+        <Button title={t('Kalıcı olarak sil')} disabled={!ok} loading={busy} onPress={run} />
+      </Row>
+      {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
+    </View>
+  );
+}
+
+/** Küçük etiket (kullanıcı satırında). */
+function Tag({ label, tone = 'neutral' }: { label: string; tone?: 'neutral' | 'bad' | 'accent' | 'ok' }) {
+  const c = useColors();
+  const [bg, fg] = tone === 'bad' ? [c.badBg, c.badInk] : tone === 'accent' ? [c.accentSoft, c.accentText] : tone === 'ok' ? [c.okBg, c.okInk] : [c.surface2, c.muted];
+  return <View style={{ backgroundColor: bg, paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.pill }}><RNText style={{ color: fg, fontFamily: fonts.bodyMedium, fontSize: 10.5 }}>{label}</RNText></View>;
+}
+
+/** Kullanıcı satırı: kapalıyken tek satır (ad, e-posta, etiket); dokununca ayrıntı ve işlemler açılır. */
+function UserRow({ u, open, onToggle, reload }: { u: any; open: boolean; onToggle: () => void; reload: () => void }) {
+  const c = useColors();
+  const name = u.name || u.email || '—';
+  const role = u.is_admin ? t('Yönetici') : u.role === 'landlord' ? t('Mülk sahibi') : t('Kiracı');
+  const line = (k: string, v: string) => (
+    <View style={{ flexDirection: 'row', gap: 8 }}>
+      <RNText style={{ width: 78, fontFamily: fonts.body, fontSize: 12, color: c.muted }}>{k}</RNText>
+      <RNText selectable style={{ flex: 1, fontFamily: fonts.bodyMedium, fontSize: 12.5, color: c.ink }}>{v}</RNText>
+    </View>
+  );
+  return (
+    <View style={{ borderBottomWidth: 1, borderBottomColor: c.line }}>
+      <PressScale onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={name + ', ' + role + (u.banned ? ', ' + t('Askıda') : '')} scaleTo={0.995}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 9, minHeight: 52 }}>
+        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: u.banned ? c.badBg : c.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+          <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 12, color: u.banned ? c.badInk : c.accentText }}>{initials(name)}</RNText>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <RNText numberOfLines={1} style={{ fontFamily: fonts.bodyXBold, fontSize: 14, color: c.ink }}>{name}</RNText>
+          <RNText numberOfLines={1} style={{ fontFamily: fonts.body, fontSize: 12, color: c.muted }}>{u.email}</RNText>
+        </View>
+        <View style={{ alignItems: 'flex-end', gap: 3 }}>
+          <Tag label={role} tone={u.is_admin ? 'accent' : 'neutral'} />
+          {u.banned ? <Tag label={t('Askıda')} tone="bad" /> : null}
+        </View>
+        <RNText style={{ color: c.muted, fontSize: 11 }}>{open ? '▴' : '▾'}</RNText>
+      </PressScale>
+      {open ? (
+        <View style={{ paddingHorizontal: 12, paddingBottom: 12, paddingTop: 2, gap: 10 }}>
+          <View style={{ gap: 4 }}>
+            {line(t('Kayıt'), day(u.created_at))}
+            {u.phone ? line(t('Telefon'), u.phone) : null}
+            {u.role === 'landlord' ? line(t('Abonelik'), u.subscribed ? t('Abone') + (u.expires_at ? ' · ' + day(u.expires_at) : '') : t('Abonelik yok')) : null}
+          </View>
+          {u.role === 'landlord' ? <AddForUser u={u} /> : null}
+          <BanBox u={u} reload={reload} />
+          <DeleteBox u={u} reload={reload} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 function Users({ d, reload }: { d: Data; reload: () => void }) {
   const [q, setQ] = useState('');
   const [f, setF] = useState('all');
-  const list = d.users.filter((u: any) => (f === 'all' || (f === 'banned' ? u.banned : u.role === f)) &&
+  const [open, setOpen] = useState<string | null>(null);
+  const match = (u: any, k: string) => k === 'all' || (k === 'banned' ? u.banned : u.role === k);
+  const n = (k: string) => d.users.filter((u: any) => match(u, k)).length;
+  const list = d.users.filter((u: any) => match(u, f) &&
     (!q.trim() || [u.name, u.email, u.phone].join(' ').toLocaleLowerCase('tr').includes(q.trim().toLocaleLowerCase('tr'))));
   return (
     <Stack>
       <Field label={t('Ara')} value={q} onChangeText={setQ} placeholder={t('Ad, e-posta ya da telefon')} />
-      <Seg scroll value={f} onChange={setF} options={[['all', t('Hepsi')], ['landlord', t('Mülk sahibi')], ['tenant', t('Kiracı')], ['banned', t('Askıda')]]} />
-      {list.length ? <Shown list={list} render={(u: any) => (
-        <Card key={u.id} gap={8}>
-          <Row between wrap>
-            <View style={{ flex: 1, minWidth: 200 }}><H2>{u.name || u.email}</H2><Muted>{u.email}{u.phone ? ' · ' + u.phone : ''}</Muted></View>
-            <Row gap={8} wrap>
-              {u.is_admin ? <Chip tone="accent" label={t('Yönetici')} /> : <Chip label={u.role === 'landlord' ? t('Mülk sahibi') : t('Kiracı')} />}
-              {u.role === 'landlord' ? <Chip tone={u.subscribed ? 'ok' : 'neutral'} label={u.subscribed ? t('Abone') : t('Abonelik yok')} /> : null}
-              {u.banned ? <Chip tone="bad" label={t('Askıda')} /> : null}
-            </Row>
-          </Row>
-          <Muted>{t('Kayıt')}: {day(u.created_at)}</Muted>
-          {u.role === 'landlord' ? <AddForUser u={u} /> : null}
-          <BanBox u={u} reload={reload} />
+      <Seg scroll value={f} onChange={setF} options={[['all', t('Hepsi') + ' ' + n('all')], ['landlord', t('Mülk sahibi') + ' ' + n('landlord')], ['tenant', t('Kiracı') + ' ' + n('tenant')], ['banned', t('Askıda') + ' ' + n('banned')]]} />
+      {list.length ? (
+        <Card gap={0} style={{ padding: 0, overflow: 'hidden' }}>
+          <Shown list={list} step={50} render={(u: any) => <UserRow key={u.id} u={u} open={open === u.id} onToggle={() => setOpen(open === u.id ? null : u.id)} reload={reload} />} />
         </Card>
-      )} /> : <Empty>{t('Kullanıcı yok.')}</Empty>}
+      ) : <Empty>{t('Kullanıcı yok.')}</Empty>}
     </Stack>
   );
 }
@@ -458,7 +530,7 @@ function Msg({ m, d, reload, removed }: { m: any; d: Data; reload: () => void; r
 
 const ACT: Record<string, string> = {
   'trial.extend': 'Deneme uzatıldı', 'plan.set': 'Paket değiştirildi', 'support.done': 'Talep kapatıldı', 'support.open': 'Talep yeniden açıldı',
-  'user.ban': 'Hesap yasaklandı', 'user.unban': 'Yasak kaldırıldı', 'messages.view': 'Yazışma okundu', 'message.delete': 'Mesaj silindi',
+  'user.ban': 'Hesap yasaklandı', 'user.unban': 'Yasak kaldırıldı', 'user.delete': 'Hesap silindi', 'messages.view': 'Yazışma okundu', 'message.delete': 'Mesaj silindi',
   'review.approved': 'Yükleme onaylandı', 'review.rejected': 'Yükleme reddedildi'
 };
 

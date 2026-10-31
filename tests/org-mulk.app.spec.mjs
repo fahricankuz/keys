@@ -79,7 +79,10 @@ test('Kurumlar: master adına mülk eklenir; sözleşme adedi dolunca uyarır ve
 test('Kullanıcılar: mülk sahibi hesabı adına mülk eklenir; kiracı hesabında düğme yok; ad zorunlu', async ({ page }) => {
   await adminLogin(page);
   await page.getByRole('button', { name: 'Kullanıcılar', exact: true }).first().click();
-  const tenant = page.locator('div').filter({ hasText: /^Mehmet Kiracı/ }).last();
+  await expect(page.getByRole('button', { name: 'Mülk ekle' })).toHaveCount(0);      // satırlar kapalı: işlemler dokununca açılır
+  await page.getByRole('button', { name: /^Mehmet Kiracı/ }).click();
+  await expect(page.getByRole('button', { name: 'Mülk ekle' })).toHaveCount(0);      // kiracı hesabında düğme yok
+  await page.getByRole('button', { name: /^Ayşe Mülk/ }).click();
   await expect(page.getByRole('button', { name: 'Mülk ekle' })).toHaveCount(1);      // yalnız mülk sahibi (Ayşe) için
   await page.getByRole('button', { name: 'Mülk ekle' }).click();
   await expect(page.getByText('Ayşe Mülk adına mülk ekle')).toBeVisible();

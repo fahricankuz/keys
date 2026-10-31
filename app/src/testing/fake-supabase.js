@@ -572,7 +572,7 @@ export function createClient(url, key, opts){
                    banned: !!b, ban_reason: b ? b.reason : null, banned_at: b ? b.banned_at : null };
         }), error:null };
       }
-      if (/^admin_(set_ban|threads|messages|delete_message|audit_log)$/.test(name)){
+      if (/^admin_(set_ban|delete_user|threads|messages|delete_message|audit_log)$/.test(name)){
         if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
         const audit = (action, target, detail) => db.tables.admin_audit.push({ id:db.tables.admin_audit.length + 1, admin_id:me, action, target, detail:detail || {}, at:now() });
         const nameOfUser = id => (db.tables.profiles.find(p => p.id === id) || {}).name || null;
@@ -585,6 +585,21 @@ export function createClient(url, key, opts){
             db.tables.bans.push({ user_id:args.uid, reason:String(args.why).trim(), banned_by:me, banned_at:now() });
           } else db.tables.bans = db.tables.bans.filter(b => b.user_id !== args.uid);
           audit(args.ban ? 'user.ban' : 'user.unban', args.uid, { reason: args.why || '' });
+          persist(db);
+          return { data:null, error:null };
+        }
+        if (name === 'admin_delete_user'){
+          if (args.uid === me) return { data:null, error:{ message:'Kendi hesabını buradan silemezsin', code:'22023' } };
+          if (isAdmin(db, args.uid)) return { data:null, error:{ message:'Yönetici silinemez', code:'22023' } };
+          if (!db.tables.bans.some(b => b.user_id === args.uid)) return { data:null, error:{ message:'Önce hesabı yasakla, sonra sil', code:'22023' } };
+          const gone = db.users.find(u => u.id === args.uid);
+          audit('user.delete', args.uid, { email: gone ? gone.email : '', reason: args.why || '' });
+          const ownedIds = db.tables.properties.filter(p => p.owner_id === args.uid).map(p => p.id);
+          db.users = db.users.filter(u => u.id !== args.uid);
+          db.tables.profiles = db.tables.profiles.filter(p => p.id !== args.uid);
+          db.tables.bans = db.tables.bans.filter(b => b.user_id !== args.uid);
+          db.tables.memberships = db.tables.memberships.filter(m => m.user_id !== args.uid && !ownedIds.includes(m.property_id));
+          db.tables.properties = db.tables.properties.filter(p => p.owner_id !== args.uid);
           persist(db);
           return { data:null, error:null };
         }
