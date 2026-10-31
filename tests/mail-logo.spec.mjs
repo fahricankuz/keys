@@ -1,4 +1,4 @@
-// E-postalarda anahtar logosu: şablonlar logoyu (img + alt) kullanır; logo dosyaları yayında durur ve koyu başlıkla aynı zemin rengindedir;
+// E-postalarda anahtar logosu: şablonlar logoyu (img + alt) kullanır; logo dosyaları (şeffaf zeminli, koyu yazılı) yayında durur;
 // Supabase giriş e-postası şablonları (kayıt onayı, şifre sıfırlama…) logoyu ve Supabase değişkenlerini içerir.
 import { test, expect } from '@playwright/test';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -27,13 +27,16 @@ test('rapor ve talep e-postaları da logoyu kullanır (şablon kaynağı)', () =
   expect(readFileSync(root('supabase/functions/lead-mail/index.ts'), 'utf8')).toContain(`<img src="${LOGO}"`);
 });
 
-test('logo dosyaları: doğru boyut, koyu başlıkla aynı zemin, başka sitelerden yüklenebilir', () => {
+test('logo dosyaları: doğru boyut, şeffaf zemin (açık başlıkta durur), başka sitelerden yüklenebilir', () => {
   const png = (p) => readFileSync(root(p));
   const dims = (b) => [b.readUInt32BE(16), b.readUInt32BE(20)];
   expect(dims(png('app/public/mail/anahtar-logo-mail.png'))).toEqual([480, 88]);
   expect(dims(png('app/public/mail/anahtar-ikon-mail.png'))).toEqual([192, 192]);
   expect(dims(png('app/public/marka/anahtar-logo.png'))).toEqual([2000, 366]);
   expect(dims(png('app/public/marka/anahtar-ikon.png'))).toEqual([1024, 1024]);
+  // Yazılı logo şeffaf zeminlidir (PNG renk türü 6 = RGBA) ve e-postalarda koyu değil açık başlıkta durur.
+  expect(png('app/public/mail/anahtar-logo-mail.png')[25]).toBe(6);
+  expect(png('app/public/marka/anahtar-logo.png')[25]).toBe(6);
   expect(readFileSync(root('app/public/.htaccess'), 'utf8')).toMatch(/anahtar-\(logo\|ikon\)-mail[\s\S]*Cross-Origin-Resource-Policy "cross-origin"/);
 });
 
