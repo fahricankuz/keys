@@ -21,7 +21,9 @@ export default defineConfig({
   },
   projects: [
     { name: 'masaustu', use: { ...devices['Desktop Chrome'], locale: 'tr-TR', viewport: { width: 1400, height: 960 }, launchOptions: { executablePath } } },
-    { name: 'mobil', use: { ...devices['Pixel 7'], locale: 'tr-TR', launchOptions: { executablePath } }, grep: /@mobil/ }
+    { name: 'mobil', use: { ...devices['Pixel 7'], locale: 'tr-TR', launchOptions: { executablePath } }, grep: /@mobil/ },
+    // Safari (WebKit, iPhone): yalnızca WEBKIT=1 ile (CI'daki "safari" işi); yerelde WebKit kurulu olmayabilir.
+    ...(process.env.WEBKIT ? [{ name: 'safari', use: { ...devices['iPhone 14'], locale: 'tr-TR' }, grep: /@mobil/ }] : [])
   ],
   webServer: {
     command: `node scripts/serve.mjs ${PORT}`,

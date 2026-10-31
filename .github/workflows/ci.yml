@@ -3,6 +3,8 @@ name: Testler
 on:
   push:
   pull_request:
+  # Hostinger paketi (yayın) bu iş akışını çağırır: testler geçmeden site yayına çıkmaz.
+  workflow_call:
 
 permissions:
   contents: read
