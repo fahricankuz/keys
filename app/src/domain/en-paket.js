@@ -1,5 +1,7 @@
 /* Paketler, fiyatlar (mülk başına) ve satın alma sayfası için İngilizce. i18n.js içinde birleştirilir. */
 export const EN_PAKET = {
+  'Bölümler': 'Sections',
+
   'Fotoğraf işlenemedi': 'Photo could not be processed',
   'Bu fotoğraf küçültülemedi. Başka bir fotoğraf dene ya da ekran görüntüsü al.': 'This photo could not be resized. Try another photo or take a screenshot.',
   'Fotoğraf hazırlanıyor': 'Preparing photo',

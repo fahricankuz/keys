@@ -1,6 +1,6 @@
 /* Yönetici paneli tasarım parçaları (tanıtım sitesinin dilinden): koyu yan menü, bölüm başlığı,
    renkli simgeli gösterge kutusu ve grup başlığı. */
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { ScrollView, Text as RNText, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { t } from '../domain/i18n';
@@ -11,7 +11,7 @@ import { Icon } from './blocks';
 
 export type NavItem = { key: string; label: string; icon: string; badge?: number };
 
-/** Masaüstünde koyu yan menü, telefonda üst şerit + kaydırılan sekmeler. İçerik sağda / altta. */
+/** Masaüstünde koyu yan menü, telefonda üst şerit + açılır bölüm menüsü (basınca açılır, seçince kapanır). İçerik sağda / altta. */
 export function AdminShell({ items, active, onPick, email, onReload, onSignOut, busy, children }: {
   items: NavItem[]; active: string; onPick: (k: string) => void; email?: string;
   onReload: () => void; onSignOut: () => void; busy?: boolean; children: ReactNode;
@@ -19,7 +19,9 @@ export function AdminShell({ items, active, onPick, email, onReload, onSignOut, 
   const c = useColors();
   const router = useRouter();
   const { desktop } = useBreakpoint();
+  const [menu, setMenu] = useState(false);
   if (!desktop) {
+    const cur = items.find((x) => x.key === active) || items[0];
     return (
       <View style={{ flex: 1, backgroundColor: c.bg }}>
         <View style={{ backgroundColor: c.deepA, paddingTop: 14, paddingBottom: 10, gap: 10 }}>
@@ -30,19 +32,36 @@ export function AdminShell({ items, active, onPick, email, onReload, onSignOut, 
             </View>
             <Button kind="onDark" title={t('Çıkış yap')} onPress={onSignOut} style={{ minHeight: 38, paddingHorizontal: 14 }} />
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingHorizontal: 16 }}>
-            {items.map((it) => {
-              const on = it.key === active;
-              return (
-                <PressScale key={it.key} onPress={() => onPick(it.key)} accessibilityRole="button" accessibilityState={{ selected: on }} scaleTo={0.96}
-                  accessibilityLabel={it.label + (it.badge ? ' (' + it.badge + ')' : '')}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, minHeight: 38, borderRadius: radius.pill, backgroundColor: on ? c.lemon : 'rgba(250,245,240,0.08)' }}>
-                  <Icon name={it.icon} size={15} color={on ? '#1D1A19' : c.heroInk} />
-                  <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 13.5, color: on ? '#1D1A19' : c.heroInk }}>{it.label}{it.badge ? ' (' + it.badge + ')' : ''}</RNText>
-                </PressScale>
-              );
-            })}
-          </ScrollView>
+          <View style={{ paddingHorizontal: 16, gap: 6 }}>
+            <PressScale onPress={() => setMenu((o) => !o)} accessibilityRole="button" aria-expanded={menu} accessibilityLabel={t('Bölümler') + ': ' + cur.label} scaleTo={0.98}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, minHeight: 46, borderRadius: radius.pill, backgroundColor: c.lemon }}>
+              <Icon name={cur.icon} size={16} color="#1D1A19" />
+              <RNText style={{ flex: 1, fontFamily: fonts.bodyBold, fontSize: 14.5, color: '#1D1A19' }}>{cur.label}{cur.badge ? ' (' + cur.badge + ')' : ''}</RNText>
+              <RNText style={{ fontSize: 16, color: '#1D1A19' }}>{menu ? '▴' : '▾'}</RNText>
+            </PressScale>
+            {menu ? (
+              <ScrollView style={{ maxHeight: 360, borderRadius: 18, backgroundColor: 'rgba(250,245,240,0.08)' }} contentContainerStyle={{ padding: 6, gap: 2 }}>
+                {items.map((it) => {
+                  const on = it.key === active;
+                  return (
+                    <PressScale key={it.key} onPress={() => { onPick(it.key); setMenu(false); }} accessibilityRole="button" accessibilityState={{ selected: on }} scaleTo={0.98}
+                      accessibilityLabel={it.label + (it.badge ? ' (' + it.badge + ')' : '')}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, minHeight: 46, borderRadius: 14, backgroundColor: on ? 'rgba(250,245,240,0.14)' : 'transparent' }}>
+                      <View style={{ width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? c.lemon : 'rgba(250,245,240,0.08)' }}>
+                        <Icon name={it.icon} size={16} color={on ? '#1D1A19' : c.heroInk} />
+                      </View>
+                      <RNText style={{ flex: 1, fontFamily: on ? fonts.bodyXBold : fonts.bodyMedium, fontSize: 14.5, color: c.heroInk }}>{it.label}</RNText>
+                      {it.badge ? (
+                        <View style={{ minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, backgroundColor: c.lemon, alignItems: 'center', justifyContent: 'center' }}>
+                          <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 12, color: '#1D1A19' }}>{it.badge}</RNText>
+                        </View>
+                      ) : null}
+                    </PressScale>
+                  );
+                })}
+              </ScrollView>
+            ) : null}
+          </View>
         </View>
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>{children}</ScrollView>
       </View>
