@@ -1,0 +1,1 @@
+__d(function(g,r,i,a,m,e,d){"use strict";Object.defineProperty(e,'__esModule',{value:!0}),Object.defineProperty(e,"default",{enumerable:!0,get:function(){return l}});var t=r(d[0]),u=r(d[1]),n=r(d[2]),o=r(d[3]);function l(){return'landlord'===u.ui.role?(0,o.jsx)(n.Report,{}):(0,o.jsx)(t.Redirect,{href:"/uygulama"})}},1040,[85,812,967,2]);
