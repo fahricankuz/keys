@@ -6,7 +6,7 @@ export type InviteInput = { code: string; name?: string; email?: string; owner?:
 const C = { tugla: '#C8302E', kirec: '#FAF5F0', kart: '#FFFDFB', baca: '#1D1A19', kahve: '#5C4F4A', duman: '#A39A95', kil: '#E8DDD5', zemin: '#F3ECE5' };
 const FONT = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`;
 /** Marka logosu (kenarlıksız, koyu zeminli; anahtar.io/mail altında yayında durur). */
-const LOGO_URL = 'https://anahtar.io/mail/anahtar-logo-mail-v2.png';
+const LOGO_URL = 'https://anahtar.io/mail/anahtar-logo-mail-koyu.png';
 const esc = (s: string) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
 const TXT = {
@@ -46,10 +46,10 @@ export function renderInvite(o: InviteInput): { subject: string; html: string; t
   const first = (o.name || '').trim().split(/\s+/)[0] || '';
   const exp = o.expires ? L.date(new Date(o.expires)) : '';
   const subject = L.subject(owner, prop);
-  const html = `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head>
+  const html = `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(subject)}</title></head>
 <body style="margin:0;padding:0;background:${C.kirec}"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.kirec}"><tr><td align="center" style="padding:28px 12px">
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%">
-<tr><td style="padding:0 4px 16px"><img src="${LOGO_URL}" width="150" height="27" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none"></td></tr>
+<tr><td style="padding:0 4px 16px"><img src="${LOGO_URL}" width="168" height="31" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none;border-radius:8px;background:#1D1A19"></td></tr>
 <tr><td style="background:${C.kart};border:1px solid ${C.kil};border-radius:20px;padding:30px 28px">
 <div style="font:800 24px/1.2 ${FONT};color:${C.baca}">${esc(L.hi(first))}</div>
 <div style="font:400 16px/1.55 ${FONT};color:${C.kahve};margin-top:12px">${L.lead(esc(owner), esc(prop))}</div>

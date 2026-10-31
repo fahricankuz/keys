@@ -13,7 +13,7 @@ const C = { tugla: '#C8302E', kirec: '#FAF5F0', kart: '#FFFDFB', baca: '#1D1A19'
             kil: '#E8DDD5', fes: '#D5EBD7', fesKoyu: '#2A6B3A', bal: '#F2B544', gul: '#F0CFC8', gulKoyu: '#A8231F' };
 const FONT = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`;
 /** Marka logosu (kenarlıksız, koyu zeminli; anahtar.io/mail altında yayında durur). */
-const LOGO_URL = 'https://anahtar.io/mail/anahtar-logo-mail-v2.png';
+const LOGO_URL = 'https://anahtar.io/mail/anahtar-logo-mail-kirmizi.png';
 const KIND: Record<string, string> = { aidat: 'Aidat', yakit: 'Yakıt', demirbas: 'Demirbaş', ozel: 'Özel toplama',
   kira: 'Kira', ortak_gider: 'Ortak alan gideri', ciro: 'Ciro farkı' };
 const esc = (s: string) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
@@ -42,12 +42,12 @@ export function renderSiteReport(r: SiteReport, o: { name?: string; appUrl: stri
   }).join('') : '';
 
   const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light"><title>${esc(title)}</title></head>
+<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(title)}</title></head>
 <body style="margin:0;padding:0;background:${C.kirec}">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.kirec}"><tr><td align="center" style="padding:28px 14px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px">
-  <tr><td style="background:${C.tugla};border-radius:28px 28px 0 0;padding:28px 30px 30px">
-    <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#FAF5F0;border-radius:12px;padding:9px 14px"><img src="${LOGO_URL}" width="140" height="26" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none"></td></tr></table>
+  <tr><td bgcolor="#C8302E" style="background:${C.tugla};border-radius:28px 28px 0 0;padding:28px 30px 30px">
+    <img src="${LOGO_URL}" width="168" height="31" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none">
     <div style="font:600 13px ${FONT};color:${C.kirec};opacity:.85;margin-top:22px;text-transform:uppercase;letter-spacing:1.2px">${esc(r.org)} · ${r.units} ${site ? 'daire' : 'birim'}</div>
     <div style="font:800 32px/1.1 ${FONT};color:${C.kirec};letter-spacing:-1.2px;margin-top:6px">${esc(title.charAt(0).toUpperCase() + title.slice(1))}</div>
   </td></tr>
