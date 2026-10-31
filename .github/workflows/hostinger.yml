@@ -34,7 +34,7 @@ jobs:
     if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') && (github.event_name == 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
