@@ -27,7 +27,15 @@ export default function SignupForm({ role }: { role: Role }) {
   const [sent, setSent] = useState(false);
   const [phone, setPhone] = useState('');
   useEffect(() => {
-    const k = pendingInvite(); if (k) setCode(k);
+    // Davet e-postasındaki bağlantı (/kayit/kiraci?kod=…&ad=…&e=…): kod, ad ve e-posta kendiliğinden dolar.
+    let q: URLSearchParams | null = null;
+    try { q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null; } catch {}
+    const fromLink = (q?.get('kod') || '').trim().toUpperCase();
+    if (fromLink) keepInvite(fromLink);
+    const k = fromLink || pendingInvite(); if (k) setCode(k);
+    const ad = (q?.get('ad') || '').trim(), e = (q?.get('e') || '').trim();
+    if (ad) setName(ad.slice(0, 60));
+    if (e) setEmail(e);
     // Site davetinden gelindiyse yönetimin girdiği bilgiler hazır gelir (kişi değiştirebilir).
     const pre = role === 'tenant' ? pendingPrefill() : null;
     if (pre) { if (pre.name) setName(pre.name); if (pre.email) setEmail(pre.email); if (pre.phone) setPhone(pre.phone); }

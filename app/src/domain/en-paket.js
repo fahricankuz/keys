@@ -12,6 +12,12 @@ export const EN_PAKET = {
   'Canlı': 'Live',
   'Bağlanıyor…': 'Connecting…',
   'yeni mesaj': 'new messages',
+  'Davet e-postası gönderildi': 'Invitation email sent',
+  'Davet e-postası gönderilemedi': 'Invitation email could not be sent',
+  'Kodu WhatsApp ya da bağlantıyla paylaşabilirsin.': 'You can share the code via WhatsApp or the link.',
+  'Davet e-postasını yeniden gönder': 'Resend invitation email',
+  'Az önce gönderildi': 'Just sent',
+  'Birkaç dakika sonra yeniden deneyebilirsin.': 'You can try again in a few minutes.',
 
   'Yeni şifre belirle': 'Set a new password',
   'Bağlantın doğrulanıyor…': 'Checking your link…',
