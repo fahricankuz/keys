@@ -19,8 +19,10 @@ on:
 permissions:
   contents: write
 
+# Dal başına ayrı grup: yan dallardaki (ör. Dependabot) çalışmalar ana daldaki uzun testli yayını iptal etmesin.
+# Aynı daldaki art arda push'larda eskisi iptal edilir, son hali yayınlanır.
 concurrency:
-  group: hostinger
+  group: hostinger-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
