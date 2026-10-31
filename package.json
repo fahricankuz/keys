@@ -12,7 +12,10 @@
     "build:pwa": "node scripts/build.mjs",
     "build:native": "node scripts/build.mjs --native && cap sync",
     "android": "npm run build:native && cap open android",
-    "ios": "npm run build:native && cap open ios"
+    "ios": "npm run build:native && cap open ios",
+    "db:yeni": "node scripts/db-yeni.mjs",
+    "db:derle": "node scripts/db-derle.mjs",
+    "db:kontrol": "node scripts/db-derle.mjs --kontrol"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.0",

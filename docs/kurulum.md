@@ -24,6 +24,8 @@ Toplam süre: yaklaşık 30–45 dakika.
 1. Sol menü → **Database → Extensions** → `pg_cron`'u etkinleştir
    (günlük kira hatırlatmaları için).
 2. **SQL Editor → New query** → `supabase/schema.sql` dosyasının tamamını
+
+> Sonraki veritabanı değişiklikleri **migration** ile yapılır (`supabase/migrations/`, bkz. [migrations.md](migrations.md)); `schema.sql` o dosyalardan üretilen özettir.
    yapıştır → **Run**.
 
 Dosya tekrar çalıştırılabilir; şemayı güncellediğinde aynı adımı yinele.

@@ -1,0 +1,10 @@
+# Supabase CLI ayarları (migration'lar için). Ayrıntı: docs/migrations.md
+# project_id yalnızca yerel geliştirmede kapsayıcı adıdır; uzak projeye `supabase link --project-ref ...` ile bağlanılır.
+project_id = "anahtar"
+
+[db]
+# `supabase link` bu değeri uzak projeden güncelleyebilir; yerel geliştirme (`supabase start`) için Postgres ana sürümü.
+major_version = 17
+
+[db.migrations]
+enabled = true
