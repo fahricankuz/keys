@@ -1,0 +1,36 @@
+name: Safari denemesi
+
+# Safari (WebKit, iPhone 14) ile "@mobil" etiketli testler: iPhone'a özgü sorunları (düzen, fotoğraf, dosya seçici) yakalamak için.
+# Yayını engellemez ve yayını geciktirmez (ayrı iş akışı, continue-on-error); sonuç Actions'ta görünür.
+# Sürekli yeşil görününce hostinger.yml içindeki `needs` listesine alınıp engelleyici yapılabilir.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  safari:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm ci --prefix app
+      - run: npx playwright install --with-deps webkit
+      - run: npx playwright test --project=safari
+        env:
+          WEBKIT: '1'
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: safari-raporu
+          path: test-results/
+          retention-days: 7

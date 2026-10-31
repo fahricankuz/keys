@@ -26,3 +26,26 @@ Yalnızca bir grup: `npx playwright test tests/qa-db.spec.mjs` gibi.
 5. **Ay sonu hatası:** Ayın 29-31'inde "ay ekle/çıkar" hesabı bir sonraki aya taşıyor, geçmiş ay listelerinde ay yinelenip biri atlanıyordu.
 6. **Erişilebilirlik:** Sayfalarda `<title>` yoktu; onay kutusu ve seçeneklerde `aria-checked` eksikti; "Ödendi/Gecikti/vurgu" metinleri ve koyu temadaki ana sayfa etiketleri kontrast eşiğinin altındaydı; dil ve alt bağlantılar dokunma hedefi olarak küçüktü; 12 aylık şeridin etiketi geçersizdi.
 7. **Boyut:** Derlemeye kullanılmayan 30 yazı tipi dosyası (≈14 MB) giriyordu; derleme sonrası siliniyor.
+
+## Yayın kapısı ve ek denetimler
+
+- **Yayın testlere bağlıdır.** `hostinger.yml` önce `ci.yml`'deki bütün testleri çalıştırır; geçmezse site paketi üretilmez ve `site` dalı güncellenmez
+  (yayın yaklaşık 6-8 dakika gecikir). Acil durumda Actions → *Hostinger paketi* → *Run workflow* → **testleri atla** işaretlenerek elle paketlenebilir.
+- **Safari (WebKit).** `.github/workflows/safari.yml` "@mobil" etiketli testleri iPhone 14 profiliyle Safari motorunda çalıştırır. Yayını engellemez,
+  sonucu Actions'ta görünür; sürekli yeşil olunca `hostinger.yml` içinde `needs` listesine eklenerek engelleyici yapılabilir.
+  Yerelde çalıştırmak için: `npx playwright install webkit` sonra `WEBKIT=1 npx playwright test --project=safari`.
+- **Telefon testleri.** `tests/mobil-sohbet.app.spec.mjs` (sohbet düzeni telefona sığar, büyük fotoğraf küçültülür, tik çıkar, bozuk dosyada uyarı).
+  Yeni telefon testlerine başlıkta `@mobil` yaz; hem Pixel 7 hem Safari işinde koşar.
+- **Gerçek cihaz listesi:** [gercek-cihaz-kontrol.md](gercek-cihaz-kontrol.md). **Yük testi (k6):** `yuk/mesajlasma.k6.js` (yalnız deneme projesinde).
+
+## Bilinen boşluklar ve nasıl kapatılır
+
+| Boşluk | Neden yok | Nasıl yapılır |
+| --- | --- | --- |
+| Gerçek Supabase'e karşı deneme (Realtime, Storage, RLS) | Ayrı deneme (staging) projesi ve gizli anahtarlar gerekir | Supabase'te ikinci bir proje aç, `schema.sql`'i çalıştır; GitHub'a `STAGING_SUPABASE_URL` ve `STAGING_ANON_KEY` değişkenlerini ekle; mesaj gönder → Realtime ile alındı mı, fotoğraf yüklendi mi diye bakan küçük bir Playwright testi yaz |
+| Edge Function testleri (`push`, `billing`, `report`, `tufe-sync`) | Bu ortamda Deno yok; fonksiyonlar Deno API'sine bağlı | Deno kur, `supabase/functions/<ad>/index_test.ts` yaz, `deno test` ile çalıştır; önce `panelPath` gibi saf işlevleri ayrı dosyaya çıkar |
+| Kod kapsamı (coverage) ölçümü | Testler Playwright işçi süreçlerinde ve paketlenmiş kodla çalışıyor; `c8` kaynak dosyaları göremedi (denendi, %0 raporladı) | Birim testleri Vitest'e taşıyıp `vitest --coverage` kullan, ya da tarayıcı tarafı için Playwright `page.coverage` (V8) ile `monocart-coverage-reports` |
+| Üretimde hata izleme | Sentry/benzeri hesap ve DSN gerekir | sentry.io'da proje aç, DSN'i al; `@sentry/react` yükleyip `app/src/app/_layout.tsx` başında `Sentry.init({ dsn })` çağır |
+| Görsel regresyon | Ekran görüntüsü karşılaştırması yazı tipi ve işletim sistemi farkında yanlış alarm verebilir | `expect(page).toHaveScreenshot()` ile birkaç kritik ekranı CI'da (Ubuntu) üretilen referansla karşılaştır; referansları CI'dan al |
+| Tarihe bağlı 1 test (AVM ciro ayı) | Bazı günlerde "geçen ay" hesabı farklı çıkıyor; nedeni henüz kesinleşmedi | Playwright `page.clock.setFixedTime('2026-10-29')` ile tarihi sabitleyip sorunu yeniden üret |
+

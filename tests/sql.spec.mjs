@@ -203,6 +203,8 @@ test('yenileme: kiracı yalnızca kabul eder; kabul kira geçmişine yazılır',
 test('günlük hatırlatma eşik gününde bir kez üretilir', async () => {
   await as(null);
   const [{ due_day }] = await q(`select due_day from public.properties where id = 'p1'`);
+  // Sözleşme başlangıcı "bugün" olarak açılır; ayın 2'sini seçince sözleşme henüz başlamamış sayılıp test günün tarihine göre kırılırdı.
+  await q(`update public.properties set start_date = '2020-01-01', contract_end = '2099-01-01' where id = 'p1'`);
   // Vadeye tam 3 gün kalan bir "bugün" seç (varsayılan eşik).
   const today = new Date(); today.setDate(1);
   const target = new Date(today.getFullYear(), today.getMonth(), due_day - 3);
