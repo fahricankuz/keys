@@ -51,6 +51,12 @@ export async function setBan(uid, ban, why){
   must(await c.rpc('admin_set_ban', { uid, ban, why: why || '' }));
 }
 
+/** Yasaklanmış hesabı kalıcı siler (önce yasaklanmış olmalı); hesap ve sahibi olduğu mülkler silinir. */
+export async function deleteUser(uid, why){
+  const c = await client();
+  must(await c.rpc('admin_delete_user', { uid, why: why || '' }));
+}
+
 /** Mesajlaşması olan mülkler (özet). */
 export async function loadThreads(){
   const c = await client();

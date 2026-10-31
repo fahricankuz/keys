@@ -4273,3 +4273,28 @@ do $$ begin
     grant execute on function public.invite_mail_claim(uuid, text) to service_role;
   end if;
 end $$;
+
+
+-- =====================================================================
+-- 32. Yönetici: yasaklanmış hesabı kalıcı sil
+--     Yalnızca yönetici, yalnızca önce yasaklanmış (askıdaki) hesabı, kendini ve yöneticileri silemez. Hesap, sahibi olduğu mülkler ve
+--     verileri silinir (delete_my_account ile aynı); mesajlardaki gönderen boşalır. İşlem, silinmeden önce denetim kaydına yazılır.
+-- =====================================================================
+create or replace function public.admin_delete_user(uid uuid, why text default '')
+returns void language plpgsql security definer set search_path = public as $$
+declare pr public.profiles; mail text; owned int;
+begin
+  if not public.is_admin() then raise exception 'Yönetici yetkisi gerekli' using errcode = '42501'; end if;
+  if uid = auth.uid() then raise exception 'Kendi hesabını buradan silemezsin' using errcode = '22023'; end if;
+  if exists (select 1 from public.admins where user_id = uid) then raise exception 'Yönetici silinemez' using errcode = '22023'; end if;
+  select * into pr from public.profiles where id = uid;
+  if not found then raise exception 'Kullanıcı bulunamadı' using errcode = 'P0002'; end if;
+  if not exists (select 1 from public.bans where user_id = uid) then raise exception 'Önce hesabı yasakla, sonra sil' using errcode = '22023'; end if;
+  select email::text into mail from auth.users where id = uid;
+  select count(*) into owned from public.properties where owner_id = uid;
+  perform public.audit('user.delete', uid::text, jsonb_build_object('email', coalesce(mail, ''), 'name', coalesce(pr.name, ''), 'role', pr.role,
+                                                                      'properties', owned, 'reason', coalesce(trim(why), '')));
+  update public.messages set by_user = null where by_user = uid;
+  delete from auth.users where id = uid;
+end $$;
+grant execute on function public.admin_delete_user(uuid, text) to authenticated;

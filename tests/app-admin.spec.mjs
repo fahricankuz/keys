@@ -400,6 +400,8 @@ test('yönetici hesabı gerekçeyle yasaklar; yasaklı giriş yapamaz; yasak kal
   await login(page, 'admin@ornek.com');
   await page.getByRole('button', { name: 'Kullanıcılar' }).click();
   await page.getByLabel('Ara').fill('kiraci@ornek.com');
+  await expect(page.getByRole('button', { name: 'Yasakla', exact: true })).toHaveCount(0);   // satır kapalı: işlemler dokununca açılır
+  await page.getByRole('button', { name: /^Mehmet Kiracı/ }).click();
   await page.getByRole('button', { name: 'Yasakla', exact: true }).click();
   // Gerekçesiz olmaz.
   await page.getByRole('button', { name: 'Hesabı yasakla' }).click();
@@ -410,8 +412,10 @@ test('yönetici hesabı gerekçeyle yasaklar; yasaklı giriş yapamaz; yasak kal
   expect((await db(page)).tables.bans).toHaveLength(1);
   // Yönetici kendini yasaklayamaz: kartında yasak düğmesi çıkmaz.
   await page.getByLabel('Ara').fill('admin@ornek.com');
-  await expect(page.getByText('admin@ornek.com').last()).toBeVisible();
+  await page.getByRole('button', { name: /^Yönetici, Yönetici/ }).click();
+  await expect(page.getByText('Kayıt').first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Yasakla', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Hesabı sil', exact: true })).toHaveCount(0);
 
   // Yasaklı kiracı giriş yapamaz; gerekçeyi görür.
   await login(page, 'kiraci@ornek.com');
@@ -422,6 +426,7 @@ test('yönetici hesabı gerekçeyle yasaklar; yasaklı giriş yapamaz; yasak kal
   await login(page, 'admin@ornek.com');
   await page.getByRole('button', { name: 'Kullanıcılar' }).click();
   await page.getByLabel('Ara').fill('kiraci@ornek.com');
+  await page.getByRole('button', { name: /^Mehmet Kiracı/ }).click();
   await page.getByRole('button', { name: 'Yasağı kaldır' }).click();
   await expect(page.getByText('Askıda: ')).toHaveCount(0);
   expect((await db(page)).tables.bans).toHaveLength(0);
@@ -504,4 +509,30 @@ test('İngilizce: üst menüden dil değişir; fiyatlar dolar; site, uygulama ve
   await expect(page.getByText('Overview').first()).toBeVisible();
   for (const tab of ['Subscriptions', 'Review', 'Payments', 'Users', 'Activity log']) { await page.getByRole('button', { name: tab, exact: true }).first().click(); await sweep(); }
   expect([...missing]).toEqual([]);
+});
+
+
+test('yönetici yasaklanmış hesabı e-postayı yazarak kalıcı siler; yasaksız hesapta silme düğmesi yok; işlem kayda düşer', async ({ page }) => {
+  await login(page, 'admin@ornek.com');
+  await page.getByRole('button', { name: 'Kullanıcılar' }).click();
+  await page.getByLabel('Ara').fill('kiraci@ornek.com');
+  await page.getByRole('button', { name: /^Mehmet Kiracı/ }).click();
+  await expect(page.getByRole('button', { name: 'Hesabı sil', exact: true })).toHaveCount(0);     // önce yasaklanmalı
+  await page.getByRole('button', { name: 'Yasakla', exact: true }).click();
+  await page.getByLabel('Yasaklama gerekçesi').fill('Taciz');
+  await page.getByRole('button', { name: 'Hesabı yasakla' }).click();
+  await expect(page.getByText('Askıda: Taciz')).toBeVisible();
+  await page.getByRole('button', { name: 'Hesabı sil', exact: true }).click();
+  await expect(page.getByText('Bu işlem geri alınamaz.')).toBeVisible();
+  const confirm = page.getByRole('button', { name: 'Kalıcı olarak sil' });
+  await expect(confirm).toBeDisabled();                                                          // e-posta yazılmadan silinmez
+  await page.getByLabel('Onay için hesabın e-postasını yaz').fill('baska@ornek.com');
+  await expect(confirm).toBeDisabled();
+  await page.getByLabel('Onay için hesabın e-postasını yaz').fill('kiraci@ornek.com');
+  await expect(confirm).toBeEnabled();
+  await confirm.click();
+  await expect(page.getByText('Kullanıcı yok.')).toBeVisible();
+  const d = await db(page);
+  expect(d.users.some((u) => u.email === 'kiraci@ornek.com')).toBe(false);
+  expect(d.tables.admin_audit.map((a) => a.action)).toContain('user.delete');
 });

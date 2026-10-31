@@ -1,5 +1,14 @@
 /* Paketler, fiyatlar (mülk başına) ve satın alma sayfası için İngilizce. i18n.js içinde birleştirilir. */
 export const EN_PAKET = {
+  'Tüm hesaplar; yasaklama, yasak kaldırma ve (yasaklanmış hesap için) kalıcı silme.': 'All accounts; ban, unban and (for banned accounts) permanent deletion.',
+
+  'Hesabı sil': 'Delete account',
+  'Kalıcı silme': 'Permanent deletion',
+  'Bu işlem geri alınamaz. Hesap, sahibi olduğu mülkler ve verileri silinir; işlem kayda yazılır.': 'This cannot be undone. The account, the properties it owns and its data are deleted; the action is logged.',
+  'Onay için hesabın e-postasını yaz': 'Type the account’s email to confirm',
+  'Kalıcı olarak sil': 'Delete permanently',
+  'Hesap silindi': 'Account deleted',
+
   'Bölümler': 'Sections',
 
   'Fotoğraf işlenemedi': 'Photo could not be processed',
