@@ -13,6 +13,10 @@ import { Display } from '../site/Landing';
 import { BrandBand, Headline } from '../site/SegmentParts';
 
 const MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+/** Derleme zamanı (EXPO_PUBLIC_BUILD_ISO, derlemede sabitlenir); tanımsızsa şimdiki zaman. */
+const BUILD = new Date(process.env.EXPO_PUBLIC_BUILD_ISO || Date.now());
+/** İlk çizimde yıl/ay sabit saat diliminde (İstanbul) alınır: derleme sunucusu ile tarayıcının saat dilimi farklı olsa da aynı çıkar. */
+const BUILD_YM = (() => { const [y, m] = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(BUILD).split('-').map(Number); return [y, m - 1] as [number, number]; })();
 const key = (y: number, m: number) => { const d = new Date(y, m, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
 const label = (k: string) => { const [y, m] = k.split('-').map(Number); return t(MONTHS[m - 1]) + ' ' + y; };
 /* Sayı biçimi dile göre: Türkçede 10.000,50 ve %30,00; İngilizcede 10,000.50 ve 30.00%. */
@@ -60,8 +64,11 @@ export default function KiraArtis() {
   const c = useColors();
   const router = useRouter();
   const { phone, desktop } = useBreakpoint();
-  const now = new Date();
-  const [ym, setYm] = useState<[number, number]>([now.getFullYear(), now.getMonth()]);
+  // Statik çıktı derleme anında çizilir; tarayıcıdaki ilk çizim aynı değerle başlamalı (hidrasyon uyumu, React #418).
+  // Ziyaretçinin gerçek tarihi bağlanınca (useEffect) ay ve yıl güncellenir.
+  const [now, setNow] = useState<Date>(BUILD);
+  const [ym, setYm] = useState<[number, number]>(BUILD_YM);
+  useEffect(() => { const n = new Date(); setNow(n); setYm([n.getFullYear(), n.getMonth()]); }, []);
   const [rent, setRent] = useState('');
   const [manual, setManual] = useState('');
   const [contract, setContract] = useState('');
@@ -81,7 +88,7 @@ export default function KiraArtis() {
   const fmtNum = (n: number) => n.toLocaleString(SEP().loc, { maximumFractionDigits: 2 });
   const shift = (d: number) => { const x = new Date(ym[0], ym[1] + d, 1); setYm([x.getFullYear(), x.getMonth()]); };
   const table = useMemo(() => Object.keys(rates).sort().reverse().slice(0, 24), [rates]);
-  const year = now.getFullYear();
+  const year = now === BUILD ? BUILD_YM[0] : now.getFullYear();
 
   return (
     <SitePage>

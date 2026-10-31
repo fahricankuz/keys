@@ -61,7 +61,7 @@ jobs:
           EXPO_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://nfpefnrgtnwvclwbriaw.supabase.co' }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || 'sb_publishable_7FOuGjt9lHI94rQI9iWHZA_KpSmfh-N' }}
           EXPO_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
-        run: npm run build:hostinger
+        run: EXPO_PUBLIC_BUILD_ISO=$(date -u +%Y-%m-%dT%H:%M:%SZ) npm run build:hostinger
       - name: Zip paketi
         run: |
           cd hostinger-site
