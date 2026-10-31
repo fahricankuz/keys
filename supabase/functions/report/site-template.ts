@@ -13,7 +13,7 @@ const C = { tugla: '#C8302E', kirec: '#FAF5F0', kart: '#FFFDFB', baca: '#1D1A19'
             kil: '#E8DDD5', fes: '#D5EBD7', fesKoyu: '#2A6B3A', bal: '#F2B544', gul: '#F0CFC8', gulKoyu: '#A8231F' };
 const FONT = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`;
 /** Marka logosu (kenarlıksız, koyu zeminli; anahtar.io/mail altında yayında durur). */
-const LOGO_URL = 'https://anahtar.io/mail/anahtar-logo-mail.png';
+const LOGO_URL = 'https://anahtar.io/mail/anahtar-logo-mail-v2.png';
 const KIND: Record<string, string> = { aidat: 'Aidat', yakit: 'Yakıt', demirbas: 'Demirbaş', ozel: 'Özel toplama',
   kira: 'Kira', ortak_gider: 'Ortak alan gideri', ciro: 'Ciro farkı' };
 const esc = (s: string) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));

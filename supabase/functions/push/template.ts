@@ -4,7 +4,7 @@
 const C = { tugla: '#C8302E', kirec: '#FAF5F0', kart: '#FFFDFB', baca: '#1D1A19', kahve: '#5C4F4A', duman: '#A39A95', kil: '#E8DDD5' };
 const FONT = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`;
 /** Marka logosu (koyu zeminli; anahtar.io/mail altında yayında durur). */
-const LOGO_URL = 'https://anahtar.io/mail/anahtar-logo-mail.png';
+const LOGO_URL = 'https://anahtar.io/mail/anahtar-logo-mail-v2.png';
 const esc = (s: string) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
 export function renderNotice(o: { title: string; body: string; link?: string }): { html: string; text: string } {

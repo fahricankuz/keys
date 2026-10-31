@@ -9,7 +9,7 @@ const C = { tugla: '#C8302E', kirec: '#FAF5F0', kart: '#FFFDFB', baca: '#1D1A19'
             kil: '#E8DDD5', fesKoyu: '#2A6B3A', bal: '#F2B544', gulKoyu: '#A8231F', zemin: '#F3ECE5' };
 const FONT = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`;
 /** Marka logosu (kenarlıksız, koyu zeminli; anahtar.io/mail altında yayında durur). */
-const LOGO_URL = 'https://anahtar.io/mail/anahtar-logo-mail.png';
+const LOGO_URL = 'https://anahtar.io/mail/anahtar-logo-mail-v2.png';
 
 type Pair = [string, string];
 type Copy = {

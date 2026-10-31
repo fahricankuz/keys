@@ -56,7 +56,7 @@ Header always set Content-Security-Policy "frame-ancestors 'none'"
 </FilesMatch>
 # Eski servis çalışıcısını temizleyen dosya hiç önbelleğe alınmasın (yukarıdaki .js kuralını ezer).
 # E-postalarda kullanılan logolar başka adreslerden (e-posta uygulamaları) yüklenebilsin; yukarıdaki "same-origin" kuralını ezer.
-<FilesMatch "^anahtar-(logo|ikon)-mail\.png$">
+<FilesMatch "^anahtar-(logo|ikon)-mail(-v[0-9]+)?\.png$">
   Header always set Cross-Origin-Resource-Policy "cross-origin"
 </FilesMatch>
 <FilesMatch "^sw\.js$">
