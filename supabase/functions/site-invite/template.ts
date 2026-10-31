@@ -7,7 +7,7 @@ const C = { tugla: '#C8302E', kirec: '#FAF5F0', kart: '#FFFDFB', baca: '#1D1A19'
             kil: '#E8DDD5', bal: '#F2B544', gulKoyu: '#A8231F', zemin: '#F3ECE5' };
 const FONT = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`;
 /** Marka logosu (kenarlıksız, koyu zeminli; anahtar.io/mail altında yayında durur). */
-const LOGO_URL = 'https://anahtar.io/mail/anahtar-logo-mail-v2.png';
+const LOGO_URL = 'https://anahtar.io/mail/anahtar-logo-mail-koyu.png';
 const esc = (s: string) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
 export function renderInvite(o: InviteInput): { subject: string; html: string; text: string } {
@@ -33,14 +33,14 @@ export function renderInvite(o: InviteInput): { subject: string; html: string; t
 <td style="padding:10px 0"><div style="font:700 15px ${FONT};color:${C.baca}">${esc(a)}</div><div style="font:400 14px/1.5 ${FONT};color:${C.kahve};margin-top:2px">${esc(b)}</div></td></tr>`).join('');
 
   const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light"><title>${esc(subject)}</title></head>
+<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(subject)}</title></head>
 <body style="margin:0;padding:0;background:${C.kirec}">
 <div style="display:none;max-height:0;overflow:hidden">${esc(lead)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.kirec};padding:24px 0"><tr><td align="center">
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:${C.kart};border-radius:28px;overflow:hidden;border:1px solid ${C.kil}">
-<tr><td style="background:${C.kart};padding:24px 32px 22px"><img src="${LOGO_URL}" width="168" height="31" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none"></td></tr>
-<tr><td style="background:${C.baca};padding:26px 32px 30px">
-<div style="display:inline-block;margin-top:0;background:${C.bal};color:${C.baca};font:700 12px ${FONT};padding:5px 12px;border-radius:999px">${esc(badge)}</div>
+<tr><td bgcolor="#1D1A19" style="background:${C.baca};padding:26px 32px 30px">
+<img src="${LOGO_URL}" width="168" height="31" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none">
+<div style="display:inline-block;margin-top:22px;background:${C.bal};color:${C.baca};font:700 12px ${FONT};padding:5px 12px;border-radius:999px">${esc(badge)}</div>
 <div style="font:800 32px/1.12 ${FONT};color:#FFF3EA;letter-spacing:-1px;margin-top:12px">${esc(title)}</div>
 <div style="font:400 15px/1.55 ${FONT};color:#BDB1AB;margin-top:10px">${esc(lead)}</div></td></tr>
 <tr><td style="padding:26px 32px 4px;font:400 15px/1.55 ${FONT};color:${C.baca}">${first ? `Merhaba ${esc(first)},` : 'Merhaba,'}</td></tr>
