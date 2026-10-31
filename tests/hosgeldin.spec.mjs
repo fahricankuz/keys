@@ -42,7 +42,8 @@ test('ekip hesabı ve İngilizce sürüm', () => {
 
 test('ad HTML olarak yorumlanmaz', () => {
   const m = renderWelcome({ kind: 'tenant', name: '<img src=x onerror=alert(1)>', appUrl: app });
-  expect(m.html).not.toContain('<img');
+  expect(m.html).not.toContain('<img src=x');                         // girilen ad etiket olarak çalışmaz (logo <img>'i serbest)
+  expect(m.html).not.toContain('onerror=alert(1)>');
   expect(m.html).toContain('&lt;img');
 });
 

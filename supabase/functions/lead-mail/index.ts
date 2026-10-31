@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
   ].filter(([, v]) => String(v ?? '').trim()) as [string, string][];
   const title = legal ? 'Hukuki destek talebi ' + r.ref : KIND[r.kind] ?? 'Talep';
   const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:560px;margin:auto;color:#1D1A19">
-<div style="background:#C8302E;color:#FAF5F0;border-radius:18px 18px 0 0;padding:20px 24px"><div style="font-weight:800;font-size:20px">anahtar</div>
+<div style="background:#C8302E;color:#FAF5F0;border-radius:18px 18px 0 0;padding:20px 24px"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#1D1A19;border-radius:12px;padding:9px 14px"><img src="https://anahtar.io/mail/anahtar-logo-mail.png" width="140" height="26" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none"></td></tr></table>
 <div style="font-weight:800;font-size:24px;margin-top:10px">${esc(title)}</div></div>
 <div style="border:1px solid #E8DDD5;border-top:0;border-radius:0 0 18px 18px;padding:18px 24px;background:#FFFDFB">
 <table style="width:100%;border-collapse:collapse;font-size:15px">${rows.map(([k, v]) => `<tr><td style="padding:7px 0;color:#5C4F4A;width:38%">${esc(k)}</td><td style="padding:7px 0;font-weight:600">${esc(v)}</td></tr>`).join('')}</table>
