@@ -1,0 +1,64 @@
+// anahtar — gönderim kuyruğu e-postaları (Supabase Edge Function, Deno).
+//
+// mail_outbox tablosuna eklenen her satır için Database Webhook bu fonksiyonu çağırır (hesap silindi, ekibe paket seçimi,
+// kurum yöneticisi daveti). Gövde yalnızca satır kimliğini taşır; içerik veritabanından okunur (mail_claim ayırır, mail_done kapatır).
+// Gönderilemeyen satırlar için Supabase Cron {"sweep":true} ile bu fonksiyonu 15 dakikada bir çağırabilir (5 denemeye kadar).
+//
+// Kurulum: supabase functions deploy mail-send
+//   Supabase → Database → Webhooks → yeni webhook: tablo public.mail_outbox, olay INSERT, tür "Supabase Edge Functions" → mail-send,
+//   başlık x-anahtar-secret: <MAIL_SECRET>.
+// Gizli değişkenler: MAIL_SECRET, RESEND_API_KEY, EMAIL_FROM; isteğe bağlı LEAD_TO (ekip adresi, varsayılan info@anahtar.io), APP_URL.
+// SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY Supabase tarafından otomatik sağlanır.
+
+import { createClient } from 'npm:@supabase/supabase-js@2';
+import { renderOutbox } from './template.ts';
+
+const env = (k: string) => Deno.env.get(k) ?? '';
+const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
+
+function safeEqual(a: string, b: string): boolean {
+  const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
+  let d = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) d |= (x[i] ?? 0) ^ (y[i] ?? 0);
+  return d === 0;
+}
+
+/** Tek satırı gönderir: 'sent' | 'skipped' (başkası ayırmış / gönderilmiş / 5 deneme) | 'failed'. */
+async function sendOne(id: number): Promise<'sent' | 'skipped' | 'failed'> {
+  const { data: row, error } = await admin.rpc('mail_claim', { rid: id });
+  if (error) { console.error('mail_claim', error.message); return 'failed'; }
+  if (!row || !row.id) return 'skipped';
+  const contact = env('LEAD_TO') || 'info@anahtar.io';
+  const to = row.to_email || contact;
+  const mail = renderOutbox(row, env('APP_URL'), contact);
+  if (!mail) { await admin.rpc('mail_fail', { rid: id, msg: 'Bilinmeyen tür: ' + row.kind }); return 'failed'; }
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${env('RESEND_API_KEY')}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ from: env('EMAIL_FROM'), to, reply_to: contact, subject: mail.subject, html: mail.html, text: mail.text })
+  });
+  if (!res.ok) { await admin.rpc('mail_fail', { rid: id, msg: `Resend ${res.status}: ${await res.text()}` }); return 'failed'; }
+  await admin.rpc('mail_done', { rid: id });
+  return 'sent';
+}
+
+Deno.serve(async (req) => {
+  if (req.method !== 'POST') return new Response('method', { status: 405 });
+  const secret = env('MAIL_SECRET');
+  if (!secret || !safeEqual(req.headers.get('x-anahtar-secret') ?? '', secret)) return new Response('unauthorized', { status: 401 });
+  if (!env('RESEND_API_KEY') || !env('EMAIL_FROM')) return Response.json({ error: 'RESEND_API_KEY / EMAIL_FROM eksik' }, { status: 500 });
+
+  const body = await req.json().catch(() => ({}));
+  let ids: number[] = [];
+  if (body?.sweep) {
+    const { data } = await admin.rpc('mail_retry');
+    ids = ((data ?? []) as unknown[]).map((x) => Number(x)).filter((x) => Number.isFinite(x));
+  } else if (body?.table === 'mail_outbox' && body?.type === 'INSERT' && body?.record?.id) {
+    ids = [Number(body.record.id)];
+  } else {
+    return Response.json({ ok: true, ignored: true });
+  }
+  const out = { sent: 0, skipped: 0, failed: 0 };
+  for (const id of ids) out[await sendOne(id)]++;
+  return Response.json({ ok: out.failed === 0, ...out }, { status: out.failed ? 502 : 200 });
+});

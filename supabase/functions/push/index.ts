@@ -127,8 +127,9 @@ Deno.serve(async (req) => {
   // 4. E-posta (varsayılan açık; kullanıcı kapatmadıysa ve Resend yapılandırıldıysa)
   let mailed = false;
   if (env('RESEND_API_KEY') && env('EMAIL_FROM')) {
-    // Ödeme hatırlatması (bill-…) işlem e-postasıdır: kullanıcı bildirim e-postalarını kapatmış olsa da gönderilir.
-    if (profile?.settings?.email !== false || /^bill-/.test(n.tag ?? '')) {
+    // Ödeme (bill-…) ve hesap (acct-…: askıya alma, e-posta onayı) bildirimleri işlem e-postasıdır:
+    // kullanıcı bildirim e-postalarını kapatmış olsa da gönderilir.
+    if (profile?.settings?.email !== false || /^(bill|acct)-/.test(n.tag ?? '')) {
       const { data: user } = await admin.auth.admin.getUserById(n.user_id);
       const to = user?.user?.email;
       if (to) {
