@@ -31,28 +31,34 @@ Kurallar:
 ### Tek seferlik: mevcut veritabanını baseline'a bağla
 Canlı veritabanında baseline zaten uygulanmış (daha önce `schema.sql`'i çalıştırdın). Supabase'e bunu söylemezsen baseline'ı yeniden uygulamaya çalışır.
 ```bash
-npm i -g supabase            # ya da her komutun başına npx ekle
-supabase login
-supabase link --project-ref PROJE_KIMLIGI
-supabase migration repair --status applied 20261101000000
-```
+En kolayı GitHub'dan: Actions → "Veritabanı migration" → Run workflow → environment seç, mode **adopt-existing-baseline** → Run. (Her ortam için yalnızca bir kez; ayrıntı aşağıda B bölümünde.) İş önce veritabanında uygulamanın tabloları olduğunu denetler; boş veritabanında durur.
 
-Bilgisayarında CLI kurmak istemezsen aynı işi GitHub'dan yap: Actions → "Veritabanı migration" → Run workflow → **baseline_isaretle** işaretli, **dry_run** işaretli bırak → Run. (Yalnızca bir kez.)
-
+Kendi bilgisayarından yapmak istersen `supabase link` gerekmez (hesap yetkisi isteyen adım odur); doğrudan bağlantı adresini ver:
 ```bash
-supabase migration list      # 20261101000000 hem "Local" hem "Remote" sütununda görünmeli
+export DB_URL='postgresql://postgres.<ref>:<parola>@aws-…pooler.supabase.com:5432/postgres'   # Supabase → Connect → Session pooler
+npx supabase@2.120.0 migration repair --db-url "$DB_URL" --status applied 20261101000000
+npx supabase@2.120.0 migration list --db-url "$DB_URL"   # 20261101000000 hem "Local" hem "Remote" sütununda görünmeli
 ```
 
 ### A) Kendi bilgisayarından
 ```bash
-supabase db push --dry-run   # neyin uygulanacağını gösterir, dokunmaz
-supabase db push             # uygular
+bash scripts/db-preflight.sh apply                              # yalnız okur; psql gerekir (brew install libpq)
+npx supabase@2.120.0 db push --db-url "$DB_URL" --dry-run     # neyin uygulanacağını gösterir, dokunmaz
+npx supabase@2.120.0 db push --db-url "$DB_URL"               # uygular
 ```
 
 ### B) GitHub Actions'tan (önerilen)
-1. Settings → Environments → **production** oluştur; "Required reviewers" olarak kendini ekle.
-2. Environment secrets: `SUPABASE_ACCESS_TOKEN` (Supabase → Account → Access Tokens), `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_REF`.
-3. Actions → **Veritabanı migration** → Run workflow. Önce **dry run** açık çalıştır, çıktıyı oku, sonra dry run'ı kapatıp yeniden çalıştır.
+1. Settings → Environments altında **staging** ve **production** oluştur. Production'a "Required reviewers" ekle.
+2. Her environment'a ayrı şunları ekle:
+   - **Secret** `SUPABASE_DB_URL`: Supabase → **Connect** → **Session pooler** adresi (`postgresql://postgres.<ref>:<parola>@aws-…pooler.supabase.com:5432/postgres`). `[YOUR-PASSWORD]` yerine veritabanı parolasını yaz; parolada `@ : / # ?` gibi karakter varsa URL-kodla. GitHub sunucularında IPv6 olmadığından "Direct connection" çalışmaz.
+   - **Variable** `SUPABASE_TARGET`: environment'ın adı (`staging` / `production`). Eşleşmezse iş bağlanmadan durur; depo düzeyindeki bir secret yüzünden yanlış veritabanına gitmeyi önler.
+   - İş `supabase link` kullanmaz; Supabase erişim jetonu ve Management API yetkisi gerekmez (önceki "Your account does not have the necessary privileges" hatası buradan geliyordu).
+   - Staging ve production adresleri farklı projelere ait olmalı.
+3. Actions → **Veritabanı migration** → Run workflow:
+   - `plan`: yalnız bekleyen SQL'i gösterir; veritabanına yazmaz.
+   - `adopt-existing-baseline`: yalnızca daha önce eski `schema.sql` kurulmuş **mevcut** veritabanı için, bir kez. Şema oluşturmaz ve doğrulamaz; boş ya da farklı şemalı veritabanında çalıştırma.
+   - `apply`: yalnızca plan gözden geçirildikten ve staging testi geçtikten sonra bekleyen migration'ları uygular.
+4. Sıra daima: staging plan → staging apply → uygulama testi → production plan → production apply → site dağıtımı. Migration işi site dağıtımını otomatik tetiklemez.
 
 ### C) SQL Editor ile elle (eski yöntem)
 Tek bir migration dosyasının içeriğini SQL Editor'e yapıştırıp çalıştırabilirsin. **Sonra** kaydı işle, yoksa `db push` onu yeniden dener:

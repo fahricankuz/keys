@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   safari:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # ubuntu-latest (26.04) Playwright 1.49 bağımlılıklarını kuramıyor
     timeout-minutes: 20
     continue-on-error: true
     steps:

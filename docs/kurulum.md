@@ -28,7 +28,7 @@ Toplam süre: yaklaşık 30–45 dakika.
 > Sonraki veritabanı değişiklikleri **migration** ile yapılır (`supabase/migrations/`, bkz. [migrations.md](migrations.md)); `schema.sql` o dosyalardan üretilen özettir.
    yapıştır → **Run**.
 
-Dosya tekrar çalıştırılabilir; şemayı güncellediğinde aynı adımı yinele.
+Bu yalnızca ilk, boş veritabanı kurulumu içindir. Sonraki değişikliklerde `schema.sql`'i yeniden çalıştırma; sürümlü migration'ı uygula (bkz. [migrations.md](migrations.md)).
 
 Bu adım şunları kurar:
 
