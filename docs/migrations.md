@@ -3,6 +3,20 @@
 Veritabanı değişiklikleri artık **sürümlü migration dosyalarıyla** yapılır. Böylece "hangi değişiklik yayında, hangisi değil" sorusunun cevabı
 dosyalarda ve Supabase'in kendi kayıt tablosundadır; SQL Editor'e dosyanın tamamını yapıştırmak gerekmez.
 
+## Baştan sona kısa akış (ekip için)
+1. **Dal aç, migration oluştur:** `npm run db:yeni -- kisa_ad` → açılan dosyaya SQL'i yaz (yeniden çalıştırılabilir) → `npm run db:derle`.
+2. **Test yaz ve çalıştır:** değişikliği deneyen bir test ekle; `nvm use 22 && npx playwright test tests/sql.spec.mjs tests/qa-db.spec.mjs tests/migrations.spec.mjs`. Tam set CI'da çalışır.
+3. **PR aç.** CI yeşil olmalı. PR açıklamasında migration'ın ne değiştirdiğini ve veriye dokunup dokunmadığını yaz.
+4. **Birleştir.** Birleştirmek migration'ı **uygulamaz**; site yayına çıkar ama veritabanı değişmez.
+5. **Uygula:** Actions → **Veritabanı migration** → Run workflow:
+   - `staging` + `plan` → çıktıda yalnız yeni dosyan görünmeli → `staging` + `apply` → staging'de dene.
+   - `production` + `plan` → `production` + `apply`.
+   - Veri silen/değiştiren migration'da `apply`'dan önce yedek al (`pg_dump`).
+6. **Edge Function değiştiyse:** `supabase functions deploy <ad>`.
+
+Kurallar: uygulanmış migration dosyası **asla düzenlenmez** (düzeltme = yeni migration); `schema.sql` elle düzenlenmez; `apply` sadece
+`plan` çıktısı okunduktan sonra çalıştırılır. İş akışı yalnızca elle tetiklenir; hiçbir push/PR migration uygulamaz.
+
 ## Nasıl çalışır
 - `supabase/migrations/<ZAMAN>_<ad>.sql`: her değişiklik ayrı bir dosya. Sırayı zaman damgası belirler. **Gerçek kaynak bunlardır.**
 - `supabase/migrations/20261101000000_baseline.sql`: şimdiye kadarki bütün şema (eski `schema.sql`'in birebir kopyası).
