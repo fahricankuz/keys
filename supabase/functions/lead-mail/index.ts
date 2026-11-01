@@ -6,6 +6,8 @@
 // Hukuki destek için aynı ayarlarla ikinci bir webhook: tablo public.legal_requests, olay INSERT.
 // Gizli değişkenler: LEAD_SECRET, RESEND_API_KEY, EMAIL_FROM; isteğe bağlı LEAD_TO (varsayılan info@anahtar.io), APP_URL.
 
+import { renderAck } from './ack.ts';
+
 const env = (k: string) => Deno.env.get(k) ?? '';
 
 function safeEqual(a: string, b: string): boolean {
@@ -67,5 +69,26 @@ ${r.message ? `<div style="margin-top:12px;padding:14px;background:#F3ECE5;borde
     })
   });
   if (!res.ok) return Response.json({ error: await res.text() }, { status: 502 });
-  return Response.json({ ok: true });
+
+  // Müşteriye "talebini aldık" e-postası. Ekibe bildirim gittikten sonra denenir; başarısız olursa webhook yeniden denemesin
+  // (ekibe ikinci bildirim gitmesin) diye hata yutulur ve yanıtta bildirilir. Yanıt, müşterinin adresine gider (reply_to: info@).
+  let ack = false;
+  const to = String(r.email ?? '').trim();
+  if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) {
+    try {
+      const m = renderAck({
+        kind: legal ? 'hukuki' : r.kind, name: r.name, lang: d.lang ?? r.lang, appUrl: env('APP_URL'), contact: env('LEAD_TO') || 'info@anahtar.io',
+        ref: legal ? r.ref : r.id ? 'T-' + String(r.id).replace(/-/g, '').slice(0, 6).toUpperCase() : undefined,
+        rows: rows.filter(([k]) => !['E-posta', 'Kaynak'].includes(k)), message: r.message
+      });
+      const a = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${env('RESEND_API_KEY')}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ from: env('EMAIL_FROM'), to, reply_to: env('LEAD_TO') || 'info@anahtar.io', subject: m.subject, html: m.html, text: m.text })
+      });
+      ack = a.ok;
+      if (!a.ok) console.error('teşekkür e-postası hatası', a.status, await a.text());
+    } catch (e) { console.error('teşekkür e-postası hatası', (e as Error).message); }
+  }
+  return Response.json({ ok: true, ack });
 });
