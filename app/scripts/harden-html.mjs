@@ -89,7 +89,9 @@ for (const file of walk(out)) {
     if (v !== html) { html = v; writeFileSync(file, html); }
   }
   if (html.includes('http-equiv="Content-Security-Policy"')) continue;      // zaten sertleştirilmiş
-  html = html.replace('<html lang="en">', '<html lang="tr">');
+  // translate="no": tarayıcının otomatik çevirisi sayfa metnini React bağlanmadan değiştirirse "hydration" hatası (React #418) olur.
+  // Uygulamanın kendi dil seçimi (Türkçe/English) var; çeviri oradan yapılır.
+  html = html.replace('<html lang="en">', '<html lang="tr" translate="no">');
   const guard = `<script>${FRAME_GUARD}</script>`;
   const hashes = [...new Set([...inline(html), FRAME_GUARD].map(sha))];
   // titles.json değeri ya başlık ya da { title, desc } (sayfaya özel açıklama).
