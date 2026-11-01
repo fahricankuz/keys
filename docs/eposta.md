@@ -14,13 +14,10 @@ Etiketi `bill-` ya da `acct-` ile başlayan bildirimler işlem e-postasıdır: k
 | Paket tanımlandı / kaldırıldı (yönetici) | `admin_set_plan` | `bill-plan-…`, `bill-planoff-…` |
 | Hesap askıya alındı / yeniden açıldı | `admin_set_ban` | `acct-ban-…`, `acct-unban-…` |
 | Kurum yöneticisi atandı (hesabı olana) | `admin_org_set_master` | `acct-org-…` |
-| Deneme bitti | günlük tarama `mail_sweep()` | `bill-trial-end` |
-| E-postanı onayla (24 saat–7 gün, onaysız hesap) | günlük tarama `mail_sweep()` | `acct-confirm` |
 | Yenileme / ilk çekim hatırlatması | `billing_reminders()` | `bill-YYYYMMDD` |
 | Şikâyetin incelendi, talep güncellendi, dekont onay/ret, kira günü/gecikme, mesaj … | uygulama olayları | etiketsiz / `rent-…` vb. |
 
-Günlük taramalar pg_cron ile otomatik kurulur (`anahtar-mail-sweep`, 10:00 İstanbul). pg_cron yoksa Supabase → Integrations → Cron →
-"SQL" ile günde bir `select public.mail_sweep();` çalıştır.
+Not: "deneme bitti" ve "e-postanı onayla" hatırlatmaları şimdilik kurulmadı.
 
 ## 2. Gönderim kuyruğu `mail_outbox` → `mail-send` (alıcı hesapsız, hesabı silinmiş ya da ekibimiz)
 | Tür | Alıcı | Ne zaman |

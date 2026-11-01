@@ -4432,7 +4432,7 @@ end $$;
 grant execute on function public.admin_subscriptions() to authenticated;
 
 -- ===== migration: 20261101195349_eposta_bildirimleri.sql =====
--- Müşteriye e-posta: abonelik olayları, elle paket tanımlama/kaldırma, hesap askıya alma/açma, deneme bitti, e-posta onayı hatırlatması.
+-- Müşteriye e-posta: abonelik olayları (ödeme sorunu, iptal, sona erme), elle paket tanımlama/kaldırma, hesap askıya alma/açma.
 -- Hepsi mevcut bildirim hattından gider: notifications satırı → push fonksiyonu → cihaza bildirim + e-posta (Resend).
 -- Etiketi bill- ya da acct- ile başlayan bildirimler işlem e-postasıdır: kullanıcı bildirim e-postalarını kapatmış olsa da gider
 -- (push fonksiyonunda). Aynı gün aynı etiket bir kez yazılır (notifications_tag_day).
@@ -4559,58 +4559,6 @@ begin
   on conflict do nothing;
 end $$;
 grant execute on function public.admin_set_ban(uuid, boolean, text) to authenticated;
-
--- ---- Günlük tarama: deneme bitti, e-posta onayı hatırlatması ---------------------------------------------------------
--- Her olay kullanıcı başına bir kez (etiket daha önce yazılmışsa tekrar yazılmaz). Çağıran: pg_cron (aşağıda) ya da elle.
-create or replace function public.mail_sweep()
-returns int language plpgsql security definer set search_path = public as $$
-declare n int := 0; k int;
-begin
-  -- Deneme bitti: kartsız denemesi son 3 günde bitmiş, ücretli aboneliği ve kurumu olmayan, erişimi kapanmış mülk sahipleri.
-  with c as (
-    select p.id from public.profiles p
-     where p.role = 'landlord'
-       and not exists (select 1 from public.notifications x where x.user_id = p.id and x.tag = 'bill-trial-end')
-       and (public.access_state(p.id) ->> 'subscribed')::boolean is false
-       and (public.access_state(p.id) ->> 'access')::boolean is false
-       and (public.access_state(p.id) ->> 'trialEnds')::timestamptz between now() - interval '3 days' and now()
-  ), ins as (
-    insert into public.notifications (user_id, title, body, url, tag)
-    select id, 'Ücretsiz denemen bitti',
-           'Denemen sona erdi ve erişimin kapandı. Verilerin silinmedi; paket seçtiğinde kaldığın yerden devam edersin.',
-           '/uygulama/ayarlar', 'bill-trial-end' from c
-    on conflict do nothing returning 1
-  ) select count(*) into k from ins;
-  n := n + k;
-
-  -- E-postasını onaylamamış hesaplar: kayıttan 24 saat ile 7 gün sonra bir kez hatırlat (auth sütunu yoksa atlanır).
-  begin
-    with c as (
-      select p.id from public.profiles p join auth.users u on u.id = p.id
-       where u.email_confirmed_at is null and u.created_at between now() - interval '7 days' and now() - interval '24 hours'
-         and not exists (select 1 from public.notifications x where x.user_id = p.id and x.tag = 'acct-confirm')
-    ), ins as (
-      insert into public.notifications (user_id, title, body, url, tag)
-      select id, 'E-postanı onayla',
-             'Hesabın hazır. Kullanmaya başlamak için e-postana gönderdiğimiz onay bağlantısına tıkla; gelmediyse spam klasörüne de bak.',
-             '/uygulama', 'acct-confirm' from c
-      on conflict do nothing returning 1
-    ) select count(*) into k from ins;
-    n := n + k;
-  exception when undefined_column then null;
-  end;
-  return n;
-end $$;
-revoke execute on function public.mail_sweep() from public, anon, authenticated;
-
--- pg_cron varsa her gün 10:00 (İstanbul) çalıştır.
-do $$
-begin
-  if exists (select 1 from pg_extension where extname = 'pg_cron') then
-    perform cron.unschedule(jobid) from cron.job where jobname = 'anahtar-mail-sweep';
-    perform cron.schedule('anahtar-mail-sweep', '0 7 * * *', 'select public.mail_sweep()');
-  end if;
-end $$;
 
 -- ===== migration: 20261101195534_eposta_kuyrugu.sql =====
 -- E-posta gönderim kuyruğu: bildirim hattına sığmayan e-postalar için (alıcının hesabı silinmiş ya da henüz hiç olmamış, ya da alıcı ekibimiz).

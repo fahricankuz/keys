@@ -75,32 +75,6 @@ test('askıya alma ve yeniden açma: kullanıcıya gerekçeli ve destek adresli 
   expect((await notes(ID.X, 'acct-unban-%'))[0].title).toBe('Hesabın yeniden açıldı');
 });
 
-test('günlük tarama: deneme bitti bir kez; e-postasını onaylamayana bir kez; kullanıcı çağıramaz', async () => {
-  // Yeni mülk sahibi: 31 gün önce açılmış, deneme dün bitmiş, aboneliği yok.
-  await as(null);
-  await db.query(`insert into auth.users (id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000c1', 'eski@ornek.com', '{"name":"Eski Deneme","role":"landlord"}')`);
-  await db.query(`update public.profiles set created_at = now() - interval '31 days' where id = '00000000-0000-0000-0000-0000000000c1'`);
-  expect((await q(`select public.mail_sweep() n`))[0].n).toBe(1);
-  expect(await notes('00000000-0000-0000-0000-0000000000c1', 'bill-trial-end')).toHaveLength(1);
-  expect((await q(`select public.mail_sweep() n`))[0].n).toBe(0);               // ikinci tarama yeni bildirim yazmaz
-
-  // Çok eski denemeler (3 günden önce biten) bildirilmez.
-  await db.query(`insert into auth.users (id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000c2', 'cokeski@ornek.com', '{"name":"Çok Eski","role":"landlord"}')`);
-  await db.query(`update public.profiles set created_at = now() - interval '90 days' where id = '00000000-0000-0000-0000-0000000000c2'`);
-  expect((await q(`select public.mail_sweep() n`))[0].n).toBe(0);
-
-  // E-posta onayı: Supabase'in auth.users sütunları eklenir; 2 gün önce açılmış, onaysız hesap.
-  await db.exec(`alter table auth.users add column if not exists email_confirmed_at timestamptz, add column if not exists created_at timestamptz default now()`);
-  await db.query(`update auth.users set created_at = now() - interval '2 days', email_confirmed_at = null where id = $1`, [ID.T]);
-  await db.query(`update auth.users set created_at = now() - interval '2 days', email_confirmed_at = now() where id <> $1`, [ID.T]);
-  expect((await q(`select public.mail_sweep() n`))[0].n).toBe(1);
-  expect((await notes(ID.T, 'acct-confirm'))[0].title).toBe('E-postanı onayla');
-  expect((await q(`select public.mail_sweep() n`))[0].n).toBe(0);
-
-  await as(ID.L);
-  await expect(q(`select public.mail_sweep()`)).rejects.toThrow(/permission denied/);
-});
-
 test('hesap silindi: kendisi ya da yönetici silince, silinmeden önce kuyruğa e-posta yazılır; kullanıcı kuyruğa erişemez', async () => {
   await as(null);
   const U1 = '00000000-0000-0000-0000-0000000000d1', U2 = '00000000-0000-0000-0000-0000000000d2';
