@@ -35,6 +35,11 @@ npm i -g supabase            # ya da her komutun başına npx ekle
 supabase login
 supabase link --project-ref PROJE_KIMLIGI
 supabase migration repair --status applied 20261101000000
+```
+
+Bilgisayarında CLI kurmak istemezsen aynı işi GitHub'dan yap: Actions → "Veritabanı migration" → Run workflow → **baseline_isaretle** işaretli, **dry_run** işaretli bırak → Run. (Yalnızca bir kez.)
+
+```bash
 supabase migration list      # 20261101000000 hem "Local" hem "Remote" sütununda görünmeli
 ```
 

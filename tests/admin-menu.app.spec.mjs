@@ -34,3 +34,18 @@ test('yönetici paneli telefonda açılır menü: basınca bölümler açılır,
   await expect(page.getByRole('button', { name: /^Bölümler: Abonelikler/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Kurumlar', exact: true })).toHaveCount(0);   // seçince menü kapandı
 });
+
+test('yönetici paneli masaüstünde kısa pencerede: yan menü kayar, e-posta ve "Çıkış yap" altta görünür ve basılabilir', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await page.goto(`http://localhost:${PORT}/giris/yonetici`);
+  await page.getByLabel('E-posta').fill('admin@ornek.com');
+  await page.getByLabel('Şifre', { exact: true }).fill(PW);
+  await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+  const out = page.getByRole('button', { name: 'Çıkış yap' });
+  await expect(out).toBeVisible();
+  const b = await out.boundingBox();
+  expect(b.y + b.height).toBeLessThanOrEqual(600);                 // pencerenin içinde
+  await out.click();
+  await expect(page).toHaveURL(/\/giris|\/$/);
+});

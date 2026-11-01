@@ -69,8 +69,9 @@ export function AdminShell({ items, active, onPick, email, onReload, onSignOut, 
   }
   return (
     <View style={{ flex: 1, flexDirection: 'row', backgroundColor: c.bg }}>
-      <View style={{ width: 260, backgroundColor: c.deepA, paddingVertical: 26, paddingHorizontal: 16, justifyContent: 'space-between' }}>
-        <View style={{ gap: 26 }}>
+      {/* Yan menü ekran yüksekliğine sığar: bölümler kendi içinde kayar, e-posta ve çıkış düğmeleri altta sabit kalır (Safari dahil). */}
+      <View style={{ width: 260, backgroundColor: c.deepA, paddingTop: 26, paddingBottom: 18, paddingHorizontal: 16, minHeight: 0 }}>
+        <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ gap: 26, paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
           <View style={{ gap: 10, paddingHorizontal: 8 }}>
             <PressScale onPress={() => router.push('/' as any)} accessibilityRole="link" accessibilityLabel={t('Ana sayfa')} style={{ alignSelf: 'flex-start' }}><Wordmark size={26} variant="cream" bg={c.deepA} /></PressScale>
             <View style={{ alignSelf: 'flex-start' }}><Chip tone="warn" label={t('Yönetici paneli')} /></View>
@@ -95,8 +96,8 @@ export function AdminShell({ items, active, onPick, email, onReload, onSignOut, 
               );
             })}
           </View>
-        </View>
-        <View style={{ gap: 10, paddingHorizontal: 8 }}>
+        </ScrollView>
+        <View style={{ gap: 10, paddingHorizontal: 8, paddingTop: 12, flexShrink: 0, borderTopWidth: 1, borderTopColor: 'rgba(250,245,240,0.10)' }}>
           {email ? <RNText numberOfLines={1} style={{ fontFamily: fonts.body, fontSize: 13, color: c.heroMuted }}>{email}</RNText> : null}
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Button kind="onDark" title={t('Yenile')} onPress={onReload} loading={busy} style={{ flex: 1, minHeight: 42, paddingHorizontal: 12 }} />
