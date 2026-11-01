@@ -96,12 +96,26 @@ test('güvenlik: başka mülke yazma, okuma ve silme denemeleri sonuçsuz kalır
   expect(await tryCall(db, `insert into public.messages (id, property_id, from_role, body) values ('m-rol', 'p1', 'landlord', 'rolümü değiştirdim')`)).toBeTruthy();
 });
 
+test('güvenlik: ekipten çıkarılan kişi kullanılmış davetle geri dönemez', async () => {
+  await as(L);
+  const [{ code }] = await q(`insert into public.invites (property_id, created_by, role, scope) values ('p1', '${L}', 'agent', 'portfolio') returning code`);
+  await as(L2);
+  await q(`select public.accept_invite($1)`, [code]);
+  await as(L);
+  await q(`select public.team_remove($1)`, [L2]);
+  await as(L2);
+  expect(await tryCall(db, `select public.accept_invite($1)`, [code])).toMatch(/Bu davet kullanılmış/);
+  await as(null);
+  expect((await q(`select count(*)::int c from public.team_members where owner_id = '${L}' and member_id = '${L2}'`))[0].c).toBe(0);
+  expect((await q(`select count(*)::int c from public.memberships where property_id = 'p1' and user_id = '${L2}'`))[0].c).toBe(0);
+});
+
 test('güvenlik: yinelenen / çakışan istekler (aynı davet iki kez, aynı kimlik iki kez) tutarlı kalır', async () => {
   await as(L);
   const [{ code }] = await q(`insert into public.invites (property_id, created_by) values ('p1', '${L}') returning code`);
   await as(X);
   await q(`select public.accept_invite($1)`, [code]);
-  expect(await tryCall(db, `select public.accept_invite($1)`, [code])).toBeNull();      // ikinci çağrı zarar vermez
+  expect(await tryCall(db, `select public.accept_invite($1)`, [code])).toMatch(/Bu davet kullanılmış/);   // davet tek kullanımlık; ikinci çağrı hiçbir şey yazmaz
   await as(null);
   expect((await q(`select count(*)::int c from public.memberships where property_id = 'p1' and user_id = '${X}'`))[0].c).toBe(1);
   await as(L);
