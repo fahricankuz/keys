@@ -43,3 +43,11 @@ e-postaları (kayıt onayı, şifre sıfırlama: `supabase/email-templates/`) ö
 ## Teslim edilebilirlik (kod değil, ayar)
 Resend'de `anahtar.io` doğrulanmış olmalı (SPF, DKIM, DMARC kayıtları Hostinger DNS'inde); Supabase → Authentication → SMTP'ye Resend
 bağlanmalı; `info@anahtar.io` posta kutusu açık olmalı.
+
+## Fonksiyonları yayınlama (tek tıkla)
+Actions → **Fonksiyonları yayınla** → Run workflow: ortam `production`, fonksiyonlar `hepsi` (ya da ad listesi, ör. `lead-mail mail-send`).
+Gerekli: GitHub'da `SUPABASE_ACCESS_TOKEN` (Supabase → Account → Access Tokens → **Create legacy token**; fonksiyon yüklemek tam yetkili jeton ister)
+ve `SUPABASE_PROJECT_REF`. Gizli değerler (Resend anahtarı vb.) Supabase → Edge Functions → Secrets'ta kalır; bu iş onlara dokunmaz.
+Her fonksiyonun JWT ayarı `supabase/config.toml`'dandır: webhook/zamanlayıcı fonksiyonları (`push`, `lead-mail`, `mail-send`, `report`, `tufe-sync`, `billing`)
+doğrulamasız ve gizli başlıkla korunur; `welcome`, `invite-mail`, `site-invite` kullanıcının jetonuyla çağrılır.
+Sıra: veritabanı migration → fonksiyonlar → Hostinger'da site.

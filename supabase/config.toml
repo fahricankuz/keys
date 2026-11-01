@@ -8,3 +8,19 @@ major_version = 17
 
 [db.migrations]
 enabled = true
+
+# Edge Function'lar. verify_jwt = false: fonksiyonu veritabanı (Database Webhook) ya da zamanlayıcı çağırır, oturum jetonu taşımaz;
+# istekler fonksiyonun içinde gizli başlıkla (x-anahtar-secret / x-evim-secret) doğrulanır.
+# welcome, invite-mail, site-invite uygulamadan kullanıcının jetonuyla çağrılır: varsayılan (jeton doğrulanır) kalır.
+[functions.push]
+verify_jwt = false
+[functions.lead-mail]
+verify_jwt = false
+[functions.mail-send]
+verify_jwt = false
+[functions.report]
+verify_jwt = false
+[functions.tufe-sync]
+verify_jwt = false
+[functions.billing]
+verify_jwt = false
