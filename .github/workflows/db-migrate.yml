@@ -17,6 +17,10 @@ on:
         description: 'Yalnızca göster, uygulama (önerilen ilk adım)'
         type: boolean
         default: true
+      baseline_isaretle:
+        description: 'TEK SEFERLİK: mevcut veritabanını "baseline uygulandı" diye işaretle (ilk kurulumda bir kez işaretle)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -38,6 +42,9 @@ jobs:
         run: node scripts/db-derle.mjs --kontrol
       - name: Projeye bağlan
         run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+      - name: Baseline'ı uygulanmış say (yalnızca işaretliyse; veritabanı şemasına dokunmaz)
+        if: ${{ inputs.baseline_isaretle }}
+        run: supabase migration repair --status applied 20261101000000
       - name: Uygulanmış ve bekleyen migration'lar
         run: supabase migration list
       - name: Uygula (dry run değilse)
