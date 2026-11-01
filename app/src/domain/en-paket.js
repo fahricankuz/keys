@@ -443,5 +443,10 @@ export const EN_PAKET = {
   "Sektörü seç.": "Choose the sector.",
   "Mülk / birim adedi": "Properties / units",
   "Mülk adedi (1-9)": "Properties (1-9)",
-  "Paketteki adet": "Plan quantity"
+  "Paketteki adet": "Plan quantity",
+  "Kurumu sil": "Delete organization",
+  "Bu kurumu silmek istediğine emin misin?": "Are you sure you want to delete this organization?",
+  "{name} kalıcı olarak silinir: yöneticileri, rolleri ve davetleri kaldırılır. Bu işlem geri alınamaz ve kayda yazılır.": "{name} will be permanently deleted: its managers, roles and invitations are removed. This cannot be undone and is logged.",
+  "Kuruma bağlı {n} mülk silinmez; sahibinin hesabında bireysel mülk olarak kalır.": "The {n} properties linked to the organization are not deleted; they stay in the owner's account as individual properties.",
+  "Evet, sil": "Yes, delete"
 };
