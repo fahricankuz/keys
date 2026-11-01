@@ -34,3 +34,10 @@ test('eski parça hatasında sayfa bir kez yenilenir; başka hatada ve dakika i�
   await page.waitForTimeout(800);
   expect(await page.evaluate(() => window.__marker)).toBe(2);
 });
+
+test('sayfa tarayıcı çevirisine kapalıdır (çeviri metni değiştirip React #418 hydration hatası üretmesin)', async ({ page }) => {
+  for (const path of ['/', '/kayit', '/satin-al']) {
+    const html = await (await page.request.get(`http://localhost:${PORT}${path}`)).text();
+    expect(html).toMatch(/<html lang="tr" translate="no">/);
+  }
+});
