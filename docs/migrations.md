@@ -31,22 +31,20 @@ Kurallar:
 ### Tek seferlik: mevcut veritabanını baseline'a bağla
 Canlı veritabanında baseline zaten uygulanmış (daha önce `schema.sql`'i çalıştırdın). Supabase'e bunu söylemezsen baseline'ı yeniden uygulamaya çalışır.
 ```bash
-npm i -g supabase            # ya da her komutun başına npx ekle
-supabase login
-supabase link --project-ref PROJE_KIMLIGI
-supabase migration repair --status applied 20261101000000
-```
+En kolayı GitHub'dan: Actions → "Veritabanı migration" → Run workflow → environment seç, mode **adopt-existing-baseline** → Run. (Her ortam için yalnızca bir kez; ayrıntı aşağıda B bölümünde.) İş önce veritabanında uygulamanın tabloları olduğunu denetler; boş veritabanında durur.
 
-Bilgisayarında CLI kurmak istemezsen aynı işi GitHub'dan yap: Actions → "Veritabanı migration" → Run workflow → environment seç, mode **adopt-existing-baseline** → Run. (Her ortam için yalnızca bir kez; ayrıntı aşağıda B bölümünde.) `link` yerine `--db-url "<Session pooler adresi>"` de kullanılabilir.
-
+Kendi bilgisayarından yapmak istersen `supabase link` gerekmez (hesap yetkisi isteyen adım odur); doğrudan bağlantı adresini ver:
 ```bash
-supabase migration list      # 20261101000000 hem "Local" hem "Remote" sütununda görünmeli
+export DB_URL='postgresql://postgres.<ref>:<parola>@aws-…pooler.supabase.com:5432/postgres'   # Supabase → Connect → Session pooler
+npx supabase@2.120.0 migration repair --db-url "$DB_URL" --status applied 20261101000000
+npx supabase@2.120.0 migration list --db-url "$DB_URL"   # 20261101000000 hem "Local" hem "Remote" sütununda görünmeli
 ```
 
 ### A) Kendi bilgisayarından
 ```bash
-supabase db push --dry-run   # neyin uygulanacağını gösterir, dokunmaz
-supabase db push             # uygular
+bash scripts/db-preflight.sh apply                              # yalnız okur; psql gerekir (brew install libpq)
+npx supabase@2.120.0 db push --db-url "$DB_URL" --dry-run     # neyin uygulanacağını gösterir, dokunmaz
+npx supabase@2.120.0 db push --db-url "$DB_URL"               # uygular
 ```
 
 ### B) GitHub Actions'tan (önerilen)

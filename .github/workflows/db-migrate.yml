@@ -49,9 +49,10 @@ jobs:
       ENV_NAME: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v4
+      # Sürüm sabit: "latest" CLI'ın yeni ana sürümüne (3.x) kendiliğinden geçip davranışı değiştirebilir.
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.120.0
       - name: schema.sql migration'larla uyumlu mu
         run: node scripts/db-derle.mjs --kontrol
       - name: Ortam ve bağlantı adresini denetle (değer yazdırmaz)
@@ -68,17 +69,22 @@ jobs:
           exit $fail
       - name: Başlangıçta uygulanmış ve bekleyen migration'lar
         run: supabase migration list --db-url "$DB_URL"
-      # Only use this for an EXISTING database whose schema is already the baseline.
-      # It records history; it does not create or validate the baseline schema.
+      # Yalnızca okur. Şemalı ama kayıtsız veritabanında apply'ı, şemasız veritabanında adopt'u durdurur.
+      - name: Güvenlik denetimi (yazmaz)
+        id: denetim
+        run: |
+          command -v psql >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client; }
+          bash scripts/db-preflight.sh "${{ inputs.mode }}"
+      # Yalnızca baseline şeması zaten kurulu MEVCUT veritabanı için. Geçmişe kayıt düşer; şema oluşturmaz.
       - name: Mevcut baseline'ı bir kez kaydet
-        if: ${{ inputs.mode == 'adopt-existing-baseline' }}
+        if: ${{ inputs.mode == 'adopt-existing-baseline' && steps.denetim.outputs.baseline_kayitli != 'true' }}
         run: supabase migration repair --db-url "$DB_URL" --status applied 20261101000000
       - name: Plan (veritabanına yazmaz)
-        if: ${{ inputs.mode == 'plan' }}
+        if: ${{ inputs.mode == 'plan' || inputs.mode == 'apply' }}
         run: supabase db push --db-url "$DB_URL" --dry-run
       - name: Bekleyen migration'ları uygula
         if: ${{ inputs.mode == 'apply' }}
-        run: supabase db push --db-url "$DB_URL"
+        run: supabase db push --db-url "$DB_URL" --yes
       - name: İşlem sonrasında migration durumu
         if: ${{ inputs.mode != 'plan' }}
         run: supabase migration list --db-url "$DB_URL"

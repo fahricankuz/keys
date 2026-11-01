@@ -9,3 +9,4 @@ hostinger-site/
 # Hazır Hostinger paketi (hostinger/): Expo varlık klasörü sitenin parçasıdır
 !/hostinger/site/assets/node_modules/
 dist/
+supabase/.temp/

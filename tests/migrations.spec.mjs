@@ -43,3 +43,18 @@ test('birleştirme: ek migration baseline\'ın sonuna, sıralı ve ayraçla ekle
   writeFileSync(join(dir, '20261103000000_c.sql'), 'create index if not exists a_y on a(y);\n');
   expect(build(dir)).toBe('create table a(x int);\n\n-- ===== migration: 20261102000000_b.sql =====\nalter table a add column if not exists y int;\n\n-- ===== migration: 20261103000000_c.sql =====\ncreate index if not exists a_y on a(y);\n');
 });
+
+test('migration iş akışı: elle tetiklenir, link/jeton kullanmaz, CLI sürümü sabit, güvenlik denetimi yazmadan önce çalışır', () => {
+  const wf = readFileSync(new URL('../.github/workflows/db-migrate.yml', import.meta.url), 'utf8')
+    .split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');   // açıklama satırları sayılmaz
+  const on = wf.slice(wf.indexOf('\non:'), wf.indexOf('\npermissions:'));
+  expect(on).toContain('workflow_dispatch:');
+  expect(on).not.toMatch(/\n\s+(push|pull_request|schedule):/);
+  expect(wf).not.toMatch(/supabase link|SUPABASE_ACCESS_TOKEN/);
+  expect(wf).toMatch(/version: \d+\.\d+\.\d+/);
+  expect(wf).toContain('[ "$TARGET" = "$ENV_NAME" ]');
+  const denetim = wf.indexOf('scripts/db-preflight.sh');
+  expect(denetim).toBeGreaterThan(0);
+  for (const yazan of ['migration repair', 'db push --db-url "$DB_URL" --yes']) expect(wf.indexOf(yazan), yazan).toBeGreaterThan(denetim);
+  expect(readFileSync(new URL('../scripts/db-preflight.sh', import.meta.url), 'utf8')).toContain('20261101000000');
+});
