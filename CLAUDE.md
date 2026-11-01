@@ -7,9 +7,12 @@
 - Uygulanmış bir migration dosyasını **değiştirme**; hata varsa yeni bir migration ile düzelt.
 - SQL **yeniden çalıştırılabilir** olsun (`if not exists`, `create or replace`, `drop … if exists`); testler şemayı iki kez çalıştırır.
 - Yeni tabloda RLS'i ve politikaları aynı migration'da yaz. Dışarıdan çağrılan yeni işlevi `tests/qa-db.spec.mjs` izin listesine ekle.
-- Her yayın mesajında kullanıcıya söyle: önce migration'ı uygula (GitHub → Actions → "Veritabanı migration" ya da `supabase db push`),
-  sonra siteyi güncelle; fonksiyon değiştiyse `supabase functions deploy <ad>` de gerekir.
-- Ayrıntı: `docs/migrations.md`.
+- Migration eski kodla da çalışmalı (birleştirme siteyi migration'dan önce yayınlar); silme/yeniden adlandırma ayrı, sonraki PR'da.
+- Her migration'a değişikliği deneyen bir test ekle. Yerelde yalnız ilgili testleri Node 22 ile ve süre sınırıyla çalıştır; tam set CI'da.
+- Uygulama yalnızca Actions → "Veritabanı migration" ile, ana daldan, şu sırayla: staging `plan` → staging `apply` → production `plan`
+  → production `apply`. Her `apply` öncesi `plan` çıktısını kullanıcıya göster ve açık onay al. `supabase link` kullanma.
+- Yayın mesajında kullanıcıya bu dört adımı yaz; Edge Function değiştiyse `supabase functions deploy <ad>` adımını da ekle.
+- Ayrıntı ve teknik olmayan anlatım: `docs/migrations.md`.
 
 ## Yayın
 - Kullanıcının açık onayı olmadan yayına alma (PR birleştirme). Yayın testlere bağlıdır (`.github/workflows/hostinger.yml`).
