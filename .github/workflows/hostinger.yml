@@ -5,7 +5,7 @@ name: Hostinger paketi
 #     varsayılan dala gelen her değişiklikte bu dal yeniden derlenip güncellenir,
 #  2) aynı dosyaları `anahtar-hostinger.zip` olarak indirilebilir paket (artifact) bırakır.
 # Varsayılan dala her push'ta ve elle (Actions → Hostinger paketi → Run workflow) çalışır.
-# Değişkenler pages.yml ile aynıdır: SUPABASE_URL (boşsa projenin adresi kullanılır), SUPABASE_ANON_KEY (boşsa projenin herkese açık "publishable" anahtarı kullanılır; gizli/secret anahtar asla girilmez),
+# Değişkenler (Settings → Secrets and variables → Actions → Variables): SUPABASE_URL (boşsa projenin adresi kullanılır), SUPABASE_ANON_KEY (boşsa projenin herkese açık "publishable" anahtarı kullanılır; gizli/secret anahtar asla girilmez),
 # TURNSTILE_SITE_KEY (isteğe bağlı).
 on:
   push:

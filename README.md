@@ -41,8 +41,8 @@ python3 -m http.server 8000
 
 > `file://` ile açmayın: ES modülleri ve service worker bir sunucu ister.
 
-**Yayın:** varsayılan dala her gönderimde `.github/workflows/pages.yml` siteyi
-GitHub Pages'e yükler (Settings → Pages → Source: *GitHub Actions*).
+**Yayın:** varsayılan dala her gönderimde `.github/workflows/hostinger.yml` testleri çalıştırır, geçerse siteyi
+`site` dalına derler; Hostinger bu dalı yayınlar (`docs/hostinger.md`).
 `npm run build` (kökte) anahtar sitesini `app/` klasöründen derleyip `dist/` klasörüne yazar (Hostinger için).
 `npm run build:pwa` eski PWA yayın paketini (`www/`) üretir: supabase-js ve yazı tipleri
 pakete alınır.

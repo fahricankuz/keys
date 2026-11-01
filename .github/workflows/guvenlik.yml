@@ -14,9 +14,11 @@ permissions:
 jobs:
   codeql:
     runs-on: ubuntu-latest
+    # Gizli depoda jeton yalnız burada sayılan izinleri alır: actions: read olmadan CodeQL çalıştırma bilgisini okuyamaz.
     permissions:
       contents: read
       security-events: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
       - uses: github/codeql-action/init@v3
@@ -27,6 +29,10 @@ jobs:
 
   gizli-anahtar:
     runs-on: ubuntu-latest
+    # Gizli depoda gitleaks PR'ın commit listesini okuyabilmek için pull-requests: read ister.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
