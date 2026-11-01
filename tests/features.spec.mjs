@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { watchErrors, open, sheet, PNG } from './helpers.mjs';
+import { watchErrors, open, sheet, PNG, midMonth } from './helpers.mjs';
 
 let errors;
 test.beforeEach(({ page }) => { errors = watchErrors(page); });
@@ -141,6 +141,7 @@ test('kiracı teklifleri görür ama seçemez', async ({ page }) => {
 /* ---- çıkış ve depozito ---- */
 
 test('çıkış süreci: karşılaştırma, kesinti, iki taraf onayı, iade', async ({ page }) => {
+  await midMonth(page);                                  // demo kirası ayın başında henüz gecikmiş değildir
   await open(page, '#/mulk-sahibi/mulk/atasehir/cikis');
   await page.click('button:has-text("Çıkış sürecini başlat")');
   await sheet(page).locator('button:has-text("Başlat")').click();

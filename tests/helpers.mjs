@@ -48,3 +48,11 @@ export async function makeTestPhotos() {
   writeFileSync(join(dir, 'bozuk.png'), Buffer.from('bu bir fotoğraf değil, rastgele baytlar'));
   return dir;
 }
+
+
+/** Saati ayın 15'ine (öğlen, İstanbul) sabitler: eski demo uygulaması "bu ayki kira gecikmiş" gibi durumları ayın gününe göre üretir;
+    ayın ilk günlerinde (vade gününden önce) testler kırılmasın. Sayfayı açmadan önce çağır. */
+export async function midMonth(page) {
+  const [y, m] = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date()).split('-').map(Number);
+  await page.clock.setFixedTime(new Date(Date.UTC(y, m - 1, 15, 9)));
+}

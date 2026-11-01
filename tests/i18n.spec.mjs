@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { EN } from '../assets/js/en.js';
-import { watchErrors, open } from './helpers.mjs';
+import { watchErrors, open, midMonth } from './helpers.mjs';
 
 const DIR = new URL('../assets/js/', import.meta.url).pathname;
 const TURKISH = /[çğıöşüÇĞİÖŞÜ]/;
@@ -68,6 +68,7 @@ test.describe('İngilizce mod', () => {
   ];
 
   test('tüm ekran ve alt sayfalarda çevrilmemiş metin kalmaz', async ({ page }) => {
+    await midMonth(page);                                // "Ödenmemiş kirayı ekle" ayın başında (vade öncesi) çıkmaz
     for (const hash of [...ROUTES, ...SHEETS]){
       await page.goto('index.html' + hash);
       await expect(page.locator('#screen h1')).toBeVisible();
