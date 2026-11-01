@@ -2,7 +2,7 @@
 // "@mobil" etiketli testler hem Pixel 7 (Chromium) hem de CI'daki Safari (WebKit) işinde çalışır; iPhone'a özgü sorunları yakalamak içindir.
 import { test, expect } from '@playwright/test';
 import { join } from 'node:path';
-import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist, ID, hydrated } from './app-helpers.mjs';
 import { watchErrors, makeTestPhotos } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -22,6 +22,7 @@ test.afterEach(() => { expect(errors).toEqual([]); });
 const url = (p) => `http://localhost:${PORT}${p}`;
 async function login(page, email, entry) {
   await page.goto(url(entry));
+  await hydrated(page, page.getByLabel('E-posta'));
   await page.getByLabel('E-posta').fill(email);
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();

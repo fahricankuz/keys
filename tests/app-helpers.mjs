@@ -1,4 +1,5 @@
 // Kiracım uygulaması (app/) için ortak test yardımcıları: statik sunucu ve sahte Supabase verisi.
+import { expect } from '@playwright/test';
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { join, extname } from 'node:path';
@@ -28,6 +29,15 @@ export async function ensureDist(dist) {
   }
   for (let i = 0; i < 600 && !ready(); i++) await new Promise((r) => setTimeout(r, 1000));
   if (!ready()) throw new Error('dist-fake hazırlanamadı');
+}
+
+/**
+ * Sayfa önceden derlenmiş (statik) HTML ile gelir; React alanları birkaç yüz ms sonra devralır (hydration).
+ * Devralmadan önce yazılan değer React tarafından sıfırlanır (Safari/WebKit'te sık). Alana yazmadan önce bunu bekle.
+ */
+export async function hydrated(page, locator) {
+  // locator.evaluate sayfanın CSP'sine takılmaz (page.waitForFunction 'unsafe-eval' ister).
+  await expect.poll(() => locator.evaluate((el) => Object.keys(el).some((k) => k.startsWith('__reactProps'))), { timeout: 15_000 }).toBe(true);
 }
 
 export function serveDist(root, port) {

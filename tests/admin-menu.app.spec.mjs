@@ -1,6 +1,6 @@
 // Yönetici paneli telefonda: bölümler kaydırılan şerit yerine, basınca açılan menüdür (seçince kapanır).
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist, hydrated } from './app-helpers.mjs';
 import { watchErrors } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -19,6 +19,7 @@ test.afterEach(() => { expect(errors).toEqual([]); });
 test('yönetici paneli telefonda açılır menü: basınca bölümler açılır, seçince kapanır ve bölüm değişir @mobil', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`http://localhost:${PORT}/giris/yonetici`);
+  await hydrated(page, page.getByLabel('E-posta'));
   await page.getByLabel('E-posta').fill('admin@ornek.com');
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
@@ -38,6 +39,7 @@ test('yönetici paneli telefonda açılır menü: basınca bölümler açılır,
 test('yönetici paneli masaüstünde kısa pencerede: yan menü kayar, e-posta ve "Çıkış yap" altta görünür ve basılabilir', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 600 });
   await page.goto(`http://localhost:${PORT}/giris/yonetici`);
+  await hydrated(page, page.getByLabel('E-posta'));
   await page.getByLabel('E-posta').fill('admin@ornek.com');
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
