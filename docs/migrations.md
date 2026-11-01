@@ -37,7 +37,7 @@ supabase link --project-ref PROJE_KIMLIGI
 supabase migration repair --status applied 20261101000000
 ```
 
-Bilgisayarında CLI kurmak istemezsen aynı işi GitHub'dan yap: Actions → "Veritabanı migration" → Run workflow → **baseline_isaretle** işaretli, **dry_run** işaretli bırak → Run. (Yalnızca bir kez.)
+Bilgisayarında CLI kurmak istemezsen aynı işi GitHub'dan yap: Actions → "Veritabanı migration" → Run workflow → environment seç, mode **adopt-existing-baseline** → Run. (Her ortam için yalnızca bir kez; ayrıntı aşağıda B bölümünde.) `link` yerine `--db-url "<Session pooler adresi>"` de kullanılabilir.
 
 ```bash
 supabase migration list      # 20261101000000 hem "Local" hem "Remote" sütununda görünmeli
@@ -50,9 +50,17 @@ supabase db push             # uygular
 ```
 
 ### B) GitHub Actions'tan (önerilen)
-1. Settings → Environments → **production** oluştur; "Required reviewers" olarak kendini ekle.
-2. Environment secrets: `SUPABASE_ACCESS_TOKEN` (Supabase → Account → Access Tokens), `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_REF`.
-3. Actions → **Veritabanı migration** → Run workflow. Önce **dry run** açık çalıştır, çıktıyı oku, sonra dry run'ı kapatıp yeniden çalıştır.
+1. Settings → Environments altında **staging** ve **production** oluştur. Production'a "Required reviewers" ekle.
+2. Her environment'a ayrı şunları ekle:
+   - **Secret** `SUPABASE_DB_URL`: Supabase → **Connect** → **Session pooler** adresi (`postgresql://postgres.<ref>:<parola>@aws-…pooler.supabase.com:5432/postgres`). `[YOUR-PASSWORD]` yerine veritabanı parolasını yaz; parolada `@ : / # ?` gibi karakter varsa URL-kodla. GitHub sunucularında IPv6 olmadığından "Direct connection" çalışmaz.
+   - **Variable** `SUPABASE_TARGET`: environment'ın adı (`staging` / `production`). Eşleşmezse iş bağlanmadan durur; depo düzeyindeki bir secret yüzünden yanlış veritabanına gitmeyi önler.
+   - İş `supabase link` kullanmaz; Supabase erişim jetonu ve Management API yetkisi gerekmez (önceki "Your account does not have the necessary privileges" hatası buradan geliyordu).
+   - Staging ve production adresleri farklı projelere ait olmalı.
+3. Actions → **Veritabanı migration** → Run workflow:
+   - `plan`: yalnız bekleyen SQL'i gösterir; veritabanına yazmaz.
+   - `adopt-existing-baseline`: yalnızca daha önce eski `schema.sql` kurulmuş **mevcut** veritabanı için, bir kez. Şema oluşturmaz ve doğrulamaz; boş ya da farklı şemalı veritabanında çalıştırma.
+   - `apply`: yalnızca plan gözden geçirildikten ve staging testi geçtikten sonra bekleyen migration'ları uygular.
+4. Sıra daima: staging plan → staging apply → uygulama testi → production plan → production apply → site dağıtımı. Migration işi site dağıtımını otomatik tetiklemez.
 
 ### C) SQL Editor ile elle (eski yöntem)
 Tek bir migration dosyasının içeriğini SQL Editor'e yapıştırıp çalıştırabilirsin. **Sonra** kaydı işle, yoksa `db push` onu yeniden dener:

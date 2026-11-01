@@ -2,37 +2,51 @@ name: Veritabanı migration
 
 # Supabase veritabanına supabase/migrations altındaki yeni migration'ları uygular.
 # YALNIZCA ELLE çalışır (Actions → Veritabanı migration → Run workflow); hiçbir push bunu tetiklemez.
-# Varsayılan "dry_run" açıktır: neyin uygulanacağını gösterir, veritabanına dokunmaz. Gerçek uygulama için işareti kaldır.
+# Site dağıtımından ayrıdır: önce seçilen ortamda migration başarılı olur, sonra site dağıtılır.
 #
-# Gerekli (Settings → Environments → production → Secrets; ortama "Required reviewers" eklemen önerilir):
-#   SUPABASE_ACCESS_TOKEN  Supabase → Account → Access Tokens
-#   SUPABASE_DB_PASSWORD   projenin veritabanı parolası
-#   SUPABASE_PROJECT_REF   proje kimliği (adresteki xxxx.supabase.co başındaki xxxx)
-# Ayrıntı: docs/migrations.md
+# Doğrudan Postgres bağlantısıyla çalışır (`--db-url`); `supabase link`, Supabase erişim jetonu ve
+# Management API yetkisi GEREKMEZ.
+#
+# Her GitHub environment'ında (Settings → Environments → staging / production):
+#   Secret   SUPABASE_DB_URL   Supabase → Connect → "Session pooler" bağlantı adresi (parola içinde;
+#                              özel karakterler URL-kodlu). GitHub sunucularında IPv6 olmadığından
+#                              "Direct connection" değil, Session pooler (port 5432) kullan.
+#   Variable SUPABASE_TARGET   environment'ın adı (staging / production). Secret yalnız depo düzeyindeyse
+#                              yanlış veritabanına gitmeyi önler; eşleşmezse iş bağlanmadan durur.
+# production'a "Required reviewers" eklemen önerilir. Ayrıntı: docs/migrations.md
 
 on:
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: 'Yalnızca göster, uygulama (önerilen ilk adım)'
-        type: boolean
-        default: true
-      baseline_isaretle:
-        description: 'TEK SEFERLİK: mevcut veritabanını "baseline uygulandı" diye işaretle (ilk kurulumda bir kez işaretle)'
-        type: boolean
-        default: false
+      environment:
+        description: 'Hedef GitHub environment (önce staging)'
+        type: environment
+        default: staging
+      mode:
+        description: 'İşlem'
+        type: choice
+        default: plan
+        options:
+          - plan
+          - adopt-existing-baseline
+          - apply
 
 permissions:
   contents: read
 
+concurrency:
+  group: db-migrate-${{ inputs.environment }}
+  cancel-in-progress: false
+
 jobs:
   migrate:
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ inputs.environment }}
     timeout-minutes: 15
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      TARGET: ${{ vars.SUPABASE_TARGET }}
+      ENV_NAME: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
@@ -40,17 +54,31 @@ jobs:
           version: latest
       - name: schema.sql migration'larla uyumlu mu
         run: node scripts/db-derle.mjs --kontrol
-      - name: Projeye bağlan
-        run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
-      - name: Baseline'ı uygulanmış say (yalnızca işaretliyse; veritabanı şemasına dokunmaz)
-        if: ${{ inputs.baseline_isaretle }}
-        run: supabase migration repair --status applied 20261101000000
-      - name: Uygulanmış ve bekleyen migration'lar
-        run: supabase migration list
-      - name: Uygula (dry run değilse)
+      - name: Ortam ve bağlantı adresini denetle (değer yazdırmaz)
         run: |
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            supabase db push --dry-run
-          else
-            supabase db push
-          fi
+          fail=0
+          err() { echo "::error::$1"; fail=1; }
+          [ "$TARGET" = "$ENV_NAME" ] || err "Environment '$ENV_NAME' içinde SUPABASE_TARGET değişkeni '$ENV_NAME' değil. Settings → Environments → $ENV_NAME → Variables'a ekle; SUPABASE_DB_URL secret'ını da bu environment'a koy."
+          case "$DB_URL" in
+            postgres://*|postgresql://*) ;;
+            "") err "SUPABASE_DB_URL boş (bu environment'ta tanımlı değil)." ;;
+            *) err "SUPABASE_DB_URL postgresql:// ile başlamalı (Supabase → Connect → Session pooler)." ;;
+          esac
+          case "$DB_URL" in *"[YOUR-PASSWORD]"*) err "SUPABASE_DB_URL içindeki [YOUR-PASSWORD] yerine gerçek parolayı yaz." ;; esac
+          exit $fail
+      - name: Başlangıçta uygulanmış ve bekleyen migration'lar
+        run: supabase migration list --db-url "$DB_URL"
+      # Only use this for an EXISTING database whose schema is already the baseline.
+      # It records history; it does not create or validate the baseline schema.
+      - name: Mevcut baseline'ı bir kez kaydet
+        if: ${{ inputs.mode == 'adopt-existing-baseline' }}
+        run: supabase migration repair --db-url "$DB_URL" --status applied 20261101000000
+      - name: Plan (veritabanına yazmaz)
+        if: ${{ inputs.mode == 'plan' }}
+        run: supabase db push --db-url "$DB_URL" --dry-run
+      - name: Bekleyen migration'ları uygula
+        if: ${{ inputs.mode == 'apply' }}
+        run: supabase db push --db-url "$DB_URL"
+      - name: İşlem sonrasında migration durumu
+        if: ${{ inputs.mode != 'plan' }}
+        run: supabase migration list --db-url "$DB_URL"
