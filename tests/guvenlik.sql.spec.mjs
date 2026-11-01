@@ -7,6 +7,29 @@ let db, as, q;
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(async () => { ({ db, as, q } = await newDb()); });
 
+test('üyelik: kullanıcı kendi rolünü yükseltemez ya da başka mülke taşıyamaz; iletişim bilgisini güncelleyebilir', async () => {
+  await as(ID.T);
+  await q(`update public.memberships set display_name = 'Yeni ad', phone = '555' where property_id = 'p1' and user_id = $1`, [ID.T]);
+  expect(await tryCall(db, `update public.memberships set role = 'landlord' where property_id = 'p1' and user_id = $1`, [ID.T])).toMatch(/Üyelik rolü/);
+  expect(await tryCall(db, `update public.memberships set property_id = 'p2' where property_id = 'p1' and user_id = $1`, [ID.T])).toMatch(/Üyelik rolü/);
+  await as(null);
+  expect(await q(`select role, display_name from public.memberships where property_id = 'p1' and user_id = $1`, [ID.T])).toEqual([{ role: 'tenant', display_name: 'Yeni ad' }]);
+});
+
+test('davet: e-posta hedefi, doğrulama, süre ve tek kullanım sunucuda zorlanır', async () => {
+  await as(null);
+  await q(`update auth.users set email_confirmed_at = now() where id in ($1, $2)`, [ID.T, ID.X]);
+  await as(ID.L);
+  const [{ code }] = await q(`insert into public.invites (property_id, created_by, email) values ('p1', $1, 'kiraci@ornek.com') returning code`, [ID.L]);
+  const [{ expired }] = await q(`insert into public.invites (property_id, created_by, expires_at) values ('p1', $1, now() - interval '1 second') returning code as expired`, [ID.L]);
+  await as(ID.X);
+  expect(await tryCall(db, `select public.accept_invite($1)`, [code])).toMatch(/doğrulanmış e-posta/);
+  await as(ID.T);
+  await q(`select public.accept_invite($1)`, [code]);
+  expect(await tryCall(db, `select public.accept_invite($1)`, [code])).toMatch(/kullanılmış/);
+  expect(await tryCall(db, `select public.accept_invite($1)`, [expired])).toMatch(/süresi dolmuş/);
+});
+
 test('hata kaydı: alanlar kısaltılır, kişi başına saatte 30 kayıt; kullanıcı kayıtları okuyamaz', async () => {
   await as(ID.T);
   await q(`select public.report_error($1)`, [{ message: 'x'.repeat(5000), route: '/uygulama', kind: 'bilinmeyen', platform: 'web' }]);

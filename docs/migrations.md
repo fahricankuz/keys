@@ -45,9 +45,13 @@ supabase db push             # uygular
 ```
 
 ### B) GitHub Actions'tan (önerilen)
-1. Settings → Environments → **production** oluştur; "Required reviewers" olarak kendini ekle.
-2. Environment secrets: `SUPABASE_ACCESS_TOKEN` (Supabase → Account → Access Tokens), `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_REF`.
-3. Actions → **Veritabanı migration** → Run workflow. Önce **dry run** açık çalıştır, çıktıyı oku, sonra dry run'ı kapatıp yeniden çalıştır.
+1. Settings → Environments altında **staging** ve **production** oluştur. Production'a "Required reviewers" ekle.
+2. Her environment'a ayrı `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD` ve `SUPABASE_PROJECT_REF` secret'larını koy. Staging ve production proje referansları farklı olmalı.
+3. Actions → **Veritabanı migration** → Run workflow:
+   - `plan`: yalnız bekleyen SQL'i gösterir; veritabanına yazmaz.
+   - `adopt-existing-baseline`: yalnızca daha önce eski `schema.sql` kurulmuş **mevcut** veritabanı için, bir kez. Şema oluşturmaz ve doğrulamaz; boş ya da farklı şemalı veritabanında çalıştırma.
+   - `apply`: yalnızca plan gözden geçirildikten ve staging testi geçtikten sonra bekleyen migration'ları uygular.
+4. Sıra daima: staging plan → staging apply → uygulama testi → production plan → production apply → site dağıtımı. Migration işi site dağıtımını otomatik tetiklemez.
 
 ### C) SQL Editor ile elle (eski yöntem)
 Tek bir migration dosyasının içeriğini SQL Editor'e yapıştırıp çalıştırabilirsin. **Sonra** kaydı işle, yoksa `db push` onu yeniden dener:

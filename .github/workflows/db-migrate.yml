@@ -2,9 +2,10 @@ name: Veritabanı migration
 
 # Supabase veritabanına supabase/migrations altındaki yeni migration'ları uygular.
 # YALNIZCA ELLE çalışır (Actions → Veritabanı migration → Run workflow); hiçbir push bunu tetiklemez.
-# Varsayılan "dry_run" açıktır: neyin uygulanacağını gösterir, veritabanına dokunmaz. Gerçek uygulama için işareti kaldır.
+# Site dağıtımından ayrıdır: önce seçilen ortamda migration başarılı olur, sonra site dağıtılır.
 #
-# Gerekli (Settings → Environments → production → Secrets; ortama "Required reviewers" eklemen önerilir):
+# Gerekli (Settings → Environments → staging / production → Secrets; production'a
+# "Required reviewers" eklemen önerilir):
 #   SUPABASE_ACCESS_TOKEN  Supabase → Account → Access Tokens
 #   SUPABASE_DB_PASSWORD   projenin veritabanı parolası
 #   SUPABASE_PROJECT_REF   proje kimliği (adresteki xxxx.supabase.co başındaki xxxx)
@@ -13,10 +14,18 @@ name: Veritabanı migration
 on:
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: 'Yalnızca göster, uygulama (önerilen ilk adım)'
-        type: boolean
-        default: true
+      environment:
+        description: 'Hedef GitHub environment (önce staging)'
+        type: environment
+        default: staging
+      mode:
+        description: 'İşlem'
+        type: choice
+        default: plan
+        options:
+          - plan
+          - adopt-existing-baseline
+          - apply
 
 permissions:
   contents: read
@@ -24,7 +33,7 @@ permissions:
 jobs:
   migrate:
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ inputs.environment }}
     timeout-minutes: 15
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -38,12 +47,19 @@ jobs:
         run: node scripts/db-derle.mjs --kontrol
       - name: Projeye bağlan
         run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
-      - name: Uygulanmış ve bekleyen migration'lar
+      - name: Başlangıçta uygulanmış ve bekleyen migration'lar
         run: supabase migration list
-      - name: Uygula (dry run değilse)
-        run: |
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            supabase db push --dry-run
-          else
-            supabase db push
-          fi
+      # Only use this for an EXISTING database whose schema is already the baseline.
+      # It records history; it does not create or validate the baseline schema.
+      - name: Mevcut baseline'ı bir kez kaydet
+        if: ${{ inputs.mode == 'adopt-existing-baseline' }}
+        run: supabase migration repair --status applied 20261101000000
+      - name: Plan (veritabanına yazmaz)
+        if: ${{ inputs.mode == 'plan' }}
+        run: supabase db push --dry-run
+      - name: Bekleyen migration'ları uygula
+        if: ${{ inputs.mode == 'apply' }}
+        run: supabase db push
+      - name: İşlem sonrasında migration durumu
+        if: ${{ inputs.mode != 'plan' }}
+        run: supabase migration list
