@@ -1,93 +1,87 @@
-# Veritabanı migration'ları
+# Veritabanı değişiklikleri (migration)
 
-Veritabanı değişiklikleri artık **sürümlü migration dosyalarıyla** yapılır. Böylece "hangi değişiklik yayında, hangisi değil" sorusunun cevabı
-dosyalarda ve Supabase'in kendi kayıt tablosundadır; SQL Editor'e dosyanın tamamını yapıştırmak gerekmez.
+## Kısaca
+Veritabanında bir şeyi değiştirmek (yeni tablo, yeni sütun, bir kuralı düzeltmek) için SQL'i doğrudan Supabase'e yazmıyoruz.
+Değişikliği **bir dosyaya** yazıyoruz: `supabase/migrations/` klasöründe, adı tarihle başlayan bir `.sql` dosyası. Buna *migration* denir.
 
-## Baştan sona kısa akış (ekip için)
-1. **Dal aç, migration oluştur:** `npm run db:yeni -- kisa_ad` → açılan dosyaya SQL'i yaz (yeniden çalıştırılabilir) → `npm run db:derle`.
-2. **Test yaz ve çalıştır:** değişikliği deneyen bir test ekle; `nvm use 22 && npx playwright test tests/sql.spec.mjs tests/qa-db.spec.mjs tests/migrations.spec.mjs`. Tam set CI'da çalışır.
-3. **PR aç.** CI yeşil olmalı. PR açıklamasında migration'ın ne değiştirdiğini ve veriye dokunup dokunmadığını yaz.
-4. **Birleştir.** Birleştirmek migration'ı **uygulamaz**; site yayına çıkar ama veritabanı değişmez.
-5. **Uygula:** Actions → **Veritabanı migration** → Run workflow:
-   - `staging` + `plan` → çıktıda yalnız yeni dosyan görünmeli → `staging` + `apply` → staging'de dene.
-   - `production` + `plan` → `production` + `apply`.
-   - Veri silen/değiştiren migration'da `apply`'dan önce yedek al (`pg_dump`).
-6. **Edge Function değiştiyse:** `supabase functions deploy <ad>`.
+- Her değişiklik ayrı bir dosyadır ve **sırayla** uygulanır.
+- Supabase hangi dosyaları uyguladığını kendi defterine yazar; aynı dosyayı iki kez uygulamaz.
+- Böylece "canlıda ne var, ne yok" sorusu her zaman cevaplanabilir.
 
-Kurallar: uygulanmış migration dosyası **asla düzenlenmez** (düzeltme = yeni migration); `schema.sql` elle düzenlenmez; `apply` sadece
-`plan` çıktısı okunduktan sonra çalıştırılır. İş akışı yalnızca elle tetiklenir; hiçbir push/PR migration uygulamaz.
+İki veritabanımız var:
 
-## Nasıl çalışır
-- `supabase/migrations/<ZAMAN>_<ad>.sql`: her değişiklik ayrı bir dosya. Sırayı zaman damgası belirler. **Gerçek kaynak bunlardır.**
-- `supabase/migrations/20261101000000_baseline.sql`: şimdiye kadarki bütün şema (eski `schema.sql`'in birebir kopyası).
-- `supabase/schema.sql`: migration'lardan **üretilen** özet. Testler (PGlite) ve SQL Editor ile elle kurulum bunu kullanır. Elle düzenlenmez.
-- `.github/workflows/db-migrate.yml`: migration'ları Supabase'e uygulayan, yalnızca elle çalışan iş akışı.
+| Ortam | Supabase projesi | Ne için |
+|---|---|---|
+| **staging** | `anahtar-staging` | Deneme. Önce buraya uygulanır; gerçek kullanıcı yok. |
+| **production** | `anahtar-database` | Canlı site ve uygulama. Staging'de sorun çıkmazsa buraya uygulanır. |
 
-## Günlük kullanım
-**Yeni değişiklik (tablo, sütun, işlev, politika…):**
+## 1. Yeni bir değişiklik hazırlamak (geliştirici)
 ```bash
-npm run db:yeni -- kullanici_silme     # supabase/migrations/20261102093000_kullanici_silme.sql açar, schema.sql'i günceller
-# dosyayı düzenle, SQL'ini yaz
-npm run db:derle                       # dosyayı değiştirdikten sonra schema.sql'i yeniden üret
-npx playwright test tests/sql.spec.mjs # şemanın temiz kurulduğunu ve ikinci kez çalıştığını doğrula
+npm run db:yeni -- kisa_ad      # supabase/migrations/<tarih>_kisa_ad.sql dosyasını açar
+# dosyaya SQL'i yaz
+npm run db:derle                # supabase/schema.sql özetini günceller (elle düzenlenmez)
+nvm use 22 && npx playwright test tests/sql.spec.mjs tests/qa-db.spec.mjs tests/migrations.spec.mjs
 ```
-Kurallar:
-1. **Yeniden çalıştırılabilir yaz:** `create table if not exists`, `create or replace function`, `drop policy if exists …; create policy …`, `add column if not exists`.
-   Testler `schema.sql`'i aynı veritabanında iki kez çalıştırır; tekrarlanamayan SQL testte kırılır.
-2. **Uygulanmış migration'ı asla düzenleme.** Hata bulursan yeni bir migration ile düzelt. (Dosyayı değiştirmek Supabase'te uygulanmış kaydı ile çelişir.)
-3. Yeni tabloda **RLS'i aynı dosyada aç** ve politikaları aynı dosyada yaz.
-4. Dışarıdan çağrılabilir yeni işlev (`grant execute … to authenticated`) eklediysen `tests/qa-db.spec.mjs` izin listesine ekle.
-5. `schema.sql` migration'larla uyumsuzsa testler kırılır (`tests/migrations.spec.mjs`); çözüm: `npm run db:derle`.
+Sonra PR aç; CI yeşil olunca birleştir. **Birleştirmek veritabanını değiştirmez**: sadece dosya ana dala girer ve site yayınlanır.
 
-## Uygulama (Supabase'e gönderme)
-Üç yol; ilk kurulumdaki tek seferlik adım hepsi için aynı.
+SQL yazarken:
+- **Tekrar çalıştırılabilir** yaz: `create table if not exists`, `create or replace function`, `drop policy if exists …; create policy …`, `add column if not exists`.
+- **Eski kodla da çalışsın:** site, migration'dan birkaç dakika önce yayına çıkar. Sütun ekle; silme ya da adını değiştirme işini ayrı ve sonraki bir PR'da yap.
+- Yeni tabloda RLS'i aç ve politikaları aynı dosyada yaz. Kullanıcının kendi satırını güncellediği tablolarda izin verilen sütunları sınırla (`grant update (sütunlar) …`).
+- Dosyaya parola, anahtar ya da kişisel veri yazma.
+- Değişikliği deneyen bir **test** ekle.
+- **Uygulanmış bir dosyayı asla düzenleme.** Hata varsa yeni bir migration yaz.
 
-### Tek seferlik: mevcut veritabanını baseline'a bağla
-Canlı veritabanında baseline zaten uygulanmış (daha önce `schema.sql`'i çalıştırdın). Supabase'e bunu söylemezsen baseline'ı yeniden uygulamaya çalışır.
-```bash
-En kolayı GitHub'dan: Actions → "Veritabanı migration" → Run workflow → environment seç, mode **adopt-existing-baseline** → Run. (Her ortam için yalnızca bir kez; ayrıntı aşağıda B bölümünde.) İş önce veritabanında uygulamanın tabloları olduğunu denetler; boş veritabanında durur.
+## 2. Değişikliği uygulamak (teknik bilgi gerekmez)
+GitHub'da: **Actions** → soldan **Veritabanı migration** → sağda **Run workflow**. Açılan pencerede iki seçim var:
 
-Kendi bilgisayarından yapmak istersen `supabase link` gerekmez (hesap yetkisi isteyen adım odur); doğrudan bağlantı adresini ver:
-```bash
-export DB_URL='postgresql://postgres.<ref>:<parola>@aws-…pooler.supabase.com:5432/postgres'   # Supabase → Connect → Session pooler
-npx supabase@2.120.0 migration repair --db-url "$DB_URL" --status applied 20261101000000
-npx supabase@2.120.0 migration list --db-url "$DB_URL"   # 20261101000000 hem "Local" hem "Remote" sütununda görünmeli
-```
+- **environment:** `staging` ya da `production`
+- **mode:** `plan` (sadece gösterir, hiçbir şeyi değiştirmez) ya da `apply` (uygular)
 
-### A) Kendi bilgisayarından
-```bash
-bash scripts/db-preflight.sh apply                              # yalnız okur; psql gerekir (brew install libpq)
-npx supabase@2.120.0 db push --db-url "$DB_URL" --dry-run     # neyin uygulanacağını gösterir, dokunmaz
-npx supabase@2.120.0 db push --db-url "$DB_URL"               # uygular
-```
+Her yeni migration için bu sırayla dört kez çalıştır:
 
-### B) GitHub Actions'tan (önerilen)
-1. Settings → Environments altında **staging** ve **production** oluştur. Production'a "Required reviewers" ekle.
-2. Her environment'a ayrı şunları ekle:
-   - **Secret** `SUPABASE_DB_URL`: Supabase → **Connect** → **Session pooler** adresi (`postgresql://postgres.<ref>:<parola>@aws-…pooler.supabase.com:5432/postgres`). `[YOUR-PASSWORD]` yerine veritabanı parolasını yaz; parolada `@ : / # ?` gibi karakter varsa URL-kodla. GitHub sunucularında IPv6 olmadığından "Direct connection" çalışmaz.
-   - **Variable** `SUPABASE_TARGET`: environment'ın adı (`staging` / `production`). Eşleşmezse iş bağlanmadan durur; depo düzeyindeki bir secret yüzünden yanlış veritabanına gitmeyi önler.
-   - İş `supabase link` kullanmaz; Supabase erişim jetonu ve Management API yetkisi gerekmez (önceki "Your account does not have the necessary privileges" hatası buradan geliyordu).
-   - Staging ve production adresleri farklı projelere ait olmalı.
-3. Actions → **Veritabanı migration** → Run workflow:
-   - `plan`: yalnız bekleyen SQL'i gösterir; veritabanına yazmaz.
-   - `adopt-existing-baseline`: yalnızca daha önce eski `schema.sql` kurulmuş **mevcut** veritabanı için, bir kez. Şema oluşturmaz ve doğrulamaz; boş ya da farklı şemalı veritabanında çalıştırma.
-   - `apply`: yalnızca plan gözden geçirildikten ve staging testi geçtikten sonra bekleyen migration'ları uygular.
-4. Sıra daima: staging plan → staging apply → uygulama testi → production plan → production apply → site dağıtımı. Migration işi site dağıtımını otomatik tetiklemez.
+| # | environment | mode | Ne görmelisin |
+|---|---|---|---|
+| 1 | staging | plan | "Would push these migrations:" altında **sadece yeni dosya** |
+| 2 | staging | apply | "Applying migration …" ve yeşil tik |
+| 3 | production | plan | Yine sadece yeni dosya |
+| 4 | production | apply | "Applying migration …" ve yeşil tik |
 
-### C) SQL Editor ile elle (eski yöntem)
-Tek bir migration dosyasının içeriğini SQL Editor'e yapıştırıp çalıştırabilirsin. **Sonra** kaydı işle, yoksa `db push` onu yeniden dener:
-```bash
-supabase migration repair --status applied 20261102093000
-```
+Sonra istersen bir kez daha `plan`: "Remote database is up to date" yazmalı (bekleyen iş yok).
+
+- Bir adım kırmızı biterse **devam etme**; logu geliştiriciye gönder. Kırmızı biten bir `apply` hiçbir şeyi yarım bırakmaz.
+- Production'da onay açıksa iş "Waiting" bekler: **Review deployments → Approve**.
+- Veri silen ya da değiştiren bir migration'da 4. adımdan önce yedek alınır (geliştirici `pg_dump` ile alır).
+- Edge Function da değiştiyse geliştirici ayrıca `supabase functions deploy <ad>` çalıştırır.
+
+## 3. Neyin uygulandığını görmek
+- **Supabase panelinde:** proje → **Database** → **Migrations**. Uygulanmış her dosya burada listelenir. Asıl kayıt budur.
+- **GitHub'da:** **Actions** → **Veritabanı migration**: kim, ne zaman, hangi ortamda, hangi modda çalıştırmış. (GitHub logları 90 gün tutar.)
+- **SQL Editor'de:** `select version, name from supabase_migrations.schema_migrations order by version;`
 
 ## Sık sorunlar
-| Belirti | Neden / çözüm |
-| --- | --- |
-| `db push` "Remote migration versions not found in local" | Uzakta olup yerelde olmayan kayıt var. `supabase migration list` ile bak; `supabase migration repair --status reverted <sürüm>` |
-| Baseline yeniden uygulanmaya çalışılıyor | Tek seferlik `migration repair --status applied 20261101000000` adımı atlanmış |
-| Testte "schema.sql güncel değil" | `npm run db:derle` çalıştır |
-| Yeni dosya sırada baseline'dan önce | Zaman damgası baseline'dan küçük; `npm run db:yeni` her zaman şimdiki zamanı kullanır, elle açma |
+| Görünen | Anlamı / çözüm |
+|---|---|
+| "SUPABASE_DB_URL boş" | O ortamda bağlantı adresi yok. Settings → Environments → ortam → `SUPABASE_DB_URL` secret'ı. |
+| "SUPABASE_TARGET değişkeni … değil" | Ortamın `SUPABASE_TARGET` variable'ı ortam adıyla aynı olmalı (`staging` / `production`). |
+| "şema var ama baseline … kayıtlı değil" | Bu veritabanı migration defterine hiç bağlanmamış. O ortamda bir kez `adopt-existing-baseline` çalıştır. |
+| Bağlantı hatası / zaman aşımı | Supabase projesi duraklatılmış olabilir (ücretsiz plan 7 gün kullanılmayınca durdurur): panelden **Restore**. |
+| "Remote migration versions not found in local" | Veritabanında, ana dalda olmayan bir kayıt var. Migration'ı hiçbir zaman ana daldan başka bir yerden uygulama; geliştiriciye haber ver. |
+| Testte "schema.sql güncel değil" | `npm run db:derle` çalıştır. |
 
-## Geri alma
-Migration'lar ileri yönlüdür. Bir değişikliği geri almak için **tersini yapan yeni bir migration** yaz (`drop column`, `drop policy`…). Veri silen değişikliklerde önce Supabase'ten
-yedek al (Database → Backups; ücretsiz planda günlük yedek yoktur, `pg_dump` ile al).
+## Geri almak
+Migration'lar ileri doğru gider. Bir değişikliği geri almak için **tersini yapan yeni bir migration** yazılır ve aynı dört adımla uygulanır.
+
+## Kurulum bilgisi (bir kez yapıldı, 2026-11-01)
+- GitHub → Settings → Environments → `staging` ve `production`: her birinde
+  secret `SUPABASE_DB_URL` (Supabase → Connect → **Session pooler** adresi, port 5432, parola içinde) ve variable `SUPABASE_TARGET` (ortamın adı).
+  Ayarları yalnızca depo sahibi değiştirebilir.
+- İki veritabanı da migration defterine bağlandı (`adopt-existing-baseline`). Bu adım bir daha gerekmez; yeni bir boş proje kurulursa
+  orada `apply` baseline'ı sıfırdan kurar.
+- İş akışı: `.github/workflows/db-migrate.yml`. Sadece elle çalışır; hiçbir push ya da PR veritabanını değiştirmez.
+  Yazmadan önce `scripts/db-preflight.sh` yalnız okuyarak denetler (boş veritabanında `adopt`'u, kayıtsız şemada `apply`'ı durdurur).
+- Yerelde gerekirse: `npx supabase@2.120.0 db push --db-url "$DB_URL" --dry-run` (`supabase link` kullanılmaz).
+
+## İleride: otomatik uygulama
+2. bölümdeki dört adım otomatikleştirilebilir: `supabase/migrations/` değişen bir birleştirmeden sonra staging'e kendiliğinden uygulanır,
+production ise bir **Approve** tıklamasıyla gelir. Bunun için production ortamında "Required reviewers" açık olmalı.
