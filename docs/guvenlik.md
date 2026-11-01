@@ -14,7 +14,7 @@ ve Supabase adımları sizin hesaplarınızda yapılır; koddan yapılamaz.** Ko
 | Bot koruması (Turnstile) | `app/src/auth/captcha.tsx` | `TURNSTILE_SITE_KEY` verilirse giriş, kayıt ve şifre sıfırlamada doğrulama kutusu çıkar (adım 4). |
 | Veri erişimi | `supabase/schema.sql` (RLS) | Herkes yalnızca kendi kaydını okur/yazar; yönetici işlemleri sunucuda yetkilidir. Gerçek Postgres'te sınanır (`tests/*.sql.spec.mjs`). |
 | Bağımlılık güncelleme | `.github/dependabot.yml` (kök ve `app/`) | Haftalık güncelleme PR'ı. |
-| Otomatik tarama | `.github/workflows/guvenlik.yml` | CodeQL (kod açıkları), gitleaks (sızan anahtar), `npm audit` (bağımlılık). Her gönderimde ve haftada bir. |
+| Otomatik tarama | `.github/workflows/guvenlik.yml` | Semgrep (kod açıkları; CodeQL gizli depoda ücretli), gitleaks (sızan anahtar), `npm audit` (bağımlılık). Her gönderimde ve haftada bir. |
 | Gizli değer karşılaştırması | `supabase/functions/*/index.ts` | Webhook gizli değerleri sabit sürede karşılaştırılır. |
 | İletişim | `app/public/.well-known/security.txt` | Güvenlik açığı bildirimi için adres. |
 | Başlık dosyası | `app/public/_headers` | Cloudflare Pages/Netlify'a taşınırsa HSTS vb. başlıklar kendiliğinden gelir; GitHub Pages yok sayar. |

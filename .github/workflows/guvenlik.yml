@@ -1,6 +1,6 @@
 name: Güvenlik taraması
 
-# Kod (CodeQL), gizli anahtar (gitleaks) ve bağımlılık (npm audit) taraması.
+# Kod (Semgrep), gizli anahtar (gitleaks) ve bağımlılık (npm audit) taraması.
 # Her gönderimde, her çekme isteğinde ve haftada bir çalışır.
 on:
   push:
@@ -12,20 +12,17 @@ permissions:
   contents: read
 
 jobs:
-  codeql:
-    runs-on: ubuntu-latest
-    # Gizli depoda jeton yalnız burada sayılan izinleri alır: actions: read olmadan CodeQL çalıştırma bilgisini okuyamaz.
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
+  # Kod taraması: Semgrep (açık kaynak sürüm, gizli depoda ücretsiz). CodeQL gizli depoda ücretli "Code scanning" ister.
+  # Bulgular bu işin logunda görünür; bulgu varsa iş kırmızı biter.
+  semgrep:
+    runs-on: ubuntu-24.04
+    container: semgrep/semgrep:1.90.0
     steps:
       - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
-        with:
-          languages: javascript-typescript
-          queries: security-and-quality
-      - uses: github/codeql-action/analyze@v3
+      - name: Semgrep (JavaScript / TypeScript kuralları)
+        run: >-
+          semgrep scan --config p/javascript --config p/typescript --metrics=off --error
+          --exclude node_modules --exclude dist --exclude www --exclude hostinger/site --exclude android --exclude ios
 
   gizli-anahtar:
     runs-on: ubuntu-latest
