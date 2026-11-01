@@ -9,7 +9,7 @@ import { boot } from '../domain/state';
 import { AuthProvider } from '../auth/auth';
 import { useColors } from '../ui/theme';
 import titles from '../site/titles.json';
-import { installErrorReporting, reportError } from '../domain/errors';
+import { installErrorReporting, installStaleRecovery, reportError } from '../domain/errors';
 import { t } from '../domain/i18n';
 import { Button, Text } from '../ui/kit';
 import { fonts } from '../ui/theme';
@@ -31,7 +31,7 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 export default function Root() {
   const [fontsOk] = useFonts(FONT_FILES);
   const [stored, setStored] = useState(false);
-  useEffect(() => { installErrorReporting(); }, []);
+  useEffect(() => { installErrorReporting(); installStaleRecovery(); }, []);
   useEffect(() => {
     // Web'de sunucu HTML'i Türkçe üretilir; kayıtlı dil, hidrasyon bittikten sonra uygulanır
     // (aksi halde metinler sunucu çıktısıyla uyuşmaz).

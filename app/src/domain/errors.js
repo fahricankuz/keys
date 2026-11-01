@@ -27,7 +27,8 @@ export function reportError(err, kind = 'error'){
       message, stack, kind,
       route: typeof window !== 'undefined' && window.location ? window.location.pathname : '',
       platform: Platform.OS, version: (Constants.expoConfig && Constants.expoConfig.version) || '',
-      agent: typeof navigator !== 'undefined' ? String(navigator.userAgent || '').slice(0, 300) : ''
+      agent: (typeof navigator !== 'undefined' ? String(navigator.userAgent || '').slice(0, 280) : '')
+        + (typeof document !== 'undefined' && /translated/.test(document.documentElement.className || '') ? ' [tarayıcı çevirisi açık]' : '')
     };
     send(p);
   } catch(e){ /* hata kaydı asla yeni hata üretmez */ }
@@ -63,4 +64,24 @@ export function installErrorReporting(){
     const prev = EU.getGlobalHandler();
     EU.setGlobalHandler((error, fatal) => { reportError(error, 'error'); if (prev) prev(error, fatal); });
   }
+}
+
+/* Yeni sürüm yayınlanınca eski dosya adları (içeriğe göre adlanan .js parçaları) sunucuda kalmaz; açık duran eski sekme sonraki
+   sayfaya geçerken "Loading module … failed" alır. Bu durumda sayfa bir kez yenilenir (yeni sürüm gelir); dakikada en çok bir kez. */
+const STALE = /Loading module .* failed|Loading chunk .* failed|ChunkLoadError|Importing a module script failed|error loading dynamically imported module|Failed to fetch dynamically imported module/i;
+let staleOn = false;
+export function installStaleRecovery(){
+  if (staleOn || Platform.OS !== 'web' || typeof window === 'undefined') return;
+  staleOn = true;
+  const go = (m) => {
+    try {
+      if (!STALE.test(String(m || ''))) return;
+      const k = '__stale_reload', last = Number(window.sessionStorage.getItem(k) || 0);
+      if (Date.now() - last < 60000) return;
+      window.sessionStorage.setItem(k, String(Date.now()));
+      window.location.reload();
+    } catch(e){}
+  };
+  window.addEventListener('error', (e) => go((e.error && e.error.message) || e.message));
+  window.addEventListener('unhandledrejection', (e) => go((e.reason && e.reason.message) || e.reason));
 }
