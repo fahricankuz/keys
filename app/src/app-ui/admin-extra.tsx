@@ -4,6 +4,7 @@ import { Linking, View } from 'react-native';
 import { extendTrial, humanError, loadCpi, loadKpis, loadSubscriptions, loadSupport, setCpi, setPlan, setSupportStatus } from '../domain/admin';
 import { CONFIG } from '../domain/config';
 import { planLabel } from '../domain/plans';
+import { SECTORS, sectorOf } from '../domain/org';
 import { t, locale } from '../domain/i18n';
 import { tl } from '../domain/util';
 import { Button, Chip, Field, Text } from '../ui/kit';
@@ -200,12 +201,20 @@ function SubActions({ s, reload }: { s: any; reload: () => void }) {
   const [days, setDays] = useState('14');
   const [plan, setPlanId] = useState('kurumsal');
   const [until, setUntil] = useState('');
+  const [units, setUnits] = useState('1');
+  const [sector, setSector] = useState('');
   const [why, setWhy] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const store = s.subscribed && s.store && s.store !== 'admin';
   const run = async (fn: () => Promise<any>) => {
     if (!why.trim()) { setErr(t('Gerekçe yaz.')); return; }
+    if (mode === 'plan' && plan) {
+      const n = Number(units);
+      if (!n || n < 1) { setErr(t('Mülk adedini yaz.')); return; }
+      if (plan !== 'kurumsal' && n > 9) { setErr(t('Başlangıç ve Profesyonel için mülk adedi 1-9 olmalı.')); return; }
+      if (plan === 'kurumsal' && !sector) { setErr(t('Sektörü seç.')); return; }
+    }
     setBusy(true); setErr(null);
     try { await fn(); setMode(''); setWhy(''); reload(); } catch (e) { setErr(humanError(e)); }
     setBusy(false);
@@ -223,13 +232,20 @@ function SubActions({ s, reload }: { s: any; reload: () => void }) {
         ? <Field label={t('Eklenecek gün (1–90)')} value={days} onChangeText={(x) => setDays(x.replace(/\D/g, '').slice(0, 2))} keyboardType="numeric" />
         : <>
           <Seg value={plan} onChange={setPlanId} options={[['tek', planLabel('tek')], ['bes', planLabel('bes')], ['kurumsal', planLabel('kurumsal')], ['', t('Paketi kaldır')]]} />
+          {plan ? <Field label={plan === 'kurumsal' ? t('Mülk / birim adedi') : t('Mülk adedi (1-9)')} value={units} onChangeText={(x) => setUnits(x.replace(/\D/g, '').slice(0, plan === 'kurumsal' ? 7 : 1))} keyboardType="numeric" /> : null}
+          {plan === 'kurumsal' ? (
+            <View style={{ gap: 6 }}>
+              <Label>{t('Sektör')}</Label>
+              <Seg scroll value={sector} onChange={setSector} options={SECTORS().map((x: any) => [x.key, x.label] as [string, string])} />
+            </View>
+          ) : null}
           {plan ? <Field label={t('Bitiş tarihi (YYYY-AA-GG, boş: süresiz)')} value={until} onChangeText={setUntil} placeholder="2027-12-31" maxLength={10} /> : null}
         </>}
       <Field label={t('Gerekçe')} value={why} onChangeText={setWhy} placeholder={t('Kayda yazılır')} maxLength={240} />
       <Row wrap>
         <Button kind="ghost" title={t('Vazgeç')} onPress={() => { setMode(''); setErr(null); }} />
         <Button loading={busy} title={mode === 'trial' ? t('Uzat') : plan ? t('Paketi ver') : t('Paketi kaldır')}
-          onPress={() => run(() => mode === 'trial' ? extendTrial(s.id, Number(days), why.trim()) : setPlan(s.id, plan, until ? until + 'T23:59:59Z' : null, why.trim()))} />
+          onPress={() => run(() => mode === 'trial' ? extendTrial(s.id, Number(days), why.trim()) : setPlan(s.id, plan, until ? until + 'T23:59:59Z' : null, why.trim(), units, sector))} />
       </Row>
       {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
     </View>
@@ -267,6 +283,9 @@ export function Subscriptions() {
             ? [t('Kaynak: {s}', { s: s.store === 'admin' ? t('yönetici') : s.store || '—' }), s.expires_at ? t('Bitiş: {d}', { d: day(s.expires_at) }) : t('Süresiz'), s.will_renew ? t('Yenilenecek') : t('Yenilenmeyecek')].join(' · ')
             : t('Deneme bitişi: {d}', { d: day(s.trial_ends) }) + (s.extra_days ? ' · ' + t('+{n} gün uzatıldı', { n: s.extra_days }) : '')}</Muted>
           <Muted>{t('{n} mülk', { n: s.units })} · {t('{n} kiracı', { n: s.tenants })}</Muted>
+          {s.subscribed && s.plan_units ? (
+            <Muted>{t('Paketteki adet')}: {t('{n} mülk', { n: s.plan_units })}{s.plan_sector ? ' · ' + t('Sektör') + ': ' + sectorOf(s.plan_sector).label : ''}</Muted>
+          ) : null}
           {s.choice && !s.subscribed ? (
             <Muted>{t('Satın alma sayfasındaki seçimi')}: {planLabel(s.choice.plan)} · {t('{n} mülk', { n: s.choice.units })} · {s.choice.yearly ? t('yıllık') : t('aylık')}{s.choice.at ? ' · ' + day(s.choice.at) : ''}</Muted>
           ) : null}

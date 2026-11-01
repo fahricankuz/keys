@@ -572,6 +572,42 @@ export function createClient(url, key, opts){
                    banned: !!b, ban_reason: b ? b.reason : null, banned_at: b ? b.banned_at : null };
         }), error:null };
       }
+      if (name === 'admin_subscriptions'){
+        if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
+        return { data: db.tables.profiles.filter(p => p.role === 'landlord').map(p => {
+          const u = db.users.find(x => x.id === p.id) || {};
+          const a = accessOf(db, p.id);
+          const s = db.tables.subscriptions.find(x => x.user_id === p.id);
+          return { id:p.id, name:p.name, email:u.email || '', created_at:p.created_at, subscribed:!!a.subscribed, in_trial:!!a.inTrial, trial_ends:a.trialEnds,
+                   extra_days:0, plan:a.plan, store:s ? s.store : null, expires_at:s ? s.expires_at : null, will_renew:false, billing_issue:false,
+                   banned:db.tables.bans.some(b => b.user_id === p.id), units:db.tables.properties.filter(x => x.owner_id === p.id).length, tenants:0,
+                   choice:null, plan_units:s ? s.units || null : null, plan_sector:s ? s.sector || null : null };
+        }), error:null };
+      }
+      if (name === 'admin_set_plan'){
+        // schema.sql → admin_set_plan ile aynı doğrulama ve kayıt.
+        const bad = m => ({ data:null, error:{ message:m, code:'22023' } });
+        if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
+        const plan = args.plan || '', n = args.unit_count, sec = args.sec;
+        if (!plan) db.tables.subscriptions = db.tables.subscriptions.filter(x => !(x.user_id === args.uid && x.store === 'admin'));
+        else {
+          if (!['tek','bes','kurumsal'].includes(plan)) return bad('Geçersiz paket');
+          let pid = 'kurumsal', sector = sec;
+          if (plan !== 'kurumsal'){
+            if (!n || n < 1 || n > 9) return bad('Mülk adedi 1-9 olmalı');
+            sector = null; pid = plan + '_' + n + '_aylik';
+          } else {
+            if (!n || n < 1) return bad('Mülk adedi gerekli');
+            if (!['site','avm','gyo','depo','emlak','family','diger'].includes(sec)) return bad('Sektör gerekli');
+          }
+          db.tables.subscriptions = db.tables.subscriptions.filter(x => x.user_id !== args.uid);
+          db.tables.subscriptions.push({ user_id:args.uid, entitlement:'pro', product_id:pid, store:'admin', expires_at:args.until || null, active:true, will_renew:false,
+                                         billing_issue:false, units:n, sector:sector || null, updated_at:now() });
+        }
+        db.tables.admin_audit.push({ id:db.tables.admin_audit.length + 1, admin_id:me, action:'plan.set', target:args.uid, detail:{ plan:plan || null, until:args.until || null, reason:args.why, units:n || null, sector:sec || null }, at:now() });
+        persist(db);
+        return { data:null, error:null };
+      }
       if (/^admin_(set_ban|delete_user|threads|messages|delete_message|audit_log)$/.test(name)){
         if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
         const audit = (action, target, detail) => db.tables.admin_audit.push({ id:db.tables.admin_audit.length + 1, admin_id:me, action, target, detail:detail || {}, at:now() });

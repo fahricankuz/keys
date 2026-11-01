@@ -437,5 +437,11 @@ export const EN_PAKET = {
   "yıl": "year",
   "{n} kişi": "{n} people",
   "Telefon (isteğe bağlı)": "Phone (optional)",
-  "Yakında": "Coming soon"
+  "Yakında": "Coming soon",
+  "Mülk adedini yaz.": "Enter the number of properties.",
+  "Başlangıç ve Profesyonel için mülk adedi 1-9 olmalı.": "For Starter and Professional the property count must be 1-9.",
+  "Sektörü seç.": "Choose the sector.",
+  "Mülk / birim adedi": "Properties / units",
+  "Mülk adedi (1-9)": "Properties (1-9)",
+  "Paketteki adet": "Plan quantity"
 };
