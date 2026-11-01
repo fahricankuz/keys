@@ -98,10 +98,11 @@ export async function extendTrial(uid, addDays, why){
   return must(await c.rpc('admin_extend_trial', { uid, add_days: addDays, why }));
 }
 
-/** Paket ver ya da kaldır (plan boşsa kaldırılır); until boşsa süresiz. */
-export async function setPlan(uid, plan, until, why){
+/** Paket ver ya da kaldır (plan boşsa kaldırılır); until boşsa süresiz.
+    Başlangıç/Profesyonel: units 1-9 (mülk sınırı). Kurumsal: units (sözleşmedeki adet) ve sector (sektör anahtarı). */
+export async function setPlan(uid, plan, until, why, units, sector){
   const c = await client();
-  must(await c.rpc('admin_set_plan', { uid, plan: plan || '', until: until || null, why }));
+  must(await c.rpc('admin_set_plan', { uid, plan: plan || '', until: until || null, why, unit_count: plan && units ? Number(units) : null, sec: plan === 'kurumsal' ? sector || null : null }));
 }
 
 /** Yasal kira artış oranları (TÜFE 12 aylık ortalama), yeni aydan eskiye. */

@@ -345,3 +345,45 @@ test('yönetici özeti (KPI): huni, etkin kullanıcı, davet, talep ve vade gös
   await as(X);
   await expect(q(`select public.admin_kpis(30)`)).rejects.toThrow(/Yönetici/);
 });
+
+test('paket ver: Başlangıç/Profesyonel mülk adedi (1-9) ister ve sınır olur; Kurumsal adet ve sektör ister; yönetici olmayan veremez', async () => {
+  await as(L);
+  await expect(q(`select public.admin_set_plan($1, 'tek', null, 'x', 2, null)`, [L])).rejects.toThrow(/Yönetici/);
+
+  await as(A);
+  await expect(q(`select public.admin_set_plan($1, 'tek', null, 'x')`, [L])).rejects.toThrow(/Mülk adedi 1-9/);
+  await expect(q(`select public.admin_set_plan($1, 'bes', null, 'x', 10, null)`, [L])).rejects.toThrow(/Mülk adedi 1-9/);
+  await expect(q(`select public.admin_set_plan($1, 'kurumsal', null, 'x', null, 'avm')`, [L])).rejects.toThrow(/Mülk adedi gerekli/);
+  await expect(q(`select public.admin_set_plan($1, 'kurumsal', null, 'x', 12, null)`, [L])).rejects.toThrow(/Sektör gerekli/);
+  await expect(q(`select public.admin_set_plan($1, 'kurumsal', null, 'x', 12, 'tarim')`, [L])).rejects.toThrow(/Sektör gerekli/);
+
+  // Başlangıç, 1 mülk: mevcut p1 var, ikincisi paket sınırına takılır.
+  await q(`select public.admin_set_plan($1, 'tek', null, 'deneme', 1, 'avm')`, [L]);
+  await as(null);
+  let [s] = await q(`select product_id, units, sector, store from public.subscriptions where user_id = $1`, [L]);
+  expect(s).toMatchObject({ product_id: 'tek_1_aylik', units: 1, sector: null, store: 'admin' });
+  await as(L);
+  await expect(q(`insert into public.properties (id, owner_id, name, rent, due_day) values ('p2', $1, 'Kadıköy', 1, 1)`, [L])).rejects.toThrow(/Paket sınırı/);
+  await as(null);
+  expect((await q(`select public.access_state($1) a`, [L]))[0].a).toMatchObject({ plan: 'tek', units: 1 });
+  await as(A);
+
+  // Kurumsal: adet ve sektör kaydedilir, listede görünür, denetim kaydına yazılır.
+  await as(A);
+  await q(`select public.admin_set_plan($1, 'kurumsal', null, 'sözleşme', 12, 'depo')`, [L]);
+  await as(null);
+  [s] = await q(`select product_id, units, sector from public.subscriptions where user_id = $1`, [L]);
+  expect(s).toMatchObject({ product_id: 'kurumsal', units: 12, sector: 'depo' });
+  await as(A);
+  const row = (await q(`select * from public.admin_subscriptions() where id = $1`, [L]))[0];
+  expect(row).toMatchObject({ plan: 'kurumsal', plan_units: 12, plan_sector: 'depo' });
+  await as(null);
+  const log = await q(`select detail from public.admin_audit where action = 'plan.set' order by id desc limit 1`);
+  expect(log[0].detail).toMatchObject({ plan: 'kurumsal', units: 12, sector: 'depo' });
+
+  // Kaldır.
+  await as(A);
+  await q(`select public.admin_set_plan($1, '', null, 'bitti')`, [L]);
+  await as(null);
+  expect(await q(`select 1 from public.subscriptions where user_id = $1`, [L])).toHaveLength(0);
+});
