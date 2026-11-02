@@ -496,6 +496,17 @@ export function createClient(url, key, opts){
           const o = T.organizations.find(x => x.id === p.id); if (!o) return err('Kurum bulunamadı', 'P0002');
           Object.assign(o, fields, { status:p.status || o.status }); audit('org.update', o.id, { name:o.name }); return ok(o.id);
         }
+        if (name === 'admin_org_delete'){
+          // schema.sql → admin_org_delete ile aynı kural: yalnız askıdaki kurum; mülkler kalır (org_id boşalır).
+          const o = T.organizations.find(x => x.id === A.oid); if (!o) return err('Kurum bulunamadı', 'P0002');
+          if (o.status !== 'paused') return err('Önce kurumu askıya al, sonra sil', '22023');
+          const props = T.properties.filter(p => p.org_id === o.id), mem = (T.org_members || []).filter(x => x.org_id === o.id);
+          audit('org.delete', o.id, { name:o.name, sector:o.sector, members:mem.length, properties:props.length });
+          props.forEach(p => { p.org_id = null; });
+          T.organizations = T.organizations.filter(x => x.id !== o.id);
+          ['org_members','org_roles','org_invites'].forEach(k => { if (T[k]) T[k] = T[k].filter(x => x.org_id !== o.id); });
+          return ok(null);
+        }
         if (name === 'admin_add_property'){
           // schema.sql §20 admin_add_property ile aynı kural (sınır aşılabilir, "over" bildirilir).
           const prof = T.profiles.find(x => x.id === A.owner_uid);

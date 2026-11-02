@@ -143,3 +143,31 @@ test('kullanılmış ya da süresi dolmuş davet reddedilir; yönetici başka ku
   expect(list.map(o => o.name).sort()).toEqual(['Atakum Sitesi', 'Merkez AVM']);
   expect(list.find(o => o.name === 'Atakum Sitesi').master.name).toBe('Muhasebeci');
 });
+
+test('kurum silme: yalnızca yönetici ve yalnızca askıdaki kurum; rol/yönetici/davet silinir, mülk kalır (org_id boşalır); denetim kaydı', async () => {
+  await as(ID.A);
+  const [{ admin_org_save: del }] = await q(`select public.admin_org_save($1)`, [{ name: 'Silinecek Depo', sector: 'depo', units: 3 }]);
+  await as(ID.A);
+  await q(`select public.admin_org_set_master($1, 'ev@ornek.com')`, [del]);            // hesabı olan master: org_members satırı
+  await as(null);
+  await db.query(`update public.properties set org_id = $1 where id = 'p1'`, [del]);
+
+  await as(ID.L);
+  expect(await tryCall(db, `select public.admin_org_delete($1)`, [del])).toMatch(/Yönetici yetkisi/);
+  await as(ID.A);
+  expect(await tryCall(db, `select public.admin_org_delete($1)`, [del])).toMatch(/Önce kurumu askıya al/);          // etkin kurum silinmez
+  expect(await tryCall(db, `select public.admin_org_delete($1)`, ['00000000-0000-0000-0000-00000000dead'])).toMatch(/bulunamadı/);
+
+  await as(ID.A);
+  await q(`select public.admin_org_save($1)`, [{ id: del, name: 'Silinecek Depo', sector: 'depo', status: 'paused' }]);
+  await as(ID.A);
+  await q(`select public.admin_org_delete($1)`, [del]);
+
+  await as(null);
+  expect(await q(`select 1 from public.organizations where id = $1`, [del])).toHaveLength(0);
+  expect(await q(`select 1 from public.org_roles where org_id = $1`, [del])).toHaveLength(0);
+  expect(await q(`select 1 from public.org_members where org_id = $1`, [del])).toHaveLength(0);
+  expect((await q(`select org_id from public.properties where id = 'p1'`))[0].org_id).toBeNull();               // mülk silinmedi
+  const [a] = await q(`select detail from public.admin_audit where action = 'org.delete' and target = $1`, [del]);
+  expect(a.detail).toMatchObject({ name: 'Silinecek Depo', sector: 'depo', members: 1, properties: 1 });
+});

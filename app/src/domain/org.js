@@ -133,3 +133,5 @@ export async function acceptOrgInvite(code){
 export const adminOrgs = async () => (await rpc('admin_orgs')) || [];
 export const adminSaveOrg = (p) => rpc('admin_org_save', { p });
 export const adminSetMaster = (oid, mail) => rpc('admin_org_set_master', { oid, mail });
+/** Askıdaki kurumu siler (önce askıya alınmalı); kuruma bağlı mülkler silinmez, kurumdan ayrılır. */
+export const adminDeleteOrg = (oid) => rpc('admin_org_delete', { oid });

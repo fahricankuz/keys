@@ -6,7 +6,7 @@ import * as Clipboard from 'expo-clipboard';
 import { t, locale } from '../domain/i18n';
 import { humanError } from '../domain/admin';
 import { inviteLink } from '../domain/backend';
-import { MODULES, SECTORS, adminOrgs, adminSaveOrg, adminSetMaster, sectorModules, sectorOf } from '../domain/org';
+import { MODULES, SECTORS, adminDeleteOrg, adminOrgs, adminSaveOrg, adminSetMaster, sectorModules, sectorOf } from '../domain/org';
 import { Button, Chip, Field, Text } from '../ui/kit';
 import { Loader } from '../ui/Loader';
 import { fonts, radius, useColors } from '../ui/theme';
@@ -130,6 +130,8 @@ function OrgCard({ o, reload }: { o: any; reload: () => void }) {
   const [mode, setMode] = useState<'' | 'edit' | 'master' | 'manage' | 'property'>('');
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [busyDel, setBusyDel] = useState(false);
   const sec = sectorOf(o.sector);
   // Sözleşmedeki adet aşıldıysa uyarı kalıcıdır; sözleşme güncellenince adet bir tıkla yeni sayıya çekilir.
   const over = o.units != null && (o.unit_count || 0) > o.units;
@@ -140,6 +142,10 @@ function OrgCard({ o, reload }: { o: any; reload: () => void }) {
   const toggleStatus = async () => {
     setErr(null);
     try { await adminSaveOrg({ ...o, status: o.status === 'active' ? 'paused' : 'active' }); reload(); } catch (e) { setErr(humanError(e)); }
+  };
+  const doDelete = async () => {
+    setBusyDel(true); setErr(null);
+    try { await adminDeleteOrg(o.id); reload(); } catch (e) { setErr(humanError(e)); setBusyDel(false); }
   };
   if (mode === 'edit') return <OrgForm org={o} done={() => { setMode(''); reload(); }} />;
   return (
@@ -171,7 +177,18 @@ function OrgCard({ o, reload }: { o: any; reload: () => void }) {
         <Button kind={mode === 'master' ? 'primary' : 'ghost'} title={t('Master belirle')} onPress={() => setMode(mode === 'master' ? '' : 'master')} />
         <Button kind="ghost" title={t('Düzenle')} onPress={() => setMode('edit')} />
         <Button kind="quiet" title={o.status === 'active' ? t('Askıya al') : t('Etkinleştir')} onPress={toggleStatus} />
+        {o.status !== 'active' ? <Button kind="ghost" title={t('Kurumu sil')} onPress={() => setConfirmDel(true)} style={{ borderColor: c.badInk }} /> : null}
       </Row>
+      {confirmDel ? (
+        <View style={{ gap: 8, padding: 14, borderRadius: radius.md, backgroundColor: c.badBg }}>
+          <Text v="small" color={c.badInk} style={{ fontFamily: fonts.bodyXBold }}>{t('Bu kurumu silmek istediğine emin misin?')}</Text>
+          <Text v="small" color={c.badInk}>{t('{name} kalıcı olarak silinir: yöneticileri, rolleri ve davetleri kaldırılır. Bu işlem geri alınamaz ve kayda yazılır.', { name: o.name })}{(o.unit_count || 0) > 0 ? ' ' + t('Kuruma bağlı {n} mülk silinmez; sahibinin hesabında bireysel mülk olarak kalır.', { n: o.unit_count }) : ''}</Text>
+          <Row wrap>
+            <Button kind="ghost" title={t('Vazgeç')} onPress={() => setConfirmDel(false)} />
+            <Button title={t('Evet, sil')} loading={busyDel} onPress={doDelete} />
+          </Row>
+        </View>
+      ) : null}
       {mode === 'master' ? <MasterForm org={o} done={reload} /> : null}
       {mode === 'property' && o.master ? <AddProperty owner={{ id: o.master.id, name: o.master.name || o.name }} count={o.unit_count || 0} limit={o.units}
         done={(m) => { setMode(''); if (m) { setInfo(m); reload(); } }} /> : null}
