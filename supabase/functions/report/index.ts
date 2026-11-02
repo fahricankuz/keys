@@ -15,6 +15,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { renderReport, type Report } from './template.ts';
 import { renderSiteReport, type SiteReport } from './site-template.ts';
+import { mailConfigured, mailMissing, sendMail } from '../_shared/mail.ts';
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
@@ -38,7 +39,7 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('method', { status: 405 });
   const secret = env('REPORT_SECRET');
   if (!secret || !safeEqual(req.headers.get('x-anahtar-secret') ?? '', secret)) return new Response('unauthorized', { status: 401 });
-  if (!env('RESEND_API_KEY') || !env('EMAIL_FROM')) return Response.json({ error: 'RESEND_API_KEY / EMAIL_FROM eksik' }, { status: 500 });
+  if (!mailConfigured()) return Response.json({ error: mailMissing() }, { status: 500 });
 
   const body = await req.json().catch(() => ({}));
   const period = body.period === 'year' ? 'year' : 'month';
@@ -55,12 +56,8 @@ Deno.serve(async (req) => {
       const { data: r, error: e } = await admin.rpc('owner_report', { uid: p.user_id, period, ref });
       if (e) throw e;
       const mail = renderReport(r as Report, { name: (p.name || '').split(' ')[0], lang: p.lang, appUrl });
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: { authorization: `Bearer ${env('RESEND_API_KEY')}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ from: env('EMAIL_FROM'), to: p.email, subject: mail.subject, html: mail.html, text: mail.text })
-      });
-      if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+      const res = await sendMail({ to: p.email, subject: mail.subject, html: mail.html, text: mail.text });
+      if (!res.ok) throw new Error(res.error);
       sent++;
     } catch (e) {
       failed++;
@@ -80,12 +77,8 @@ Deno.serve(async (req) => {
         cache.set(p.org_id, r as SiteReport);
       }
       const mail = renderSiteReport(cache.get(p.org_id)!, { name: (p.name || '').split(' ')[0], appUrl });
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: { authorization: `Bearer ${env('RESEND_API_KEY')}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ from: env('EMAIL_FROM'), to: p.email, subject: mail.subject, html: mail.html, text: mail.text })
-      });
-      if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+      const res = await sendMail({ to: p.email, subject: mail.subject, html: mail.html, text: mail.text });
+      if (!res.ok) throw new Error(res.error);
       sent++;
     } catch (e) {
       failed++;

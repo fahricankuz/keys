@@ -20,6 +20,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { sendApns, sendFcm } from './native.ts';
 import { sendSms, smsEnabled } from './sms.ts';
 import { renderNotice } from './template.ts';
+import { mailConfigured, mailMissing, sendMail } from '../_shared/mail.ts';
 
 type NotificationRow = {
   id: number; user_id: string; property_id: string | null; title: string; body: string; url: string; tag: string | null;
@@ -126,25 +127,17 @@ Deno.serve(async (req) => {
 
   // 4. E-posta (varsayılan açık; kullanıcı kapatmadıysa ve Resend yapılandırıldıysa)
   let mailed = false;
-  if (env('RESEND_API_KEY') && env('EMAIL_FROM')) {
+  if (mailConfigured()) {
     // Ödeme (bill-…) ve hesap (acct-…: askıya alma, e-posta onayı) bildirimleri işlem e-postasıdır:
     // kullanıcı bildirim e-postalarını kapatmış olsa da gönderilir.
     if (profile?.settings?.email !== false || /^(bill|acct)-/.test(n.tag ?? '')) {
       const { data: user } = await admin.auth.admin.getUserById(n.user_id);
       const to = user?.user?.email;
       if (to) {
-        const res = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: { 'authorization': `Bearer ${env('RESEND_API_KEY')}`, 'content-type': 'application/json' },
-          body: JSON.stringify({
-            from: env('EMAIL_FROM'),
-            to,
-            subject: n.title,
-            ...renderNotice({ title: n.title, body: n.body, link })
-          })
-        });
+        const note = renderNotice({ title: n.title, body: n.body, link });
+        const res = await sendMail({ to, subject: n.title, html: note.html, text: note.text });
         mailed = res.ok;
-        if (!res.ok) console.error('e-posta hatası', res.status, await res.text());
+        if (!res.ok) console.error('e-posta hatası', res.error);
       }
     }
   }

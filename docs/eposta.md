@@ -1,6 +1,11 @@
 # E-posta sistemi: kim, ne zaman, hangi yoldan
 
-Tüm e-postalar **Resend** ile gider (gizli değişkenler: `RESEND_API_KEY`, `EMAIL_FROM`). Üç yol vardır.
+Tüm e-postalar ortak göndericiden (`supabase/functions/_shared/mail.ts`) geçer. İki gönderim yolu vardır:
+- **Hostinger posta kutusu (SMTP)**: `SMTP_HOST` tanımlıysa kullanılır. Gizli değişkenler: `SMTP_HOST` (`smtp.hostinger.com`), `SMTP_PORT` (465),
+  `SMTP_USER` (`info@anahtar.io`), `SMTP_PASS` (posta kutusunun parolası), `EMAIL_FROM` (`anahtar <info@anahtar.io>`; adres `SMTP_USER` ile aynı olmalı).
+  Supabase Edge Function'ları 25 ve 587 portlarını engeller; 465 kullanılır. Hostinger'ın günlük gönderim sınırı geçerlidir.
+- **Resend**: `SMTP_HOST` yoksa eskisi gibi (`RESEND_API_KEY`, `EMAIL_FROM`).
+Üç tetikleme yolu vardır (hepsi Supabase'de, değişmedi):
 
 ## 1. Bildirim hattı (hesabı olan kişiye)
 `notifications` satırı yazılır → Database Webhook → `push` fonksiyonu → cihaza bildirim **ve** e-posta.
