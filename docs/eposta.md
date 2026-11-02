@@ -1,6 +1,11 @@
 # E-posta sistemi: kim, ne zaman, hangi yoldan
 
-Tüm e-postalar **Resend** ile gider (gizli değişkenler: `RESEND_API_KEY`, `EMAIL_FROM`). Üç yol vardır.
+Tüm e-postalar ortak göndericiden (`supabase/functions/_shared/mail.ts`) geçer. İki gönderim yolu vardır:
+- **Hostinger posta kutusu (SMTP)**: `SMTP_HOST` tanımlıysa kullanılır. Gizli değişkenler: `SMTP_HOST` (`smtp.hostinger.com`), `SMTP_PORT` (465),
+  `SMTP_USER` (`info@anahtar.io`), `SMTP_PASS` (posta kutusunun parolası), `EMAIL_FROM` (`anahtar <info@anahtar.io>`; adres `SMTP_USER` ile aynı olmalı).
+  Supabase Edge Function'ları 25 ve 587 portlarını engeller; 465 kullanılır. Hostinger'ın günlük gönderim sınırı geçerlidir.
+- **Resend**: `SMTP_HOST` yoksa eskisi gibi (`RESEND_API_KEY`, `EMAIL_FROM`).
+Üç tetikleme yolu vardır (hepsi Supabase'de, değişmedi):
 
 ## 1. Bildirim hattı (hesabı olan kişiye)
 `notifications` satırı yazılır → Database Webhook → `push` fonksiyonu → cihaza bildirim **ve** e-posta.
@@ -43,3 +48,11 @@ e-postaları (kayıt onayı, şifre sıfırlama: `supabase/email-templates/`) ö
 ## Teslim edilebilirlik (kod değil, ayar)
 Resend'de `anahtar.io` doğrulanmış olmalı (SPF, DKIM, DMARC kayıtları Hostinger DNS'inde); Supabase → Authentication → SMTP'ye Resend
 bağlanmalı; `info@anahtar.io` posta kutusu açık olmalı.
+
+## Fonksiyonları yayınlama (tek tıkla)
+Actions → **Fonksiyonları yayınla** → Run workflow: ortam `production`, fonksiyonlar `hepsi` (ya da ad listesi, ör. `lead-mail mail-send`).
+Gerekli: GitHub'da `SUPABASE_ACCESS_TOKEN` (Supabase → Account → Access Tokens → **Create legacy token**; fonksiyon yüklemek tam yetkili jeton ister)
+ve `SUPABASE_PROJECT_REF`. Gizli değerler (Resend anahtarı vb.) Supabase → Edge Functions → Secrets'ta kalır; bu iş onlara dokunmaz.
+Her fonksiyonun JWT ayarı `supabase/config.toml`'dandır: webhook/zamanlayıcı fonksiyonları (`push`, `lead-mail`, `mail-send`, `report`, `tufe-sync`, `billing`)
+doğrulamasız ve gizli başlıkla korunur; `welcome`, `invite-mail`, `site-invite` kullanıcının jetonuyla çağrılır.
+Sıra: veritabanı migration → fonksiyonlar → Hostinger'da site.

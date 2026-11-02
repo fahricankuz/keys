@@ -5,11 +5,12 @@
 // ayırır (welcome_claim) ve Resend ile gönderir. Kişi yalnız kendi e-postasını tetikleyebilir; ikinci çağrı bir şey göndermez.
 //
 // Kurulum: supabase functions deploy welcome
-// Gizli değişkenler (rapor e-postasıyla aynı): RESEND_API_KEY, EMAIL_FROM. İsteğe bağlı: APP_URL (varsayılan https://anahtar.io).
+// Gizli değişkenler (rapor e-postasıyla aynı): SMTP_HOST/SMTP_USER/SMTP_PASS (Hostinger) ya da RESEND_API_KEY, EMAIL_FROM. İsteğe bağlı: APP_URL (varsayılan https://anahtar.io).
 // SUPABASE_URL, SUPABASE_ANON_KEY ve SUPABASE_SERVICE_ROLE_KEY Supabase tarafından otomatik sağlanır.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { renderWelcome, type WelcomeKind } from './template.ts';
+import { mailConfigured, mailMissing, sendMail } from '../_shared/mail.ts';
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
@@ -36,21 +37,17 @@ Deno.serve(async (req) => {
   const { data: claimed } = await admin.rpc('welcome_claim', { uid, k: kind });
   if (!claimed) return json({ ok: true, sent: false, reason: 'already' });
   if (kind === 'skip') return json({ ok: true, sent: false, reason: 'skip' });
-  if (!env('RESEND_API_KEY') || !env('EMAIL_FROM') || !info.email) {
+  if (!mailConfigured() || !info.email) {
     await admin.from('welcome_mail').delete().eq('user_id', uid);
-    return json({ error: 'RESEND_API_KEY / EMAIL_FROM eksik' }, 500);
+    return json({ error: mailMissing() }, 500);
   }
 
   const mail = renderWelcome({ kind, name: info.name, lang: info.lang, appUrl: env('APP_URL') || 'https://anahtar.io', trialEnds: info.trial_ends });
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { authorization: `Bearer ${env('RESEND_API_KEY')}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ from: env('EMAIL_FROM'), to: info.email, subject: mail.subject, html: mail.html, text: mail.text, reply_to: 'info@anahtar.io' })
-  });
+  const res = await sendMail({ to: info.email, subject: mail.subject, html: mail.html, text: mail.text, replyTo: 'info@anahtar.io' });
   if (!res.ok) {
     // Gönderilemedi: kayıt silinir, bir sonraki girişte yeniden denenir.
     await admin.from('welcome_mail').delete().eq('user_id', uid);
-    return json({ error: await res.text() }, 502);
+    return json({ error: res.error }, 502);
   }
   return json({ ok: true, sent: true, kind });
 });
