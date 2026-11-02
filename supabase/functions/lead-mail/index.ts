@@ -4,9 +4,10 @@
 // Kurulum: Supabase → Database → Webhooks → yeni webhook: tablo public.support_requests, olay INSERT,
 // tür "Supabase Edge Functions" → lead-mail, başlık x-anahtar-secret: <LEAD_SECRET>.
 // Hukuki destek için aynı ayarlarla ikinci bir webhook: tablo public.legal_requests, olay INSERT.
-// Gizli değişkenler: LEAD_SECRET, RESEND_API_KEY, EMAIL_FROM; isteğe bağlı LEAD_TO (varsayılan info@anahtar.io), APP_URL.
+// Gizli değişkenler: LEAD_SECRET, SMTP_HOST/SMTP_USER/SMTP_PASS ya da RESEND_API_KEY, EMAIL_FROM; isteğe bağlı LEAD_TO (varsayılan info@anahtar.io), APP_URL.
 
 import { renderAck } from './ack.ts';
+import { mailConfigured, mailMissing, sendMail } from '../_shared/mail.ts';
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 
@@ -39,7 +40,7 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('method', { status: 405 });
   const secret = env('LEAD_SECRET');
   if (!secret || !safeEqual(req.headers.get('x-anahtar-secret') ?? '', secret)) return new Response('unauthorized', { status: 401 });
-  if (!env('RESEND_API_KEY') || !env('EMAIL_FROM')) return Response.json({ error: 'RESEND_API_KEY / EMAIL_FROM eksik' }, { status: 500 });
+  if (!mailConfigured()) return Response.json({ error: mailMissing() }, { status: 500 });
 
   const body = await req.json().catch(() => ({}));
   const legal = body.table === 'legal_requests';
@@ -59,16 +60,12 @@ Deno.serve(async (req) => {
 ${r.message ? `<div style="margin-top:12px;padding:14px;background:#F3ECE5;border-radius:12px;white-space:pre-wrap">${esc(r.message)}</div>` : ''}
 <p style="margin:16px 0 0;font-size:13px;color:#A39A95">Yönetici paneli → ${legal ? 'Hukuki talepler' : 'Talepler'} bölümünde de görünür${env('APP_URL') ? `: ${esc(env('APP_URL'))}/admin` : ''}.</p></div></div>`;
 
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { authorization: `Bearer ${env('RESEND_API_KEY')}`, 'content-type': 'application/json' },
-    body: JSON.stringify({
-      from: env('EMAIL_FROM'), to: env('LEAD_TO') || 'info@anahtar.io', reply_to: r.email || undefined,
-      subject: `${title}: ${r.company || r.name || r.email || ''}`.trim(),
-      html, text: rows.map(([k, v]) => `${k}: ${v}`).join('\n') + (r.message ? `\n\n${r.message}` : '')
-    })
+  const res = await sendMail({
+    to: env('LEAD_TO') || 'info@anahtar.io', replyTo: r.email || undefined,
+    subject: `${title}: ${r.company || r.name || r.email || ''}`.trim(),
+    html, text: rows.map(([k, v]) => `${k}: ${v}`).join('\n') + (r.message ? `\n\n${r.message}` : '')
   });
-  if (!res.ok) return Response.json({ error: await res.text() }, { status: 502 });
+  if (!res.ok) return Response.json({ error: res.error }, { status: 502 });
 
   // Müşteriye "talebini aldık" e-postası. Ekibe bildirim gittikten sonra denenir; başarısız olursa webhook yeniden denemesin
   // (ekibe ikinci bildirim gitmesin) diye hata yutulur ve yanıtta bildirilir. Yanıt, müşterinin adresine gider (reply_to: info@).
@@ -81,13 +78,9 @@ ${r.message ? `<div style="margin-top:12px;padding:14px;background:#F3ECE5;borde
         ref: legal ? r.ref : r.id ? 'T-' + String(r.id).replace(/-/g, '').slice(0, 6).toUpperCase() : undefined,
         rows: rows.filter(([k]) => !['E-posta', 'Kaynak'].includes(k)), message: r.message
       });
-      const a = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: { authorization: `Bearer ${env('RESEND_API_KEY')}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ from: env('EMAIL_FROM'), to, reply_to: env('LEAD_TO') || 'info@anahtar.io', subject: m.subject, html: m.html, text: m.text })
-      });
+      const a = await sendMail({ to, replyTo: env('LEAD_TO') || 'info@anahtar.io', subject: m.subject, html: m.html, text: m.text });
       ack = a.ok;
-      if (!a.ok) console.error('teşekkür e-postası hatası', a.status, await a.text());
+      if (!a.ok) console.error('teşekkür e-postası hatası', a.error);
     } catch (e) { console.error('teşekkür e-postası hatası', (e as Error).message); }
   }
   return Response.json({ ok: true, ack });

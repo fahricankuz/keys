@@ -6,10 +6,11 @@
 // davet kodunu ile ad ve e-postası hazır doldurulmuş kayıt bağlantısını (/kayit/kiraci?kod=…) içerir.
 //
 // Kurulum: supabase functions deploy invite-mail
-// Gizli değişkenler (hoş geldin e-postasıyla aynı): RESEND_API_KEY, EMAIL_FROM. İsteğe bağlı: APP_URL (varsayılan https://anahtar.io).
+// Gizli değişkenler (hoş geldin e-postasıyla aynı): SMTP_HOST/SMTP_USER/SMTP_PASS (Hostinger) ya da RESEND_API_KEY, EMAIL_FROM. İsteğe bağlı: APP_URL (varsayılan https://anahtar.io).
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { renderInvite } from './template.ts';
+import { mailConfigured, mailMissing, sendMail } from '../_shared/mail.ts';
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
@@ -35,20 +36,16 @@ Deno.serve(async (req) => {
   if (error) return json({ error: error.message }, 500);
   if (!info) return json({ ok: true, sent: false, reason: 'none' });
   if (info.throttled) return json({ ok: true, sent: false, reason: 'throttled' });
-  if (!env('RESEND_API_KEY') || !env('EMAIL_FROM')) {
+  if (!mailConfigured()) {
     await admin.from('invites').update({ mailed_at: null }).eq('code', info.code);
-    return json({ error: 'RESEND_API_KEY / EMAIL_FROM eksik' }, 500);
+    return json({ error: mailMissing() }, 500);
   }
 
   const mail = renderInvite({ code: info.code, name: info.name, email: info.email, owner: info.owner, property: info.property, lang: info.lang, appUrl: env('APP_URL') || 'https://anahtar.io', expires: info.expires });
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { authorization: `Bearer ${env('RESEND_API_KEY')}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ from: env('EMAIL_FROM'), to: info.email, subject: mail.subject, html: mail.html, text: mail.text, reply_to: 'info@anahtar.io' })
-  });
+  const res = await sendMail({ to: info.email, subject: mail.subject, html: mail.html, text: mail.text, replyTo: 'info@anahtar.io' });
   if (!res.ok) {
     await admin.from('invites').update({ mailed_at: null }).eq('code', info.code);
-    return json({ error: await res.text() }, 502);
+    return json({ error: res.error }, 502);
   }
   return json({ ok: true, sent: true });
 });

@@ -7,11 +7,12 @@
 // Kurulum: supabase functions deploy mail-send
 //   Supabase → Database → Webhooks → yeni webhook: tablo public.mail_outbox, olay INSERT, tür "Supabase Edge Functions" → mail-send,
 //   başlık x-anahtar-secret: <MAIL_SECRET>.
-// Gizli değişkenler: MAIL_SECRET, RESEND_API_KEY, EMAIL_FROM; isteğe bağlı LEAD_TO (ekip adresi, varsayılan info@anahtar.io), APP_URL.
+// Gizli değişkenler: MAIL_SECRET, SMTP_HOST/SMTP_USER/SMTP_PASS ya da RESEND_API_KEY, EMAIL_FROM; isteğe bağlı LEAD_TO (ekip adresi, varsayılan info@anahtar.io), APP_URL.
 // SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY Supabase tarafından otomatik sağlanır.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { renderOutbox } from './template.ts';
+import { mailConfigured, mailMissing, sendMail } from '../_shared/mail.ts';
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
@@ -32,12 +33,8 @@ async function sendOne(id: number): Promise<'sent' | 'skipped' | 'failed'> {
   const to = row.to_email || contact;
   const mail = renderOutbox(row, env('APP_URL'), contact);
   if (!mail) { await admin.rpc('mail_fail', { rid: id, msg: 'Bilinmeyen tür: ' + row.kind }); return 'failed'; }
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { authorization: `Bearer ${env('RESEND_API_KEY')}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ from: env('EMAIL_FROM'), to, reply_to: contact, subject: mail.subject, html: mail.html, text: mail.text })
-  });
-  if (!res.ok) { await admin.rpc('mail_fail', { rid: id, msg: `Resend ${res.status}: ${await res.text()}` }); return 'failed'; }
+  const res = await sendMail({ to, replyTo: contact, subject: mail.subject, html: mail.html, text: mail.text });
+  if (!res.ok) { await admin.rpc('mail_fail', { rid: id, msg: res.error ?? 'gönderilemedi' }); return 'failed'; }
   await admin.rpc('mail_done', { rid: id });
   return 'sent';
 }
@@ -46,7 +43,7 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('method', { status: 405 });
   const secret = env('MAIL_SECRET');
   if (!secret || !safeEqual(req.headers.get('x-anahtar-secret') ?? '', secret)) return new Response('unauthorized', { status: 401 });
-  if (!env('RESEND_API_KEY') || !env('EMAIL_FROM')) return Response.json({ error: 'RESEND_API_KEY / EMAIL_FROM eksik' }, { status: 500 });
+  if (!mailConfigured()) return Response.json({ error: mailMissing() }, { status: 500 });
 
   const body = await req.json().catch(() => ({}));
   let ids: number[] = [];
