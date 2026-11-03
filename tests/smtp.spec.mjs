@@ -14,7 +14,7 @@ const { outputFiles } = await build({
   entryPoints: [SRC], bundle: true, write: false, format: 'esm', platform: 'node', target: 'node22', logLevel: 'error',
   plugins: [{ name: 'npm-alias', setup(b) { b.onResolve({ filter: /^npm:nodemailer/ }, () => ({ path: 'nodemailer', external: true })); } }]
 });
-const code = outputFiles[0].text.replace(/from "nodemailer"/, `from ${JSON.stringify(new URL('../node_modules/nodemailer/lib/nodemailer.js', import.meta.url).pathname)}`);
+const code = outputFiles[0].text.replace(/from "nodemailer"/, `from ${JSON.stringify(new URL('../node_modules/nodemailer/dist/esm/nodemailer.js', import.meta.url).pathname)}`);
 const tmp = `${tmpdir()}/anahtar-mail-test-${process.pid}.mjs`;
 writeFileSync(tmp, code);
 const mod = await import(pathToFileURL(tmp).href);

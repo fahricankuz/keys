@@ -9,7 +9,7 @@
 // Resend (SMTP_HOST yoksa): RESEND_API_KEY, EMAIL_FROM.
 // Supabase Edge Function'ları 25 ve 587 numaralı çıkış portlarını engeller; 465 kullanılır.
 
-import nodemailer from 'npm:nodemailer@6.10.1';
+import nodemailer from 'npm:nodemailer@10.3.1';
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 
