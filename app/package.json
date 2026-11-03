@@ -53,5 +53,9 @@
     "build:hostinger": "npm run build:web && rm -rf ../hostinger-site && cp -r dist ../hostinger-site",
     "build": "npm run build:web"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "glob": "^14.0.3",
+    "minimatch": "^11.0.4"
+  }
 }
