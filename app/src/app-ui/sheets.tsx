@@ -21,7 +21,7 @@ import { toApp } from '../domain/nav';
 import { tl, fmtFull, monthYear, parse, iso, t0, ago } from '../domain/util';
 import { Button, Chip, Field, PressScale, Text } from '../ui/kit';
 import { fonts, radius, useColors } from '../ui/theme';
-import { Card, H2, Icon, IconBtn, Items, KV, Label, LI, List, Muted, Note, Row, Seg, Stack, Thumbs, Empty, FileLink, ReviewChip } from './blocks';
+import { Card, H2, Icon, IconBtn, Items, KV, Label, LI, List, Muted, Note, Row, Seg, Stack, Thumbs, Empty, FileLink, DownloadLink, ReviewChip } from './blocks';
 import { Actions, Area, Choice, DateField, FileField, MoneyField, NumField, Text2, Title, Toggle, useVals } from './forms';
 import { useAuth } from '../auth/auth';
 import { stopajLine, useGo } from './sections';
@@ -475,7 +475,7 @@ function ReceiptSheet({ pid, k, kind, close }: { pid?: string; k: string; kind?:
     <Stack>
       <Title>{monthYear(k)} {aidat ? t('aidat dekontu') : t('dekontu')}</Title>
       <ReviewChip kind="payment" pid={p.id} id={aidat ? 'aidat:' + k : k} />
-      {rc.photo && /\.pdf$/i.test(rc.photo) ? <FileLink path={rc.photo} label={rc.receipt || t('Dekontu aç')} /> : rc.photo ? <Thumbs size={190} srcs={[rc.photo]} /> : <Card><Muted>{rc.receipt || (rc.method ? t('Dekontsuz kayıt') + ' · ' + t((METHOD as any)[rc.method] || rc.method) : t('Dekont yok'))}</Muted></Card>}
+      {rc.photo && /\.pdf$/i.test(rc.photo) ? <FileLink path={rc.photo} label={rc.receipt || t('Dekontu aç')} /> : rc.photo ? <Stack gap={6}><Thumbs size={190} srcs={[rc.photo]} /><DownloadLink path={rc.photo} label={rc.receipt || t('dekont')} /></Stack> : <Card><Muted>{rc.receipt || (rc.method ? t('Dekontsuz kayıt') + ' · ' + t((METHOD as any)[rc.method] || rc.method) : t('Dekont yok'))}</Muted></Card>}
       <KV k={t('Tutar')} v={tl(rc.amount != null ? rc.amount : due)} />
       <KV k={t('Beklenen')} v={tl(due)} />
       {p.stopaj && !aidat ? <Muted>{stopajLine(p, k)}</Muted> : null}

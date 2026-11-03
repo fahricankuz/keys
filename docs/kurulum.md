@@ -209,8 +209,8 @@ select id from auth.users where email = 'senin@epostan.com';
 Yalnızca `admins` tablosundaki hesap açabilir; başka hesap `/admin` adresinde hiçbir veri görmez
 (sunucu kuralları veri vermez, ekran yalnızca gösterir).
 
-- **Denetim**: kiracı dekontları, her iki tarafın belgeleri ve mülk sahibinin
-  faturaları. Önizleme, **Onayla** ya da gerekçeyle **Reddet**.
+- **Denetim**: her iki tarafın belgeleri ve mülk sahibinin faturaları. Önizleme, **Onayla** ya da gerekçeyle **Reddet**.
+  Kira ve aidat dekontları denetime düşmez; yüklendiği anda mülk sahibinin onayına gider (Kasım 2026).
 - **Ödemeler**: kim kime, hangi mülk ve ay için, ne kadar ödemiş; durum ve denetim durumu.
 - **Bağlantılar**: mülk sahibi → mülkler → kiracılar (bekleyen davetler dahil), abonelik durumu.
   Kayıt olup davet kodunu girmemiş ("mülke bağlı olmayan") kiracılar ayrıca listelenir.
@@ -280,9 +280,9 @@ Bundan sonra varsayılan dala her birleşmede site kendiliğinden güncellenir. 
 - [ ] İki farklı tarayıcıda (ya da biri gizli pencerede) bir mülk sahibi, bir kiracı hesabı aç.
 - [ ] Mülk sahibi mülk ekler; açılan davet bağlantısını kiracıya gönderir.
 - [ ] Kiracı bağlantıyla kaydolur ve mülke bağlanır.
-- [ ] Kiracı dekont yükler; **yönetici onaylayana kadar** mülk sahibi görmez, kiracı "İncelemede" etiketini görür.
-- [ ] Yönetici panelinde (`/admin`) dekontu onaylar; mülk sahibinin ekranında görünür ve bildirim düşer.
-- [ ] Yönetici bir dekontu gerekçeyle reddeder; kiracı gerekçeyi görür ve yeniden yükleyebilir.
+- [ ] Kiracı dekont yükler; mülk sahibinin ekranında hemen "Onay bekliyor" görünür ve "dekont geldi" bildirimi düşer.
+- [ ] Mülk sahibi dekontu açar ve **İndir** ile cihazına kaydeder.
+- [ ] Mülk sahibi bir dekontu gerekçeyle reddeder; kiracı gerekçeyi görür ve yeniden yükleyebilir.
 - [ ] Mülk sahibi ödemeyi onaylar; kiracıya bildirim düşer.
 - [ ] Telefondan ana ekrana ekle, uygulamayı kapatıp mesaj gönder: bildirim gelmeli.
 

@@ -52,53 +52,35 @@ async function uploadReceipt(page) {
   await page.getByRole('button', { name: 'Gönder' }).click();
 }
 
-/** Kiracı olarak giriş yapıp bir dekont yükler; denetim kaydı sunucuya düşene kadar bekler. */
+/** Kiracı olarak giriş yapıp bir dekont yükler; ödeme sunucuya yazılana kadar bekler. */
 async function tenantUploads(page) {
   await login(page, 'kiraci@ornek.com');
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
   await uploadReceipt(page);
-  await expect(page.getByText('anahtar ekibi dekontu inceliyor').first()).toBeVisible();
-  await expect.poll(async () => (await db(page)).tables.reviews.length).toBe(1);   // eşitleme gecikmeli çalışır
+  await expect(page.getByText('Mülk sahibinin onayı bekleniyor').first()).toBeVisible();
+  await expect.poll(async () => (await db(page)).tables.payments.length).toBe(1);   // eşitleme gecikmeli çalışır
 }
 
-test('kiracı dekont yükler; denetim kaydı düşer, mülk sahibi onaydan önce görmez', async ({ page }) => {
-  await login(page, 'kiraci@ornek.com');
-  await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
-  await uploadReceipt(page);
-  await expect(page.getByText('anahtar ekibi dekontu inceliyor').first()).toBeVisible();
-
-  await expect.poll(async () => (await db(page)).tables.reviews.length).toBe(1);   // eşitleme gecikmeli çalışır
-  const d = await db(page);
-  expect(d.tables.reviews[0]).toMatchObject({ kind: 'payment', status: 'pending', property_id: 'p1' });
-  expect(d.tables.reviews[0].path).toMatch(/^p1\/.+\.(webp|jpg)$/);              // dosya depoya yüklendi
-  expect(d.tables.payments).toHaveLength(1);
-  expect(Object.keys(d.storage).filter((k) => !k.endsWith('.k'))).toHaveLength(1);   // asıl dosya …
-  expect(Object.keys(d.storage)).toContain(d.tables.reviews[0].path + '.k');          // … ve listeler için küçük kopyası
-
-  await login(page, 'ev@ornek.com');
-  await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
-  // mülk sahibi henüz görmez (renk açıklama listesindeki "Onay bekliyor" etiketi sayılmaz)
-  await expect(page.getByText('Onay bekliyor').filter({ hasNot: page.locator('xpath=ancestor::*[@aria-label="Karo açıklaması"]') })).toHaveCount(0);
-  expect((await db(page)).tables.notifications).toHaveLength(0);
-});
-
-test('yönetici dekontu onaylar; mülk sahibi onay bekleyen ödemeyi görür ve bildirim alır', async ({ page }) => {
+test('kiracı dekont yükler; anahtar denetimine düşmez, mülk sahibi hemen görür, bildirim alır ve onaylar', async ({ page }) => {
   await tenantUploads(page);
-  await login(page, 'admin@ornek.com');
-  await expect(page).toHaveURL(/\/admin$/);
-  await expect(page.getByText('Yönetici', { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole('button', { name: /Denetim \(1\)/ })).toBeVisible();
-  await page.getByRole('button', { name: /Denetim \(1\)/ }).click();          // panel "Genel bakış" ile açılır
-  await expect(page.getByText(/dekont.*\.png/).first()).toBeVisible();
-  await page.getByRole('button', { name: 'Onayla', exact: true }).click();
-  await expect(page.getByText('Bekleyen yükleme yok')).toBeVisible();
-
   const d = await db(page);
-  expect(d.tables.reviews[0].status).toBe('approved');
+  expect(d.tables.reviews).toHaveLength(0);                                            // yönetici denetimi yok
+  expect(d.tables.payments[0]).toMatchObject({ status: 'review', property_id: 'p1' });
+  expect(d.tables.payments[0].receipt_path).toMatch(/^p1\/.+\.(webp|jpg)$/);              // dosya depoya yüklendi
+  expect(Object.keys(d.storage).filter((k) => !k.endsWith('.k'))).toHaveLength(1);     // asıl dosya …
+  expect(Object.keys(d.storage)).toContain(d.tables.payments[0].receipt_path + '.k');   // … ve listeler için küçük kopyası
   expect(d.tables.notifications.map(n => n.title)).toEqual(['Dekont geldi']);
 
   await login(page, 'ev@ornek.com');
   await expect(page.getByText('Onay bekliyor').first()).toBeVisible();
+
+  // Mülk sahibi dekontu açar ve cihazına indirir.
+  await page.goto(url('/uygulama/mulk?pid=p1&sub=odeme'));
+  await page.getByRole('button', { name: 'Dekontu gör' }).first().click();
+  const dl = page.waitForEvent('download');
+  await page.getByRole('button', { name: /dosyasını indir$/ }).first().click();
+  expect((await dl).suggestedFilename()).toMatch(/dekont.*\.(webp|jpg)$/);
+  await page.keyboard.press('Escape');
 
   // Mülk sahibi onaylayınca kutlama animasyonu (tik + konfeti) çıkar, ödeme onaylanır.
   await page.goto(url('/uygulama/mulk?pid=p1&sub=odeme'));
@@ -121,24 +103,19 @@ test('yönetici panelinde ödemeler ve mülk sahibi → kiracı ağacı görün�
   await expect(page.getByText('kiraci@ornek.com')).toBeVisible();
 });
 
-test('yönetici reddeder: gerekçe zorunlu, kiracı gerekçeyi görür, ödeme reddedilir', async ({ page }) => {
+test('mülk sahibi reddeder: kiracı gerekçeyi görür, ödeme reddedilir', async ({ page }) => {
   await tenantUploads(page);
-
-  await login(page, 'admin@ornek.com');
-  await page.getByRole('button', { name: /^Denetim/ }).click();          // panel "Genel bakış" ile açılır
+  await login(page, 'ev@ornek.com');
+  await page.goto(url('/uygulama/mulk?pid=p1&sub=odeme'));
+  await page.getByRole('button', { name: 'Dekontu gör' }).first().click();
   await page.getByRole('button', { name: 'Reddet', exact: true }).click();
-  await page.getByRole('button', { name: 'Reddet', exact: true }).last().click();       // gerekçesiz
-  await expect(page.getByText('Red için gerekçe yaz.')).toBeVisible();
-  await page.getByLabel('Red gerekçesi').fill('Dekont okunmuyor');
+  await page.getByRole('radio', { name: 'Dekont okunmuyor' }).click();
   await page.getByRole('button', { name: 'Reddet', exact: true }).last().click();
-  await expect(page.getByText('Bekleyen yükleme yok')).toBeVisible();
-
-  const d = await db(page);
-  expect(d.tables.reviews[0]).toMatchObject({ status: 'rejected', note: 'Dekont okunmuyor' });
-  expect(d.tables.payments[0]).toMatchObject({ status: 'rejected', reject_reason: 'Denetim: Dekont okunmuyor' });
+  await expect.poll(async () => (await db(page)).tables.payments[0].status).toBe('rejected');
+  expect((await db(page)).tables.payments[0].reject_reason).toMatch(/Dekont okunmuyor/);
 
   await login(page, 'kiraci@ornek.com');
-  await expect(page.getByText('Denetim: Dekont okunmuyor').first()).toBeVisible();
+  await expect(page.getByText('Dekont okunmuyor').first()).toBeVisible();
 });
 
 test('yönetici olmayan /admin adresine giremez', async ({ page }) => {

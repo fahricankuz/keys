@@ -5,8 +5,8 @@
    Başka cihazlardan gelen değişiklikler anlık alınır. Yerel hesap modunda (LIVE=false) hiçbir
    işlevi çalışmaz.
 
-   Denetim: dekont, belge ve faturalar yönetici onaylayana kadar karşı tarafa görünmez
-   (supabase/schema.sql → reviews). Yükleyen kendi yüklemesinin durumunu ui.reviews'ten görür. */
+   Denetim: belge ve faturalar yönetici onaylayana kadar karşı tarafa görünmez (supabase/schema.sql → reviews);
+   kira ve aidat dekontu denetime düşmez, doğrudan mülk sahibinin onayına gider. Yükleyen kendi yüklemesinin durumunu ui.reviews'ten görür. */
 
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -645,6 +645,34 @@ export async function fileUrl(v){
   if (ui.media[path] && !ui.media[path].startsWith('data:')) return ui.media[path];
   const res = await sb().storage.from('evim').createSignedUrl(path, 60 * 60);
   return res.data?.signedUrl || null;
+}
+
+/** İndirilecek dosyanın adı: kullanıcının gördüğü ad, uzantısı depodaki dosyanınki (görseller yüklenirken webp/jpg'ye çevrilir). */
+export function downloadName(v, label){
+  const ext = (String(storedPath(v) || '').match(/\.([a-z0-9]{2,5})$/i) || String(v || '').match(/^data:[a-z]+\/([a-z0-9]+)/i) || [])[1];
+  const base = String(label || 'dosya').replace(/[\\/:*?"<>|]+/g, '-').replace(/\.[a-z0-9]{2,5}$/i, '').trim() || 'dosya';
+  return ext ? base + '.' + ext.toLowerCase().replace('jpeg', 'jpg') : base;
+}
+
+/** Dosyayı cihaza indirir (dekont, belge, fatura). Depodaki dosya için imzalı adres "indir" olarak istenir
+    (Content-Disposition: attachment); web'de bağlantı tıklatılır, telefonda tarayıcı ya da paylaşım açılır. */
+export async function downloadFile(v, label){
+  if (!v) return false;
+  const name = downloadName(v, label);
+  let url = v;
+  if (isStored(v)){
+    const res = await sb().storage.from('evim').createSignedUrl(storedPath(v), 60 * 10, { download: name });
+    url = res.data?.signedUrl || null;
+  }
+  if (!url){ host.notify({ title:t('İndirilemedi'), body:t('Dosyaya şu an ulaşılamıyor. Biraz sonra yeniden dene.'), icon:'doc' }); return false; }
+  if (Platform.OS === 'web' && typeof document !== 'undefined'){
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); a.remove();
+    return true;
+  }
+  host.openUrl(url);
+  return true;
 }
 
 /* ------------------------------------------------------------------ */

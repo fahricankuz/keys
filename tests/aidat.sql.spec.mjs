@@ -14,7 +14,7 @@ test.beforeAll(async () => {
   await q(`update public.properties set aidat = 2000, aidat_payer = 'Kiracı' where id = 'p1'`);
 });
 
-test('kiracı aynı ay için kira ve aidat dekontunu ayrı ayrı yükler; ikisi ayrı denetime düşer', async () => {
+test('kiracı aynı ay için kira ve aidat dekontunu ayrı ayrı yükler; ikisi de doğrudan mülk sahibine düşer', async () => {
   await as(ID.T);
   await q(`insert into public.payments (property_id, month, status, amount, receipt_name, receipt_path) values
            ('p1', $1, 'review', 30000, 'kira.png', 'p1/kira.png')`, [M]);
@@ -23,30 +23,26 @@ test('kiracı aynı ay için kira ve aidat dekontunu ayrı ayrı yükler; ikisi 
   expect(await q(`select kind, amount::int from public.payments where property_id = 'p1' order by kind`))
     .toEqual([{ kind: 'aidat', amount: 2000 }, { kind: 'kira', amount: 30000 }]);
   await as(null);
-  expect((await q(`select ref_id from public.reviews where kind = 'payment' and property_id = 'p1' order by ref_id`)).map(r => r.ref_id))
-    .toEqual([M, 'aidat:' + M]);
-  // Mülk sahibi onaylanana kadar ikisini de görmez.
+  expect(await q(`select ref_id from public.reviews where kind = 'payment'`)).toEqual([]);   // anahtar denetimi yok
   await as(ID.L);
-  expect(await q(`select kind from public.payments where property_id = 'p1'`)).toEqual([]);
+  expect(await q(`select kind, status from public.payments where property_id = 'p1' order by kind`))
+    .toEqual([{ kind: 'aidat', status: 'review' }, { kind: 'kira', status: 'review' }]);
+  await as(null);
+  const notes = await q(`select body from public.notifications where user_id = $1 and title like '%dekont geldi' order by id`, [ID.L]);
+  expect(notes.map(n => n.body)).toEqual([M + ' kirası için ₺30.000 ödendi.', M + ' aidatı için ₺2.000 ödendi.']);
 });
 
-test('aidat dekontu onaylanınca mülk sahibi yalnız aidatı görür ve "aidatı" bildirimi alır; kira reddi aidatı etkilemez', async () => {
-  await as(ID.A);
-  await q(`update public.reviews set status = 'approved' where kind = 'payment' and ref_id = $1`, ['aidat:' + M]);
-  await q(`update public.reviews set status = 'rejected', note = 'Tutar okunmuyor' where kind = 'payment' and ref_id = $1`, [M]);
+test('mülk sahibi kirayı reddeder, aidatı onaylar; kiracıya ayrı ayrı bildirim gider', async () => {
   await as(ID.L);
-  expect(await q(`select kind, status from public.payments where property_id = 'p1'`)).toEqual([{ kind: 'aidat', status: 'review' }]);
-  await as(null);
-  const notes = await q(`select body from public.notifications where user_id = $1 and title like '%dekont geldi'`, [ID.L]);
-  expect(notes.map(n => n.body)).toEqual([M + ' aidatı için ₺2.000 ödendi.']);
-  expect(await q(`select kind, status from public.payments where property_id = 'p1' order by kind`))
-    .toEqual([{ kind: 'aidat', status: 'review' }, { kind: 'kira', status: 'rejected' }]);
-  // Mülk sahibi aidatı onaylar; kiracıya "aidatı onaylandı" gider.
-  await as(ID.L);
+  await q(`update public.payments set status = 'rejected', reject_reason = 'Tutar okunmuyor' where property_id = 'p1' and month = $1 and kind = 'kira'`, [M]);
   await q(`update public.payments set status = 'approved' where property_id = 'p1' and month = $1 and kind = 'aidat'`, [M]);
+  expect(await q(`select kind, status from public.payments where property_id = 'p1' order by kind`))
+    .toEqual([{ kind: 'aidat', status: 'approved' }, { kind: 'kira', status: 'rejected' }]);
   await as(null);
   expect((await q(`select body from public.notifications where user_id = $1 and title = 'Ödemen onaylandı'`, [ID.T])).map(n => n.body))
     .toEqual([M + ' aidatı onaylandı.']);
+  expect((await q(`select body from public.notifications where user_id = $1 and title = 'Dekont reddedildi'`, [ID.T])).map(n => n.body))
+    .toEqual(['Tutar okunmuyor']);
 });
 
 test('aidatı mülk sahibi ödüyorsa kiracı aidat kaydı yazamaz; mülk sahibi kendi aidatını işaretler', async () => {

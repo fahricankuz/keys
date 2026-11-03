@@ -110,12 +110,13 @@ test('kiracı dekont yükler ama onaylayamaz; ev sahibi onaylar; bildirimler iki
   await expect(db.query(`update public.payments set status = 'approved' where property_id = 'p1' and month = '2026-01'`)).rejects.toThrow(/yalnızca mülk sahibi/);
   await expect(db.query(`insert into public.payments (property_id, month, status, amount) values ('p1', '2026-02', 'approved', 1)`)).rejects.toThrow(/yalnızca mülk sahibi/);
 
-  // Yönetici onaylayana kadar mülk sahibi dekontu göremez, onaylayamaz.
+  // Dekont doğrudan mülk sahibine düşer: anahtar denetimi yok, "dekont geldi" bildirimi yükleme anında gider.
   await as(L);
-  expect(await q(`select * from public.payments where property_id = 'p1'`)).toEqual([]);
-  expect((await notes(L)).some(n => /dekont geldi/.test(n.title))).toBe(false);
-  await as(A);
-  await db.query(`update public.reviews set status = 'approved' where kind = 'payment' and property_id = 'p1' and ref_id = '2026-01'`);
+  expect((await q(`select month, status from public.payments where property_id = 'p1'`))).toEqual([{ month: '2026-01', status: 'review' }]);
+  expect((await notes(L)).some(n => /dekont geldi/.test(n.title) && /₺30\.000/.test(n.body))).toBe(true);
+  expect((await notes(T2)).some(n => /dekont geldi/.test(n.title))).toBe(false);
+  await as(null);
+  expect(await q(`select * from public.reviews where kind = 'payment'`)).toEqual([]);
 
   await as(L);
   await db.query(`update public.payments set status = 'approved', approved_at = now() where property_id = 'p1' and month = '2026-01'`);

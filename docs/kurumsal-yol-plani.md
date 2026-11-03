@@ -33,8 +33,8 @@ Ekranlar sektörün diliyle konuşur (sitede *aidat*, *sakin*, *daire*; AVM'de *
       Şema: `supabase/schema.sql` 16. bölüm · istemci: `app/src/domain/org.js`, `app/src/app-ui/org.tsx`, `app/src/app-ui/admin-orgs.tsx`.
 - [x] **Faz 1 — Tahakkuk kalemleri.** `payments` tablosuna kalem türü (`kind`: kira | aidat), ay tahakkuku (`due`) ve ödeme yolu
       (`method`: dekont | havale | nakit | pos) eklendi; anahtar `(property_id, month, kind)`. Mevcut ödemeler kendiliğinden "kira" sayılır.
-      Aidat mülkte tanımlıysa (tutar > 0) Ödemeler ekranında ayrı kartta izlenir: aidatı kiracı ödüyorsa kiracı dekont yükler, anahtar ekibi
-      denetler, mülk sahibi onaylar; mülk sahibi ödüyorsa kendisi kaydeder (dekont isteğe bağlı). Kira hatırlatmaları, tahsilat özetleri ve
+      Aidat mülkte tanımlıysa (tutar > 0) Ödemeler ekranında ayrı kartta izlenir: aidatı kiracı ödüyorsa kiracı dekont yükler, mülk sahibi
+      doğrudan onaylar (Kasım 2026'dan beri anahtar denetimi yok); mülk sahibi ödüyorsa kendisi kaydeder (dekont isteğe bağlı). Kira hatırlatmaları, tahsilat özetleri ve
       raporlar yalnız kirayı sayar. Denetim anahtarı kira için ay, aidat için `aidat:ay` (`pay_ref`).
 - [x] **Faz 2 — Site yönetimi.** Şema 17. bölüm: `site_units` (blok, no, m², arsa payı, aylık aidat, aidatı kimin ödediği),
       `site_residents` (malik / kiracı, davet kodu `S…`), `site_charges` (aidat, yakıt, demirbaş, özel toplama; dekont → yönetim onayı),

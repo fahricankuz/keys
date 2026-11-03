@@ -45,7 +45,7 @@ async function login(page, email) {
   await page.getByRole('button', { name: 'Giriş yap' }).click();
 }
 
-test('kiracı aidat dekontu yükler; yönetici "Aidat" olarak onaylar; mülk sahibi aidatı ayrı onaylar, kira etkilenmez', async ({ page }) => {
+test('kiracı aidat dekontu yükler; doğrudan mülk sahibine düşer, mülk sahibi aidatı ayrı onaylar, kira etkilenmez', async ({ page }) => {
   await page.addInitScript(d => { if (!localStorage.getItem('__fakedb')) localStorage.setItem('__fakedb', JSON.stringify(d)); }, seedWith('Kiracı'));
   await login(page, 'kiraci@ornek.com');
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
@@ -59,16 +59,10 @@ test('kiracı aidat dekontu yükler; yönetici "Aidat" olarak onaylar; mülk sah
   await (await chooser).setFiles(PNG);
   await expect(page.getByText('dekont.png')).toBeVisible();
   await page.getByRole('button', { name: 'Gönder' }).click();
-  await expect.poll(async () => (await db(page)).tables.reviews.length, { timeout: 15000 }).toBe(1);   // eşitleme gecikmeli çalışır
+  await expect.poll(async () => (await db(page)).tables.payments.length, { timeout: 15000 }).toBe(1);   // eşitleme gecikmeli çalışır
   let d = await db(page);
   expect(d.tables.payments.map(p => [p.kind, p.month, p.status, p.amount])).toEqual([['aidat', KEY, 'review', 2000]]);
-  expect(d.tables.reviews[0].ref_id).toBe('aidat:' + KEY);
-
-  await login(page, 'admin@ornek.com');
-  await page.getByRole('button', { name: /^Denetim/ }).click();
-  await expect(page.getByText('· Aidat').first()).toBeVisible();
-  await page.getByRole('button', { name: 'Onayla', exact: true }).click();
-  await expect(page.getByText('Bekleyen yükleme yok')).toBeVisible();
+  expect(d.tables.reviews).toEqual([]);                                     // anahtar denetimine düşmez
 
   await login(page, 'ev@ornek.com');
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();

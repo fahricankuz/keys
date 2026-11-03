@@ -40,7 +40,7 @@ Sahip: 👤 = sizin yapmanız gereken (hesap, sözleşme, karar) · 🤖 = kodda
 - [ ] 👤 **Supabase planı**: ücretsiz katmanda proje 1 hafta hareketsiz kalınca durdurulur ve günlük yedek yoktur.
       Lansmandan önce **Pro** plana geçin; mümkünse PITR (anlık geri yükleme) açın.
 - [ ] 👤 Uçtan uca canlı deneme (iki kişi, iki cihaz): mülk sahibi kaydı → mülk → davet bağlantısı → kiracı kaydı →
-      dekont → yönetici onayı → mülk sahibi görür → hesap silme. (Aynı akış testte sahte sunucuyla geçiyor; gerçek sunucuda bir kez elle doğrulanmalı.)
+      dekont → mülk sahibi görür, indirir ve onaylar → hesap silme. (Aynı akış testte sahte sunucuyla geçiyor; gerçek sunucuda bir kez elle doğrulanmalı.)
 
 - [ ] 👤 **Kurumsal rapor e-postası** (`supabase/functions/report`): `supabase functions deploy report`;
       gizli değişkenler `REPORT_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM` (ör. `anahtar <rapor@anahtar.io>`), `APP_URL=https://anahtar.io`.
@@ -104,8 +104,8 @@ paketleri yönetici panelinden elle verebilirsiniz.
 
 ## Faz 4 — Lansman hazırlığı (1–2 hafta)
 
-- [ ] 👤 **Dekont denetim operasyonu**: yüklenen her dekont/belge yönetici onayından geçiyor. Kim onaylayacak, hedef süre ne
-      (ör. 4 saat)? Yoğunlukta darboğaz olur; gerekirse otomatik onay kuralı tartışılmalı.
+- [ ] 👤 **Belge denetim operasyonu**: yüklenen her belge ve fatura yönetici onayından geçiyor (kira ve aidat dekontu Kasım 2026'dan
+      beri denetime düşmüyor, doğrudan mülk sahibinin onayına gidiyor). Kim onaylayacak, hedef süre ne (ör. 4 saat)?
 - [ ] 🤖 Analitik (Plausible / PostHog) ve hata izleme (Sentry); yönetici panelindeki KPI'lara ek olarak dönüşüm hunisi.
 - [ ] 🤖 E-posta şablonları (kayıt onayı, şifre sıfırlama) Türkçe + İngilizce, marka görünümüyle.
 - [ ] 👤 Yedekten geri yükleme denemesi (bir kez).

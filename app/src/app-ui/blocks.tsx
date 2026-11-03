@@ -8,7 +8,7 @@ import { ST, statusOf } from '../domain/logic';
 import { Chip, PressScale, Text } from '../ui/kit';
 import { t, locale } from '../domain/i18n';
 import { LIVE } from '../domain/config';
-import { fileUrl, mediaSrc, reviewOf } from '../domain/backend';
+import { downloadFile, fileUrl, mediaSrc, reviewOf } from '../domain/backend';
 import { useStore } from './hooks';
 import { useRoll } from '../ui/motion';
 import { tl, monthYear, parse, t0, mkey, addM } from '../domain/util';
@@ -278,7 +278,7 @@ export function Steps({ status, labels }: { status: number; labels: string[] }) 
   );
 }
 
-/** Yönetici denetimi durumu: yalnızca yükleyen kendi yüklemesi için görür (bkz. backend.reviewOf). */
+/** Yönetici denetimi durumu (belge ve fatura): yalnızca yükleyen kendi yüklemesi için görür (bkz. backend.reviewOf). */
 export function ReviewChip({ kind, pid, id }: { kind: 'payment' | 'document' | 'invoice'; pid: string; id: string }) {
   useStore();
   if (!LIVE) return null;
@@ -289,13 +289,29 @@ export function ReviewChip({ kind, pid, id }: { kind: 'payment' | 'document' | '
   return <Chip tone="warn" label={t('İncelemede')} />;
 }
 
-/** Depodaki dosyayı (PDF dahil) imzalı adresle açar. */
+/** Depodaki dosyayı (PDF dahil) imzalı adresle açar; yanında "İndir" ile cihaza kaydedilir. */
 export function FileLink({ path, label }: { path?: string; label: string }) {
   const c = useColors();
   if (!path) return <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{label}</Text>;
   return (
-    <PressScale onPress={async () => { const u = await fileUrl(path); if (u) Linking.openURL(u); }} accessibilityRole="link">
-      <Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyXBold, textDecorationLine: 'underline' }}>{label}</Text>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 12 }}>
+      <PressScale onPress={async () => { const u = await fileUrl(path); if (u) Linking.openURL(u); }} accessibilityRole="link">
+        <Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyXBold, textDecorationLine: 'underline' }}>{label}</Text>
+      </PressScale>
+      <DownloadLink path={path} label={label} />
+    </View>
+  );
+}
+
+/** Dosyayı indirir (dekont, belge, fatura): web'de doğrudan kaydedilir, telefonda tarayıcıda açılır. */
+export function DownloadLink({ path, label }: { path?: string; label: string }) {
+  const c = useColors();
+  if (!path) return null;
+  return (
+    <PressScale onPress={() => { downloadFile(path, label); }} accessibilityRole="button" accessibilityLabel={t('{name} dosyasını indir', { name: label })} scaleTo={0.96}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 32 }}>
+      <Icon name="doc" size={14} color={c.accentText} />
+      <Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyXBold }}>{t('İndir')}</Text>
     </PressScale>
   );
 }

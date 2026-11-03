@@ -68,7 +68,7 @@ export default function AdminPanel() {
     ['reports', t('Şikâyetler'), 'flag', t('Kullanıcıların bildirdiği mesaj ve kişiler: 24 saat içinde incele, gerekirse mesajı sil ya da hesabı askıya al.')],
     ['errors', t('Hatalar'), 'chart', t('Uygulamada kullanıcıların karşılaştığı beklenmeyen hatalar (ekran yolu, platform, sürüm).')],
     ['legal', t('Hukuki talepler'), 'scale', t('Hukuki süreç desteği talepleri: ödemeyi işaretle, büroya ilet, kişiye not yaz. Talebin dosyalarını büroya elle iletirsin.')],
-    ['queue', t('Denetim'), 'doc', t('Yüklenen dekont, belge ve faturalar: onaylanınca karşı tarafa görünür.')],
+    ['queue', t('Denetim'), 'doc', t('Yüklenen belge ve faturalar: onaylanınca karşı tarafa görünür. Kira ve aidat dekontları denetime düşmez, doğrudan mülk sahibinin onayına gider.')],
     ['pay', t('Ödemeler'), 'chart', t('Tüm kira ödemeleri ve durumları.')],
     ['conn', t('Bağlantılar'), 'landlord', t('Mülk sahibi → mülk → kiracı ağacı.')],
     ['msgs', t('Mesajlar'), 'send', t('Yazışmaları okuma ve gerektiğinde silme (her işlem kayda düşer).')],
@@ -139,7 +139,7 @@ function Queue({ d, reload }: { d: Data; reload: () => void }) {
       </Row>
       {f !== 'pending' ? <Muted>{t('Onaylanan ve reddedilenlerden son 500 karar gösterilir.')}</Muted> : null}
       {list.length ? <Shown list={list} render={(r: any) => <ReviewCard key={r.kind + r.property_id + r.ref_id} r={r} reload={reload} />} />
-        : <Empty>{f === 'pending' ? t('Bekleyen yükleme yok. Yeni dekont, belge ve faturalar burada görünür.') : t('Kayıt yok.')}</Empty>}
+        : <Empty>{f === 'pending' ? t('Bekleyen yükleme yok. Yeni belge ve faturalar burada görünür.') : t('Kayıt yok.')}</Empty>}
     </Stack>
   );
 }

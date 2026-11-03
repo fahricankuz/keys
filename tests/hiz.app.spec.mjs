@@ -52,7 +52,7 @@ test('yazışma: son 30 mesaj yüklenir; yukarı kaydırınca eskiler otomatik g
   expect((await db(page)).tables.messages.length).toBe(250);
 });
 
-test('dekont görseli küçük kopyasıyla saklanır; denetim asıl dosyaya bağlıdır', async ({ page }) => {
+test('dekont görseli küçük kopyasıyla saklanır; ödeme asıl dosyaya bağlıdır', async ({ page }) => {
   const d = seed();
   Object.assign(d.tables.properties[0], { aidat: 2000, aidat_payer: 'Kiracı' });
   await withSeed(page, d);
@@ -65,12 +65,12 @@ test('dekont görseli küçük kopyasıyla saklanır; denetim asıl dosyaya bağ
   await (await chooser).setFiles(PNG);
   await expect(page.getByText('dekont.png')).toBeVisible();
   await page.getByRole('button', { name: 'Gönder' }).click();
-  await expect.poll(async () => (await db(page)).tables.reviews.length, { timeout: 15000 }).toBe(1);
+  await expect.poll(async () => (await db(page)).tables.payments.length, { timeout: 15000 }).toBe(1);
   const s = await db(page);
   const main = Object.keys(s.storage).find((k) => /^p1\/k_[^/]+$/.test(k) && !k.endsWith('.k'));
   expect(main).toBeTruthy();
   expect(Object.keys(s.storage)).toContain(main + '.k');
-  expect(s.tables.reviews[0].path).toBe(main);
+  expect(s.tables.payments[0].receipt_path).toBe(main);
 });
 
 test('yönetici: uzun listeler 100\'er kayıt; ödemeler son 12 ay, daha eskisi düğmeyle', async ({ page }) => {

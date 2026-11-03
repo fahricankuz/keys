@@ -20,7 +20,7 @@ import { tl, monthYear, fmtFull, parse, mkey, iso } from '../domain/util';
 import { Button, Chip, Field, Text } from '../ui/kit';
 import { Loader } from '../ui/Loader';
 import { fonts, radius, useColors } from '../ui/theme';
-import { Card, Empty, H2, Label, MonthStepper, Muted, Note, Row, Seg, Stack, StatusChip, Stepper } from './blocks';
+import { Card, DownloadLink, Empty, H2, Label, MonthStepper, Muted, Note, Row, Seg, Stack, StatusChip, Stepper } from './blocks';
 import { useBreakpoint } from '../ui/theme';
 import { ui } from '../domain/state';
 import { Overview } from './site-overview';
@@ -76,7 +76,7 @@ function ChargeRow({ x, unit, can, reload }: { x: any; unit: any; can: (p: strin
         <StatusChip st={stOf(x)} />
       </Row>
       <Row wrap>
-        {x.receipt_path ? <Button kind="ghost" title={t('Dekontu aç')} onPress={open} /> : null}
+        {x.receipt_path ? <><Button kind="ghost" title={t('Dekontu aç')} onPress={open} /><DownloadLink path={'sb:' + x.receipt_path} label={x.receipt_name || t('dekont')} /></> : null}
         {can('payments.approve') && x.status === 'review' ? <>
           <Button title={t('Onayla')} onPress={() => act(() => decideCharge(x, true))} />
           <Button kind="ghost" title={t('Reddet')} onPress={() => setWhy(why == null ? '' : null)} />

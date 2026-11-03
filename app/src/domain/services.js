@@ -638,7 +638,7 @@ export async function submit(type, v){
       title: rec.status === 'partial' ? t('Kısmi ödeme kaydedildi') : t('Dekont yüklendi'),
       body: rec.status === 'partial'
         ? tl(due - total)+(' '+t('bakiye görünüyor; kalanı yükleyince onaya gider.'))
-        : LIVE ? t('anahtar ekibi dekontu inceliyor. Onaylanınca mülk sahibine iletilir.') : t('Mülk sahibinin onayı bekleniyor. Onaylanınca haber vereceğiz.'),
+        : t('Mülk sahibinin onayı bekleniyor. Onaylanınca haber vereceğiz.'),
       icon:'card'
     });
     return true;

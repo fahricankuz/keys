@@ -67,73 +67,56 @@ test('yönetici olmayan admins tablosuna yazamaz, yöneticilik kendini sorgular'
   expect((await q(`select public.is_admin() as a`))[0].a).toBe(true);
 });
 
-test('dekont: kiracı yükler, denetim kaydı düşer, mülk sahibi göremez, bildirim gitmez', async () => {
+test('dekont: anahtar denetimine düşmez; mülk sahibi hemen görür, dosyayı okur, bildirim alır', async () => {
   await putFile('p1/dekont1.jpg', T);
   await as(T);
   await db.query(`insert into public.payments (property_id, month, status, amount, receipt_name, receipt_path)
                   values ('p1', '2026-10', 'review', 30000, 'dekont.jpg', 'p1/dekont1.jpg')`);
-  expect((await q(`select status, label, path from public.reviews where kind = 'payment'`))[0])
-    .toEqual({ status: 'pending', label: 'dekont.jpg', path: 'p1/dekont1.jpg' });
-  expect((await q(`select count(*)::int c from public.payments`))[0].c).toBe(1);        // kiracı kendi yüklemesini görür
+  await as(A);
+  expect(await q(`select * from public.reviews where kind = 'payment'`)).toEqual([]);     // denetim kaydı açılmaz
 
   await as(L);
-  expect(await q(`select * from public.payments`)).toEqual([]);                           // mülk sahibi göremez
-  expect(await q(`select * from public.reviews`)).toEqual([]);                            // denetim kaydını da
-  expect((await notes(L)).some(n => /dekont geldi/.test(n.title))).toBe(false);
-  expect(await canRead(L, 'p1/dekont1.jpg')).toBe(false);                                 // dosya da kilitli
-  expect(await canRead(T, 'p1/dekont1.jpg')).toBe(true);                                  // yükleyen okur
-  expect(await canRead(A, 'p1/dekont1.jpg')).toBe(true);                                  // yönetici okur
-  expect(await canRead(X, 'p1/dekont1.jpg')).toBe(false);                                 // yabancı okuyamaz
-});
-
-test('yalnızca yönetici karar verir; kiracı kendi denetimini değiştiremez', async () => {
-  await as(T);
-  expect((await q(`update public.reviews set status = 'approved' where kind = 'payment' returning 1`)).length).toBe(0);
-  await as(L);
-  expect((await q(`update public.reviews set status = 'approved' where kind = 'payment' returning 1`)).length).toBe(0);
-  await as(A);
-  await expect(db.query(`update public.reviews set status = 'rejected' where kind = 'payment'`)).rejects.toThrow(/gerekçe/);
-  await expect(db.query(`update public.reviews set label = 'x' where kind = 'payment'`)).rejects.toThrow(/kendisi değiştirilemez/);
-});
-
-test('yönetici onaylar: mülk sahibi dekontu ve dosyayı görür, bildirim gider, sonra onaylar', async () => {
-  await as(A);
-  await db.query(`update public.reviews set status = 'approved' where kind = 'payment' and ref_id = '2026-10'`);
-  const r = (await q(`select status, reviewed_by from public.reviews where kind = 'payment'`))[0];
-  expect(r.status).toBe('approved');
-  expect(r.reviewed_by).toBe(A);
-
+  expect((await q(`select status, receipt_name from public.payments`))[0]).toEqual({ status: 'review', receipt_name: 'dekont.jpg' });
   expect((await notes(L)).some(n => /dekont geldi/.test(n.title) && /₺30\.000/.test(n.body))).toBe(true);
+  expect(await canRead(L, 'p1/dekont1.jpg')).toBe(true);                                  // mülk sahibi dosyayı okur (indirir)
+  expect(await canRead(T, 'p1/dekont1.jpg')).toBe(true);                                  // yükleyen okur
+  expect(await canRead(X, 'p1/dekont1.jpg')).toBe(false);                                 // yabancı okuyamaz
   await as(L);
-  expect((await q(`select status from public.payments`))[0].status).toBe('review');
-  expect(await canRead(L, 'p1/dekont1.jpg')).toBe(true);
   await db.query(`update public.payments set status = 'approved', approved_at = now() where property_id = 'p1' and month = '2026-10'`);
   expect((await notes(T)).some(n => n.title === 'Ödemen onaylandı')).toBe(true);
 });
 
-test('yönetici reddeder: gerekçe ile kiracıya döner, mülk sahibi görmez, yeniden yüklenince denetim baştan', async () => {
+test('mülk sahibi reddeder: gerekçe kiracıya döner; yeniden yüklenen dekont yine doğrudan mülk sahibine düşer', async () => {
   await putFile('p1/dekont2.jpg', T);
   await as(T);
   await db.query(`insert into public.payments (property_id, month, status, amount, receipt_name, receipt_path)
                   values ('p1', '2026-11', 'review', 30000, 'bulanik.jpg', 'p1/dekont2.jpg')`);
-  await as(A);
-  await db.query(`update public.reviews set status = 'rejected', note = 'Dekont okunmuyor' where kind = 'payment' and ref_id = '2026-11'`);
-
-  await as(T);
-  const p = (await q(`select status, reject_reason from public.payments where month = '2026-11'`))[0];
-  expect(p).toEqual({ status: 'rejected', reject_reason: 'Denetim: Dekont okunmuyor' });
-  expect((await q(`select status, note from public.reviews where ref_id = '2026-11'`))[0]).toEqual({ status: 'rejected', note: 'Dekont okunmuyor' });
-  expect((await notes(T)).some(n => n.title === 'Dekont reddedildi' && /Dekont okunmuyor/.test(n.body))).toBe(true);
   await as(L);
-  expect((await q(`select * from public.payments where month = '2026-11'`))).toEqual([]);
+  await db.query(`update public.payments set status = 'rejected', reject_reason = 'Dekont okunmuyor' where property_id = 'p1' and month = '2026-11'`);
+  expect((await notes(T)).some(n => n.title === 'Dekont reddedildi' && /Dekont okunmuyor/.test(n.body))).toBe(true);
 
-  // Kiracı yeni dekont yükler → denetim yeniden beklemeye geçer.
   await putFile('p1/dekont3.jpg', T);
   await as(T);
   await db.query(`update public.payments set status = 'review', receipt_name = 'net.jpg', receipt_path = 'p1/dekont3.jpg', reject_reason = null
                   where property_id = 'p1' and month = '2026-11'`);
-  const rv = (await q(`select status, note, label from public.reviews where ref_id = '2026-11'`))[0];
-  expect(rv).toEqual({ status: 'pending', note: null, label: 'net.jpg' });
+  await as(L);
+  expect((await q(`select status, receipt_name from public.payments where month = '2026-11'`))[0]).toEqual({ status: 'review', receipt_name: 'net.jpg' });
+  expect(await canRead(L, 'p1/dekont3.jpg')).toBe(true);
+  expect((await notes(L)).filter(n => /dekont geldi/.test(n.title)).length).toBe(3);      // 2026-10, 2026-11 ve yeniden yükleme
+});
+
+test('yalnızca yönetici karar verir; yükleyen ve karşı taraf denetimi değiştiremez', async () => {
+  await putFile('p1/ek.pdf', T);
+  await as(T);
+  await db.query(`insert into public.documents (id, property_id, cat, name, path) values ('d0', 'p1', 'Diğer', 'ek.pdf', 'sb:p1/ek.pdf')`);
+  expect((await q(`update public.reviews set status = 'approved' where ref_id = 'd0' returning 1`)).length).toBe(0);
+  await as(L);
+  expect((await q(`update public.reviews set status = 'approved' where ref_id = 'd0' returning 1`)).length).toBe(0);
+  await as(A);
+  await expect(db.query(`update public.reviews set status = 'rejected' where ref_id = 'd0'`)).rejects.toThrow(/gerekçe/);
+  await expect(db.query(`update public.reviews set label = 'x' where ref_id = 'd0'`)).rejects.toThrow(/kendisi değiştirilemez/);
+  await as(null);
+  await db.query(`delete from public.documents where id = 'd0'`);                          // sonraki belge testleri temiz başlasın
 });
 
 test('belge: karşı taraf onaydan sonra görür; reddedilirse yükleyen haberdar olur', async () => {

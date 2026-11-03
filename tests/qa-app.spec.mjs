@@ -52,7 +52,7 @@ async function signOutLocal(page) {
 
 /* =================================================================== KABUL (acceptance) */
 
-test('kabul: mülk sahibi kaydolur, mülk ekler, kiracı davetle katılır, dekont yükler, yönetici onaylar, mülk sahibi görür', async ({ page }) => {
+test('kabul: mülk sahibi kaydolur, mülk ekler, kiracı davetle katılır, dekont yükler, mülk sahibi hemen görür', async ({ page }) => {
   test.setTimeout(90_000);
   // 1) Mülk sahibi kaydolur ve ilk mülkünü ekler.
   await signup(page, '/kayit/mulk-sahibi', 'Zeynep Ev', 'zeynep@ornek.com');
@@ -89,31 +89,25 @@ test('kabul: mülk sahibi kaydolur, mülk ekler, kiracı davetle katılır, deko
   await expect(page.getByText('Kadıköy Dairesi').first()).toBeVisible();
   await expect.poll(async () => (await db(page)).tables.memberships.filter((m) => m.display_name === 'Deniz Kiracı').length).toBe(1);
 
-  // 3) Kiracı dekont yükler; mülk sahibi onaydan önce görmez.
+  // 3) Kiracı dekont yükler; anahtar denetimine düşmez, doğrudan mülk sahibinin onayına gider.
   await page.getByRole('button', { name: 'Dekont yükle' }).first().click();
   const chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Dosya seç' }).click();
   await (await chooser).setFiles(PNG);
   await expect(page.getByText('dekont.png')).toBeVisible();
   await page.getByRole('button', { name: 'Gönder' }).click();
-  await expect(page.getByText('anahtar ekibi dekontu inceliyor').first()).toBeVisible();
-  await expect.poll(async () => (await db(page)).tables.reviews.length).toBe(1);
+  await expect(page.getByText('Mülk sahibinin onayı bekleniyor').first()).toBeVisible();
+  await expect.poll(async () => (await db(page)).tables.payments.filter((p) => p.status === 'review').length).toBe(1);
+  expect((await db(page)).tables.reviews).toHaveLength(0);
 
-  // 4) Yönetici onaylar.
-  await login(page, 'admin@ornek.com');
-  await expect(page).toHaveURL(/\/admin$/);
-  await page.getByRole('button', { name: /^Denetim/ }).click();          // panel "Genel bakış" ile açılır
-  await page.getByRole('button', { name: 'Onayla', exact: true }).click();
-  await expect(page.getByText('Bekleyen yükleme yok')).toBeVisible();
-
-  // 5) Mülk sahibi (aynı hesap) ödemeyi artık görür.
+  // 4) Mülk sahibi (aynı hesap) ödemeyi hemen görür ve onaylar.
   await signOutLocal(page);
   await page.goto(url('/giris/mulk-sahibi'));
   await page.getByLabel('E-posta').fill('zeynep@ornek.com');
   await page.getByLabel('Şifre', { exact: true }).fill('gizli-sifre-1');
   await page.getByRole('button', { name: 'Giriş yap' }).click();
   await expect(page.getByText('Kadıköy Dairesi').first()).toBeVisible();
-  await expect.poll(async () => (await db(page)).tables.reviews[0].status).toBe('approved');
+  await expect(page.getByText('Onay bekliyor').first()).toBeVisible();
 });
 
 /* =================================================================== PERFORMANS */

@@ -94,9 +94,10 @@ function notify(db, uid, title, body){
 
 function trackReviews(db, table, row, before, actor){
   if (!actor || isAdmin(db, actor)) return;
+  // Dekont anahtar denetimine düşmez (migration 20261103231123): yüklendiği anda mülk sahibine "dekont geldi" bildirimi gider.
   if (table === 'payments' && roleIn(db, actor, row.property_id) !== 'landlord' && ['review','partial'].includes(row.status)){
-    if (!before || before.receipt_path !== row.receipt_path || before.receipt_name !== row.receipt_name || before.amount !== row.amount)
-      upsertReview(db, 'payment', row.property_id, payRef(row), actor, row.receipt_name, stripSb(row.receipt_path), row.amount);
+    if (!before || before.status !== row.status || before.receipt_path !== row.receipt_path || before.receipt_name !== row.receipt_name || before.amount !== row.amount)
+      db.tables.memberships.filter(m => m.property_id === row.property_id && m.role === 'landlord').forEach(m => notify(db, m.user_id, 'Dekont geldi', payRef(row) + ' kirası için ödeme yapıldı.'));
   }
   if (table === 'documents' && (!before || before.path !== row.path || before.name !== row.name))
     upsertReview(db, 'document', row.property_id, row.id, row.uploaded_by || actor, row.name, stripSb(row.path), null);
@@ -104,7 +105,7 @@ function trackReviews(db, table, row, before, actor){
     upsertReview(db, 'invoice', row.property_id, row.id, actor, row.invoice.name || 'fatura', stripSb(row.invoice.path), Number(row.invoice.amount) || null);
 }
 
-/* Okuma kuralı: karşı taraf, yönetici onaylayana kadar yüklemeyi görmez. */
+/* Okuma kuralı: belge ve faturada karşı taraf, yönetici onaylayana kadar yüklemeyi görmez (dekont denetime düşmez). */
 function visible(db, table, row, actor){
   if (!actor || isAdmin(db, actor)) return true;
   if (table === 'payments') return roleIn(db, actor, row.property_id) === 'tenant' || reviewOk(db, 'payment', row.property_id, payRef(row));

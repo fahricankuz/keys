@@ -14,7 +14,7 @@ Yalnızca bir grup: `npx playwright test tests/qa-db.spec.mjs` gibi.
 | **Uygunluk** | `tests/qa-db.spec.mjs`, `tests/qa-app.spec.mjs`, `tests/i18n.spec.mjs` | Her tabloda RLS, search_path, dışarıdan çağrılabilen işlevler listesi; manifest, dil, başlık, CSP; İngilizce çeviri tamlığı. |
 | **Kullanılabilirlik** | `tests/qa-app.spec.mjs` | axe (WCAG 2 A/AA) tüm ana ekranlarda, açık ve koyu temada; dokunma hedefi, klavye, anlaşılır hata iletileri. |
 | **Güvenlik** | `tests/qa-app.spec.mjs`, `tests/qa-db.spec.mjs` | XSS, yetkisiz rota, yetki yükseltme, IDOR, sahte bildirim/denetim sıfırlama, SQL enjeksiyonu metni. |
-| **Kabul** | `tests/qa-app.spec.mjs` | Uçtan uca yolculuk: mülk sahibi kaydı → mülk → davet → kiracı kaydı → dekont → yönetici onayı → mülk sahibi görür. |
+| **Kabul** | `tests/qa-app.spec.mjs` | Uçtan uca yolculuk: mülk sahibi kaydı → mülk → davet → kiracı kaydı → dekont → mülk sahibi hemen görür. |
 | **Regresyon** | tüm paket | Her değişiklikte hepsi birlikte çalışır (CI: `.github/workflows/ci.yml`). |
 
 ## Bu turda bulunup düzeltilen hatalar

@@ -177,7 +177,7 @@ export function Overview({ ops }: { ops?: { pending?: number; banned?: number } 
 
       <GroupTitle>{t('Operasyon')}</GroupTitle>
       <KpiGrid>
-        <Kpi icon="doc" tone={ops?.pending ? 'peach' : 'sky'} label={t('Denetim bekleyen')} value={String(ops?.pending ?? 0)} sub={t('Dekont, belge ve fatura')} />
+        <Kpi icon="doc" tone={ops?.pending ? 'peach' : 'sky'} label={t('Denetim bekleyen')} value={String(ops?.pending ?? 0)} sub={t('Belge ve fatura')} />
         {extra ? <Kpi icon="wrench" tone="butter" label={t('Açık arıza / tadilat talebi')} value={String(k.requests.open)} sub={t('{a} çözüldü · dönemde {b} yeni', { a: k.requests.done, b: k.requests.period })} /> : null}
         <Kpi icon="chat" tone="sky" label={t('Açık destek talebi')} value={String(k.supportOpen)} sub={t('Kurumsal, içe aktarma, genel')} />
         <Kpi icon="x" tone="peach" label={t('Askıdaki hesap')} value={String(ops?.banned ?? 0)} sub={t('Erişimi biten: {n}', { n: o.lapsed })} />
