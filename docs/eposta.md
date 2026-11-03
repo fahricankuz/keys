@@ -49,10 +49,9 @@ e-postaları (kayıt onayı, şifre sıfırlama: `supabase/email-templates/`) ö
 Resend'de `anahtar.io` doğrulanmış olmalı (SPF, DKIM, DMARC kayıtları Hostinger DNS'inde); Supabase → Authentication → SMTP'ye Resend
 bağlanmalı; `info@anahtar.io` posta kutusu açık olmalı.
 
-## Fonksiyonları yayınlama (tek tıkla)
-Actions → **Fonksiyonları yayınla** → Run workflow: ortam `production`, fonksiyonlar `hepsi` (ya da ad listesi, ör. `lead-mail mail-send`).
-Gerekli: GitHub'da `SUPABASE_ACCESS_TOKEN` (Supabase → Account → Access Tokens → **Create legacy token**; fonksiyon yüklemek tam yetkili jeton ister)
-ve `SUPABASE_PROJECT_REF`. Gizli değerler (Resend anahtarı vb.) Supabase → Edge Functions → Secrets'ta kalır; bu iş onlara dokunmaz.
-Her fonksiyonun JWT ayarı `supabase/config.toml`'dandır: webhook/zamanlayıcı fonksiyonları (`push`, `lead-mail`, `mail-send`, `report`, `tufe-sync`, `billing`)
-doğrulamasız ve gizli başlıkla korunur; `welcome`, `invite-mail`, `site-invite` kullanıcının jetonuyla çağrılır.
+## Fonksiyonları Supabase'e yükleme (elle)
+Fonksiyonlar Supabase → Edge Functions'a elle yüklenir (kodu yapıştırıp **Deploy**); jeton ya da GitHub düğmesi gerekmez.
+Her fonksiyonun JWT ayarı `supabase/config.toml`'da belgelidir: webhook/zamanlayıcı fonksiyonları (`push`, `lead-mail`, `mail-send`, `report`,
+`tufe-sync`, `billing`) JWT doğrulamasız ve gizli başlıkla korunur (panelde **Verify JWT** kapalı olmalı); `welcome`, `invite-mail`, `site-invite`
+kullanıcının jetonuyla çağrılır. Uygulama bu üçünü **adlarıyla** çağırır; panelde oluştururken adın tam olarak `welcome`, `invite-mail`, `site-invite` olması gerekir.
 Sıra: veritabanı migration → fonksiyonlar → Hostinger'da site.
