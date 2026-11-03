@@ -65,6 +65,21 @@ export function useColors(): Colors {
 /** Kırılım noktaları: telefon < 720 ≤ tablet < 1080 ≤ masaüstü.
     İlk çizim (statik HTML ve hidrasyon) sabit bir genişlikle yapılır; böylece sunucu ve
     istemci çıktısı aynı olur, ölçülen genişlik bağlanınca düzen güncellenir. */
+/** "Hareketi azalt" ayarı. İlk çizim her zaman false (sunucu çıktısıyla aynı; hidrasyon uyumu, React #418),
+    ayar sayfa bağlandıktan sonra okunur ve değişirse güncellenir. */
+export function useReducedMotion(){
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const m = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReduce(m.matches);
+    const on = (e: MediaQueryListEvent) => setReduce(e.matches);
+    m.addEventListener?.('change', on);
+    return () => m.removeEventListener?.('change', on);
+  }, []);
+  return reduce;
+}
+
 export function useBreakpoint(){
   const { width: real } = useWindowDimensions();
   const [mounted, setMounted] = useState(false);

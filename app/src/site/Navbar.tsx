@@ -8,7 +8,7 @@ import { t, getLang, setLang } from '../domain/i18n';
 import { useAuth } from '../auth/auth';
 import { Button, Container, PressScale, Text } from '../ui/kit';
 import { Wordmark } from '../ui/Wordmark';
-import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
+import { fonts, radius, shadows, useBreakpoint, useColors, useReducedMotion } from '../ui/theme';
 import { Icon } from '../app-ui/blocks';
 import { categories } from './content';
 import { CONFIG } from '../domain/config';
@@ -49,7 +49,7 @@ export function TopBar() {
   const c = useColors();
   const router = useRouter();
   const { phone } = useBreakpoint();
-  const reduce = !!ANIM && typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const reduce = useReducedMotion();
   const flow = ANIM ? (reduce ? ANIM.still : ANIM.flow) : { backgroundColor: c.deepA };
   const shine = ANIM && !reduce ? ANIM.shine : null;
   const size = phone ? 12.5 : 14;

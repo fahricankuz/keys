@@ -5,7 +5,7 @@ import { Platform, ScrollView, StyleSheet, Text as RNText, View } from 'react-na
 import Svg, { G, Path } from 'react-native-svg';
 import { t } from '../domain/i18n';
 import { PressScale, Text } from '../ui/kit';
-import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
+import { fonts, radius, shadows, useBreakpoint, useColors, useReducedMotion } from '../ui/theme';
 import { MONO } from '../ui/Wordmark';
 import { Icon } from '../app-ui/blocks';
 import { Segment, segments } from './segments';
@@ -78,7 +78,7 @@ export function SegmentFlow({ go, except }: { go: (p: string) => void; except?: 
   const { phone } = useBreakpoint();
   const [hover, setHover] = useState(false);
   const list = segments().filter((s) => s.slug !== except);
-  const reduce = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const reduce = useReducedMotion();
   if (!FLOW || reduce || phone) {
     return (
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 16, paddingVertical: 10 }}>
