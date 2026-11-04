@@ -45,26 +45,52 @@ Deno.serve(async (req) => {
   if (!secret || !safeEqual(req.headers.get('x-anahtar-secret') ?? '', secret)) return new Response('unauthorized', { status: 401 });
   if (!env('EVDS_KEY')) return Response.json({ error: 'EVDS_KEY eksik' }, { status: 500 });
 
-  const series = env('EVDS_SERIES') || 'TP.FG.J0';
-  const now = new Date();
-  const start = `01-01-${now.getUTCFullYear() - 4}`, end = `31-12-${now.getUTCFullYear()}`;
-  const base = (env('EVDS_URL') || 'https://evds2.tcmb.gov.tr/service/evds').replace(/\/$/, '');
-  const res = await fetch(`${base}/series=${series}&startDate=${start}&endDate=${end}&type=json&frequency=5`, { headers: { key: env('EVDS_KEY') } });
-  if (!res.ok) return Response.json({ error: `EVDS ${res.status}` }, { status: 502 });
-  const body = await res.json();
-  const col = series.replaceAll('.', '_');
-  const index = new Map<string, number>();
-  for (const it of body.items ?? []) {
-    const k = monthKey(it.Tarih), v = Number(it[col]);
-    if (k && isFinite(v) && v > 0) index.set(k, v);
+  // Her adımın hatası açık bir mesajla döner (Logs'ta ve yanıtta görünür); "Internal Server Error" yerine nedenini söyler.
+  try {
+    const series = env('EVDS_SERIES') || 'TP.FG.J0';
+    const now = new Date();
+    const start = `01-01-${now.getUTCFullYear() - 4}`, end = `31-12-${now.getUTCFullYear()}`;
+    const base = (env('EVDS_URL') || 'https://evds2.tcmb.gov.tr/service/evds').replace(/\/$/, '');
+    let res: Response;
+    try {
+      res = await fetch(`${base}/series=${series}&startDate=${start}&endDate=${end}&type=json&frequency=5`, {
+        headers: { key: env('EVDS_KEY'), accept: 'application/json' },
+        signal: AbortSignal.timeout(20000)
+      });
+    } catch (e) {
+      console.error('EVDS bağlantı hatası', e);
+      return Response.json({ error: 'EVDS’e bağlanılamadı', detail: String((e as Error)?.message ?? e) }, { status: 502 });
+    }
+    const text = await res.text();
+    if (!res.ok) {
+      console.error('EVDS yanıtı', res.status, text.slice(0, 300));
+      return Response.json({ error: `EVDS ${res.status}`, detail: text.slice(0, 300) }, { status: 502 });
+    }
+    let body: { items?: Record<string, unknown>[] };
+    try { body = JSON.parse(text); } catch {
+      // Anahtar geçersizse ya da adres değiştiyse EVDS JSON yerine HTML sayfası döndürür.
+      console.error('EVDS JSON döndürmedi', text.slice(0, 300));
+      return Response.json({ error: 'EVDS JSON döndürmedi (API anahtarını ve EVDS_URL’yi kontrol et)', detail: text.slice(0, 300) }, { status: 502 });
+    }
+    const col = series.replaceAll('.', '_');
+    const index = new Map<string, number>();
+    for (const it of body.items ?? []) {
+      const k = monthKey(String(it.Tarih ?? '')), v = Number(it[col]);
+      if (k && isFinite(v) && v > 0) index.set(k, v);
+    }
+    if (!index.size) return Response.json({ error: 'EVDS veri döndürmedi', detail: text.slice(0, 300) }, { status: 502 });
+    const rates = avg12(index);
+    const { data: manual, error: readErr } = await admin.from('cpi_rates').select('month').eq('source', 'manual');
+    if (readErr) return Response.json({ error: 'cpi_rates okunamadı', detail: readErr.message }, { status: 500 });
+    const keep = new Set((manual ?? []).map((r: { month: string }) => r.month));
+    const rows = [...rates].filter(([m]) => !keep.has(m)).map(([month, v]) => ({ month, avg12: v, source: 'evds', updated_at: new Date().toISOString() }));
+    if (rows.length) {
+      const { error } = await admin.from('cpi_rates').upsert(rows, { onConflict: 'month' });
+      if (error) return Response.json({ error: 'cpi_rates yazılamadı', detail: error.message }, { status: 500 });
+    }
+    return Response.json({ months: rows.length, latest: rows.at(-1) ?? null });
+  } catch (e) {
+    console.error('tufe-sync beklenmeyen hata', e);
+    return Response.json({ error: 'Beklenmeyen hata', detail: String((e as Error)?.message ?? e) }, { status: 500 });
   }
-  const rates = avg12(index);
-  const { data: manual } = await admin.from('cpi_rates').select('month').eq('source', 'manual');
-  const keep = new Set((manual ?? []).map((r: { month: string }) => r.month));
-  const rows = [...rates].filter(([m]) => !keep.has(m)).map(([month, v]) => ({ month, avg12: v, source: 'evds', updated_at: new Date().toISOString() }));
-  if (rows.length) {
-    const { error } = await admin.from('cpi_rates').upsert(rows, { onConflict: 'month' });
-    if (error) return Response.json({ error: error.message }, { status: 500 });
-  }
-  return Response.json({ months: rows.length, latest: rows.at(-1) ?? null });
 });
