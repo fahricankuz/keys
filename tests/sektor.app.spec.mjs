@@ -140,3 +140,37 @@ test('kurumu olmayan mülk sahibi: mülk eklerken m² zorunlu', async ({ page })
   await page.getByRole('button', { name: 'Kaydet ve davet et' }).click();
   await expect(page.getByText('Alanı (m²) yaz.')).toBeVisible();
 });
+
+test('kurulum kontrol listesi: site özetinde yarım adımlar; adıma dokununca bölüm açılır; "Gizle" kalıcı', async ({ page }) => {
+  const now = new Date().toISOString();
+  const tables = { site_units: [{ id: 'u1', org_id: 'o1', block: 'A', no: '1', area: 100, aidat: 1500, payer: 'kiraci', created_at: now },
+                                { id: 'u2', org_id: 'o1', block: 'A', no: '2', area: null, aidat: 1500, payer: 'kiraci', created_at: now }] };
+  await login(page, withOrg('site', ['aidat', 'duyuru', 'rapor'], { units: 2, tables }));
+  await expect(page).toHaveURL(/\/uygulama\/site$/);
+  await expect(page.getByText('Kurulumu tamamla')).toBeVisible();
+  await expect(page.getByText(/^1\/6 adım tamam$/)).toBeVisible();                      // daireler var; m², kişiler, davet, aidat, duyuru eksik
+  await expect(page.getByText('Ekip', { exact: true })).toHaveCount(0);                   // site kurulumunda ekip adımı yok
+  await page.getByRole('button', { name: 'Otomatik aidatı aç' }).click();
+  await expect(page).toHaveURL(/\/uygulama\/site\/tahakkuk$/);
+  await nav(page, 'Özet').click();
+  await page.getByRole('button', { name: 'Gizle' }).click();
+  await expect(page.getByText('Kurulumu tamamla')).toHaveCount(0);
+  await expect.poll(async () => ((await db(page)).tables.profiles.find((p) => p.id === ID.landlord).settings || {}).setupHidden_o1).toBe(true);   // hesaba kaydedildi
+  await page.reload();
+  await expect(page.getByText(/aidatı$/i).first()).toBeVisible();
+  await expect(page.getByText('Kurulumu tamamla')).toHaveCount(0);
+});
+
+test('kurulum kontrol listesi: mülk sahibinin portföyünde; tamamlanan adımlar işaretli', async ({ page }) => {
+  await page.addInitScript((x) => { if (!localStorage.getItem('__fakedb')) localStorage.setItem('__fakedb', JSON.stringify(x)); }, seed());
+  await page.goto(url('/giris/mulk-sahibi'));
+  await page.getByLabel('E-posta').fill('ev@ornek.com');
+  await page.getByLabel('Şifre', { exact: true }).fill(PW);
+  await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
+  await expect(page.getByText('Kurulumu tamamla')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'İlk mülkünü ekle' })).toHaveCount(0);   // tamamlanan adım düğme değil
+  await expect(page.getByRole('button', { name: 'DASK bitiş tarihini gir' })).toHaveCount(0);   // örnek mülkte DASK tarihi var
+  await page.getByRole('button', { name: 'Kira sözleşmesini yükle' }).click();
+  await expect(page).toHaveURL(/pid=p1.*sub=belge|\/belge/);
+});

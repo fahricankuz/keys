@@ -15,6 +15,8 @@ import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 import { Card, Empty, H2, Label, Muted, Note, Row, Stack } from './blocks';
 import { Pill } from './org';
 import { MoneyField } from './forms';
+import { SetupChecklist } from './checklist';
+import { orgSteps } from '../domain/checklist';
 
 const thisMonth = () => mkey(new Date());
 const day = (v?: string) => (v ? fmtFull(parse(String(v).slice(0, 10))) : '—');
@@ -273,6 +275,7 @@ export function Overview({ d, org, can, reload, go, ChargeRow }: {
 
   return (
     <Stack>
+      {can('units.manage') ? <SetupChecklist steps={orgSteps(d, org.modules || [])} hideKey={'setupHidden_' + org.id} onAct={(a: any) => go(a.section)} /> : null}
       {hero}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>{kpis.map(([a, b, s]) => <Kpi key={a} label={a} value={b} sub={s} />)}</View>
       <View style={{ flexDirection: desktop ? 'row' : 'column', gap: 14, alignItems: 'flex-start' }}>

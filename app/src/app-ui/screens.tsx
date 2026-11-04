@@ -26,6 +26,8 @@ import { LegalList } from './legal';
 import { MailReportCard } from './report-mail';
 import { JoinBanner } from './JoinCode';
 import { SiteTeaser } from './site';
+import { SetupChecklist } from './checklist';
+import { landlordSteps } from '../domain/checklist';
 import {
   AgendaBody, AgendaSection, InspectTabs, RenewalCard, RentHero, SecDocs, SecExpenses, SecInspect, SecMoveOut, SecMsg, SecPay, SecReq, ReqCard, stopajLine, useGo
 } from './sections';
@@ -208,6 +210,8 @@ export function Portfolio() {
   return (
     <Page title={t('Portföyüm')} sub={t('{n} mülk', { n: S.order.length })}>
       <SubBanner full />
+      {isTeam() ? null : <SetupChecklist steps={landlordSteps(S.order.map((id: string) => P(id)))} hideKey="setupHidden"
+        onAct={(a: any) => (a.sheet ? open(a.sheet, a.pid ? { pid: a.pid } : {}) : go(a.go))} />}
       <Hero>
         <Label onDark>{t('{month} kira durumu', { month: monthYear(m.key) })}</Label>
         <Row between align="flex-end">
