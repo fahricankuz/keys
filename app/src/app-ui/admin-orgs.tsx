@@ -208,15 +208,17 @@ export function Orgs({ draft, clearDraft }: { draft?: OrgDraft | null; clearDraf
   useEffect(() => { reload(); }, []);
   useEffect(() => { if (draft) setAdding(true); }, [draft]);
   const shown = (list || []).filter((o) => f === 'all' || o.sector === f);
-  const used = SECTORS().filter((s) => (list || []).some((o) => o.sector === s.key));
+  // Tüm sektörler her zaman görünür (kurumu olmayan sektör de: ör. henüz emlak ofisi yoksa "Emlak ofisi 0").
+  const count = (k: string) => (list || []).filter((o) => o.sector === k).length;
   return (
     <Stack>
       {adding ? <OrgForm key={draft?.lead_id || 'new'} draft={draft} done={() => { setAdding(false); clearDraft && clearDraft(); reload(); }} />
         : <Button title={t('Yeni kurum')} onPress={() => setAdding(true)} style={{ alignSelf: 'flex-start' }} />}
-      {used.length > 1 ? <Seg scroll value={f} onChange={setF} options={[['all', t('Hepsi')], ...used.map((s) => [s.key, s.label] as [string, string])]} /> : null}
+      <Seg scroll value={f} onChange={setF} options={[['all', t('Hepsi') + ' ' + (list || []).length], ...SECTORS().map((s) => [s.key, s.label + ' ' + count(s.key)] as [string, string])]} />
       {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
       {list || err ? null : <View style={{ alignItems: 'center', paddingVertical: 20 }}><Loader size={64} /></View>}
       {list && !list.length ? <Empty>{t('Henüz kurum yok. Kurumsal başvurudan “Kuruma çevir” ile ya da “Yeni kurum” ile açabilirsin.')}</Empty> : null}
+      {list && list.length && !shown.length ? <Empty>{t('Bu sektörde henüz kurum yok.')}</Empty> : null}
       {shown.map((o) => <OrgCard key={o.id} o={o} reload={reload} />)}
     </Stack>
   );

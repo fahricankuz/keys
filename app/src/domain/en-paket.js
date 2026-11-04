@@ -481,5 +481,6 @@ export const EN_PAKET = {
   "{p} mülküne bağlı": "Linked to {p}",
   "Deneme · {n} gün kaldı": "Trial · {n} days left",
   "Rol": "Role",
-  "1 ay ücretsiz deneme": "1-month free trial"
+  "1 ay ücretsiz deneme": "1-month free trial",
+  'Bu sektörde henüz kurum yok.': 'No organisations in this sector yet.'
 };
