@@ -4,7 +4,9 @@
 // POST, başlık x-anahtar-secret, "0 9 3-6 * *" (3–6. günler; veri gelmediyse ertesi gün yeniden dener).
 // Gizli değişkenler: TUFE_SECRET, EVDS_KEY (evds3.tcmb.gov.tr → üye ol → profil → API anahtarı).
 // İsteğe bağlı: EVDS_URL (varsayılan https://evds3.tcmb.gov.tr/igmevdsms-dis; eski evds2 servisi 2025 sonunda kapandı ve artık
-// JSON yerine sitenin HTML sayfasını döndürüyor), EVDS_SERIES (varsayılan TP.FG.J0, TÜFE 2003=100). Anahtar "key" başlığında gider.
+// JSON yerine sitenin HTML sayfasını döndürüyor), EVDS_SERIES (varsayılan TP.TUKFIY2025.GENEL, TÜFE 2025=100;
+// TÜİK Ocak 2026'da temel yılı değiştirdi, eski TP.FG.J0 (2003=100) serisi Ocak 2026'da bitti. Yeni seri 2005'ten başlayan tek
+// tutarlı seridir; 12 aylık ortalama oran temel yılından bağımsız olduğu için iki seri birleştirilmez). Anahtar "key" başlığında gider.
 //
 // Oran endeks serisinden hesaplanır: son 12 ayın ortalaması ÷ önceki 12 ayın ortalaması − 1. TÜİK yuvarlanmış endeksten
 // yayımladığı için sonuç ±0,01 puan farklı olabilir; yöneticinin elle girdiği ("manual") aylar hiçbir zaman ezilmez.
@@ -48,7 +50,7 @@ Deno.serve(async (req) => {
 
   // Her adımın hatası açık bir mesajla döner (Logs'ta ve yanıtta görünür); "Internal Server Error" yerine nedenini söyler.
   try {
-    const series = env('EVDS_SERIES') || 'TP.FG.J0';
+    const series = env('EVDS_SERIES') || 'TP.TUKFIY2025.GENEL';
     const now = new Date();
     const start = `01-01-${now.getUTCFullYear() - 4}`, end = `31-12-${now.getUTCFullYear()}`;
     const base = (env('EVDS_URL') || 'https://evds3.tcmb.gov.tr/igmevdsms-dis').replace(/\/$/, '');
