@@ -37,6 +37,14 @@ export const RATES = {
     stopaj: 0.20,
     beyanSiniri: 330000,
     brackets: [[158000, 0.15], [330000, 0.20], [800000, 0.27], [4300000, 0.35], [Infinity, 0.40]]
+  },
+  // 332 sıra no.lu Gelir Vergisi Genel Tebliği (RG 31.12.2025): yeniden değerleme oranı %25,49.
+  2026: {
+    istisna: 58000,
+    goturu: 0.15,
+    stopaj: 0.20,
+    beyanSiniri: 400000,
+    brackets: [[190000, 0.15], [400000, 0.20], [1000000, 0.27], [5300000, 0.35], [Infinity, 0.40]]
   }
 };
 

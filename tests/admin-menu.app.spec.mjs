@@ -27,12 +27,12 @@ test('yönetici paneli telefonda açılır menü: basınca bölümler açılır,
   const menuBtn = page.getByRole('button', { name: /^Bölümler: Genel bakış/ });
   await expect(menuBtn).toBeVisible();
   // Kapalıyken diğer bölümler listelenmez (kaydırılan şerit yok).
-  await expect(page.getByRole('button', { name: 'Abonelikler', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Hesaplar', exact: true })).toHaveCount(0);
   await menuBtn.click();
-  await expect(page.getByRole('button', { name: 'Abonelikler', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Hesaplar', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Kurumlar', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Abonelikler', exact: true }).click();
-  await expect(page.getByRole('button', { name: /^Bölümler: Abonelikler/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Hesaplar', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Bölümler: Hesaplar/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Kurumlar', exact: true })).toHaveCount(0);   // seçince menü kapandı
 });
 

@@ -76,9 +76,9 @@ test('Kurumlar: master adına mülk eklenir; sözleşme adedi dolunca uyarır ve
   expect((await db(page)).tables.organizations[0].units).toBe(3);
 });
 
-test('Kullanıcılar: mülk sahibi hesabı adına mülk eklenir; kiracı hesabında düğme yok; ad zorunlu', async ({ page }) => {
+test('Hesaplar: mülk sahibi hesabı adına mülk eklenir; kiracı hesabında düğme yok; ad zorunlu', async ({ page }) => {
   await adminLogin(page);
-  await page.getByRole('button', { name: 'Kullanıcılar', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Hesaplar', exact: true }).first().click();
   await expect(page.getByRole('button', { name: 'Mülk ekle' })).toHaveCount(0);      // satırlar kapalı: işlemler dokununca açılır
   await page.getByRole('button', { name: /^Mehmet Kiracı/ }).click();
   await expect(page.getByRole('button', { name: 'Mülk ekle' })).toHaveCount(0);      // kiracı hesabında düğme yok

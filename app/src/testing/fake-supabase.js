@@ -79,14 +79,8 @@ function siteLinks(db, uid){
 const payRef = (row) => ((row.kind || 'kira') === 'kira' ? row.month : row.kind + ':' + row.month);
 const isAdmin = (db, uid) => db.tables.admins.some(a => a.user_id === uid);
 const roleIn = (db, uid, pid) => (db.tables.memberships.find(m => m.property_id === pid && m.user_id === uid) || {}).role;
-const stripSb = v => (v ? String(v).replace(/^sb:/, '') : null);
 const reviewOk = (db, kind, pid, ref) => { const r = db.tables.reviews.find(x => x.kind === kind && x.property_id === pid && x.ref_id === ref); return !r || r.status === 'approved'; };
 
-function upsertReview(db, kind, pid, ref, uploader, label, path, amount){
-  const r = db.tables.reviews.find(x => x.kind === kind && x.property_id === pid && x.ref_id === ref);
-  if (r) Object.assign(r, { uploader, label, path, amount, status:'pending', note:null, reviewed_by:null, reviewed_at:null, created_at:now() });
-  else db.tables.reviews.push({ kind, property_id:pid, ref_id:ref, uploader, label, path, amount, status:'pending', note:null, reviewed_by:null, reviewed_at:null, created_at:now() });
-}
 
 function notify(db, uid, title, body){
   db.tables.notifications.push({ id:(db.tables.notifications.reduce((m, x) => Math.max(m, x.id), 0) || 0) + 1, user_id:uid, title, body, url:'', created_at:now(), read_at:null });
@@ -99,10 +93,16 @@ function trackReviews(db, table, row, before, actor){
     if (!before || before.status !== row.status || before.receipt_path !== row.receipt_path || before.receipt_name !== row.receipt_name || before.amount !== row.amount)
       db.tables.memberships.filter(m => m.property_id === row.property_id && m.role === 'landlord').forEach(m => notify(db, m.user_id, 'Dekont geldi', payRef(row) + ' kirası için ödeme yapıldı.'));
   }
-  if (table === 'documents' && (!before || before.path !== row.path || before.name !== row.name))
-    upsertReview(db, 'document', row.property_id, row.id, row.uploaded_by || actor, row.name, stripSb(row.path), null);
-  if (table === 'requests' && row.invoice && (!before || !before.invoice || before.invoice.path !== row.invoice.path || before.invoice.amount !== row.invoice.amount))
-    upsertReview(db, 'invoice', row.property_id, row.id, actor, row.invoice.name || 'fatura', stripSb(row.invoice.path), Number(row.invoice.amount) || null);
+  // Belge ve fatura da denetime düşmez (migration 20261104065604): dosya değişince eski denetim kaydı silinir, diğer üyelere bildirim gider.
+  const others = (pid) => db.tables.memberships.filter(m => m.property_id === pid && m.user_id !== actor);
+  if (table === 'documents' && (!before || before.path !== row.path || before.name !== row.name)){
+    db.tables.reviews = db.tables.reviews.filter(r => !(r.kind === 'document' && r.property_id === row.property_id && r.ref_id === row.id));
+    others(row.property_id).forEach(m => notify(db, m.user_id, 'Yeni belge', row.name));
+  }
+  if (table === 'requests' && row.invoice && (!before || !before.invoice || before.invoice.path !== row.invoice.path || before.invoice.amount !== row.invoice.amount)){
+    db.tables.reviews = db.tables.reviews.filter(r => !(r.kind === 'invoice' && r.property_id === row.property_id && r.ref_id === row.id));
+    others(row.property_id).forEach(m => notify(db, m.user_id, 'Fatura eklendi', row.invoice.name || 'fatura'));
+  }
 }
 
 /* Okuma kuralı: belge ve faturada karşı taraf, yönetici onaylayana kadar yüklemeyi görmez (dekont denetime düşmez). */

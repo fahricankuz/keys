@@ -46,9 +46,10 @@ test('kiracı fatura ekler; masraf ve kararı yine değiştiremez; mülk sahibin
   await q(`update public.requests set invoice = '{"name":"fatura.pdf","path":"sb:p1/fatura.pdf","amount":1850,"date":"2026-10-20"}'::jsonb where id = 'r1'`);
   expect(await tryCall(db, `update public.requests set cost = 'Kiracı' where id = 'r1'`)).toMatch(/yalnızca mülk sahibi/);
   expect(await tryCall(db, `update public.requests set invoice = '{"name":"x.pdf","amount":1}'::jsonb where id = 'r1'`)).toMatch(/Faturayı yalnızca mülk sahibi/);
-  // Fatura yönetici inceleme kuyruğuna düşer.
+  // Fatura denetime düşmez; mülk sahibine "fatura eklendi" bildirimi gider.
   await as(null);
-  expect((await q(`select kind, status from public.reviews where kind = 'invoice'`))[0]).toEqual({ kind: 'invoice', status: 'pending' });
+  expect(await q(`select kind from public.reviews where kind = 'invoice'`)).toEqual([]);
+  expect((await q(`select title from public.notifications where user_id = $1 and title like '%fatura eklendi'`, [ID.L])).length).toBe(1);
 });
 
 test('mesaj bir talebe bağlanabilir (req_id); sistem mesajı da', async () => {

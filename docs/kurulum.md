@@ -209,14 +209,15 @@ select id from auth.users where email = 'senin@epostan.com';
 Yalnızca `admins` tablosundaki hesap açabilir; başka hesap `/admin` adresinde hiçbir veri görmez
 (sunucu kuralları veri vermez, ekran yalnızca gösterir).
 
-- **Denetim**: her iki tarafın belgeleri ve mülk sahibinin faturaları. Önizleme, **Onayla** ya da gerekçeyle **Reddet**.
-  Kira ve aidat dekontları denetime düşmez; yüklendiği anda mülk sahibinin onayına gider (Kasım 2026).
-- **Ödemeler**: kim kime, hangi mülk ve ay için, ne kadar ödemiş; durum ve denetim durumu.
-- **Bağlantılar**: mülk sahibi → mülkler → kiracılar (bekleyen davetler dahil), abonelik durumu.
-  Kayıt olup davet kodunu girmemiş ("mülke bağlı olmayan") kiracılar ayrıca listelenir.
+- **Hesaplar** (Kasım 2026'da Abonelikler, Kullanıcılar ve Bağlantılar birleşti): herkes tek listede. Üstteki sayılar
+  (denemede, abone, denemesi 7 günde bitiyor, ödeme sorunu, mülke bağlanmamış kiracı) dokununca listeyi süzer; arama ve rol filtresi.
+  Satır açılınca: **Paket** (denemeyi uzat, paket ver / kaldır), **Mülkler ve kiracılar** (bekleyen davetler, mülk ekle),
+  **Hesap** (yasakla / yasağı kaldır, askıdaki hesabı kalıcı sil).
+- Yükleme denetimi yok: kira ve aidat dekontu, belge ve fatura yüklendiği anda karşı tarafa görünür (Kasım 2026);
+  kötüye kullanım **Şikâyetler**'e düşer.
+- **Ödemeler**: kim kime, hangi mülk ve ay için, ne kadar ödemiş; durum.
 - **Mesajlar**: mesajlaşması olan her mülk; bir yazışmayı aç, mesajları ve fotoğrafları oku,
   uygunsuz mesajı sil, göndereni oradan yasakla.
-- **Kullanıcılar**: tüm hesaplar; ara, role ya da "askıda" durumuna göre süz, **Yasakla / Yasağı kaldır**.
 - **Kayıt**: yöneticinin yaptığı hassas işlemler (yasaklama, yazışma okuma, mesaj silme, yükleme kararı).
   Kayıt değiştirilemez ve silinemez; yönetici bile dokunamaz.
 
