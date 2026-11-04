@@ -48,6 +48,8 @@ export const sectionPath = (k: string) => (k === 'ozet' ? '/uygulama/site' : '/u
 /** Kişinin yönettiği sektör kurumu (birden çoksa seçili olan). */
 export function currentPortfolioOrg() {
   const sites = myOrgs().filter((o: any) => PORTFOLIO_SECTORS.includes(o.sector));
+  // Rol seçicide "Mülk sahibi" ya da "Kiracı" seçiliyse kurum paneli değil, o rolün paneli açılır (ui.ctx boşsa eskisi gibi kurum paneli).
+  if (ui.ctx && !String(ui.ctx).startsWith('site:')) return null;
   return sites.find((o: any) => o.id === ui.siteOrg) || sites[0] || null;
 }
 const REQ = () => [t('Açıldı'), t('Görüldü'), t('İşlemde'), t('Çözüldü')];

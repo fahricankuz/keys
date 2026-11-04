@@ -58,7 +58,7 @@ function enter(u: User) {
 }
 
 /** Oturum kapanınca arayüz durumunu sıfırlar. */
-function leave() { ui.role = 'tenant'; ui.team = false; ui.memberRoles = {}; }
+function leave() { ui.role = 'tenant'; ui.team = false; ui.memberRoles = {}; ui.ctx = null; ui.ctxFor = null; }
 
 /* Oturum olayları: sunucu oturumu kapatırsa (yenileme anahtarı geçersiz, başka cihazda şifre değişti, hesap askıya
    alındı) supabase-js SIGNED_OUT yayar. Kişi kendisi çıkış yapmıyorsa giriş sayfasına yönlenir ve bir açıklama görür;

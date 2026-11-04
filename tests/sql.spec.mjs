@@ -87,8 +87,8 @@ test('davet koduyla kiracı katılır; yabancı evi göremez', async () => {
   const [{ code: code2 }] = await q(`insert into public.invites (property_id, name, created_by) values ('p1', 'Kiracı İki', $1) returning code`, [L]);
 
   await as(O);
-  await expect(db.query(`select public.accept_invite($1)`, [code])).rejects.toThrow(/kiracı hesapları/);
-  expect(await q(`select * from public.properties`)).toEqual([]);
+  expect(await q(`select * from public.properties`)).toEqual([]);                  // davet kabul edilmeden yabancı evi göremez
+  // (Mülk sahibi hesabının da kiracı davetini kabul edebildiği senaryo: rol-gecisi.sql.spec.mjs.)
 
   await as(T1);
   expect((await q(`select public.accept_invite($1) as pid`, [code.toLowerCase()]))[0].pid).toBe('p1');
