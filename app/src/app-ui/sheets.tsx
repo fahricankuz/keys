@@ -39,7 +39,7 @@ import { EnterpriseForm } from '../site/EnterpriseForm';
 import { plans as sitePlans } from '../site/content';
 import { LegalDetailSheet, LegalSheet, legalAllowed } from './legal';
 import { BlockedList, ReportSheet } from './moderation';
-import { SitePersonSheet } from './site-people';
+import { SiteBulkInviteSheet, SitePersonSheet } from './site-people';
 import { LEGAL_PRICE } from '../domain/legal';
 
 const propOf = (pid?: string) => (pid && (S as any).props[pid] ? P(pid) : P((S as any).myHome));
@@ -980,6 +980,7 @@ export function renderSheet(name: string, p: any, close: () => void): ReactNode 
     case 'hukuki-talep': return <LegalDetailSheet id={p.id} close={close} />;
     case 'ekip-davet': return <TeamInviteSheet close={close} />;
     case 'ekip-paylas': return <TeamShareSheet code={p.code} role={p.role} phone={p.phone} />;
+    case 'site-toplu-davet': return <SiteBulkInviteSheet org={p.org} commercial={p.commercial} people={p.people} reload={p.reload} close={close} />;
     case 'site-kisi': return <SitePersonSheet oid={p.oid} org={p.org} unit={p.unit} commercial={p.commercial} person={p.person} manage={p.manage} reload={p.reload} close={close} />;
     case 'ekip-uye': return <TeamMemberSheet member={p.member} close={close} />;
     default: return null;

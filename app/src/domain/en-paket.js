@@ -502,5 +502,22 @@ export const EN_PAKET = {
   "Kurulumu tamamla": "Finish setting up",
   "{a}/{b} adım tamam": "{a}/{b} steps done",
   "%{n} tamam": "{n}% done",
-  "Yap": "Do it"
+  "Yap": "Do it",
+  "Toplu davet": "Bulk invite",
+  "{n} kişi henüz davet edilmedi.": "{n} people haven’t been invited yet.",
+  "E-postası olan {n} kişi": "{n} people with an email",
+  "Davet e-postası hepsine tek seferde gider; kayıt bağlantısı ve davet kodu içerir.": "The invitation email goes to all of them at once, with the sign-up link and invite code.",
+  "{n} e-posta gönder": "Send {n} emails",
+  "Gönderiliyor… {n}/{m}": "Sending… {n}/{m}",
+  "{a} e-posta gönderildi, {b} gönderilemedi. Gönderilemeyenleri kişinin satırından WhatsApp ile davet edebilirsin.": "{a} emails sent, {b} failed. You can invite those via WhatsApp from their row.",
+  "{a} e-posta gönderildi.": "{a} emails sent.",
+  "Yalnız telefonu olan {n} kişi": "{n} people with only a phone",
+  "WhatsApp toplu gönderime izin vermez: her dokunuşta sıradaki kişinin hazır mesajı açılır, sen gönderirsin.": "WhatsApp doesn’t allow bulk sending: each tap opens the next person’s ready message for you to send.",
+  "Sıradaki ({n}/{m})": "Next ({n}/{m})",
+  "{name} kişisine WhatsApp ile gönder": "Send to {name} on WhatsApp",
+  "WhatsApp ile gönder: {name}": "Send on WhatsApp: {name}",
+  "Hepsine gönderildi.": "Sent to everyone.",
+  "Bu grupta kimse yok.": "No one in this group.",
+  "{n} kişinin telefonu da e-postası da yok: {list}. Bu kişileri telefon ya da e-postasıyla yeniden eklersen davet edebilirsin.": "{n} people have neither a phone nor an email: {list}. Add them again with a phone or email to invite them.",
+  "Davet edilmemiş {n} kişiye gönder": "Invite {n} people not yet invited"
 };

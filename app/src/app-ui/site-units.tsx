@@ -202,6 +202,8 @@ export function Units({ d, oid, org, orgRow, can, reload }: { d: any; oid: strin
   const [b, setB] = useState('all');
   const peopleOf = (id: string) => d.residents.filter((r: any) => r.unit_id === id);
   const waiting = d.residents.filter((r: any) => !r.user_id).length;
+  const unitBy = Object.fromEntries(d.units.map((x: any) => [x.id, x]));
+  const notInvited = d.residents.filter((r: any) => inviteState(r) === 'none').map((r: any) => ({ ...r, unitLabel: unitBy[r.unit_id] ? unitLabel(unitBy[r.unit_id]) : '' }));
   const shown = d.units.filter((x: any) => (b === 'all' || (b === '__davet' ? peopleOf(x.id).some((r: any) => inviteState(r) === 'none') || !peopleOf(x.id).length : x.block === b))
     && (!q.trim() || match([unitLabel(x), ...peopleOf(x.id).map((r: any) => r.name + ' ' + r.phone)].join(' '), q)));
   const act = async (fn: () => Promise<any>) => { setErr(null); setMsg(null); try { await fn(); reload(); } catch (e) { setErr(humanError(e)); } };
@@ -219,10 +221,14 @@ export function Units({ d, oid, org, orgRow, can, reload }: { d: any; oid: strin
       {d.units.length || can('units.manage') ? (
         <Row between wrap>
           <Muted>{[t('{n} {w}', { n: d.units.length, w: W }), t('{n} kişi', { n: d.residents.length }), waiting ? t('{n} davet bekliyor', { n: waiting }) : ''].filter(Boolean).join(' · ')}</Muted>
-          {can('units.manage') ? (
+          {can('units.manage') || can('residents.manage') ? (
             <Row wrap>
-              <Button kind={mode === 'bulk' ? 'primary' : 'ghost'} title={t('Toplu ekle')} onPress={() => setMode(mode === 'bulk' ? '' : 'bulk')} />
-              <Button kind={mode === 'one' ? 'ghost' : 'primary'} title={commercial ? t('Birim ekle') : t('Daire ekle')} onPress={() => setMode(mode === 'one' ? '' : 'one')} />
+              {can('residents.manage') && notInvited.length ? <Button kind="ghost" title={t('Davet edilmemiş {n} kişiye gönder', { n: notInvited.length })}
+                onPress={() => host.openSheet('site-toplu-davet', { org, commercial, reload, people: notInvited })} /> : null}
+              {can('units.manage') ? <>
+                <Button kind={mode === 'bulk' ? 'primary' : 'ghost'} title={t('Toplu ekle')} onPress={() => setMode(mode === 'bulk' ? '' : 'bulk')} />
+                <Button kind={mode === 'one' ? 'ghost' : 'primary'} title={commercial ? t('Birim ekle') : t('Daire ekle')} onPress={() => setMode(mode === 'one' ? '' : 'one')} />
+              </> : null}
             </Row>
           ) : null}
         </Row>

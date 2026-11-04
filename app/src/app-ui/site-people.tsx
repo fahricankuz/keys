@@ -107,3 +107,73 @@ export function SitePersonSheet({ oid, org, unit, commercial, person, manage, re
     </Stack>
   );
 }
+
+/** Toplu davet (alt sayfa "site-toplu-davet"): henüz davet edilmemiş herkes. E-postası olanlara davet e-postası tek seferde
+    gider; yalnız telefonu olanlar için WhatsApp toplu gönderime izin vermediğinden "Sıradaki kişi" akışı: her dokunuşta bir
+    sonraki kişinin hazır mesajı açılır ve kişi "davet gönderildi" olarak işaretlenir. */
+export function SiteBulkInviteSheet({ org, commercial, people, reload, close }:
+  { org: string; commercial: boolean; people: any[]; reload: () => void; close: () => void }) {
+  const c = useColors();
+  const withMail = people.filter((p) => p.email);
+  const phoneOnly = people.filter((p) => !p.email && p.phone);
+  const missing = people.filter((p) => !p.email && !p.phone);
+  const [mailState, setMailState] = useState<'idle' | 'busy' | 'done'>('idle');
+  const [mailed, setMailed] = useState({ ok: 0, fail: 0, n: 0 });
+  const [next, setNext] = useState(0);
+
+  const sendMails = async () => {
+    setMailState('busy');
+    let ok = 0, fail = 0, n = 0;
+    for (const p of withMail) {
+      const sent = await sendSiteInvite(p);
+      // E-posta gitmese de kişide telefon varsa WhatsApp akışına düşer; burada yalnız sonucu sayarız.
+      if (sent) ok++; else fail++;
+      setMailed({ ok, fail, n: ++n });
+    }
+    setMailState('done');
+    reload();
+  };
+  const waNext = async () => {
+    const p = phoneOnly[next];
+    if (!p) return;
+    openWa(inviteWa(p, org, p.unitLabel, commercial));
+    await markInvited(p.id);
+    setNext(next + 1);
+    if (next + 1 >= phoneOnly.length) reload();
+  };
+  const cur = phoneOnly[next];
+  return (
+    <Stack>
+      <Title>{t('Toplu davet')}</Title>
+      <Muted>{t('{n} kişi henüz davet edilmedi.', { n: people.length })}</Muted>
+
+      <View style={{ gap: 8, backgroundColor: c.surface, borderRadius: radius.md, borderWidth: 1, borderColor: c.line, padding: 14 }}>
+        <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{t('E-postası olan {n} kişi', { n: withMail.length })}</Text>
+        <Muted>{t('Davet e-postası hepsine tek seferde gider; kayıt bağlantısı ve davet kodu içerir.')}</Muted>
+        {mailState === 'idle' ? <Button title={t('{n} e-posta gönder', { n: withMail.length })} disabled={!withMail.length} onPress={sendMails} style={{ alignSelf: 'flex-start' }} />
+          : <Text v="small" color={mailed.fail ? c.badInk : c.okInk}>{mailState === 'busy' ? t('Gönderiliyor… {n}/{m}', { n: mailed.n, m: withMail.length })
+            : mailed.fail ? t('{a} e-posta gönderildi, {b} gönderilemedi. Gönderilemeyenleri kişinin satırından WhatsApp ile davet edebilirsin.', { a: mailed.ok, b: mailed.fail })
+            : t('{a} e-posta gönderildi.', { a: mailed.ok })}</Text>}
+      </View>
+
+      <View style={{ gap: 8, backgroundColor: c.surface, borderRadius: radius.md, borderWidth: 1, borderColor: c.line, padding: 14 }}>
+        <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{t('Yalnız telefonu olan {n} kişi', { n: phoneOnly.length })}</Text>
+        <Muted>{t('WhatsApp toplu gönderime izin vermez: her dokunuşta sıradaki kişinin hazır mesajı açılır, sen gönderirsin.')}</Muted>
+        {cur ? (
+          <>
+            <Muted>{t('Sıradaki ({n}/{m})', { n: next + 1, m: phoneOnly.length })}: {cur.name || '—'} · {cur.unitLabel} · {cur.phone}</Muted>
+            <PressScale onPress={waNext} accessibilityRole="button" accessibilityLabel={t('{name} kişisine WhatsApp ile gönder', { name: cur.name || '—' })} scaleTo={0.98}
+              style={{ minHeight: 48, borderRadius: radius.pill, backgroundColor: WA_GREEN, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, alignSelf: 'flex-start' }}>
+              <Text v="small" color="#fff" style={{ fontFamily: fonts.bodyXBold }}>{t('WhatsApp ile gönder: {name}', { name: cur.name || '—' })}</Text>
+            </PressScale>
+          </>
+        ) : <Text v="small" color={c.okInk}>{phoneOnly.length ? t('Hepsine gönderildi.') : t('Bu grupta kimse yok.')}</Text>}
+      </View>
+
+      {missing.length ? (
+        <Note warn>{t('{n} kişinin telefonu da e-postası da yok: {list}. Bu kişileri telefon ya da e-postasıyla yeniden eklersen davet edebilirsin.', { n: missing.length, list: missing.slice(0, 6).map((p) => (p.name || '—') + ' (' + p.unitLabel + ')').join(', ') + (missing.length > 6 ? '…' : '') })}</Note>
+      ) : null}
+      <Button block kind="ghost" title={t('Tamam')} onPress={() => { reload(); close(); }} />
+    </Stack>
+  );
+}

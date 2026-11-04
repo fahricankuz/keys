@@ -174,3 +174,35 @@ test('kurulum kontrol listesi: mülk sahibinin portföyünde; tamamlanan adımla
   await page.getByRole('button', { name: 'Kira sözleşmesini yükle' }).click();
   await expect(page).toHaveURL(/pid=p1.*sub=belge|\/belge/);
 });
+
+test('toplu davet: e-postası olanlara tek seferde e-posta; yalnız telefonu olanlar için sıradaki kişiye WhatsApp; bilgisi eksikler listelenir', async ({ page }) => {
+  const now = new Date().toISOString();
+  const tables = {
+    site_units: [1, 2, 3, 4].map((i) => ({ id: 'u' + i, org_id: 'o1', block: 'A', no: String(i), area: 100, aidat: 1500, payer: 'kiraci', created_at: now })),
+    site_residents: [
+      { id: 'r1', org_id: 'o1', unit_id: 'u1', user_id: null, role: 'malik', name: 'Ayşe Mail', phone: '', email: 'ayse@ornek.com', lives_here: true, code: 'S0000011', created_at: now },
+      { id: 'r2', org_id: 'o1', unit_id: 'u2', user_id: null, role: 'malik', name: 'Bora Tel', phone: '05321112233', email: '', lives_here: true, code: 'S0000012', created_at: now },
+      { id: 'r3', org_id: 'o1', unit_id: 'u3', user_id: null, role: 'malik', name: 'Cem Eksik', phone: '', email: '', lives_here: true, code: 'S0000013', created_at: now },
+      { id: 'r4', org_id: 'o1', unit_id: 'u4', user_id: null, role: 'malik', name: 'Deniz Davetli', phone: '0532', email: '', lives_here: true, code: 'S0000014', invited_at: now, created_at: now }
+    ]
+  };
+  await login(page, withOrg('site', ['aidat', 'rapor'], { units: 4, tables }));
+  await nav(page, 'Daireler').click();
+  await page.getByRole('button', { name: 'Davet edilmemiş 3 kişiye gönder' }).click();
+  await expect(page.getByText('3 kişi henüz davet edilmedi.')).toBeVisible();
+  await page.getByRole('button', { name: '1 e-posta gönder' }).click();
+  await expect(page.getByText('1 e-posta gönderildi.')).toBeVisible();
+  await expect.poll(async () => (await db(page)).invokedBodies || []).toContainEqual({ name: 'site-invite', body: { resident: 'r1' } });
+
+  await page.context().route('https://wa.me/**', (r) => r.fulfill({ body: 'WhatsApp' }));
+  await expect(page.getByText(/Sıradaki \(1\/1\): Bora Tel · A Blok No 2/)).toBeVisible();
+  const popup = page.waitForEvent('popup');
+  await page.getByRole('button', { name: 'Bora Tel kişisine WhatsApp ile gönder' }).click();
+  const wa = await popup;
+  await expect.poll(() => wa.url()).toContain('wa.me/905321112233');
+  await wa.close();
+  await expect(page.getByText('Hepsine gönderildi.')).toBeVisible();
+  await expect(page.getByText(/1 kişinin telefonu da e-postası da yok: Cem Eksik \(A Blok No 3\)/)).toBeVisible();
+  const d = await db(page);
+  expect(d.tables.site_residents.filter((r) => r.invited_at).map((r) => r.id).sort()).toEqual(['r1', 'r2', 'r4']);
+});
