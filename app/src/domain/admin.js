@@ -164,6 +164,13 @@ export async function loadErrors(){
 export async function clearErrors(){
   const c = await client();
   must(await c.from('client_errors').delete().gte('id', 0));
+  await c.from('function_logs').delete().gte('id', 0);   // migration uygulanmadıysa sessizce geçer
+}
+/** Edge Function kayıtları (warn/error): son 500 kayıt. Site migration'dan önce yayınlanırsa tablo henüz yoktur: boş liste. */
+export async function loadFunctionLogs(){
+  const c = await client();
+  const { data, error } = await c.from('function_logs').select('id, at, fn, level, message, detail').order('at', { ascending: false }).limit(500);
+  return error ? [] : (data || []);
 }
 
 /** Müşteri sağlığı için ek veri: bekleyen kiracı davetleri, kurumlar ve site sayıları, temas notları (yalnız yönetici okur). */

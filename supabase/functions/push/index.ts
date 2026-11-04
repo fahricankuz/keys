@@ -21,6 +21,9 @@ import { sendApns, sendFcm } from './native.ts';
 import { sendSms, smsEnabled } from './sms.ts';
 import { renderNotice } from './template.ts';
 import { mailConfigured, mailMissing, sendMail } from '../_shared/mail.ts';
+import { logger } from '../_shared/log.ts';
+
+const log = logger('push');
 
 type NotificationRow = {
   id: number; user_id: string; property_id: string | null; title: string; body: string; url: string; tag: string | null;
@@ -87,7 +90,7 @@ Deno.serve(async (req) => {
       if (code === 404 || code === 410) {
         await admin.from('push_subscriptions').delete().eq('endpoint', s.endpoint);
       } else {
-        console.error('push hatası', code, (e as Error).message);
+        await log.error('push hatası', { code, error: (e as Error).message });
       }
     }
   }
@@ -101,7 +104,7 @@ Deno.serve(async (req) => {
       if (r === 'ok') sent++;
       if (r === 'gone') await admin.from('device_tokens').delete().eq('token', d.token);
     } catch (e) {
-      console.error('cihaz bildirimi hatası', d.platform, (e as Error).message);
+      await log.error('cihaz bildirimi hatası', { platform: d.platform, error: (e as Error).message });
     }
   }
 
@@ -137,7 +140,7 @@ Deno.serve(async (req) => {
         const note = renderNotice({ title: n.title, body: n.body, link });
         const res = await sendMail({ to, subject: n.title, html: note.html, text: note.text });
         mailed = res.ok;
-        if (!res.ok) console.error('e-posta hatası', res.error);
+        if (!res.ok) await log.error('e-posta hatası', res.error);
       }
     }
   }

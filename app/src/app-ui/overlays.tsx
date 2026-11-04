@@ -5,7 +5,7 @@ import { Linking, Modal, Platform, Pressable, ScrollView, Share, View, useWindow
 import { useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeInUp, FadeOut, SlideInDown } from 'react-native-reanimated';
 import { t } from '../domain/i18n';
-import { host } from '../domain/host';
+import { fallbackAsk, host } from '../domain/host';
 import { Button, PressScale, Text } from '../ui/kit';
 import { fonts, radius, shadows, useColors } from '../ui/theme';
 import { Icon } from './blocks';
@@ -60,6 +60,8 @@ export function OverlayProvider({ children, renderSheet }: { children: ReactNode
         if (typeof text === "string") { try { await Share.share({ message: text, title: name }); } catch {} }
       }
     };
+    // Panelden çıkınca (ör. yönetici paneline geçiş) kapanmış pencereye sorulmasın: yanıt hiç gelmez, düğme ölü kalır.
+    return () => { host.ask = fallbackAsk; };
   }, [router, open, close, dismiss]);
 
   const value = useMemo(() => ({ sheet, open, close }), [sheet, open, close]);

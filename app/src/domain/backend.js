@@ -9,6 +9,7 @@
    kira ve aidat dekontu denetime düşmez, doğrudan mülk sahibinin onayına gider. Yükleyen kendi yüklemesinin durumunu ui.reviews'ten görür. */
 
 import { Platform } from 'react-native';
+import { logCaught } from './logs.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { t } from './i18n.js';
 import { CONFIG, LIVE } from './config.js';
@@ -199,7 +200,7 @@ export async function closeSession(){
 export async function refreshAccess(redraw = true){
   if (!me()) return null;
   await Promise.all([
-    sb().rpc('my_access').then(must).then(a => { live.access = a; }, e => console.warn('Erişim durumu okunamadı', e)),
+    sb().rpc('my_access').then(must).then(a => { live.access = a; }, e => logCaught('Erişim durumu okunamadı', e)),
     refreshOrgs(false), refreshSiteUnits(false)
   ]);
   if (redraw) emit();
@@ -297,7 +298,7 @@ async function loadReviews(){
     const map = {};
     rows.forEach(r => { map[r.kind + ':' + r.property_id + ':' + r.ref_id] = { status: r.status, note: r.note || '' }; });
     ui.reviews = map;
-  } catch(e){ console.warn('Denetim durumu okunamadı', e); }
+  } catch(e){ logCaught('Denetim durumu okunamadı', e); }
 }
 
 /** Bir yüklemenin denetim durumu ('pending' | 'approved' | 'rejected' | undefined). */
@@ -363,7 +364,7 @@ export async function loadAll(opts = {}){
     // Dosya adresleri girişte toplu istenmez; ekranda görünen dosya için mediaSrc ister (bkz. resolveMedia).
     emit();
   } catch(e){
-    console.warn('Yükleme hatası', e);
+    logCaught('Yükleme hatası', e);
     setStatus(typeof navigator !== 'undefined' && navigator.onLine === false ? 'offline' : 'error');
     if (!live.loaded) throw e;
   }
@@ -396,7 +397,7 @@ export async function allMessages(pid){
 /** Tek bir evi sunucudan yeniden okur (başka cihazdan değişiklik geldiğinde). */
 export async function refreshProperty(pid){
   if (S.props[pid] && JSON.stringify(S.props[pid]) !== synced[pid]){ scheduleSync(0); refreshQueue.add(pid); return; }
-  const built = await fetchRows([pid], true).catch(e => { console.error(e); return null; });
+  const built = await fetchRows([pid], true).catch(e => { logCaught('Mülk yenilenemedi', e); return null; });
   if (!built) return;
   await loadReviews();
   if (!built.length){
@@ -477,7 +478,7 @@ async function flush(){
     setStatus('synced');
     if (refreshQueue.size) queueRefresh([...refreshQueue][0]);
   } catch(e){
-    console.warn('Eşitleme hatası', e);
+    logCaught('Eşitleme hatası', e);
     if ((typeof navigator !== 'undefined' && navigator.onLine === false) || /fetch|network/i.test(String(e.message))){
       setStatus('offline');
     } else {
@@ -513,6 +514,7 @@ export function humanError(e){
   if (/Invalid login credentials/i.test(m)) return t('E-posta ya da şifre hatalı.');
   if (/Email not confirmed/i.test(m)) return t('E-posta adresini henüz doğrulamadın. Gelen kutunu kontrol et.');
   if (/User already registered/i.test(m)) return t('Bu e-posta ile bir hesap zaten var. Giriş yapmayı dene.');
+  if (/validate email|email address .*invalid/i.test(m)) return t('Geçerli bir e-posta adresi yaz.');
   if (/Password should be at least/i.test(m)) return t('Şifre en az 8 karakter olmalı.');
   if (/rate limit/i.test(m)) return t('Çok fazla deneme yapıldı. Biraz sonra tekrar dene.');
   if (/Failed to fetch|NetworkError|network/i.test(m)) return t('Sunucuya ulaşılamadı. Bağlantını kontrol et.');
@@ -568,7 +570,7 @@ export async function storeFile(pid, file){
       ui.media[path] = small;
       if (file.thumb){
         try { const th = dataUrlParts(file.thumb); await upload(pid, th.bytes, th.mime, thumbPath(path)); ui.media[thumbPath(path)] = file.thumb; }
-        catch(e){ console.warn('Küçük kopya yüklenemedi', e); }
+        catch(e){ logCaught('Küçük kopya yüklenemedi', e); }
       }
       return SB + path;
     }
@@ -585,7 +587,7 @@ export async function storeFile(pid, file){
     }
     return null;
   } catch(e){
-    console.warn('Yükleme hatası', e);
+    logCaught('Yükleme hatası', e);
     if (small) return small;            // eşitlemede yeniden denenir
     host.notify({ title:t('Dosya yüklenemedi'), body: humanError(e), icon:'doc' });
     return null;
@@ -638,7 +640,7 @@ export function resolveMedia(paths){
       const res = must(await sb().storage.from('evim').createSignedUrls(list, 60 * 60 * 6));
       res.forEach(r => { if (r.signedUrl) ui.media[r.path] = r.signedUrl; });
       emit();
-    } catch(e){ console.warn('Bağlantı alınamadı', e); }
+    } catch(e){ logCaught('Bağlantı alınamadı', e); }
   }, 60);
 }
 
@@ -936,11 +938,10 @@ export async function activityFeed(lim = 200, pid = null){
   return must(await sb().rpc('activity_feed', { lim, pid })) || [];
 }
 
-/** Davet kodunun kime ait olduğunu oturum açmadan gösterir (/katil sayfası). */
+/** Davet kodunun kime ait olduğunu oturum açmadan gösterir (/katil sayfası). Kod yoksa null; sunucuya ulaşılamazsa hata fırlatır. */
 export async function invitePreview(code){
   const c = await client();
-  const r = await c.rpc('invite_preview', { invite_code: code });
-  return r.error ? null : r.data;
+  return must(await c.rpc('invite_preview', { invite_code: code }));
 }
 
 /** "Bize ulaş" talebi: kurumsal paket, toplu içe aktarma ya da genel. */

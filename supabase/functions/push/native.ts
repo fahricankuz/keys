@@ -9,6 +9,9 @@
 //   FCM_SERVICE_ACCOUNT — Firebase → Project settings → Service accounts → JSON anahtarının içeriği
 
 import { SignJWT, importPKCS8 } from 'npm:jose@5.9.6';
+import { logger } from '../_shared/log.ts';
+
+const log = logger('push');
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 
@@ -53,7 +56,7 @@ export async function sendApns(deviceToken: string, n: Note): Promise<Result> {
   if (res.ok) return 'ok';
   const reason = (await res.json().catch(() => ({}))).reason;
   if (res.status === 410 || reason === 'BadDeviceToken' || reason === 'Unregistered') return 'gone';
-  console.error('APNs', res.status, reason);
+  await log.error('APNs', { status: res.status, reason });
   return 'error';
 }
 
@@ -102,6 +105,6 @@ export async function sendFcm(deviceToken: string, n: Note): Promise<Result> {
   const err = await res.json().catch(() => ({}));
   const status = err?.error?.status;
   if (res.status === 404 || status === 'NOT_FOUND' || status === 'UNREGISTERED') return 'gone';
-  console.error('FCM', res.status, JSON.stringify(err).slice(0, 300));
+  await log.error('FCM', { status: res.status, error: JSON.stringify(err).slice(0, 300) });
   return 'error';
 }

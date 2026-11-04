@@ -5,6 +5,7 @@
    Yetki ve modül listeleri supabase/schema.sql (16. bölüm) ile aynıdır; sunucu her işlemi ayrıca denetler. */
 
 import { t } from './i18n.js';
+import { logCaught } from './logs.js';
 import { client, live } from './backend.js';
 import { emit } from './state.js';
 
@@ -107,7 +108,7 @@ export const myOrgs = () => live.orgs || [];
 export const orgCan = (org, perm) => !!org && (org.master || (org.perms || []).includes(perm));
 
 export async function refreshOrgs(redraw = true){
-  try { live.orgs = (await rpc('my_orgs')) || []; } catch(e){ console.warn('Kurumlar okunamadı', e); }
+  try { live.orgs = (await rpc('my_orgs')) || []; } catch(e){ logCaught('Kurumlar okunamadı', e); }
   if (redraw) emit();
   return live.orgs || [];
 }

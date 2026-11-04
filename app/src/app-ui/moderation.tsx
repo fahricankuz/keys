@@ -7,7 +7,7 @@ import { S } from '../domain/state';
 import { P } from '../domain/logic';
 import { humanError } from '../domain/backend';
 import { REASONS, adminReports, closeReport, isBlocked, myBlocks, reasonLabel, refreshBlocks, reportContent, setBlocked } from '../domain/moderation';
-import { clearErrors, deleteMessage, loadErrors } from '../domain/admin';
+import { clearErrors, deleteMessage, loadErrors, loadFunctionLogs } from '../domain/admin';
 import { host } from '../domain/host';
 import { Button, Chip, Field, Text } from '../ui/kit';
 import { useColors } from '../ui/theme';
@@ -149,8 +149,19 @@ export function AdminErrors() {
   const [rows, setRows] = useState<any[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
-  const load = async () => { try { setRows(await loadErrors()); setErr(null); } catch (e) { setErr(humanError(e)); } };
+  const [fnRows, setFnRows] = useState<any[]>([]);
+  const [fnOpen, setFnOpen] = useState<string | null>(null);
+  const load = async () => {
+    try { setRows(await loadErrors()); setFnRows(await loadFunctionLogs()); setErr(null); } catch (e) { setErr(humanError(e)); }
+  };
   useEffect(() => { load(); }, []);
+  const fnGroups: Record<string, any> = {};
+  fnRows.forEach((r) => {
+    const k = r.fn + ':' + r.message;
+    const g = fnGroups[k] = fnGroups[k] || { key: k, fn: r.fn, message: r.message, level: r.level, n: 0, last: r.at, detail: r.detail };
+    g.n++;
+  });
+  const fnList = Object.values(fnGroups).sort((a: any, b: any) => b.n - a.n);
   const groups: Record<string, any> = {};
   (rows || []).forEach((r) => {
     const g = groups[r.message] = groups[r.message] || { message: r.message, n: 0, last: r.at, kinds: new Set(), routes: new Set(), platforms: new Set(), users: new Set(), sample: r };
@@ -159,7 +170,7 @@ export function AdminErrors() {
   const list = Object.values(groups).sort((a: any, b: any) => b.n - a.n);
   return (
     <Stack>
-      <Muted>{t('Son 500 kayıt. Ağ kopması gibi beklenen hatalar kaydedilmez.')}</Muted>
+      <Muted>{t('Son 500 kayıt, 90 gün saklanır. Ağ kopması gibi beklenen hatalar kaydedilmez.')}</Muted>
       {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
       {rows && !list.length ? <Empty>{t('Hata kaydı yok.')}</Empty> : null}
       {list.map((g: any) => (
@@ -172,7 +183,18 @@ export function AdminErrors() {
           {open === g.message && g.sample.stack ? <View><Text v="small" muted selectable style={{ fontFamily: 'monospace' as any }}>{g.sample.stack}</Text></View> : null}
         </Card>
       ))}
-      {list.length ? <Button kind="ghost" title={t('Kayıtları temizle')} onPress={async () => {
+      <Text v="h3">{t('Sunucu kayıtları')}</Text>
+      {rows && !fnList.length ? <Empty>{t('Sunucu kaydı yok.')}</Empty> : null}
+      {fnList.map((g: any) => (
+        <Card key={g.key} gap={6} onPress={() => setFnOpen(fnOpen === g.key ? null : g.key)}>
+          <Row between wrap>
+            <Text v="small" style={{ flex: 1, minWidth: 220 }} selectable>{g.fn}: {g.message}</Text>
+            <Row gap={8}><Chip tone={g.level === 'error' ? 'bad' : 'warn'} label={t('{n} kez', { n: g.n })} /><Muted>{when(g.last)}</Muted></Row>
+          </Row>
+          {fnOpen === g.key && g.detail ? <View><Text v="small" muted selectable style={{ fontFamily: 'monospace' as any }}>{g.detail}</Text></View> : null}
+        </Card>
+      ))}
+      {list.length || fnList.length ? <Button kind="ghost" title={t('Kayıtları temizle')} onPress={async () => {
         if (!await host.ask({ title: t('Hata kayıtları silinsin mi?'), body: t('Düzeltmeyi yayınladıktan sonra temizlersen yeni hatalar kolayca görünür.'), ok: t('Temizle'), danger: true })) return;
         try { await clearErrors(); load(); } catch (e) { setErr(humanError(e)); }
       }} /> : null}

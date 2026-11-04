@@ -8,7 +8,7 @@ const TABLES = ['profiles','properties','property_shared','memberships','invites
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
                 'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes',
-                'legal_requests','legal_notes','client_errors','content_reports','user_blocks','customer_contacts','rent_certificates'];
+                'legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates'];
 
 function load(){
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d){ TABLES.forEach(t => d.tables[t] = d.tables[t] || []); d.tables.payments.forEach(r => { r.kind = r.kind || 'kira'; }); return d; } } catch(e){}
@@ -131,7 +131,7 @@ function visible(db, table, row, actor){
   if (table === 'legal_requests') return row.user_id === actor;
   // schema.sql 26. bölüm: engellenen kişinin mesajları görünmez (sistem mesajları hariç).
   if (table === 'messages') return row.from_role === 'system' || !row.by_user || !(db.tables.user_blocks || []).some(b => b.user_id === actor && b.blocked === row.by_user);
-  if (table === 'legal_notes' || table === 'client_errors' || table === 'customer_contacts') return false;
+  if (table === 'legal_notes' || table === 'client_errors' || table === 'function_logs' || table === 'customer_contacts') return false;
   if (table === 'content_reports') return row.reporter === actor;
   if (table === 'rent_certificates') return row.tenant_id === actor;
   if (table === 'user_blocks') return row.user_id === actor;
@@ -194,9 +194,10 @@ class Query {
   run(){
     const db = load();
     this.c._calls.push({ table:this.t, op:this.op });
-    // Kesinti benzetimi (testler): __fakefail=1 yazmalar, =2 her şey "Failed to fetch" verir.
+    // Kesinti benzetimi (testler): __fakefail=1 yazmalar, =2 her şey "Failed to fetch" verir; =3 yazmalar sunucu hatası verir (ağ değil).
     const ff = localStorage.getItem('__fakefail');
     if (ff === '2' || (ff === '1' && this.op !== 'select')) return { data:null, error:{ message:'Failed to fetch' } };
+    if (ff === '3' && this.op !== 'select') return { data:null, error:{ message:'Sahte sunucu reddi kiraci@ornek.com', code:'XX000' } };
     if (this.c._fail && this.c._fail(this.t, this.op)) return { data:null, error:{ message:'Sahte sunucu hatası', code:'XX000' } };
     const actor = db.session?.user.id;
     if (actor && GATED.includes(this.t) && ['insert','upsert','update'].includes(this.op)){
@@ -618,6 +619,12 @@ export function createClient(url, key, opts){
         return { data:{ units:units.length, share:units.reduce((a, u) => a + (Number(u.share) || 0), 0), voted:votes.length,
           voted_share:votes.reduce((a, v) => a + share(v.unit_id), 0), closed: Date.now() >= Date.parse(p.ends_at),
           options:p.options.map((label, i) => { const vs = votes.filter(v => v.choice === i); return { label, count:vs.length, share:vs.reduce((a, v) => a + share(v.unit_id), 0) }; }) }, error:null };
+      }
+      if (name === 'invite_preview'){
+        const i = db.tables.invites.find(x => x.code === String(args.invite_code || '').trim().toUpperCase());
+        if (!i) return { data:null, error:null };
+        const p = db.tables.properties.find(x => x.id === i.property_id) || {}, o = db.tables.profiles.find(x => x.id === i.created_by) || {};
+        return { data:{ role:i.role || 'tenant', scope:i.scope, owner:o.name, property:p.name, valid:!i.accepted_by && (!i.expires_at || new Date(i.expires_at) > new Date()) }, error:null };
       }
       if (name === 'site_invite_info'){
         const T = db.tables, r = T.site_residents.find(x => x.code === String(args.invite_code || '').trim().toUpperCase());

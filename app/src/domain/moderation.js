@@ -3,6 +3,7 @@
    gelmez; bildirimler yönetici paneli → Şikâyetler'e düşer. */
 
 import { t } from './i18n.js';
+import { logCaught } from './logs.js';
 import { client, live, refreshProperty } from './backend.js';
 import { emit } from './state.js';
 
@@ -28,7 +29,7 @@ export async function refreshBlocks(redraw = true){
   if (!live.user) return [];
   try {
     live.blocks = must(await (await db()).from('user_blocks').select('blocked, created_at').eq('user_id', live.user.id)) || [];
-  } catch(e){ console.warn('Engel listesi okunamadı', e); }
+  } catch(e){ logCaught('Engel listesi okunamadı', e); }
   if (redraw) emit();
   return live.blocks || [];
 }
