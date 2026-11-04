@@ -38,7 +38,8 @@ export async function sendMail(m: Mail): Promise<SendResult> {
         host: env('SMTP_HOST'), port, secure: env('SMTP_SECURE') !== '0' && port === 465,
         auth: { user: env('SMTP_USER'), pass: env('SMTP_PASS') },
         connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 20000,
-        ...(env('SMTP_SECURE') === '0' ? { ignoreTLS: true, tls: { rejectUnauthorized: false } } : {})
+        // Yalnız testlerde (şifresiz yerel sunucu): TLS hiç kullanılmaz; sertifika doğrulaması kapatılmaz.
+        ...(env('SMTP_SECURE') === '0' ? { ignoreTLS: true } : {})
       });
       await transport.sendMail({ from: env('EMAIL_FROM'), to, replyTo, subject, html: m.html, text: m.text });
       return { ok: true };
