@@ -1,11 +1,11 @@
-/* Kurumsal: aylık ve yıllık rapor e-postası — ayarlar, rapor ekranındaki kart ve e-postanın önizlemesi.
+/* Profesyonel ve Kurumsal: aylık ve yıllık rapor e-postası — ayarlar, rapor ekranındaki kart ve e-postanın önizlemesi.
    Önizleme, gönderilen e-postanın (supabase/functions/report/template.ts) uygulama içindeki karşılığıdır. */
 import { useState } from 'react';
 import { Text as RNText, View } from 'react-native';
 import { S, ui } from '../domain/state';
 import { t, getLang } from '../domain/i18n';
 import { act } from '../domain/services';
-import { hasFeature, planLabel } from '../domain/billing';
+import { hasFeature } from '../domain/billing';
 import { localReport, lastPeriod } from '../domain/report-mail';
 import { tl } from '../domain/util';
 import { Button, Chip, PressScale, Text } from '../ui/kit';
@@ -23,7 +23,7 @@ export function MailReportSettings() {
   if (!hasFeature('mailReport')) {
     return (
       <Stack gap={10}>
-        <Muted>{t('Aylık ve yıllık rapor e-postası {plan} paketinde var.', { plan: planLabel('kurumsal') })}</Muted>
+        <Muted>{t('Aylık ve yıllık rapor e-postası Profesyonel ve Kurumsal paketlerinde var.')}</Muted>
         <Row gap={8} style={{ flexWrap: 'wrap' }}>
           <Button kind="ghost" title={t('Örneği gör')} onPress={() => open('rapor-eposta')} />
           <Button title={t('Paketleri gör')} onPress={() => open('abonelik')} />
@@ -53,7 +53,7 @@ export function MailReportCard() {
           <Icon name="mail" size={20} color="#A8231F" />
         </View>
         <View style={{ flex: 1, gap: 2 }}>
-          <Row gap={8} style={{ flexWrap: 'wrap' }}><H2>{t('Rapor e-postası')}</H2><Chip tone="warn" label={planLabel('kurumsal')} /></Row>
+          <Row gap={8} style={{ flexWrap: 'wrap' }}><H2>{t('Rapor e-postası')}</H2><Chip tone="warn" label={t('Profesyonel ve Kurumsal')} /></Row>
           <Muted>{t('Tahsilat, gider, net gelir, talepler ve mülk durumları her ay ve yıl sonunda e-postana gelir.')}</Muted>
         </View>
       </Row>

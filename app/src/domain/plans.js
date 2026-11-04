@@ -75,7 +75,7 @@ export const FEATURES = {
   import: ['bes', 'kurumsal', 'trial', 'pro'],    // Excel / CSV ile toplu içe aktarma
   report: ['bes', 'kurumsal', 'trial', 'pro'],    // net getiri, yıllık rapor, Excel dışa aktarma, vergi tahmini
   sms: ['bes', 'kurumsal', 'trial', 'pro'],       // SMS hatırlatmaları (kota sonra belirlenir); sunucuda da denetlenir
-  mailReport: ['kurumsal', 'trial', 'pro']        // aylık ve yıllık rapor e-postası (supabase/functions/report)
+  mailReport: ['bes', 'kurumsal', 'trial', 'pro'] // aylık ve yıllık rapor e-postası (supabase/functions/report)
 };
 
 /** Paket kartlarında gösterilen maddeler. */
@@ -95,14 +95,14 @@ export function tierPoints(id){
     t('Excel / CSV ile toplu mülk aktarma'),
     t('Net getiri, yıllık rapor ve Excel çıktısı'),
     t('Vergi tahmini ve stopaj takibi'),
-    t('SMS hatırlatmaları')
+    t('SMS hatırlatmaları'),
+    t('Aylık ve yıllık rapor e-postası')
   ];
   if (id === 'bes') return pro;
   return [
     t('Site yönetimi · AVM · GYO · Depo ve lojistik · Emlak ofisi · Aile ofisi'),   // ilk madde kartta kalın yazılır (sektörler)
     t('Profesyonel’deki her şey'),
     t('Sınırsız mülk ve ekip üyesi'),
-    t('Aylık ve yıllık rapor e-postası'),
     t('Öncelikli destek'),
     t('Kurulum ve veri taşıma yardımı'),
     t('Kuruma özel sözleşme ve fatura')

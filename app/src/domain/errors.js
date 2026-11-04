@@ -10,6 +10,9 @@ import { live, client } from './backend.js';
 import { setLogSink } from './logs.js';
 
 const FAKE = process.env.EXPO_PUBLIC_SUPABASE_URL === 'fake:';
+// Hostinger'ın geçici adresi HTML'deki alan adını kendininkiyle değiştirir; bu yüzden orada React #418 (metin uyuşmazlığı) çıkar.
+// Gerçek kullanıcı o adrese gelmez: kayıtları kirletmesin.
+const PREVIEW_HOST = /\.hostingersite\.com$/i;
 // Beklenen ya da bizim dışımızdaki gürültü: ağ kopması, tarayıcı eklentileri, ResizeObserver uyarısı.
 const NOISE = /Failed to fetch|NetworkError|Load failed|ResizeObserver loop|chrome-extension:|moz-extension:|safari-extension:|AbortError/i;
 const seen = new Set();
@@ -18,6 +21,7 @@ let sent = 0;
 export function reportError(err, kind = 'error'){
   try {
     if (!LIVE) return;
+    if (typeof window !== 'undefined' && window.location && PREVIEW_HOST.test(window.location.hostname || '')) return;
     const message = String((err && (err.message || err.reason)) || err || '').slice(0, 1000).trim();
     const stack = String((err && err.stack) || '').slice(0, 4000);
     if (!message || NOISE.test(message) || NOISE.test(stack)) return;
@@ -75,18 +79,22 @@ export function installErrorReporting(){
    sayfaya geçerken "Loading module … failed" alır. Bu durumda sayfa bir kez yenilenir (yeni sürüm gelir); dakikada en çok bir kez. */
 const STALE = /Loading module .* failed|Loading chunk .* failed|ChunkLoadError|Importing a module script failed|error loading dynamically imported module|Failed to fetch dynamically imported module/i;
 let staleOn = false;
+export const isStaleError = (err) => STALE.test(String((err && err.message) || err || ''));
+/** Eski parça hatasıysa sayfayı yeniler ve true döner; başka hatada ya da dakika içinde ikinci kez false. */
+export function recoverStale(m){
+  try {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || !STALE.test(String(m || ''))) return false;
+    const k = '__stale_reload', last = Number(window.sessionStorage.getItem(k) || 0);
+    if (Date.now() - last < 60000) return false;
+    window.sessionStorage.setItem(k, String(Date.now()));
+    window.location.reload();
+    return true;
+  } catch(e){ return false; }
+}
 export function installStaleRecovery(){
   if (staleOn || Platform.OS !== 'web' || typeof window === 'undefined') return;
   staleOn = true;
-  const go = (m) => {
-    try {
-      if (!STALE.test(String(m || ''))) return;
-      const k = '__stale_reload', last = Number(window.sessionStorage.getItem(k) || 0);
-      if (Date.now() - last < 60000) return;
-      window.sessionStorage.setItem(k, String(Date.now()));
-      window.location.reload();
-    } catch(e){}
-  };
+  const go = (m) => { recoverStale(m); };
   window.addEventListener('error', (e) => go((e.error && e.error.message) || e.message));
   window.addEventListener('unhandledrejection', (e) => go((e.reason && e.reason.message) || e.reason));
 }

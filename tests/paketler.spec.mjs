@@ -42,7 +42,7 @@ test('ana sayfa fiyatları: mülk başına, KDV dahil, Başlangıç ve Profesyon
   const sectors = page.getByText('Site yönetimi · AVM · GYO · Depo ve lojistik · Emlak ofisi · Aile ofisi', { exact: true });
   await expect(sectors).toBeVisible();
   expect(await sectors.evaluate((e) => Number(getComputedStyle(e).fontWeight) >= 700 || /XBold|Bold/i.test(getComputedStyle(e).fontFamily))).toBe(true);
-  for (const x of ['Profesyonel’deki her şey', 'Sınırsız mülk ve ekip üyesi', 'Aylık ve yıllık rapor e-postası', 'Öncelikli destek', 'Kurulum ve veri taşıma yardımı', 'Kuruma özel sözleşme ve fatura']) await expect(page.getByText(x, { exact: true }).first()).toBeVisible();
+  for (const x of ['Profesyonel’deki her şey', 'Sınırsız mülk ve ekip üyesi', 'Öncelikli destek', 'Kurulum ve veri taşıma yardımı', 'Kuruma özel sözleşme ve fatura']) await expect(page.getByText(x, { exact: true }).first()).toBeVisible();
   await expect(page.getByText('10+', { exact: true })).toHaveCount(0);
   await expect(page.getByText('Mülk sayına ve sektörüne göre')).toBeVisible();
   await expect(page.getByText('Teklif alın', { exact: true }).first()).toBeVisible();
