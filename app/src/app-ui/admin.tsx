@@ -1,4 +1,4 @@
-/* Yönetici paneli: özet, denetim kuyruğu, ödemeler, mülk sahipleri ve kullanıcılar.
+/* Yönetici paneli: özet, hesaplar (abonelik, mülkler ve kiracılar, hesap işlemleri), kurumlar, ödemeler, mesajlar.
    Yalnızca admins tablosundaki hesaplar açabilir; sunucu kuralları (RLS) zaten başkasına veri vermez. */
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminLegal } from './legal';
@@ -8,7 +8,7 @@ import { adminLegal } from '../domain/legal';
 import { Image, Linking, ScrollView, Text as RNText, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../auth/auth';
-import { loadAdmin, decide, previewUrl, humanError, setBan, deleteUser, loadThreads, loadMessages, deleteMessage, loadAudit } from '../domain/admin';
+import { loadAdmin, loadSubscriptions, previewUrl, humanError, setBan, deleteUser, loadThreads, loadMessages, deleteMessage, loadAudit } from '../domain/admin';
 import { t, locale } from '../domain/i18n';
 import { tl } from '../domain/util';
 import { Button, Chip, Field, PressScale, Text } from '../ui/kit';
@@ -16,12 +16,13 @@ import { Wordmark } from '../ui/Wordmark';
 import { Loader } from '../ui/Loader';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 import { Card, Empty, H2, Muted, Row, Seg, Stack, initials } from './blocks';
-import { CpiRates, Overview, Subscriptions, Support } from './admin-extra';
+import { CpiRates, Overview, SubActions, Support } from './admin-extra';
 import { AdminShell, PageHead } from './admin-ui';
 import { OrgDraft, Orgs, sectorFromRole } from './admin-orgs';
 import { AddProperty } from './admin-property';
 import OpenSplash from './OpenSplash';
 import { planLabel } from '../domain/plans';
+import { sectorOf } from '../domain/org';
 
 type Data = Awaited<ReturnType<typeof loadAdmin>>;
 const KIND: Record<string, string> = { payment: 'Dekont', document: 'Belge', invoice: 'Fatura' };
@@ -61,22 +62,19 @@ export default function AdminPanel() {
   // Bölümler: yan menü sırası, simge ve başlık / açıklama.
   const SECTIONS: [string, string, string, string][] = [
     ['kpi', t('Genel bakış'), 'grid', ''],
-    ['subs', t('Abonelikler'), 'card', t('Mülk sahiplerinin deneme ve paket durumu; deneme uzatma ve elle paket verme.')],
+    ['accounts', t('Hesaplar'), 'key', t('Herkes tek listede: mülk sahibinin paketi ve denemesi, mülkleri ve kiracıları, kiracının hangi mülke bağlı olduğu, askı ve silme. Bir satıra dokun, ayrıntısı açılsın.')],
     ['orgs', t('Kurumlar'), 'office', t('Kurumsal müşteriler: sektör ve modüller, sözleşme, master yönetici, yöneticiler ve roller.')],
     ['cpi', t('Kira artış oranları'), 'chart', t('TÜFE 12 aylık ortalama: sitedeki hesaplayıcı ve uygulamadaki yenileme bu tablodan okur.')],
     ['support', t('Talepler'), 'chat', t('“Bize ulaş” formundan gelen kurumsal, içe aktarma ve genel talepler.')],
     ['reports', t('Şikâyetler'), 'flag', t('Kullanıcıların bildirdiği mesaj ve kişiler: 24 saat içinde incele, gerekirse mesajı sil ya da hesabı askıya al.')],
     ['errors', t('Hatalar'), 'chart', t('Uygulamada kullanıcıların karşılaştığı beklenmeyen hatalar (ekran yolu, platform, sürüm).')],
     ['legal', t('Hukuki talepler'), 'scale', t('Hukuki süreç desteği talepleri: ödemeyi işaretle, büroya ilet, kişiye not yaz. Talebin dosyalarını büroya elle iletirsin.')],
-    ['queue', t('Denetim'), 'doc', t('Yüklenen belge ve faturalar: onaylanınca karşı tarafa görünür. Kira ve aidat dekontları denetime düşmez, doğrudan mülk sahibinin onayına gider.')],
     ['pay', t('Ödemeler'), 'chart', t('Tüm kira ödemeleri ve durumları.')],
-    ['conn', t('Bağlantılar'), 'landlord', t('Mülk sahibi → mülk → kiracı ağacı.')],
     ['msgs', t('Mesajlar'), 'send', t('Yazışmaları okuma ve gerektiğinde silme (her işlem kayda düşer).')],
-    ['users', t('Kullanıcılar'), 'key', t('Tüm hesaplar; yasaklama, yasak kaldırma ve (yasaklanmış hesap için) kalıcı silme.')],
     ['audit', t('İşlem kaydı'), 'flag', t('Yönetici işlemlerinin değiştirilemez kaydı.')]
   ];
   const cur = SECTIONS.find((x) => x[0] === tab) || SECTIONS[0];
-  const items = SECTIONS.map(([key, label, icon]) => ({ key, label, icon, badge: key === 'queue' ? data?.stats.pending || 0 : key === 'legal' ? legalOpen : key === 'reports' ? reportsOpen : undefined }));
+  const items = SECTIONS.map(([key, label, icon]) => ({ key, label, icon, badge: key === 'legal' ? legalOpen : key === 'reports' ? reportsOpen : undefined }));
   return (
     <>
     <AdminShell items={items} active={tab} onPick={setTab} email={user?.email} onReload={load} busy={busy}
@@ -87,7 +85,7 @@ export default function AdminPanel() {
         tab === 'kpi' ? <Overview ops={{ pending: data.stats.pending, banned: data.stats.banned }} /> : (
           <Stack>
             <PageHead label={t('Yönetici')} title={cur[1]} sub={cur[3]} />
-            {tab === 'subs' && <Subscriptions />}
+            {tab === 'accounts' && <Accounts d={data} reload={load} />}
             {tab === 'orgs' && <Orgs draft={orgDraft} clearDraft={() => setOrgDraft(null)} />}
             {tab === 'support' && <Support onConvert={(r: any) => {
               setOrgDraft({ name: r.company || r.name, sector: sectorFromRole(r.details?.role), units: r.units, lead_id: r.id, email: r.email,
@@ -98,11 +96,8 @@ export default function AdminPanel() {
             {tab === 'legal' && <AdminLegal onCount={setLegalOpen} />}
             {tab === 'reports' && <AdminReports onCount={setReportsOpen} />}
             {tab === 'errors' && <AdminErrors />}
-            {tab === 'queue' && <Queue d={data} reload={load} />}
             {tab === 'pay' && <Payments d={data} onOlder={() => setMonths((m) => m + 12)} busy={busy} />}
-            {tab === 'conn' && <Landlords d={data} />}
             {tab === 'msgs' && <Messages d={data} reload={load} />}
-            {tab === 'users' && <Users d={data} reload={load} />}
             {tab === 'audit' && <Audit />}
           </Stack>
         )
@@ -122,82 +117,6 @@ function Shown<T>({ list, render, step = 100 }: { list: T[]; render: (x: T) => R
       {list.slice(0, n).map(render)}
       {list.length > n ? <Button kind="ghost" title={t('Daha fazla göster ({n} kaldı)', { n: list.length - n })} onPress={() => setN(n + step)} style={{ alignSelf: 'center' }} /> : null}
     </>
-  );
-}
-
-/* ---------------- denetim kuyruğu ---------------- */
-
-function Queue({ d, reload }: { d: Data; reload: () => void }) {
-  const [f, setF] = useState('pending');
-  const [kind, setKind] = useState('all');
-  const list = d.queue.filter((r: any) => (f === 'all' || r.status === f) && (kind === 'all' || r.kind === kind));
-  return (
-    <Stack>
-      <Row wrap>
-        <Seg scroll value={f} onChange={setF} options={[['pending', t('Bekleyen')], ['rejected', t('Reddedilen')], ['approved', t('Onaylanan')], ['all', t('Tümü')]]} />
-        <Seg scroll value={kind} onChange={setKind} options={[['all', t('Hepsi')], ['payment', t('Dekont')], ['document', t('Belge')], ['invoice', t('Fatura')]]} />
-      </Row>
-      {f !== 'pending' ? <Muted>{t('Onaylanan ve reddedilenlerden son 500 karar gösterilir.')}</Muted> : null}
-      {list.length ? <Shown list={list} render={(r: any) => <ReviewCard key={r.kind + r.property_id + r.ref_id} r={r} reload={reload} />} />
-        : <Empty>{f === 'pending' ? t('Bekleyen yükleme yok. Yeni belge ve faturalar burada görünür.') : t('Kayıt yok.')}</Empty>}
-    </Stack>
-  );
-}
-
-function ReviewCard({ r, reload }: { r: any; reload: () => void }) {
-  const c = useColors();
-  const [url, setUrl] = useState<string | null>(null);
-  const [asking, setAsking] = useState(false);
-  const [note, setNote] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const isPdf = /\.pdf$/i.test(r.path || '');
-  useEffect(() => { previewUrl(r.path).then(setUrl).catch(() => {}); }, [r.path]);
-
-  const run = async (status: 'approved' | 'rejected') => {
-    if (status === 'rejected' && !note.trim()) { setErr(t('Red için gerekçe yaz.')); return; }
-    setBusy(true); setErr(null);
-    try { await decide(r, status, note.trim()); await reload(); } catch (e) { setErr(humanError(e)); }
-    setBusy(false);
-  };
-  const [rt, tone] = REV[r.status] || REV.pending;
-  return (
-    <Card gap={12}>
-      <Row between wrap>
-        <Row gap={8}><Chip tone="accent" label={t(KIND[r.kind] || r.kind)} /><Chip tone={tone} label={t(rt)} /></Row>
-        <Muted>{day(r.created_at)}</Muted>
-      </Row>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
-        <View style={{ width: 150, height: 150, borderRadius: radius.md, overflow: 'hidden', backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}>
-          {url && !isPdf ? <Image source={{ uri: url }} style={{ width: 150, height: 150 }} resizeMode="cover" accessibilityLabel={r.label} />
-            : <Text v="small" muted>{isPdf ? 'PDF' : r.path ? t('Yükleniyor…') : t('Dosya yok')}</Text>}
-        </View>
-        <View style={{ flex: 1, minWidth: 220, gap: 4 }}>
-          <H2>{r.label || '—'}</H2>
-          {r.amount != null ? <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{tl(r.amount)}</Text> : null}
-          <Muted>{r.propName} · {t('Mülk sahibi')}: {r.landlord}</Muted>
-          <Muted>{t('Yükleyen')}: {r.uploaderName}{r.uploaderRole ? ' (' + (r.uploaderRole === 'landlord' ? t('Mülk sahibi') : t('Kiracı')) + ')' : ''}</Muted>
-          {r.kind === 'payment' ? <Muted>{t('Dönem')}: {refLabel(r.ref_id)}</Muted> : null}
-          {r.note ? <Text v="small" color={c.badInk}>{t('Red gerekçesi')}: {r.note}</Text> : null}
-          {url ? <PressScale onPress={() => Linking.openURL(url)} accessibilityRole="link"><Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyXBold, textDecorationLine: 'underline' }}>{t('Dosyayı aç')}</Text></PressScale> : null}
-        </View>
-      </View>
-      {asking ? (
-        <View style={{ gap: 10 }}>
-          <Field label={t('Red gerekçesi')} value={note} onChangeText={setNote} placeholder={t('Yükleyene gösterilir')} maxLength={240} />
-          <Row>
-            <Button kind="ghost" title={t('Vazgeç')} onPress={() => { setAsking(false); setErr(null); }} />
-            <Button title={t('Reddet')} onPress={() => run('rejected')} loading={busy} />
-          </Row>
-        </View>
-      ) : (
-        <Row wrap>
-          {r.status !== 'approved' ? <Button title={t('Onayla')} onPress={() => run('approved')} loading={busy} /> : null}
-          {r.status !== 'rejected' ? <Button kind="ghost" title={t('Reddet')} onPress={() => setAsking(true)} /> : null}
-        </Row>
-      )}
-      {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
-    </Card>
   );
 }
 
@@ -238,57 +157,6 @@ function Payments({ d, onOlder, busy }: { d: Data; onOlder: () => void; busy: bo
     </Stack>
   );
 }
-
-/* ---------------- mülk sahipleri ve kiracıları ---------------- */
-
-function Landlords({ d }: { d: Data }) {
-  const [open, setOpen] = useState<string | null>(null);
-  if (!d.landlords.length && !d.unlinked.length) return <Empty>{t('Henüz mülk sahibi yok.')}</Empty>;
-  return (
-    <Stack>
-      {d.unlinked.length ? (
-        <Card gap={6}>
-          <H2>{t('Mülke bağlı olmayan kiracılar')} ({d.unlinked.length})</H2>
-          <Muted>{t('Kayıt oldu ama davet kodunu girmedi.')}</Muted>
-          {d.unlinked.map((u: any) => <Muted key={u.id}>• {u.name || u.email} · {u.email}{u.banned ? ' · ' + t('Askıda') : ''}</Muted>)}
-        </Card>
-      ) : null}
-      {d.landlords.map((l: any) => {
-        const on = open === l.id;
-        return (
-          <Card key={l.id} gap={10} onPress={() => setOpen(on ? null : l.id)}>
-            <Row between wrap>
-              <View style={{ flex: 1, minWidth: 200 }}>
-                <H2>{l.name || l.email}</H2>
-                <Muted>{l.email}{l.phone ? ' · ' + l.phone : ''}</Muted>
-              </View>
-              <Row gap={8} wrap>
-                <Chip label={l.props.length + ' ' + t('mülk')} />
-                <Chip label={l.tenantCount + ' ' + t('kiracı')} />
-                <Chip tone={l.subscribed ? 'ok' : 'neutral'} label={l.subscribed ? t('Abone') : t('Deneme / abonelik yok')} />
-              </Row>
-            </Row>
-            {on ? (
-              <View style={{ gap: 12 }}>
-                {l.props.length ? l.props.map((p: any) => (
-                  <View key={p.id} style={{ gap: 4, paddingLeft: 12, borderLeftWidth: 3, borderLeftColor: '#E8DAD0' }}>
-                    <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{p.name} <Text v="small" muted>· {p.type} · {tl(p.rent)}/{t('ay')}</Text></Text>
-                    {p.addr ? <Muted>{p.addr}</Muted> : null}
-                    {p.tenants.length ? p.tenants.map((tn: any) => <Muted key={tn.id}>• {tn.name}{tn.phone ? ' · ' + tn.phone : ''}{tn.email ? ' · ' + tn.email : ''}</Muted>)
-                      : <Muted>{t('Bu mülkte kiracı yok.')}</Muted>}
-                    {p.invited.map((i: any) => <Muted key={i.code}>◦ {t('Davet bekliyor')}: {i.name || i.code}</Muted>)}
-                  </View>
-                )) : <Muted>{t('Henüz mülk eklemedi.')}</Muted>}
-              </View>
-            ) : null}
-          </Card>
-        );
-      })}
-    </Stack>
-  );
-}
-
-/* ---------------- kullanıcılar ve yasaklama ---------------- */
 
 function BanBox({ u, reload }: { u: any; reload: () => void }) {
   const c = useColors();
@@ -353,73 +221,193 @@ function DeleteBox({ u, reload }: { u: any; reload: () => void }) {
 }
 
 /** Küçük etiket (kullanıcı satırında). */
-function Tag({ label, tone = 'neutral' }: { label: string; tone?: 'neutral' | 'bad' | 'accent' | 'ok' }) {
+function Tag({ label, tone = 'neutral', warn }: { label: string; tone?: 'neutral' | 'bad' | 'accent' | 'ok'; warn?: boolean }) {
   const c = useColors();
-  const [bg, fg] = tone === 'bad' ? [c.badBg, c.badInk] : tone === 'accent' ? [c.accentSoft, c.accentText] : tone === 'ok' ? [c.okBg, c.okInk] : [c.surface2, c.muted];
-  return <View style={{ backgroundColor: bg, paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.pill }}><RNText style={{ color: fg, fontFamily: fonts.bodyMedium, fontSize: 10.5 }}>{label}</RNText></View>;
+  const [bg, fg] = warn ? [c.warnBg, c.warnInk] : tone === 'bad' ? [c.badBg, c.badInk] : tone === 'accent' ? [c.accentSoft, c.accentText] : tone === 'ok' ? [c.okBg, c.okInk] : [c.surface2, c.muted];
+  return <View style={{ backgroundColor: bg, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, alignSelf: 'flex-start' }}><RNText style={{ color: fg, fontFamily: fonts.bodyMedium, fontSize: 11.5 }}>{label}</RNText></View>;
 }
 
-/** Kullanıcı satırı: kapalıyken tek satır (ad, e-posta, etiket); dokununca ayrıntı ve işlemler açılır. */
-function UserRow({ u, open, onToggle, reload }: { u: any; open: boolean; onToggle: () => void; reload: () => void }) {
+/* ---------------- hesaplar: abonelik, mülkler ve kiracılar, hesap işlemleri tek listede ---------------- */
+
+const DAY = 86400000;
+type Sub = any;
+
+/** Satırdaki durum etiketi: mülk sahibinde paket / deneme, kiracıda bağlı olduğu mülk. */
+function statusOf(u: any, s: Sub | undefined, homes: any[]): [string, 'ok' | 'warn' | 'bad' | 'neutral' | 'accent'][] {
+  const out: [string, 'ok' | 'warn' | 'bad' | 'neutral' | 'accent'][] = [];
+  if (u.is_admin) out.push([t('Yönetici'), 'accent']);
+  else if (u.role === 'landlord') {
+    if (s?.subscribed) out.push([planLabel(s.plan) + (s.plan_units ? ' · ' + t('{n} mülk', { n: s.plan_units }) : ''), 'ok']);
+    else if (s?.in_trial) {
+      const left = Math.max(0, Math.ceil((Date.parse(s.trial_ends) - Date.now()) / DAY));
+      out.push([t('Deneme · {n} gün kaldı', { n: left }), 'warn']);
+    } else out.push([t('Erişim yok'), 'neutral']);
+    if (s?.billing_issue) out.push([t('Ödeme sorunu'), 'bad']);
+  } else out.push(homes.length ? [t('{p} mülküne bağlı', { p: homes[0].prop }), 'ok'] : [t('Mülke bağlanmadı'), 'warn']);
+  if (u.banned) out.push([t('Askıda'), 'bad']);
+  return out;
+}
+
+function Box({ title, children }: { title: string; children: ReactNode }) {
   const c = useColors();
-  const name = u.name || u.email || '—';
-  const role = u.is_admin ? t('Yönetici') : u.role === 'landlord' ? t('Mülk sahibi') : t('Kiracı');
-  const line = (k: string, v: string) => (
-    <View style={{ flexDirection: 'row', gap: 8 }}>
-      <RNText style={{ width: 78, fontFamily: fonts.body, fontSize: 12, color: c.muted }}>{k}</RNText>
-      <RNText selectable style={{ flex: 1, fontFamily: fonts.bodyMedium, fontSize: 12.5, color: c.ink }}>{v}</RNText>
+  return (
+    <View style={{ flexGrow: 1, flexBasis: 240, minWidth: 0, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: radius.md, padding: 14, gap: 8 }}>
+      <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 11.5, letterSpacing: 0.6, color: c.muted }}>{title.toLocaleUpperCase(locale())}</RNText>
+      {children}
     </View>
   );
+}
+
+function AccountRow({ u, s, land, homes, open, onToggle, reload }: { u: any; s?: Sub; land?: any; homes: any[]; open: boolean; onToggle: () => void; reload: () => void }) {
+  const c = useColors();
+  const { phone } = useBreakpoint();
+  const name = u.name || u.email || '—';
+  const role = u.is_admin ? t('Yönetici') : u.role === 'landlord' ? t('Mülk sahibi') : t('Kiracı');
+  const tags = statusOf(u, s, homes);
+  const counts = u.role === 'landlord'
+    ? t('{a} mülk · {b} kiracı', { a: land?.props.length ?? s?.units ?? 0, b: land?.tenantCount ?? s?.tenants ?? 0 })
+    : homes.length ? t('{n} kiracısı', { n: homes[0].landlord }) : u.is_admin ? '' : t('Davet kodunu girmedi');
   return (
-    <View style={{ borderBottomWidth: 1, borderBottomColor: c.line }}>
-      <PressScale onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={name + ', ' + role + (u.banned ? ', ' + t('Askıda') : '')} scaleTo={0.995}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 9, minHeight: 52 }}>
-        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: u.banned ? c.badBg : c.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
-          <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 12, color: u.banned ? c.badInk : c.accentText }}>{initials(name)}</RNText>
+    <View style={{ borderTopWidth: 1, borderTopColor: c.line, backgroundColor: open ? c.tile : 'transparent' }}>
+      <PressScale onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={name + ', ' + role + ', ' + tags.map((x) => x[0]).join(', ')} scaleTo={0.997}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 11, minHeight: 58 }}>
+        <View style={{ flex: phone ? 1 : 2.2, flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: u.banned ? c.badBg : c.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+            <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 12, color: u.banned ? c.badInk : c.accentText }}>{initials(name)}</RNText>
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <RNText numberOfLines={1} style={{ fontFamily: fonts.bodyXBold, fontSize: 14, color: c.ink }}>{name}</RNText>
+            <RNText numberOfLines={1} style={{ fontFamily: fonts.body, fontSize: 12, color: c.muted }}>{phone ? counts || u.email : u.email + (u.phone ? ' · ' + u.phone : '')}</RNText>
+          </View>
         </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <RNText numberOfLines={1} style={{ fontFamily: fonts.bodyXBold, fontSize: 14, color: c.ink }}>{name}</RNText>
-          <RNText numberOfLines={1} style={{ fontFamily: fonts.body, fontSize: 12, color: c.muted }}>{u.email}</RNText>
+        {phone ? null : <View style={{ flex: 0.9 }}><Tag label={role} tone={u.is_admin ? 'accent' : 'neutral'} /></View>}
+        <View style={{ flex: phone ? undefined : 1.6, flexDirection: 'row', flexWrap: 'wrap', gap: 4, justifyContent: phone ? 'flex-end' : 'flex-start', maxWidth: phone ? 150 : undefined }}>
+          {tags.map(([l, tone]) => <Tag key={l} label={l} tone={tone === 'warn' ? 'neutral' : tone} warn={tone === 'warn'} />)}
         </View>
-        <View style={{ alignItems: 'flex-end', gap: 3 }}>
-          <Tag label={role} tone={u.is_admin ? 'accent' : 'neutral'} />
-          {u.banned ? <Tag label={t('Askıda')} tone="bad" /> : null}
-        </View>
+        {phone ? null : <RNText numberOfLines={1} style={{ flex: 1.1, fontFamily: fonts.body, fontSize: 12.5, color: c.ink }}>{counts}</RNText>}
+        {phone ? null : <RNText style={{ flex: 0.9, fontFamily: fonts.body, fontSize: 12, color: c.muted }}>{day(u.created_at)}</RNText>}
         <RNText style={{ color: c.muted, fontSize: 11 }}>{open ? '▴' : '▾'}</RNText>
       </PressScale>
       {open ? (
-        <View style={{ paddingHorizontal: 12, paddingBottom: 12, paddingTop: 2, gap: 10 }}>
-          <View style={{ gap: 4 }}>
-            {line(t('Kayıt'), day(u.created_at))}
-            {u.phone ? line(t('Telefon'), u.phone) : null}
-            {u.role === 'landlord' ? line(t('Abonelik'), u.subscribed ? t('Abone') + (u.expires_at ? ' · ' + day(u.expires_at) : '') : t('Abonelik yok')) : null}
-          </View>
-          {u.role === 'landlord' ? <AddForUser u={u} /> : null}
-          <BanBox u={u} reload={reload} />
-          <DeleteBox u={u} reload={reload} />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 16, paddingBottom: 16, paddingTop: 2 }}>
+          {u.role === 'landlord' && s ? (
+            <Box title={t('Paket')}>
+              <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{s.subscribed ? planLabel(s.plan) : s.in_trial ? t('1 ay ücretsiz deneme') : t('Erişim yok')}</Text>
+              <Muted>{s.subscribed
+                ? [t('Kaynak: {s}', { s: s.store === 'admin' ? t('yönetici') : s.store || '—' }), s.expires_at ? t('Bitiş: {d}', { d: day(s.expires_at) }) : t('Süresiz'), s.will_renew ? t('Yenilenecek') : t('Yenilenmeyecek')].join(' · ')
+                : t('Deneme bitişi: {d}', { d: day(s.trial_ends) }) + (s.extra_days ? ' · ' + t('+{n} gün uzatıldı', { n: s.extra_days }) : '')}</Muted>
+              {s.subscribed && s.plan_units ? <Muted>{t('Paketteki adet')}: {t('{n} mülk', { n: s.plan_units })}{s.plan_sector ? ' · ' + t('Sektör') + ': ' + sectorOf(s.plan_sector).label : ''}</Muted> : null}
+              {s.choice && !s.subscribed ? <Muted>{t('Satın alma sayfasındaki seçimi')}: {planLabel(s.choice.plan)} · {t('{n} mülk', { n: s.choice.units })} · {s.choice.yearly ? t('yıllık') : t('aylık')}</Muted> : null}
+              <SubActions s={s} reload={reload} />
+            </Box>
+          ) : null}
+          {u.role === 'landlord' ? (
+            <Box title={t('Mülkler ve kiracılar')}>
+              {land?.props.length ? land.props.map((p: any) => (
+                <View key={p.id} style={{ gap: 2, paddingLeft: 10, borderLeftWidth: 3, borderLeftColor: c.accentSoft }}>
+                  <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{p.name} <Text v="small" muted>· {p.type} · {tl(p.rent)}/{t('ay')}</Text></Text>
+                  {p.addr ? <Muted>{p.addr}</Muted> : null}
+                  {p.tenants.length ? p.tenants.map((tn: any) => <Muted key={tn.id}>• {tn.name}{tn.phone ? ' · ' + tn.phone : ''}{tn.email ? ' · ' + tn.email : ''}</Muted>)
+                    : <Muted>{t('Bu mülkte kiracı yok.')}</Muted>}
+                  {p.invited.map((i: any) => <Muted key={i.code}>◦ {t('Davet bekliyor')}: {i.name || i.code}</Muted>)}
+                </View>
+              )) : <Muted>{t('Henüz mülk eklemedi.')}</Muted>}
+              <AddForUser u={u} />
+            </Box>
+          ) : u.is_admin ? null : (
+            <Box title={t('Bağlı olduğu mülkler')}>
+              {homes.length ? homes.map((h) => <Muted key={h.pid}>• {h.prop} · {t('Mülk sahibi')}: {h.landlord}</Muted>)
+                : <Muted>{t('Kayıt oldu ama davet kodunu girmedi.')}</Muted>}
+            </Box>
+          )}
+          <Box title={t('Hesap')}>
+            <Muted>{[t('Kayıt') + ' ' + day(u.created_at), u.phone ? t('Telefon') + ' ' + u.phone : ''].filter(Boolean).join(' · ')}</Muted>
+            <BanBox u={u} reload={reload} />
+            <DeleteBox u={u} reload={reload} />
+            {!u.banned && !u.is_admin ? <Muted>{t('Kalıcı silme yalnız askıdaki hesapta açılır.')}</Muted> : null}
+          </Box>
         </View>
       ) : null}
     </View>
   );
 }
 
-function Users({ d, reload }: { d: Data; reload: () => void }) {
+/** Abonelikler, Kullanıcılar ve Bağlantılar tek bölümde: üstte sayılar (dokununca süzer), arama, rol; satır açılınca paket, mülkler ve hesap. */
+function Accounts({ d, reload }: { d: Data; reload: () => void }) {
+  const c = useColors();
+  const { phone } = useBreakpoint();
+  const [subs, setSubs] = useState<Sub[] | null>(null);
+  const [subErr, setSubErr] = useState<string | null>(null);
+  const loadSubs = useCallback(() => { loadSubscriptions().then(setSubs).catch((e) => setSubErr(humanError(e))); }, []);
+  useEffect(() => { loadSubs(); }, [loadSubs]);
+  const all = useCallback(async () => { loadSubs(); await reload(); }, [loadSubs, reload]);
   const [q, setQ] = useState('');
-  const [f, setF] = useState('all');
+  const [role, setRole] = useState('all');
+  const [k, setK] = useState('all');
   const [open, setOpen] = useState<string | null>(null);
-  const match = (u: any, k: string) => k === 'all' || (k === 'banned' ? u.banned : u.role === k);
-  const n = (k: string) => d.users.filter((u: any) => match(u, k)).length;
-  const list = d.users.filter((u: any) => match(u, f) &&
-    (!q.trim() || [u.name, u.email, u.phone].join(' ').toLocaleLowerCase('tr').includes(q.trim().toLocaleLowerCase('tr'))));
+
+  const subBy = useMemo(() => Object.fromEntries((subs || []).map((s) => [s.id, s])), [subs]);
+  const landBy = useMemo(() => Object.fromEntries(d.landlords.map((l: any) => [l.id, l])), [d]);
+  const homesBy = useMemo(() => {
+    const m: Record<string, any[]> = {};
+    d.landlords.forEach((l: any) => l.props.forEach((p: any) => p.tenants.forEach((tn: any) => {
+      (m[tn.id] = m[tn.id] || []).push({ pid: p.id, prop: p.name, landlord: l.name || l.email });
+    })));
+    return m;
+  }, [d]);
+  const unlinked = useMemo(() => new Set(d.unlinked.map((u: any) => u.id)), [d]);
+  const soon = Date.now() + 7 * DAY;
+  const KPI: [string, string, (u: any) => boolean, 'warn' | 'bad' | undefined][] = [
+    ['all', t('Tüm hesaplar'), () => true, undefined],
+    ['trial', t('Denemede'), (u) => !!subBy[u.id]?.in_trial, undefined],
+    ['paying', t('Abone'), (u) => !!subBy[u.id]?.subscribed, undefined],
+    ['expiring', t('Denemesi 7 günde bitiyor'), (u) => !!subBy[u.id]?.in_trial && Date.parse(subBy[u.id].trial_ends) < soon, 'warn'],
+    ['issue', t('Ödeme sorunu'), (u) => !!subBy[u.id]?.billing_issue, 'bad'],
+    ['unlinked', t('Mülke bağlanmamış kiracı'), (u) => unlinked.has(u.id), undefined]
+  ];
+  const kf = (KPI.find((x) => x[0] === k) || KPI[0])[2];
+  const rf = (u: any) => role === 'all' || (role === 'banned' ? u.banned : role === 'landlord' ? u.role === 'landlord' : u.role === 'tenant' && !u.is_admin);
+  const n = (r: string) => d.users.filter((u: any) => r === 'all' || (r === 'banned' ? u.banned : r === 'landlord' ? u.role === 'landlord' : u.role === 'tenant' && !u.is_admin)).length;
+  const list = d.users.filter((u: any) => kf(u) && rf(u) &&
+    (!q.trim() || [u.name, u.email, u.phone].join(' ').toLocaleLowerCase('tr').includes(q.trim().toLocaleLowerCase('tr'))))
+    .sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)));
   return (
     <Stack>
-      <Field label={t('Ara')} value={q} onChangeText={setQ} placeholder={t('Ad, e-posta ya da telefon')} />
-      <Seg scroll value={f} onChange={setF} options={[['all', t('Hepsi') + ' ' + n('all')], ['landlord', t('Mülk sahibi') + ' ' + n('landlord')], ['tenant', t('Kiracı') + ' ' + n('tenant')], ['banned', t('Askıda') + ' ' + n('banned')]]} />
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+        {KPI.map(([key, label, f, tone]) => {
+          const on = k === key;
+          const count = d.users.filter(f).length;
+          return (
+            <PressScale key={key} onPress={() => setK(on && key !== 'all' ? 'all' : key)} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={label + ': ' + count} scaleTo={0.97}
+              style={{ flexGrow: 1, flexBasis: phone ? 100 : 150, padding: 12, borderRadius: radius.md, borderWidth: on ? 2 : 1, borderColor: on ? c.ink : c.line,
+                backgroundColor: tone === 'warn' && count ? c.warnBg : tone === 'bad' && count ? c.badBg : c.surface }}>
+              <RNText style={{ fontFamily: fonts.display, fontSize: 24, color: tone === 'bad' && count ? c.badInk : c.ink, fontVariant: ['tabular-nums'] }}>{count}</RNText>
+              <RNText style={{ fontFamily: fonts.bodyMedium, fontSize: 12, color: tone === 'warn' && count ? c.warnInk : c.muted }}>{label}</RNText>
+            </PressScale>
+          );
+        })}
+      </View>
+      {subErr ? <Text v="small" color={c.badInk}>{subErr}</Text> : null}
+      <View style={{ flexDirection: phone ? 'column' : 'row', gap: 10, alignItems: phone ? 'stretch' : 'flex-end' }}>
+        <View style={{ flex: phone ? undefined : 1 }}><Field label={t('Ara')} value={q} onChangeText={setQ} placeholder={t('Ad, e-posta ya da telefon')} autoCapitalize="none" /></View>
+        <Seg scroll value={role} onChange={setRole} options={[['all', t('Hepsi') + ' ' + n('all')], ['landlord', t('Mülk sahibi') + ' ' + n('landlord')], ['tenant', t('Kiracı') + ' ' + n('tenant')], ['banned', t('Askıda') + ' ' + n('banned')]]} />
+      </View>
       {list.length ? (
         <Card gap={0} style={{ padding: 0, overflow: 'hidden' }}>
-          <Shown list={list} step={50} render={(u: any) => <UserRow key={u.id} u={u} open={open === u.id} onToggle={() => setOpen(open === u.id ? null : u.id)} reload={reload} />} />
+          {!phone ? (
+            <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: c.tile }}>
+              {[[t('Kişi'), 2.2], [t('Rol'), 0.9], [t('Paket / durum'), 1.6], [t('Mülk · kiracı'), 1.1], [t('Kayıt'), 0.9]].map(([l, f]) => (
+                <RNText key={l as string} style={{ flex: f as number, fontFamily: fonts.bodyXBold, fontSize: 11, letterSpacing: 0.6, color: c.muted }}>{String(l).toLocaleUpperCase(locale())}</RNText>
+              ))}
+              <View style={{ width: 11 }} />
+            </View>
+          ) : null}
+          <Shown list={list} step={50} render={(u: any) => (
+            <AccountRow key={u.id} u={u} s={subBy[u.id]} land={landBy[u.id]} homes={homesBy[u.id] || []} open={open === u.id}
+              onToggle={() => setOpen(open === u.id ? null : u.id)} reload={all} />
+          )} />
         </Card>
-      ) : <Empty>{t('Kullanıcı yok.')}</Empty>}
+      ) : <Empty>{t('Eşleşen hesap yok.')}</Empty>}
     </Stack>
   );
 }

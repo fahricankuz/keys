@@ -177,7 +177,7 @@ test('erişilebilirlik (axe): oturum açmış kiracı ve mülk sahibi ekranları
 test('erişilebilirlik (axe): yönetici paneli', async ({ page }) => {
   await login(page, 'admin@ornek.com');
   await expect(page.getByText('Yönetici', { exact: true }).first()).toBeVisible();
-  for (const tab of ['Denetim', 'Ödemeler', 'Bağlantılar', 'Mesajlar', 'Kullanıcılar', 'İşlem kaydı', 'Genel bakış']) {
+  for (const tab of ['Hesaplar', 'Ödemeler', 'Mesajlar', 'İşlem kaydı', 'Genel bakış']) {
     await page.getByRole('button', { name: tab, exact: true }).first().click();
     await page.waitForTimeout(400);
   }
@@ -273,13 +273,13 @@ test('güvenlik: oturumsuz kullanıcı uygulama ve yönetici sayfalarını göre
   await page.goto(url('/admin'));
   await page.waitForTimeout(1500);
   expect(page.url()).not.toMatch(/\/admin$/);
-  await expect(page.getByRole('button', { name: 'Kullanıcılar' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Hesaplar' })).toHaveCount(0);
   await login(page, 'kiraci@ornek.com');
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
   await page.goto(url('/admin'));
   await page.waitForTimeout(1500);
   expect(page.url()).not.toMatch(/\/admin$/);
-  await expect(page.getByRole('button', { name: 'Kullanıcılar' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Hesaplar' })).toHaveCount(0);
 });
 
 test('güvenlik: uygulama kendi depolama anahtarlarına parola yazmaz; adreste sır yok', async ({ page }) => {

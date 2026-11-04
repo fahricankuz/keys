@@ -13,6 +13,8 @@ Test ya da yapılacaklar sorulduğunda bu liste hatırlatılır; yapılan madde 
 - [ ] İnceleme hesaplarını `app/scripts/inceleme-hesaplari.mjs` ile oluşturup mağaza konsollarına girme (`docs/magaza.md` bölüm 2).
 - [ ] Yönetici paneli → Kurumlar: "Dalyan Sitesi"nin sektörünü "Site ve bina yönetimi" yapma (şu an "Diğer"; site paneli açılmaz).
 - [ ] Açık karar: uygulamada abonelik satılacak mı (mağaza içi satın alma) — `docs/magaza.md` bölüm 3.
+- [ ] Her yıl Ocak başı: yeni yılın gelir vergisi dilimleri, konut kira istisnası ve beyan sınırı açıklanınca
+      `app/src/domain/tax.js` → `RATES`'e yılı ekletmek (2026 eklendi; 2027 için Aralık 2026 sonundaki tebliği bekle).
 
 
 Durum (27 Ekim 2026): site, uygulama ve yönetici paneli hazır; Türkçe/İngilizce çalışıyor; 249 otomatik test geçiyor.
@@ -104,8 +106,8 @@ paketleri yönetici panelinden elle verebilirsiniz.
 
 ## Faz 4 — Lansman hazırlığı (1–2 hafta)
 
-- [ ] 👤 **Belge denetim operasyonu**: yüklenen her belge ve fatura yönetici onayından geçiyor (kira ve aidat dekontu Kasım 2026'dan
-      beri denetime düşmüyor, doğrudan mülk sahibinin onayına gidiyor). Kim onaylayacak, hedef süre ne (ör. 4 saat)?
+- [x] Yükleme denetimi kaldırıldı (Kasım 2026): dekont, belge ve fatura yüklendiği anda karşı tarafa görünür; kötüye kullanım
+      Şikâyetler'den (24 saat) yürür.
 - [ ] 🤖 Analitik (Plausible / PostHog) ve hata izleme (Sentry); yönetici panelindeki KPI'lara ek olarak dönüşüm hunisi.
 - [ ] 🤖 E-posta şablonları (kayıt onayı, şifre sıfırlama) Türkçe + İngilizce, marka görünümüyle.
 - [ ] 👤 Yedekten geri yükleme denemesi (bir kez).

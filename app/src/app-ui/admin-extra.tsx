@@ -177,7 +177,6 @@ export function Overview({ ops }: { ops?: { pending?: number; banned?: number } 
 
       <GroupTitle>{t('Operasyon')}</GroupTitle>
       <KpiGrid>
-        <Kpi icon="doc" tone={ops?.pending ? 'peach' : 'sky'} label={t('Denetim bekleyen')} value={String(ops?.pending ?? 0)} sub={t('Belge ve fatura')} />
         {extra ? <Kpi icon="wrench" tone="butter" label={t('Açık arıza / tadilat talebi')} value={String(k.requests.open)} sub={t('{a} çözüldü · dönemde {b} yeni', { a: k.requests.done, b: k.requests.period })} /> : null}
         <Kpi icon="chat" tone="sky" label={t('Açık destek talebi')} value={String(k.supportOpen)} sub={t('Kurumsal, içe aktarma, genel')} />
         <Kpi icon="x" tone="peach" label={t('Askıdaki hesap')} value={String(ops?.banned ?? 0)} sub={t('Erişimi biten: {n}', { n: o.lapsed })} />
@@ -192,10 +191,8 @@ export function Overview({ ops }: { ops?: { pending?: number; banned?: number } 
   );
 }
 
-const FILTERS: [string, string][] = [['all', 'Hepsi'], ['trial', 'Denemede'], ['expiring', '7 günde bitiyor'], ['paying', 'Ödeyen'], ['issue', 'Ödeme sorunu'], ['lapsed', 'Erişimi biten']];
-
 /** Deneme uzatma ve elle paket verme (gerekçe kayda yazılır). */
-function SubActions({ s, reload }: { s: any; reload: () => void }) {
+export function SubActions({ s, reload }: { s: any; reload: () => void }) {
   const c = useColors();
   const [mode, setMode] = useState('');
   const [days, setDays] = useState('14');
@@ -249,50 +246,6 @@ function SubActions({ s, reload }: { s: any; reload: () => void }) {
       </Row>
       {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
     </View>
-  );
-}
-
-export function Subscriptions() {
-  const c = useColors();
-  const { data, err, reload } = useLoad<any[]>(() => loadSubscriptions());
-  const [q, setQ] = useState('');
-  const [f, setF] = useState('all');
-  const soon = Date.now() + 7 * 86400000;
-  const list = (data || []).filter((s) =>
-    (f === 'all' || (f === 'trial' && s.in_trial) || (f === 'expiring' && s.in_trial && Date.parse(s.trial_ends) < soon) || (f === 'paying' && s.subscribed)
-      || (f === 'issue' && s.billing_issue) || (f === 'lapsed' && !s.subscribed && !s.in_trial))
-    && (!q.trim() || [s.name, s.email].join(' ').toLocaleLowerCase('tr').includes(q.trim().toLocaleLowerCase('tr'))));
-  return (
-    <Stack>
-      <Field label={t('E-postayla ara')} value={q} onChangeText={setQ} placeholder={t('Ad ya da e-posta')} autoCapitalize="none" />
-      <Seg scroll value={f} onChange={setF} options={FILTERS.map(([k, l]) => [k, t(l)] as [string, string])} />
-      {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
-      {data || err ? null : <Spin />}
-      {data && !list.length ? <Empty>{t('Eşleşen mülk sahibi yok.')}</Empty> : null}
-      {list.map((s) => (
-        <Card key={s.id} gap={8}>
-          <Row between wrap>
-            <View style={{ flex: 1, minWidth: 200 }}><H2>{s.name || s.email}</H2><Muted>{s.email} · {t('Kayıt')}: {day(s.created_at)}</Muted></View>
-            <Row gap={8} wrap>
-              {s.subscribed ? <Chip tone="ok" label={planLabel(s.plan)} /> : s.in_trial ? <Chip tone="warn" label={t('Deneme')} /> : <Chip tone="bad" label={t('Erişim yok')} />}
-              {s.billing_issue ? <Chip tone="bad" label={t('Ödeme sorunu')} /> : null}
-              {s.banned ? <Chip tone="bad" label={t('Askıda')} /> : null}
-            </Row>
-          </Row>
-          <Muted>{s.subscribed
-            ? [t('Kaynak: {s}', { s: s.store === 'admin' ? t('yönetici') : s.store || '—' }), s.expires_at ? t('Bitiş: {d}', { d: day(s.expires_at) }) : t('Süresiz'), s.will_renew ? t('Yenilenecek') : t('Yenilenmeyecek')].join(' · ')
-            : t('Deneme bitişi: {d}', { d: day(s.trial_ends) }) + (s.extra_days ? ' · ' + t('+{n} gün uzatıldı', { n: s.extra_days }) : '')}</Muted>
-          <Muted>{t('{n} mülk', { n: s.units })} · {t('{n} kiracı', { n: s.tenants })}</Muted>
-          {s.subscribed && s.plan_units ? (
-            <Muted>{t('Paketteki adet')}: {t('{n} mülk', { n: s.plan_units })}{s.plan_sector ? ' · ' + t('Sektör') + ': ' + sectorOf(s.plan_sector).label : ''}</Muted>
-          ) : null}
-          {s.choice && !s.subscribed ? (
-            <Muted>{t('Satın alma sayfasındaki seçimi')}: {planLabel(s.choice.plan)} · {t('{n} mülk', { n: s.choice.units })} · {s.choice.yearly ? t('yıllık') : t('aylık')}{s.choice.at ? ' · ' + day(s.choice.at) : ''}</Muted>
-          ) : null}
-          <SubActions s={s} reload={reload} />
-        </Card>
-      ))}
-    </Stack>
   );
 }
 

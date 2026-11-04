@@ -24,7 +24,8 @@ test('paket ver: mülk adedi sorulur; Kurumsal için sektör de zorunlu; kayıt 
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
   await expect(page).toHaveURL(/\/admin$/);
-  await page.getByRole('button', { name: 'Abonelikler', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Hesaplar', exact: true }).first().click();
+  await page.getByRole('button', { name: /^Ayşe Mülk/ }).click();                    // satır açılınca paket işlemleri görünür
   await page.getByRole('button', { name: 'Paket ver' }).first().click();
 
   // Başlangıç: adet alanı var, sektör yok; 9'dan büyük adet reddedilir.

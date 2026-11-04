@@ -85,7 +85,7 @@ test('yönetici: uzun listeler 100\'er kayıt; ödemeler son 12 ay, daha eskisi 
   }
   await withSeed(page, d);
   await login(page, 'admin@ornek.com');
-  await page.getByRole('button', { name: /^Kullanıcılar/ }).click();
+  await page.getByRole('button', { name: 'Hesaplar', exact: true }).click();
   await expect(page.getByRole('button', { name: /^Daha fazla göster \(\d+ kaldı\)$/ })).toBeVisible();
   await page.getByRole('button', { name: /^Ödemeler/ }).click();
   await expect(page.getByText('0 kayıt', { exact: false }).first()).toBeVisible();

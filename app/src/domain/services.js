@@ -669,7 +669,7 @@ export async function submit(type, v){
     if (cat === 'DASK poliçesi' && until) p.dask = until;
     sysMsg(p, cat+(' '+t('yüklendi:')+' ')+name);
     save(); host.closeSheet();
-    notify({ title:t('Belge yüklendi'), body: cat + (until ? ' · '+fmtFull(parse(until))+(' '+t('için hatırlatma kuruldu')) : '') + (LIVE ? ' · '+t('anahtar ekibi inceleyecek.') : ''), icon:'doc' });
+    notify({ title:t('Belge yüklendi'), body: cat + (until ? ' · '+fmtFull(parse(until))+(' '+t('için hatırlatma kuruldu')) : '') , icon:'doc' });
     return true;
   }
 

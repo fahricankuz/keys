@@ -106,63 +106,62 @@ test('mülk sahibi reddeder: gerekçe kiracıya döner; yeniden yüklenen dekont
 });
 
 test('yalnızca yönetici karar verir; yükleyen ve karşı taraf denetimi değiştiremez', async () => {
-  await putFile('p1/ek.pdf', T);
+  // Yeni yüklemeler denetime düşmez; eski denetim kayıtlarında karar yetkisi yine yalnız yöneticide.
+  await as(null);
+  await db.query(`insert into public.reviews (kind, property_id, ref_id, uploader, label, path, status) values ('document', 'p1', 'd0', $1, 'ek.pdf', 'p1/ek.pdf', 'pending')`, [T]);
   await as(T);
-  await db.query(`insert into public.documents (id, property_id, cat, name, path) values ('d0', 'p1', 'Diğer', 'ek.pdf', 'sb:p1/ek.pdf')`);
   expect((await q(`update public.reviews set status = 'approved' where ref_id = 'd0' returning 1`)).length).toBe(0);
   await as(L);
   expect((await q(`update public.reviews set status = 'approved' where ref_id = 'd0' returning 1`)).length).toBe(0);
   await as(A);
   await expect(db.query(`update public.reviews set status = 'rejected' where ref_id = 'd0'`)).rejects.toThrow(/gerekçe/);
   await expect(db.query(`update public.reviews set label = 'x' where ref_id = 'd0'`)).rejects.toThrow(/kendisi değiştirilemez/);
-  await as(null);
-  await db.query(`delete from public.documents where id = 'd0'`);                          // sonraki belge testleri temiz başlasın
 });
 
-test('belge: karşı taraf onaydan sonra görür; reddedilirse yükleyen haberdar olur', async () => {
+test('belge: denetime düşmez; karşı taraf hemen görür, dosyayı okur ve bildirim alır', async () => {
   await putFile('p1/sozlesme.pdf', T);
   await as(T);
   await db.query(`insert into public.documents (id, property_id, cat, name, path) values ('d1', 'p1', 'Kira sözleşmesi', 'sozlesme.pdf', 'sb:p1/sozlesme.pdf')`);
-  expect((await q(`select count(*)::int c from public.documents`))[0].c).toBe(1);
+  await as(null);
+  expect(await q(`select * from public.reviews where kind = 'document' and ref_id = 'd1'`)).toEqual([]);
   await as(L);
-  expect(await q(`select * from public.documents`)).toEqual([]);
-  expect(await canRead(L, 'p1/sozlesme.pdf')).toBe(false);
-
-  await as(A);
-  expect((await q(`select count(*)::int c from public.documents`))[0].c).toBe(1);        // yönetici hepsini görür
-  await db.query(`update public.reviews set status = 'approved' where kind = 'document' and ref_id = 'd1'`);
-  await as(L);
-  expect((await q(`select name from public.documents`))[0].name).toBe('sozlesme.pdf');
+  expect((await q(`select name from public.documents where id = 'd1'`))[0].name).toBe('sozlesme.pdf');
   expect(await canRead(L, 'p1/sozlesme.pdf')).toBe(true);
-  expect((await notes(L)).some(n => /yeni belge/.test(n.title))).toBe(true);
+  expect((await notes(L)).some(n => /yeni belge/.test(n.title) && n.body === 'sozlesme.pdf')).toBe(true);
+  expect((await notes(T)).some(n => /yeni belge/.test(n.title))).toBe(false);          // yükleyene gitmez
 
-  // Mülk sahibinin belgesi reddedilir; kiracı hiç görmez, mülk sahibi bildirim alır.
+  // Mülk sahibinin belgesi de kiracıya hemen görünür.
   await putFile('p1/ruhsat.pdf', L);
   await as(L);
   await db.query(`insert into public.documents (id, property_id, cat, name, path) values ('d2', 'p1', 'Diğer', 'ruhsat.pdf', 'sb:p1/ruhsat.pdf')`);
   await as(T);
-  expect((await q(`select id from public.documents`)).map(r => r.id)).toEqual(['d1']);
-  await as(A);
-  await db.query(`update public.reviews set status = 'rejected', note = 'Eksik sayfa' where kind = 'document' and ref_id = 'd2'`);
-  expect((await notes(L)).some(n => /kabul edilmedi/.test(n.title) && /Eksik sayfa/.test(n.body))).toBe(true);
-  await as(T);
-  expect((await q(`select id from public.documents`)).map(r => r.id)).toEqual(['d1']);
+  expect((await q(`select id from public.documents order by id`)).map(r => r.id)).toEqual(['d1', 'd2']);
+  expect(await canRead(T, 'p1/ruhsat.pdf')).toBe(true);
 });
 
-test('fatura: mülk sahibi ekler, dosya kiracıya onaya kadar kilitli', async () => {
+test('daha önce reddedilmiş belge yeniden yüklenince gizli kalmaz', async () => {
+  await as(null);
+  await db.query(`insert into public.reviews (kind, property_id, ref_id, uploader, label, path, status, note) values ('document', 'p1', 'd2', $1, 'ruhsat.pdf', 'p1/ruhsat.pdf', 'rejected', 'Eksik sayfa')`, [L]);
+  await as(T);
+  expect((await q(`select id from public.documents order by id`)).map(r => r.id)).toEqual(['d1']);
+  await putFile('p1/ruhsat2.pdf', L);
+  await as(L);
+  await db.query(`update public.documents set name = 'ruhsat2.pdf', path = 'sb:p1/ruhsat2.pdf' where id = 'd2'`);
+  await as(T);
+  expect((await q(`select id from public.documents order by id`)).map(r => r.id)).toEqual(['d1', 'd2']);
+});
+
+test('fatura: mülk sahibi ekler, kiracı hemen görür ve bildirim alır', async () => {
   await as(T);
   await db.query(`insert into public.requests (id, property_id, cat, title) values ('r1', 'p1', 'Arıza', 'Kombi')`);
   await putFile('p1/fatura.pdf', L);
   await as(L);
   await db.query(`update public.requests set invoice = '{"name":"fatura.pdf","path":"sb:p1/fatura.pdf","amount":2400,"date":"2026-10-20"}'::jsonb where id = 'r1'`);
-  const rv = (await q(`select kind, status, amount::int a from public.reviews where kind = 'invoice'`))[0];
-  expect(rv).toEqual({ kind: 'invoice', status: 'pending', a: 2400 });
-  expect(await canRead(T, 'p1/fatura.pdf')).toBe(false);
-  expect(await canRead(L, 'p1/fatura.pdf')).toBe(true);
-  await as(A);
-  await db.query(`update public.reviews set status = 'approved' where kind = 'invoice'`);
+  await as(null);
+  expect(await q(`select * from public.reviews where kind = 'invoice'`)).toEqual([]);
   expect(await canRead(T, 'p1/fatura.pdf')).toBe(true);
   expect((await notes(T)).some(n => /fatura eklendi/.test(n.title))).toBe(true);
+  expect((await notes(L)).some(n => /fatura eklendi/.test(n.title))).toBe(false);
 });
 
 test('yönetici kullanıcıları, evleri, üyelikleri ve ödemeleri okur; giderleri ve mesajları okumaz', async () => {
@@ -296,6 +295,8 @@ test('mesaj silme denetim kaydına düşer; denetim kaydı değiştirilemez, sil
 });
 
 test('yükleme kararı denetim kaydına düşer', async () => {
+  await as(null);
+  await db.query(`insert into public.reviews (kind, property_id, ref_id, uploader, label, path, status) values ('document', 'p1', 'eski', $1, 'eski.pdf', 'p1/eski.pdf', 'pending')`, [T]);
   await as(A);
   const [r] = await q(`select kind, property_id, ref_id from public.reviews where status = 'pending' limit 1`);
   expect(r, 'bekleyen yükleme olmalı').toBeTruthy();
