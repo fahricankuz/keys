@@ -18,6 +18,7 @@ import { OverlayProvider } from './overlays';
 import OpenSplash from './OpenSplash';
 import { renderSheet } from './sheets';
 import { useAuth } from '../auth/auth';
+import { RoleSwitcher, previewMode } from './RoleSwitcher';
 
 type Item = { label: string; icon: string; path: string; badge?: number };
 const SETTINGS = '/uygulama/ayarlar';
@@ -114,6 +115,7 @@ function SideNav({ list }: { list: Item[] }) {
   return (
     <View style={{ width: 272, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 32, margin: 14, padding: 22, gap: 6 }}>
       <PressScale onPress={() => router.push('/' as any)} accessibilityRole="link" accessibilityLabel={t('Ana sayfa')} style={{ marginBottom: 18, alignSelf: 'flex-start' }}><Wordmark size={30} /></PressScale>
+      {previewMode() ? <RoleSwitcher active={currentPortfolioOrg() ? 'site' : ui.role === 'tenant' ? 'kiraci' : 'ev'} startOpen={previewMode() === 2} /> : null}
       {list.map((it) => {
         const on = active(it.path);
         return (
@@ -153,6 +155,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       <View style={{ flex: 1, flexDirection: 'row', backgroundColor: c.bg }}>
         {desktop && <SideNav list={[...(side || [...tabs, ...extra]), { label: t('Ayarlar'), icon: 'gear', path: SETTINGS }]} />}
         <View style={{ flex: 1 }}>
+          {!desktop && previewMode() ? <View style={{ paddingHorizontal: 14, paddingTop: 10 }}><RoleSwitcher compact active={currentPortfolioOrg() ? 'site' : ui.role === 'tenant' ? 'kiraci' : 'ev'} startOpen={previewMode() === 2} /></View> : null}
           <View style={{ flex: 1 }}>{children}</View>
           {!desktop && <TabBar list={tabs} />}
         </View>
