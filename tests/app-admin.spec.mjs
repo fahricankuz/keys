@@ -515,3 +515,22 @@ test('yönetici yasaklanmış hesabı e-postayı yazarak kalıcı siler; yasaks�
   expect(d.users.some((u) => u.email === 'kiraci@ornek.com')).toBe(false);
   expect(d.tables.admin_audit.map((a) => a.action)).toContain('user.delete');
 });
+
+test('müşteri sağlığı: mülk eklemeyen hesap listede; temas notu kaydedilir ve "Son temas" görünür', async ({ page }) => {
+  await page.goto(url('/giris'));
+  await page.evaluate(() => {
+    const d = JSON.parse(localStorage.getItem('__fakedb'));
+    const old = new Date(Date.now() - 10 * 864e5).toISOString();
+    d.users.push({ id: 'u-bos', email: 'bos@ornek.com', password: 'x', meta: { name: 'Boş Mülk Sahibi', role: 'landlord' } });
+    d.tables.profiles.push({ id: 'u-bos', role: 'landlord', name: 'Boş Mülk Sahibi', phone: '05320001122', lang: 'tr', settings: {}, created_at: old });
+    localStorage.setItem('__fakedb', JSON.stringify(d));
+  });
+  await login(page, 'admin@ornek.com');
+  await page.getByRole('button', { name: 'Müşteri sağlığı', exact: true }).click();
+  await expect(page.getByText('Boş Mülk Sahibi')).toBeVisible();
+  await expect(page.getByText('• 10 gündür mülk eklemedi')).toBeVisible();
+  await page.getByLabel('Temas notu').first().fill('Aradım, hafta sonu mülk ekleyecek.');
+  await page.getByRole('button', { name: 'Kaydet', exact: true }).first().click();
+  await expect(page.getByText(/Son temas .*: Aradım, hafta sonu mülk ekleyecek\./)).toBeVisible();
+  expect((await db(page)).tables.customer_contacts.map((x) => [x.user_id, x.note])).toEqual([['u-bos', 'Aradım, hafta sonu mülk ekleyecek.']]);
+});

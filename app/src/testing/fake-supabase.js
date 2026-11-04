@@ -8,7 +8,7 @@ const TABLES = ['profiles','properties','property_shared','memberships','invites
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
                 'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto',
-                'legal_requests','legal_notes','client_errors','content_reports','user_blocks'];
+                'legal_requests','legal_notes','client_errors','content_reports','user_blocks','customer_contacts'];
 
 function load(){
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d){ TABLES.forEach(t => d.tables[t] = d.tables[t] || []); d.tables.payments.forEach(r => { r.kind = r.kind || 'kira'; }); return d; } } catch(e){}
@@ -34,6 +34,7 @@ function defaults(table, row, db){
   if (table === 'properties'){ r.id = r.id || uuid(); r.created_at = r.created_at || now(); }
   if (table === 'payments'){ r.kind = r.kind || 'kira'; r.method = r.method || 'dekont'; }
   if (table.startsWith('site_')){ r.id = r.id || uuid(); r.created_at = r.created_at || now(); }
+  if (table === 'customer_contacts'){ r.id = r.id || uuid(); r.created_at = r.created_at || now(); }
   if (table === 'site_residents'){ r.code = r.code || 'S' + Math.random().toString(16).slice(2, 9).toUpperCase().padEnd(7, '0'); r.user_id = r.user_id || null; r.lives_here = r.lives_here !== false; }
   if (table === 'site_budgets'){ r.updated_at = now(); }
   if (table === 'site_turnovers'){ r.status = r.status || 'reported'; r.reported_by = r.reported_by || db.session?.user.id || null; }
@@ -126,7 +127,7 @@ function visible(db, table, row, actor){
   if (table === 'legal_requests') return row.user_id === actor;
   // schema.sql 26. bölüm: engellenen kişinin mesajları görünmez (sistem mesajları hariç).
   if (table === 'messages') return row.from_role === 'system' || !row.by_user || !(db.tables.user_blocks || []).some(b => b.user_id === actor && b.blocked === row.by_user);
-  if (table === 'legal_notes' || table === 'client_errors') return false;
+  if (table === 'legal_notes' || table === 'client_errors' || table === 'customer_contacts') return false;
   if (table === 'content_reports') return row.reporter === actor;
   if (table === 'user_blocks') return row.user_id === actor;
   return true;

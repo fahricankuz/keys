@@ -165,3 +165,32 @@ export async function clearErrors(){
   const c = await client();
   must(await c.from('client_errors').delete().gte('id', 0));
 }
+
+/** Müşteri sağlığı için ek veri: bekleyen kiracı davetleri, kurumlar ve site sayıları, temas notları (yalnız yönetici okur). */
+export async function loadHealth(){
+  const c = await client();
+  const [subs, invites, orgs, contacts] = await Promise.all([
+    loadSubscriptions(),
+    all(() => c.from('invites').select('code, property_id, created_at').is('accepted_by', null).gt('expires_at', new Date().toISOString()).order('code')),
+    c.rpc('admin_orgs').then(must),
+    c.from('customer_contacts').select('id, user_id, org_id, note, created_at').order('created_at', { ascending: false }).limit(1000).then(must)
+  ]);
+  const sites = {};
+  const ids = (orgs || []).filter((o) => ['site', 'avm', 'depo', 'gyo'].includes(o.sector)).map((o) => o.id);
+  if (ids.length){
+    const [units, people] = await Promise.all([
+      all(() => c.from('site_units').select('id, org_id').in('org_id', ids).order('id')),
+      all(() => c.from('site_residents').select('id, org_id, user_id').in('org_id', ids).order('id'))
+    ]);
+    ids.forEach((id) => { sites[id] = { units: 0, people: 0, linked: 0 }; });
+    units.forEach((u) => { sites[u.org_id].units++; });
+    people.forEach((r) => { sites[r.org_id].people++; if (r.user_id) sites[r.org_id].linked++; });
+  }
+  return { subs, invites, orgs: orgs || [], sites, contacts: contacts || [] };
+}
+
+/** Müşteriyle temas notu (kişi ya da kurum). */
+export async function addContact({ user_id = null, org_id = null, note }){
+  must(await (await client()).from('customer_contacts').insert({ user_id, org_id, note: String(note || '').trim() }));
+}
+

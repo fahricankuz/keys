@@ -8,7 +8,7 @@ import { adminLegal } from '../domain/legal';
 import { Image, Linking, ScrollView, Text as RNText, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../auth/auth';
-import { loadAdmin, loadSubscriptions, previewUrl, humanError, setBan, deleteUser, loadThreads, loadMessages, deleteMessage, loadAudit } from '../domain/admin';
+import { loadAdmin, loadSubscriptions, loadHealth, addContact, previewUrl, humanError, setBan, deleteUser, loadThreads, loadMessages, deleteMessage, loadAudit } from '../domain/admin';
 import { t, locale } from '../domain/i18n';
 import { tl } from '../domain/util';
 import { Button, Chip, Field, PressScale, Text } from '../ui/kit';
@@ -23,6 +23,8 @@ import { AddProperty } from './admin-property';
 import OpenSplash from './OpenSplash';
 import { planLabel } from '../domain/plans';
 import { sectorOf } from '../domain/org';
+import { healthList } from '../domain/health';
+import { waLink } from '../domain/wa';
 
 type Data = Awaited<ReturnType<typeof loadAdmin>>;
 const KIND: Record<string, string> = { payment: 'Dekont', document: 'Belge', invoice: 'Fatura' };
@@ -63,6 +65,7 @@ export default function AdminPanel() {
   const SECTIONS: [string, string, string, string][] = [
     ['kpi', t('Genel bakış'), 'grid', ''],
     ['accounts', t('Hesaplar'), 'key', t('Herkes tek listede: mülk sahibinin paketi ve denemesi, mülkleri ve kiracıları, kiracının hangi mülke bağlı olduğu, askı ve silme. Bir satıra dokun, ayrıntısı açılsın.')],
+    ['health', t('Müşteri sağlığı'), 'flag', t('İlgilenilmezse kaybedilebilecek müşteriler: nedeni, iletişim bilgisi ve son temas. Haftalık arama listesi.')],
     ['orgs', t('Kurumlar'), 'office', t('Kurumsal müşteriler: sektör ve modüller, sözleşme, master yönetici, yöneticiler ve roller.')],
     ['cpi', t('Kira artış oranları'), 'chart', t('TÜFE 12 aylık ortalama: sitedeki hesaplayıcı ve uygulamadaki yenileme bu tablodan okur.')],
     ['support', t('Talepler'), 'chat', t('“Bize ulaş” formundan gelen kurumsal, içe aktarma ve genel talepler.')],
@@ -86,6 +89,7 @@ export default function AdminPanel() {
           <Stack>
             <PageHead label={t('Yönetici')} title={cur[1]} sub={cur[3]} />
             {tab === 'accounts' && <Accounts d={data} reload={load} />}
+            {tab === 'health' && <Health d={data} />}
             {tab === 'orgs' && <Orgs draft={orgDraft} clearDraft={() => setOrgDraft(null)} />}
             {tab === 'support' && <Support onConvert={(r: any) => {
               setOrgDraft({ name: r.company || r.name, sector: sectorFromRole(r.details?.role), units: r.units, lead_id: r.id, email: r.email,
@@ -117,6 +121,68 @@ function Shown<T>({ list, render, step = 100 }: { list: T[]; render: (x: T) => R
       {list.slice(0, n).map(render)}
       {list.length > n ? <Button kind="ghost" title={t('Daha fazla göster ({n} kaldı)', { n: list.length - n })} onPress={() => setN(n + step)} style={{ alignSelf: 'center' }} /> : null}
     </>
+  );
+}
+
+/* ---------------- müşteri sağlığı: risk listesi ve temas notları ---------------- */
+
+const SEV: Record<number, [string, 'bad' | 'neutral' | 'accent']> = { 3: ['Acil', 'bad'], 2: ['Önemli', 'accent'], 1: ['İzle', 'neutral'] };
+
+function HealthRow({ x, onSaved }: { x: any; onSaved: () => void }) {
+  const c = useColors();
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [sl, tone] = SEV[x.sev] || SEV[1];
+  const save = async () => {
+    if (!note.trim()) return;
+    setBusy(true); setErr(null);
+    try { await addContact(x.kind === 'org' ? { org_id: x.id, note } : { user_id: x.id, note }); setNote(''); onSaved(); } catch (e) { setErr(humanError(e)); }
+    setBusy(false);
+  };
+  return (
+    <Card gap={10}>
+      <Row between wrap>
+        <View style={{ flex: 1, minWidth: 200, gap: 2 }}>
+          <Row gap={8} wrap><H2>{x.name || '—'}</H2><Tag label={t(sl)} tone={tone} />{x.kind === 'org' ? <Tag label={sectorOf(x.sector).label} /> : null}</Row>
+          <Muted>{[x.email, x.phone].filter(Boolean).join(' · ') || t('İletişim bilgisi yok')}</Muted>
+        </View>
+        <Row gap={6} wrap>
+          {x.phone ? <Button kind="ghost" title={t('WhatsApp')} onPress={() => Linking.openURL(waLink(x.phone, t('Merhaba {name}, anahtar’dan yazıyorum.', { name: String(x.name || '').split(' ')[0] }))).catch(() => {})} /> : null}
+          {x.email ? <Button kind="ghost" title={t('E-posta')} onPress={() => Linking.openURL('mailto:' + x.email).catch(() => {})} /> : null}
+        </Row>
+      </Row>
+      <View style={{ gap: 4 }}>{x.reasons.map((r: any) => <Text key={r.code} v="small" color={r.sev === 3 ? c.badInk : c.ink}>• {r.label}</Text>)}</View>
+      <Muted>{x.last ? t('Son temas {d}: {note}', { d: day(x.last.created_at), note: x.last.note }) : t('Henüz temas kaydı yok.')}</Muted>
+      <Row gap={8} wrap align="flex-end">
+        <View style={{ flexGrow: 1, flexBasis: 240 }}><Field label={t('Temas notu')} value={note} onChangeText={setNote} placeholder={t('Ör. aradım, Excel aktarımında yardım istedi')} maxLength={1000} /></View>
+        <Button title={t('Kaydet')} disabled={!note.trim()} loading={busy} onPress={save} style={{ minHeight: 52 }} />
+      </Row>
+      {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
+    </Card>
+  );
+}
+
+/** Müşteri sağlığı: denemesi biten, mülk eklemeyen, daveti bekleyen, ödeme sorunlu müşteriler ve az katılımlı kurumlar. */
+function Health({ d }: { d: Data }) {
+  const c = useColors();
+  const [h, setH] = useState<any>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [f, setF] = useState('all');
+  const load = useCallback(() => { loadHealth().then(setH).catch((e) => setErr(humanError(e))); }, []);
+  useEffect(() => { load(); }, [load]);
+  const list = useMemo(() => (h ? healthList({ users: d.users, landlords: d.landlords, payments: d.payments, ...h }) : []), [h, d]);
+  if (err) return <Text v="small" color={c.badInk}>{err}</Text>;
+  if (!h) return <View style={{ alignItems: 'center', paddingVertical: 30 }}><Loader size={64} /></View>;
+  const n = (k: string) => list.filter((x: any) => k === 'all' || (k === 'org' ? x.kind === 'org' : x.reasons.some((r: any) => r.code === k))).length;
+  const shown = list.filter((x: any) => f === 'all' || (f === 'org' ? x.kind === 'org' : x.reasons.some((r: any) => r.code === f)));
+  const opts: [string, string][] = [['all', t('Hepsi')], ['trial', t('Deneme bitiyor')], ['billing', t('Ödeme sorunu')], ['noprop', t('Mülk eklemedi')], ['invite', t('Davet bekliyor')], ['nopay', t('Ödeme yok')], ['org', t('Kurumlar')]];
+  return (
+    <Stack>
+      <Seg scroll value={f} onChange={setF} options={opts.filter(([k]) => k === 'all' || n(k)).map(([k, l]) => [k, l + ' ' + n(k)] as [string, string])} />
+      {shown.length ? <Shown list={shown} step={50} render={(x: any) => <HealthRow key={x.kind + x.id} x={x} onSaved={load} />} />
+        : <Empty>{t('Şu an risk görünen müşteri yok.')}</Empty>}
+    </Stack>
   );
 }
 
