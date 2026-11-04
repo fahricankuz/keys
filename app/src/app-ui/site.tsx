@@ -30,6 +30,7 @@ import { useStore } from './hooks';
 import { Picked } from './media';
 import { Pill } from './org';
 import { Page } from './screens';
+import { Meetings, ResidentMeetings } from './site-meetings';
 
 // Tarihler yerel saatle (Türkiye UTC+3; ISO dönüşümü gece yarısından sonra bir önceki güne/aya kayardı).
 const thisMonth = () => mkey(new Date());
@@ -43,7 +44,7 @@ const CURS: [string, string][] = [['TRY', '₺ TL'], ['USD', '$ USD'], ['EUR', '
 /** Bu ekranın açıldığı kurum türleri: site yönetimi ve ticari portföy (AVM, depo, GYO). */
 export const PORTFOLIO_SECTORS = ['site', 'avm', 'depo', 'gyo'];
 /** Kurum paneli bölümlerinin adresleri (/uygulama/site/<bölüm>); menü org.js → sectorSections. */
-export const SECTION_KEYS = ['ozet', 'birimler', 'tahakkuk', 'ciro', 'artis', 'giderler', 'butce', 'duyurular', 'talepler', 'rapor'];
+export const SECTION_KEYS = ['ozet', 'birimler', 'tahakkuk', 'ciro', 'artis', 'giderler', 'butce', 'duyurular', 'genelkurul', 'talepler', 'rapor'];
 export const sectionPath = (k: string) => (k === 'ozet' ? '/uygulama/site' : '/uygulama/site/' + k);
 /** Kişinin yönettiği sektör kurumu (birden çoksa seçili olan). */
 export function currentPortfolioOrg() {
@@ -596,6 +597,7 @@ export function SiteAdminScreen({ section = 'ozet' }: { section?: string }) {
           {cur.key === 'butce' && <Budget d={d} oid={org.id} can={can} reload={load} />}
           {cur.key === 'rapor' && <Report d={d} org={org.name} />}
           {cur.key === 'duyurular' && <Notes d={d} oid={org.id} can={can} reload={load} />}
+          {cur.key === 'genelkurul' && <Meetings d={d} org={org} can={can} />}
           {cur.key === 'talepler' && (d.requests.length ? d.requests.map((x: any) => <RequestCard key={x.id} x={x} unit={unitBy[x.unit_id]} can={can} reload={load} />) : <Empty>{t('Talep yok.')}</Empty>)}
         </>
       )}
@@ -828,6 +830,8 @@ export function ResidentSiteScreen() {
           <Card key={x.id} gap={4}><Row between wrap><Text v="body" style={{ fontFamily: fonts.bodyXBold }}>{x.title}</Text><Muted>{day(x.created_at)}</Muted></Row>{x.body ? <Text v="small">{x.body}</Text> : null}</Card>
         )) : <Empty>{t('Henüz duyuru yok.')}</Empty>}
       </Stack>
+
+      <ResidentMeetings />
 
       <ResidentBudget units={units} />
 

@@ -209,3 +209,54 @@ test('ev sahibi mülkünü site dairesine bağlar; kiracı kira ile aidatı ayn�
   await expect(page.getByText('Borçlu daireler')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Yazdır / PDF' })).toBeVisible();
 });
+
+test('genel kurul: yönetim çağırır ve paketi açar, yoklama açar; malik katılım bildirir ve oy verir; sonuç arsa payıyla', async ({ page }) => {
+  await page.addInitScript(([T]) => {
+    const d = JSON.parse(localStorage.getItem('__fakedb'));
+    if (!d || (d.tables.site_units || []).length) return;
+    const at = new Date().toISOString();
+    d.tables.site_units = [{ id: 'u1', org_id: 'o1', block: 'A', no: '1', share: 3, payer: 'kiraci', created_at: at }, { id: 'u2', org_id: 'o1', block: 'A', no: '2', share: 1, payer: 'kiraci', created_at: at }];
+    d.tables.site_residents = [{ id: 'r1', org_id: 'o1', unit_id: 'u1', user_id: T, role: 'malik', name: 'Ayşe Malik', code: 'S1111111', created_at: at },
+      { id: 'r2', org_id: 'o1', unit_id: 'u2', user_id: null, role: 'malik', name: 'Veli Malik', code: 'S2222222', created_at: at }];
+    localStorage.setItem('__fakedb', JSON.stringify(d));
+  }, [ID.tenant]);
+  const later = istDay(new Date(Date.now() + 30 * 86400000));
+  await login(page, 'ev@ornek.com');
+  await expect(page).toHaveURL(/\/uygulama\/site$/);
+  await page.getByRole('link', { name: 'Genel kurul', exact: true }).first().click();
+  await expect(page.getByText(/bağlayıcı değildir/).first()).toBeVisible();
+  await page.getByLabel('Tarih', { exact: true }).fill(later);
+  await page.getByLabel('Yer', { exact: true }).fill('Kapalı otopark');
+  await page.getByRole('button', { name: 'Çağrıyı yayınla' }).click();
+  await expect(page.getByText('Katılacak 0 · Vekâlet 0 · Katılmayacak 0 · Yanıtsız 2')).toBeVisible();
+  const popup = page.waitForEvent('popup');
+  await page.getByRole('button', { name: 'Toplantı paketi' }).click();
+  const pack = await popup;
+  await expect(pack.getByRole('heading', { name: 'Hazirun cetveli' })).toBeVisible();
+  await expect(pack.getByText('Ayşe Malik')).toBeVisible();
+  await expect(pack.getByText('Kapalı otopark')).toBeVisible();
+  await pack.close();
+
+  await page.getByLabel('Soru').fill('Çatı yalıtımı yapılsın mı?');
+  await page.getByLabel('Bitiş tarihi').fill(later);
+  await page.getByRole('switch', { name: 'Arsa payıyla ağırlıklı sonuç' }).click();
+  await page.getByRole('button', { name: 'Yoklamayı aç' }).click();
+  await expect(page.getByText('Katılım: 0/2 daire · arsa payı 0/4')).toBeVisible();
+
+  // Malik (kiracı hesabıyla giriş yapan kişi A1'in maliki) katılım bildirir ve oy verir.
+  await login(page, 'kiraci@ornek.com');
+  await page.goto(url('/uygulama/sitem'));
+  await expect(page.getByText('Genel kurul ve yoklamalar')).toBeVisible();
+  await page.getByRole('checkbox', { name: 'Katılacağım' }).click();
+  await expect.poll(async () => (await db(page)).tables.site_meeting_replies.map((r) => r.answer)).toEqual(['katilacak']);
+  await page.getByRole('checkbox', { name: 'Evet', exact: true }).click();
+  await expect(page.getByText('Katılım: 1/2 daire · arsa payı 3/4')).toBeVisible();
+  await expect(page.getByText('%100').first()).toBeVisible();
+
+  await login(page, 'ev@ornek.com');
+  await page.goto(url('/uygulama/site/genelkurul'));
+  await expect(page.getByText('Katılacak 1 · Vekâlet 0 · Katılmayacak 0 · Yanıtsız 1')).toBeVisible();
+  await page.getByLabel('Karar defteri notu (toplantıdan sonra)').fill('Çatı yalıtımı oy birliğiyle kabul edildi.');
+  await page.getByRole('button', { name: 'Toplantı yapıldı olarak kaydet' }).click();
+  await expect(page.getByText('Yapıldı')).toBeVisible();
+});

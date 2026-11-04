@@ -7,7 +7,7 @@ const KEY = '__fakedb';
 const TABLES = ['profiles','properties','property_shared','memberships','invites','payments','rent_history',
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
-                'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto',
+                'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes',
                 'legal_requests','legal_notes','client_errors','content_reports','user_blocks','customer_contacts','rent_certificates'];
 
 function load(){
@@ -25,6 +25,7 @@ const KEYS = {
   profiles:['id'], properties:['id'], property_shared:['property_id'], memberships:['property_id','user_id'],
   invites:['code'], payments:['property_id','month','kind'], rent_history:['id'], requests:['id'], messages:['id'],
   documents:['id'], expenses:['id'], notifications:['id'], push_subscriptions:['endpoint'], subscriptions:['user_id'], device_tokens:['token'],
+  site_meeting_replies:['meeting_id','unit_id'], site_votes:['poll_id','unit_id'],
   site_budgets:['org_id','year'], site_auto:['org_id'], site_turnovers:['unit_id','month'], legal_notes:['request_id'], user_blocks:['user_id','blocked'],
   admins:['user_id'], reviews:['kind','property_id','ref_id'], bans:['user_id'], admin_audit:['id']
 };
@@ -41,6 +42,8 @@ function defaults(table, row, db){
   if (table === 'site_units'){ r.payer = r.payer || 'kiraci'; r.block = r.block || ''; r.currency = r.currency || 'TRY'; r.index_kind = r.index_kind || 'tufe'; r.vat = !!r.vat; r.stopaj = !!r.stopaj; }
   if (table === 'site_charges'){ r.status = r.status || 'open'; r.paid_amount = r.paid_amount || 0; r.title = r.title || ''; r.method = r.method || 'dekont'; r.currency = r.currency || 'TRY'; }
   if (table === 'site_requests'){ r.status = r.status || 0; r.reply = r.reply || ''; }
+  if (table === 'site_meetings'){ r.status = r.status || 'cagrildi'; r.minutes = r.minutes || ''; r.agenda = r.agenda || []; r.kind = r.kind || 'olagan'; r.place = r.place || ''; }
+  if (table === 'site_polls'){ r.weighted = !!r.weighted; r.voters = r.voters || 'malik'; }
   if (table === 'invites'){ r.code = r.code || Math.random().toString(36).slice(2, 10).toUpperCase(); r.created_at = now(); r.accepted_by = null; }
   if (table === 'messages'){ r.at = r.at || now(); if (r.by_user === undefined) r.by_user = db.session?.user.id || null; }
   if (table === 'legal_requests'){
@@ -120,7 +123,8 @@ function visible(db, table, row, actor){
     if (table === 'site_units') return mine.some(r => r.unit_id === row.id);
     if (table === 'site_charges' || table === 'site_turnovers' || table === 'site_rent_changes') return mine.some(r => r.unit_id === row.unit_id);
     if (table === 'site_residents') return row.user_id === actor;
-    if (table === 'site_announcements') return mine.some(r => r.org_id === row.org_id);
+    if (table === 'site_announcements' || table === 'site_meetings' || table === 'site_polls') return mine.some(r => r.org_id === row.org_id);
+    if (table === 'site_meeting_replies' || table === 'site_votes') return mine.some(r => r.unit_id === row.unit_id);
     if (table === 'site_requests') return row.user_id === actor;
     return false;
   }
@@ -581,6 +585,39 @@ export function createClient(url, key, opts){
       if (name === 'verify_rent_certificate'){
         const r = db.tables.rent_certificates.find(x => x.code === String(args.cert || '').trim().toUpperCase());
         return { data: r ? Object.assign({}, r.data, { code:r.code }) : null, error:null };
+      }
+      // Genel kurul ve yoklama (migration genel_kurul_yoklama ile aynı kural).
+      if (name === 'site_meeting_reply' || name === 'site_poll_vote'){
+        const T = db.tables, links = siteLinks(db, me).filter(l => l.unit_id === args.unit);
+        const role = links.some(l => l.role === 'malik') ? 'malik' : links.length ? 'kiraci' : null;
+        if (name === 'site_meeting_reply'){
+          const m = T.site_meetings.find(x => x.id === args.mid);
+          if (!m) return { data:null, error:{ message:'Toplantı bulunamadı', code:'P0002' } };
+          if (role !== 'malik') return { data:null, error:{ message:'Yalnız dairenin maliki yanıt verebilir', code:'42501' } };
+          if (m.status !== 'cagrildi') return { data:null, error:{ message:'Toplantı kapandı', code:'22023' } };
+          if (args.answer === 'vekalet' && String(args.proxy || '').trim().length < 2) return { data:null, error:{ message:'Vekilin adını yaz', code:'22023' } };
+          T.site_meeting_replies = T.site_meeting_replies.filter(x => !(x.meeting_id === m.id && x.unit_id === args.unit));
+          T.site_meeting_replies.push({ meeting_id:m.id, unit_id:args.unit, org_id:m.org_id, user_id:me, answer:args.answer, proxy_name: args.answer === 'vekalet' ? String(args.proxy).trim() : '', updated_at:now() });
+        } else {
+          const p = T.site_polls.find(x => x.id === args.pid);
+          if (!p) return { data:null, error:{ message:'Yoklama bulunamadı', code:'P0002' } };
+          if (!role || (p.voters === 'malik' && role !== 'malik')) return { data:null, error:{ message:'Bu daire adına oy veremezsin', code:'42501' } };
+          if (Date.now() >= Date.parse(p.ends_at)) return { data:null, error:{ message:'Yoklama bitti', code:'22023' } };
+          if (!(args.choice >= 0 && args.choice < p.options.length)) return { data:null, error:{ message:'Seçenek geçersiz', code:'22023' } };
+          T.site_votes = T.site_votes.filter(x => !(x.poll_id === p.id && x.unit_id === args.unit));
+          T.site_votes.push({ poll_id:p.id, unit_id:args.unit, org_id:p.org_id, user_id:me, choice:args.choice, updated_at:now() });
+        }
+        persist(db);
+        return { data:null, error:null };
+      }
+      if (name === 'site_poll_results'){
+        const T = db.tables, p = T.site_polls.find(x => x.id === args.pid);
+        if (!p) return { data:null, error:null };
+        const units = T.site_units.filter(u => u.org_id === p.org_id), share = (id) => Number((units.find(u => u.id === id) || {}).share) || 0;
+        const votes = T.site_votes.filter(v => v.poll_id === p.id);
+        return { data:{ units:units.length, share:units.reduce((a, u) => a + (Number(u.share) || 0), 0), voted:votes.length,
+          voted_share:votes.reduce((a, v) => a + share(v.unit_id), 0), closed: Date.now() >= Date.parse(p.ends_at),
+          options:p.options.map((label, i) => { const vs = votes.filter(v => v.choice === i); return { label, count:vs.length, share:vs.reduce((a, v) => a + share(v.unit_id), 0) }; }) }, error:null };
       }
       if (name === 'site_invite_info'){
         const T = db.tables, r = T.site_residents.find(x => x.code === String(args.invite_code || '').trim().toUpperCase());

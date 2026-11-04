@@ -88,6 +88,7 @@ export function sectorSections(org){
   if (can('expenses.manage') || can('reports.view')) list.push({ key: 'giderler', label: t('Giderler'), icon: 'doc' });
   if (site && hasModule(org, 'gider_dagitim') && (can('charges.manage') || can('reports.view'))) list.push({ key: 'butce', label: t('İşletme projesi'), icon: 'safe' });
   if (hasModule(org, 'duyuru')) list.push({ key: 'duyurular', label: t('Duyurular'), icon: 'bell' });
+  if (site && hasModule(org, 'duyuru')) list.push({ key: 'genelkurul', label: t('Genel kurul'), icon: 'calendar' });
   list.push({ key: 'talepler', label: t('Talepler'), icon: 'wrench' });
   if (hasModule(org, 'rapor') && can('reports.view')) list.push({ key: 'rapor', label: t('Rapor'), icon: 'chart' });
   return list;
