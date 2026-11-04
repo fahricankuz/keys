@@ -59,10 +59,12 @@ export default function Root() {
       window.location.replace('/dogrula' + h);
   }, []);
   // Eski uygulamanın servis çalışıcısı ve önbelleği telefonlarda kalmış olabilir ("bazen eski uygulama açılıyor"):
-  // bulunursa kaldırılır ve eski önbellek silinir. Yeni sitenin kendi çalışıcısı yoktur.
+  // bulunursa kaldırılır ve eski önbellek silinir. Yeni sitenin tek çalışıcısı anlık bildirimindir (bildirim-sw.js); o kalır.
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
-    navigator.serviceWorker.getRegistrations().then((regs) => Promise.all(regs.map((r) => r.unregister()))).catch(() => {});
+    navigator.serviceWorker.getRegistrations().then((regs) => Promise.all(regs
+      .filter((r) => !/\/bildirim-sw\.js$/.test((r.active || r.waiting || r.installing)?.scriptURL || ''))
+      .map((r) => r.unregister()))).catch(() => {});
     if (typeof caches !== 'undefined') caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith('evim-')).map((k) => caches.delete(k)))).catch(() => {});
   }, []);
   const c = useColors();

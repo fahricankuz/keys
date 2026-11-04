@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
     try {
       await webpush.sendNotification(
         { endpoint: s.endpoint, keys: s.keys },
-        JSON.stringify({ title: n.title, body: n.body, url: n.url, tag: n.tag ?? undefined }),
+        JSON.stringify({ title: n.title, body: n.body, url: panelPath(n.url), tag: n.tag ?? undefined }),
         { TTL: 60 * 60 * 24 }
       );
       sent++;

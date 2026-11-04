@@ -31,6 +31,7 @@ import { useSheet } from './overlays';
 import { PayButton } from '../ui/motion';
 import { host } from '../domain/host';
 import { MailPreviewSheet, MailReportSettings } from './report-mail';
+import { DevicePush } from './device-push';
 import { PlanCard } from '../site/PlanCard';
 import { AddressFields } from './address';
 import { emptyAddress } from '../domain/address';
@@ -231,6 +232,7 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
           <Label>{t('Nereden haber alayım?')}</Label>
           <Card gap={4}>
             <OnOff label={t('Telefon ve tarayıcı bildirimi')} k="push" />
+            <DevicePush />
             <OnOff label={t('E-posta')} k="email" />
             {hasFeature('sms')
               ? <OnOff label={t('SMS (kira, aidat, sözleşme ve sigorta hatırlatmaları)')} k="sms" />

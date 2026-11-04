@@ -82,7 +82,9 @@ Uygulama kapalıyken de bildirim gitmesi için.
 npx web-push generate-vapid-keys
 ```
 
-- **Public Key** → `assets/js/config.js` içindeki `vapidPublicKey`.
+- **Public Key** → GitHub deposu → Settings → Secrets and variables → Actions → **Variables** → `VAPID_PUBLIC_KEY`
+  (gizli değildir; site derlenirken `EXPO_PUBLIC_VAPID_PUBLIC_KEY` olarak gömülür). Ekledikten sonra Actions →
+  *Hostinger paketi* → *Run workflow* ile siteyi yeniden derle.
 - **Private Key** → bir sonraki adımda gizli değişken olarak.
 
 ### 5.2 Fonksiyonu yükle
@@ -119,7 +121,7 @@ npx supabase functions deploy push --no-verify-jwt
 
 ### 5.4 Dene
 
-Uygulamada **Hesap → Anlık bildirimleri aç**. Başka bir hesaptan mesaj
+Panelde **Ayarlar → Bildirimler → Bu cihazda anlık bildirim → Aç** (anahtar tanımlı değilse bu satır görünmez). Başka bir hesaptan mesaj
 gönderince bildirim gelmeli.
 
 - **Android / masaüstü Chrome, Edge, Firefox**: doğrudan çalışır.

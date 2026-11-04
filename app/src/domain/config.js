@@ -7,6 +7,8 @@ export const CONFIG = {
   supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL || '',
   supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
   publicUrl: 'https://anahtar.io/',
+  /** Tarayıcı anlık bildirimi (Web Push) için VAPID genel anahtarı; boşsa özellik görünmez (docs/mobil.md). */
+  vapidPublicKey: process.env.EXPO_PUBLIC_VAPID_PUBLIC_KEY || '',
   supportEmail: 'info@anahtar.io',
   /** Hukuki süreç desteği: talep başına, KDV dahil (sunucuda da sabit: schema.sql 22. bölüm). */
   legalPrice: 3000,

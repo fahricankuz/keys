@@ -573,5 +573,12 @@ export const EN_PAKET = {
   "Tutar": "Amount",
   "Ödeme tarihi": "Payment date",
   "Durum": "Status",
-  "Aç": "Open"
+  "Aç": "Open",
+  "Bildirim açılamadı. Sayfayı yenileyip yeniden dene.": "Couldn't turn on notifications. Refresh the page and try again.",
+  "iPhone’da anlık bildirim için önce Paylaş → Ana Ekrana Ekle ile anahtar’ı ana ekrana ekle, oradan aç.": "On iPhone, first add anahtar to your home screen via Share → Add to Home Screen, then open it from there.",
+  "Bu tarayıcı anlık bildirimi desteklemiyor.": "This browser doesn't support push notifications.",
+  "Bildirim izni bu tarayıcıda engellenmiş. Tarayıcı ayarlarından anahtar.io için izin ver.": "Notifications are blocked in this browser. Allow them for anahtar.io in your browser settings.",
+  "Bu cihaza anlık bildirim geliyor.": "Push notifications are on for this device.",
+  "Kira, talep ve duyurular bu cihaza anında gelsin.": "Get rent, requests and announcements on this device instantly.",
+  "Bu cihazda anlık bildirim": "Push on this device"
 };
