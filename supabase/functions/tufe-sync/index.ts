@@ -2,8 +2,9 @@
 //
 // TÜİK bülteni her ayın 3'ünde açıklanır. Zamanlama: Supabase → Integrations → Cron → Edge Function "tufe-sync",
 // POST, başlık x-anahtar-secret, "0 9 3-6 * *" (3–6. günler; veri gelmediyse ertesi gün yeniden dener).
-// Gizli değişkenler: TUFE_SECRET, EVDS_KEY (evds2.tcmb.gov.tr → üye ol → profil → API anahtarı).
-// İsteğe bağlı: EVDS_URL (varsayılan https://evds2.tcmb.gov.tr/service/evds), EVDS_SERIES (varsayılan TP.FG.J0, TÜFE 2003=100).
+// Gizli değişkenler: TUFE_SECRET, EVDS_KEY (evds3.tcmb.gov.tr → üye ol → profil → API anahtarı).
+// İsteğe bağlı: EVDS_URL (varsayılan https://evds3.tcmb.gov.tr/igmevdsms-dis; eski evds2 servisi 2025 sonunda kapandı ve artık
+// JSON yerine sitenin HTML sayfasını döndürüyor), EVDS_SERIES (varsayılan TP.FG.J0, TÜFE 2003=100). Anahtar "key" başlığında gider.
 //
 // Oran endeks serisinden hesaplanır: son 12 ayın ortalaması ÷ önceki 12 ayın ortalaması − 1. TÜİK yuvarlanmış endeksten
 // yayımladığı için sonuç ±0,01 puan farklı olabilir; yöneticinin elle girdiği ("manual") aylar hiçbir zaman ezilmez.
@@ -50,7 +51,7 @@ Deno.serve(async (req) => {
     const series = env('EVDS_SERIES') || 'TP.FG.J0';
     const now = new Date();
     const start = `01-01-${now.getUTCFullYear() - 4}`, end = `31-12-${now.getUTCFullYear()}`;
-    const base = (env('EVDS_URL') || 'https://evds2.tcmb.gov.tr/service/evds').replace(/\/$/, '');
+    const base = (env('EVDS_URL') || 'https://evds3.tcmb.gov.tr/igmevdsms-dis').replace(/\/$/, '');
     let res: Response;
     try {
       res = await fetch(`${base}/series=${series}&startDate=${start}&endDate=${end}&type=json&frequency=5`, {

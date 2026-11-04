@@ -64,7 +64,7 @@ Sahip: 👤 = sizin yapmanız gereken (hesap, sözleşme, karar) · 🤖 = kodda
       "Büroya iletildi" ve "Sonuçlandı" ile durumu ilerlet; "Kişiye not" bildirim olarak gider, "İç not" yalnız ekipte kalır.
       Yayına almadan önce: aydınlatma metnine hukuk bürosuyla paylaşımı ekleyin; ücret akışını (anahtar faturası, büroya ödeme) avukatınızla teyit edin.
 
-- [ ] 👤 **Kira artış oranları (TÜFE)**: TCMB EVDS'e üye olup API anahtarı alın (evds2.tcmb.gov.tr → profil → API anahtarı).
+- [ ] 👤 **Kira artış oranları (TÜFE)**: TCMB EVDS'e üye olup API anahtarı alın (evds3.tcmb.gov.tr → profil → API anahtarı; eski evds2 servisi kapandı).
       `supabase functions deploy tufe-sync`; gizli değişkenler `TUFE_SECRET`, `EVDS_KEY`. Cron: Edge Function `tufe-sync`, POST,
       `0 9 3-6 * *`, başlık `x-anahtar-secret`. Kurulana kadar oranları **yönetici paneli → Kira artış oranları**'ndan elle girin;
       elle girilen aylar otomatik çekimde ezilmez. Sitedeki `/kira-artis-hesaplama` ve uygulamadaki yenileme ekranı bu tablodan okur.
