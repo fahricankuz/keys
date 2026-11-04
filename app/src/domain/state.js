@@ -443,6 +443,8 @@ export const ui = {
   memberRoles:{},  // mülk kimliği → ekip üyesinin o mülkteki rolü
   msgMore:{},      // mülk kimliği → sunucuda daha eski mesaj var mı (bkz. backend.js → olderMessages)
   siteOrg:null,    // kurum panelinde seçili kurum (birden çok kurumu yönetenler)
+  ctxFor:null,     // kayıtlı rol seçiminin uygulandığı kullanıcı (oturum başına bir kez)
+  ctx:null,        // seçili rol bağlamı: 'ev' (mülk sahibi) | 'kiraci' | 'site:<kurum kimliği>' (bkz. app-ui/ctx.ts); boşsa hesabın varsayılanı
   siteSeed:null    // giderden tahakkuka geçerken önerilen tahakkuk (Giderler → Dairelere dağıt)
 };
 

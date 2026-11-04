@@ -54,6 +54,8 @@ function persistBase(){
   if (!me()) return;
   try { storage.setItem(BASE(me()), JSON.stringify({ synced, settings: syncedSettings, profile: live.profile, roles: ui.memberRoles })); } catch(e){}
 }
+/** Senkronda taranacak tüm mülkler: portföy listesi + (başka mülkte kiracıysa) kiracı olunan ev. */
+const allIds = () => (S.myHome && !S.order.includes(S.myHome) ? [...S.order, S.myHome] : S.order.slice());
 function hasUnsynced(){
   const ids = new Set([...Object.keys(synced), ...S.order]);
   for (const pid of ids){
@@ -335,16 +337,18 @@ export async function loadAll(opts = {}){
     next.settings = Object.assign({}, DEFAULT_SETTINGS, live.profile.settings || {});
     next.inbox = notes.reverse().map(noteToInbox);
     synced = {};
-    built.forEach(({ p }) => {
+    // Aynı e-posta birden çok rol taşıyabilir: mülk sahibi (ya da ekip) hesabı başka bir mülkte kiracıysa o ev portföy listesine
+    // girmez; yalnızca "Kiracı" rolünde (myHome) görünür. Kiracı hesabında ev, eskisi gibi listededir.
+    built.forEach(({ p, myRole }) => {
       next.props[p.id] = p;
-      next.order.push(p.id);
+      if (!(myRole === 'tenant' && live.profile.role !== 'tenant')) next.order.push(p.id);
       synced[p.id] = JSON.stringify(p);
     });
     next.myHome = (built.find(b => b.myRole === 'tenant') || {}).p?.id || null;
     // Okundu bilgisi cihazlar arasında eşitlenir; ilk açılışta mevcut mesajlar okunmuş sayılır.
     next.reads = Object.fromEntries((reads.data || []).map(r => [r.property_id, Date.parse(r.read_at)]));
     if (!reads.error){
-      const fresh = next.order.filter(pid => next.reads[pid] === undefined);
+      const fresh = [...next.order, ...(next.myHome && !next.order.includes(next.myHome) ? [next.myHome] : [])].filter(pid => next.reads[pid] === undefined);
       fresh.forEach(pid => { const m = next.props[pid].msgs; next.reads[pid] = (m.length && Number(m[m.length - 1].at)) || 0; });
       if (fresh.length) sb().from('message_reads')
         .upsert(fresh.map(pid => ({ user_id: me(), property_id: pid, read_at: new Date(next.reads[pid]).toISOString() })), { onConflict: 'user_id,property_id' })
@@ -590,7 +594,7 @@ export async function storeFile(pid, file){
 
 async function uploadPendingMedia(){
   let changed = false;
-  for (const pid of S.order){
+  for (const pid of allIds()){
     for (const { obj, key } of pendingMedia(S.props[pid])){
       const dataUrl = obj[key];
       const { mime, bytes } = dataUrlParts(dataUrl);
@@ -720,7 +724,7 @@ async function catchUp(opts){
   catching = true;
   try {
     let changed = false;
-    for (const pid of (opts && opts.pid ? [opts.pid] : S.order.slice())){
+    for (const pid of (opts && opts.pid ? [opts.pid] : allIds())){
       const p = S.props[pid];
       if (!p) continue;
       // Mesaj saati gönderenin cihazından gelir; saat farkı mesajı kaçırmasın diye 10 dakika geriden sorulur (kimlikle tekrar elenir).
@@ -790,7 +794,7 @@ function openNudgeChannels(ids){
 function subscribe(){
   if (!live.client || !me()) return;
   if (channel) sb().removeChannel(channel);
-  const ids = S.order.slice();
+  const ids = allIds();
   const ch = channel = sb().channel('kiracim-' + me());
   startPolling();
   openNudgeChannels(ids);
