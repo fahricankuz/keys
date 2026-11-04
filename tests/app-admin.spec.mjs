@@ -534,3 +534,30 @@ test('müşteri sağlığı: mülk eklemeyen hesap listede; temas notu kaydedili
   await expect(page.getByText(/Son temas .*: Aradım, hafta sonu mülk ekleyecek\./)).toBeVisible();
   expect((await db(page)).tables.customer_contacts.map((x) => [x.user_id, x.note])).toEqual([['u-bos', 'Aradım, hafta sonu mülk ekleyecek.']]);
 });
+
+test('kira geçmişi belgesi: kiracı oluşturur; doğrulama sayfası oturumsuz açılır; yanlış kod doğrulanmaz', async ({ page }) => {
+  const m = (n) => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - n); return d.toISOString().slice(0, 7); };
+  await page.goto(url('/giris'));
+  await page.evaluate((months) => {
+    const d = JSON.parse(localStorage.getItem('__fakedb'));
+    d.tables.payments.push({ property_id: 'p1', month: months[0], kind: 'kira', status: 'approved', amount: 30000, paid_on: months[0] + '-03', method: 'dekont' },
+                           { property_id: 'p1', month: months[1], kind: 'kira', status: 'approved', amount: 30000, paid_on: months[1] + '-20', method: 'dekont' });
+    localStorage.setItem('__fakedb', JSON.stringify(d));
+  }, [m(2), m(1)]);
+  await login(page, 'kiraci@ornek.com');
+  await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
+  await page.goto(url('/uygulama/belgeler'));
+  await expect(page.getByText('Kira geçmişi belgesi')).toBeVisible();
+  await page.getByRole('button', { name: 'Belge oluştur' }).click();
+  await expect(page.getByText(/^Belge hazır · doğrulama kodu [0-9A-F]{10}$/)).toBeVisible();
+  await expect(page.getByText('2 onaylı ödeme, 1 tanesi zamanında.')).toBeVisible();
+  const code = (await db(page)).tables.rent_certificates[0].code;
+
+  await page.evaluate(() => { const d = JSON.parse(localStorage.getItem('__fakedb')); d.session = null; localStorage.setItem('__fakedb', JSON.stringify(d)); });
+  await page.goto(url('/belge?kod=' + code.toLowerCase()));
+  await expect(page.getByText('Doğrulandı · anahtar kayıtlarıyla aynı')).toBeVisible();
+  await expect(page.getByText('Mehmet Kiracı')).toBeVisible();
+  await expect(page.getByText('2/2').or(page.getByText('1/2'))).toBeVisible();
+  await page.goto(url('/belge?kod=YANLIS1234'));
+  await expect(page.getByText('Belge doğrulanamadı')).toBeVisible();
+});

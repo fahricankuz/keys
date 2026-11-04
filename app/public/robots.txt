@@ -1,6 +1,7 @@
 User-agent: *
 Disallow: /uygulama
 Disallow: /admin
+Disallow: /belge
 Allow: /
 
 Sitemap: https://anahtar.io/sitemap.xml

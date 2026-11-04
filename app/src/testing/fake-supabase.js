@@ -8,7 +8,7 @@ const TABLES = ['profiles','properties','property_shared','memberships','invites
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
                 'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto',
-                'legal_requests','legal_notes','client_errors','content_reports','user_blocks','customer_contacts'];
+                'legal_requests','legal_notes','client_errors','content_reports','user_blocks','customer_contacts','rent_certificates'];
 
 function load(){
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d){ TABLES.forEach(t => d.tables[t] = d.tables[t] || []); d.tables.payments.forEach(r => { r.kind = r.kind || 'kira'; }); return d; } } catch(e){}
@@ -129,6 +129,7 @@ function visible(db, table, row, actor){
   if (table === 'messages') return row.from_role === 'system' || !row.by_user || !(db.tables.user_blocks || []).some(b => b.user_id === actor && b.blocked === row.by_user);
   if (table === 'legal_notes' || table === 'client_errors' || table === 'customer_contacts') return false;
   if (table === 'content_reports') return row.reporter === actor;
+  if (table === 'rent_certificates') return row.tenant_id === actor;
   if (table === 'user_blocks') return row.user_id === actor;
   return true;
 }
@@ -558,6 +559,28 @@ export function createClient(url, key, opts){
         const T = db.tables;
         return { data: T.properties.filter(p => p.site_unit_id && (T.site_units.find(u => u.id === p.site_unit_id) || {}).org_id === args.oid)
           .flatMap(p => T.memberships.filter(m => m.property_id === p.id && m.role === 'tenant').map(m => ({ unit_id:p.site_unit_id, name:m.display_name }))), error:null };
+      }
+      // Kira geçmişi belgesi (migration kira_gecmisi_belgesi ile aynı kural).
+      if (name === 'create_rent_certificate'){
+        const T = db.tables, p = T.properties.find(x => x.id === args.pid);
+        if (!p || roleIn(db, me, args.pid) !== 'tenant') return { data:null, error:{ message:'Yalnız mülkün kiracısı belge alabilir', code:'42501' } };
+        if (args.from_month > args.to_month) return { data:null, error:{ message:'Dönem geçersiz', code:'22023' } };
+        const due = Math.min(28, Math.max(1, Number(p.due_day) || 1));
+        const onTime = (r) => !!r.paid_on && r.paid_on <= r.month + '-' + String(due).padStart(2, '0');
+        const rows = T.payments.filter(y => y.property_id === p.id && (y.kind || 'kira') === 'kira' && y.status === 'approved' && y.month >= args.from_month && y.month <= args.to_month)
+          .sort((a, b) => a.month.localeCompare(b.month)).map(y => ({ month:y.month, amount:Number(y.amount), paid_on:y.paid_on || null, on_time:onTime(y) }));
+        const pr = T.profiles.find(x => x.id === me) || {}, lp = T.profiles.find(x => x.id === p.owner_id) || {};
+        const short = (n) => { const w = String(n || '').trim().split(/\s+/); return w.length > 1 ? w.slice(0, -1).join(' ') + ' ' + w[w.length - 1][0] + '.' : w[0] || ''; };
+        const data = { tenant:pr.name, property:p.name, addr:p.addr, landlord:short(lp.name), from:args.from_month, to:args.to_month, rows,
+          months:rows.length, on_time:rows.filter(r => r.on_time).length, total:rows.reduce((a, r) => a + r.amount, 0), issued_at:now() };
+        const code = Math.random().toString(16).slice(2, 12).toUpperCase().padEnd(10, '0');
+        T.rent_certificates.push({ code, property_id:p.id, tenant_id:me, from_month:args.from_month, to_month:args.to_month, data, created_at:now() });
+        persist(db);
+        return { data:{ code, data }, error:null };
+      }
+      if (name === 'verify_rent_certificate'){
+        const r = db.tables.rent_certificates.find(x => x.code === String(args.cert || '').trim().toUpperCase());
+        return { data: r ? Object.assign({}, r.data, { code:r.code }) : null, error:null };
       }
       if (name === 'site_invite_info'){
         const T = db.tables, r = T.site_residents.find(x => x.code === String(args.invite_code || '').trim().toUpperCase());

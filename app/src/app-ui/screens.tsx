@@ -27,6 +27,7 @@ import { MailReportCard } from './report-mail';
 import { JoinBanner } from './JoinCode';
 import { SiteTeaser } from './site';
 import { SetupChecklist } from './checklist';
+import { CertificateCard } from './certificate';
 import { landlordSteps } from '../domain/checklist';
 import {
   AgendaBody, AgendaSection, InspectTabs, RenewalCard, RentHero, SecDocs, SecExpenses, SecInspect, SecMoveOut, SecMsg, SecPay, SecReq, ReqCard, stopajLine, useGo
@@ -156,7 +157,7 @@ export function TenantScreen({ tab, sub }: { tab: 'pay' | 'req' | 'msg' | 'docs'
     default:
       if (sub === 'tutanak') return <Page title={t('Tutanak')} sub={p.name} back="/kiraci/belgeler"><InspectTabs p={p} active="giris" /><SecInspect p={p} /></Page>;
       if (sub === 'cikis') return <Page title={t('Tutanak')} sub={p.name} back="/kiraci/belgeler"><InspectTabs p={p} active="cikis" /><SecMoveOut p={p} /></Page>;
-      return <Page title={t('Belgeler')} sub={p.name}><SecDocs p={p} /></Page>;
+      return <Page title={t('Belgeler')} sub={p.name}><CertificateCard p={p} /><SecDocs p={p} /></Page>;
   }
 }
 
