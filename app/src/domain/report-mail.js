@@ -1,4 +1,4 @@
-/* Kurumsal: aylık / yıllık rapor e-postası. Uygulamadaki önizleme için yerel veriden, sunucudaki
+/* Profesyonel ve Kurumsal: aylık / yıllık rapor e-postası. Uygulamadaki önizleme için yerel veriden, sunucudaki
    public.owner_report ile aynı özet çıkarılır (gönderimi supabase/functions/report yapar). */
 import { S } from './state.js';
 import { P, expectedAt, sum } from './logic.js';

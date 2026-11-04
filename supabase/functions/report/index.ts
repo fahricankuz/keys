@@ -1,4 +1,4 @@
-// anahtar — aylık ve yıllık rapor e-postası (Kurumsal paket; Supabase Edge Function, Deno).
+// anahtar — aylık ve yıllık rapor e-postası (Başlangıç hariç bütün paketler; Supabase Edge Function, Deno).
 //
 // Zamanlama (Supabase → Integrations → Cron → Edge Function "report", POST, başlık x-anahtar-secret):
 //   aylık:  0 6 1 * *   gövde {"period":"month"}  → geçen ayın raporu

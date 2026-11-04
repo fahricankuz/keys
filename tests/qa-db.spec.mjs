@@ -253,7 +253,7 @@ test('hatırlatma: yeni eklenen mülk için vade başlangıçtan önceye düşme
   expect(late).toEqual(['p-eski']);
 });
 
-/* ---------------------------------------------------------------- rapor e-postası (Kurumsal) */
+/* ---------------------------------------------------------------- rapor e-postası (Başlangıç hariç) */
 
 test('rapor e-postası: dönem özeti doğru; alıcı listesi paket ve ayara bakar; kullanıcılar çağıramaz', async () => {
   const R = '00000000-0000-0000-0000-0000000000c1';

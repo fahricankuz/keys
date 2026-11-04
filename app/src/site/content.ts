@@ -57,7 +57,7 @@ export const categories = (): Category[] => [
       { title: t('Gider defteri'), body: t('Vergi, aidat, sigorta ve tamir kayıtları.') },
       { title: t('Net getiri'), body: t('Mülk başına yıllık net getiri ve oran.') },
       { title: t('Excel ve CSV'), body: t('Ödemeler ve giderler ayrı sayfalarda.') },
-      { title: t('Rapor e-postası'), body: t('Kurumsal’da her ay ve yıl sonunda genel durum e-postana gelir.') }
+      { title: t('Rapor e-postası'), body: t('Profesyonel ve Kurumsal’da her ay ve yıl sonunda genel durum e-postana gelir.') }
     ] },
   { id: 'ekip', icon: 'landlord', title: t('Ekip ve portföy'),
     lead: t('Emlakçını, muhasebecini ya da personelini davet et; her biri yalnızca rolünün izin verdiğini görür. Mülklerini Excel ile tek seferde ekle.'),
@@ -91,7 +91,7 @@ export const faq = () => [
   { q: t('Ücretsiz deneme nasıl işliyor?'), a: CONFIG.billing.cardTrial
     ? t('Her paket 1 ay ücretsiz başlar. Başlamak için kart bilgin ya da App Store / Google Play hesabın gerekir. 1 ayın sonunda iptal etmezsen seçtiğin dönem (aylık ya da yıllık) otomatik başlar ve kartından çekilir; çekimden 1 gün önce e-posta ve bildirimle hatırlatırız. İptal edersen ücret alınmaz, kayıtların silinmez, salt okunur olur.')
     : t('Her paket 1 ay ücretsiz denemeyle başlar; deneme süresince bütün özellikleri kullanabilirsin. Süre bitince kayıtların silinmez, salt okunur olur; okuma ve mesajlaşma açık kalır, kiracının işleri etkilenmez.') },
-  { q: t('Paketler arasındaki fark ne?'), a: t('Başlangıç ödeme, talep, belge, tutanak, sözleşme yenileme, hatırlatmalar ve gider kayıtlarını kapsar. Profesyonel bunlara ekip üyeleri, Excel ile toplu aktarma, net getiri ve yıllık rapor, vergi tahmini ve SMS hatırlatmalarını ekler. İkisi de 1-9 mülk içindir. Kurumsal 10 ve üstü mülk, kurum hesabı ve roller, site yönetimi, ticari portföy modülleri, rapor e-postası ve öncelikli destek içindir; fiyatı bizimle görüşerek belirlenir.') },
+  { q: t('Paketler arasındaki fark ne?'), a: t('Başlangıç ödeme, talep, belge, tutanak, sözleşme yenileme, hatırlatmalar ve gider kayıtlarını kapsar. Profesyonel bunlara ekip üyeleri, Excel ile toplu aktarma, net getiri ve yıllık rapor, vergi tahmini, SMS hatırlatmaları ve rapor e-postasını ekler. İkisi de 1-9 mülk içindir. Kurumsal 10 ve üstü mülk, kurum hesabı ve roller, site yönetimi, ticari portföy modülleri ve öncelikli destek içindir; fiyatı bizimle görüşerek belirlenir.') },
   { q: t('Davet kodum yok, ne yapmalıyım?'), a: t('Kayıt olurken kodu boş bırakabilirsin. Hesabını açtıktan sonra ev sahibinden kodu isteyip panelden girersin; ev sahibin henüz anahtar kullanmıyorsa uygulamadan ona WhatsApp ile öneri gönderebilirsin.') },
   { q: t('Yüklediğim dekont ve belgeleri kim görür?'), a: t('Yüklenen dekont, belge ve faturalar anahtar ekibince kontrol edilir; onaylanınca yalnızca o evin kiracısı ve mülk sahibine görünür. Reddedilirse gerekçesiyle haber alırsın.') },
   { q: t('Hangi mülk tiplerini destekliyor?'), a: t('Konut, ofis, mağaza ve depo. Tutanak alanları, talep önerileri ve belge kategorileri mülk tipine göre gelir.') },

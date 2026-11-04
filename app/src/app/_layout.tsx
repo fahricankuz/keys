@@ -9,7 +9,7 @@ import { boot } from '../domain/state';
 import { AuthProvider } from '../auth/auth';
 import { useColors } from '../ui/theme';
 import titles from '../site/titles.json';
-import { installErrorReporting, installStaleRecovery, reportError } from '../domain/errors';
+import { installErrorReporting, installStaleRecovery, isStaleError, recoverStale, reportError } from '../domain/errors';
 import { t } from '../domain/i18n';
 import { Button, Text } from '../ui/kit';
 import { fonts } from '../ui/theme';
@@ -17,12 +17,20 @@ import { fonts } from '../ui/theme';
 /** Beklenmeyen ekran hatası: boş ekran yerine açıklama ve yeniden deneme; hata sunucuya kaydedilir (yönetici → Hatalar). */
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const c = useColors();
-  useEffect(() => { reportError(error, 'render'); }, [error]);
+  // React'in yakaladığı hata pencere olayına düşmez: eski sekmenin parça hatası (yeni yayın eski dosyayı sildi) burada yenilenir.
+  const stale = isStaleError(error);
+  const [gaveUp, setGaveUp] = useState(false);
+  useEffect(() => {
+    if (recoverStale(error && error.message)) return;
+    setGaveUp(true);
+    reportError(error, 'render');
+  }, [error]);
+  if (stale && !gaveUp) return <View style={{ flex: 1, backgroundColor: c.bg }} />;
   return (
     <View accessibilityRole="alert" style={{ flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 14 }}>
       <Text v="h2" style={{ fontFamily: fonts.siteBold, textAlign: 'center' }}>{t('Bir şeyler ters gitti')}</Text>
       <Text v="body" muted style={{ textAlign: 'center', maxWidth: 420 }}>{t('Ekran yüklenirken beklenmeyen bir hata oluştu. Kayıtların güvende; hatayı ekibimize ilettik.')}</Text>
-      <Button title={t('Yeniden dene')} onPress={retry} />
+      <Button title={t('Yeniden dene')} onPress={() => { if (stale && typeof window !== 'undefined' && window.location) window.location.reload(); else retry(); }} />
       <Button kind="ghost" title={t('Ana sayfaya dön')} onPress={() => { if (typeof window !== 'undefined' && window.location) window.location.assign('/'); else retry(); }} />
     </View>
   );

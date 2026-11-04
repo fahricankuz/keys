@@ -91,8 +91,9 @@ test('özellik kilitleri: SMS, ekip, toplu aktarma ve rapor Başlangıç\'ta yok
     expect(M.FEATURES[f]).toContain('kurumsal');
     expect(M.FEATURES[f]).toContain('trial');        // deneme süresince hepsi açık
   }
-  expect(M.FEATURES.mailReport).not.toContain('bes');
+  expect(M.FEATURES.mailReport).toContain('bes');            // rapor e-postası: Başlangıç hariç herkes
   expect(M.FEATURES.mailReport).toContain('kurumsal');
+  expect(M.FEATURES.mailReport).not.toContain('tek');
 });
 
 test('paket maddeleri: Profesyonel Başlangıç\'ı kapsar; SMS yalnız Profesyonel ve Kurumsal listesinde', () => {
