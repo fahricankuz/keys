@@ -1,7 +1,7 @@
 // Kullanıcı senaryoları: ziyaretçi, kayıt olan kişi, kiracı, mülk sahibi, yönetici gözünden uçtan uca yollar ve hatalı kullanım.
 // Sahte sunucuyla gerçek tarayıcıda çalışır; liste ve sonuçlar: docs/kullanici-senaryolari.md
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist, hydrated, ID } from './app-helpers.mjs';
 import { watchErrors } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -16,6 +16,7 @@ const seedDb = (page, d = seed()) => page.addInitScript((x) => { if (!localStora
 const ENTRY = { 'kiraci@ornek.com': '/giris/kiraci', 'ev@ornek.com': '/giris/mulk-sahibi', 'admin@ornek.com': '/giris/yonetici' };
 async function login(page, email) {
   await page.goto(url(ENTRY[email]));
+  await hydrated(page, page.getByLabel('E-posta'));   // Safari: React devralmadan yazılan değer sıfırlanır
   await page.getByLabel('E-posta').fill(email);
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
