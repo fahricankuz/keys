@@ -18,6 +18,9 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { rowFromSubscriber, affectedUsers } from './subscriber.ts';
+import { logger } from '../_shared/log.ts';
+
+const log = logger('billing');
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 const ENTITLEMENT = env('REVENUECAT_ENTITLEMENT') || 'pro';
@@ -80,7 +83,7 @@ Deno.serve(async (req) => {
     const row = await syncUser(data.user.id);
     return json({ ok: true, active: row.active, expires_at: row.expires_at });
   } catch (e) {
-    console.error(e);
+    await log.error('beklenmeyen hata', e);
     return json({ error: String((e as Error).message || e) }, 500);
   }
 });

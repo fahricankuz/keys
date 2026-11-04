@@ -4,6 +4,7 @@
    Sunucu kuralları: supabase/schema.sql 17. bölüm (RLS ve guard_site_charges). */
 
 import { t } from './i18n.js';
+import { logCaught } from './logs.js';
 import { client, live, storeFile, inviteLink } from './backend.js';
 import { waLink } from './wa.js';
 import { storedPath } from './mapping.js';
@@ -208,7 +209,7 @@ export async function sendSiteInvite(r){
     try {
       const res = await c.functions.invoke('site-invite', { body: { resident: r.id } });
       mailed = !res.error;
-    } catch(e){ console.warn('Davet e-postası gönderilemedi', e); }
+    } catch(e){ logCaught('Davet e-postası gönderilemedi', e); }
   }
   await markInvited(r.id);
   return mailed;
@@ -218,8 +219,7 @@ export async function markInvited(id){
 }
 /** /katil sayfası: kodun sitesi ve dairesi; kullanılmamışsa yönetimin girdiği ad, telefon ve e-posta (kayıt formunu doldurmak için). */
 export async function siteInviteInfo(code){
-  const r = await (await db()).rpc('site_invite_info', { invite_code: String(code || '').trim().toUpperCase() });
-  return r.error ? null : r.data;
+  return must(await (await db()).rpc('site_invite_info', { invite_code: String(code || '').trim().toUpperCase() }));
 }
 
 /* ---- Otomatik aidat (schema.sql 29. bölüm → site_auto_run) -------- */
@@ -306,7 +306,7 @@ export const isSiteCode = (code) => /^S[0-9A-F]{7}$/.test(String(code || '').tri
 
 export const mySiteUnits = () => live.siteUnits || [];
 export async function refreshSiteUnits(redraw = true){
-  try { live.siteUnits = must(await (await db()).rpc('my_site_units')) || []; } catch(e){ console.warn('Site daireleri okunamadı', e); }
+  try { live.siteUnits = must(await (await db()).rpc('my_site_units')) || []; } catch(e){ logCaught('Site daireleri okunamadı', e); }
   if (redraw) emit();
   return live.siteUnits || [];
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import AuthShell from '../auth/AuthShell';
-import { keepInvite, keepPrefill, useAuth } from '../auth/auth';
+import { dropInvite, keepInvite, keepPrefill, useAuth } from '../auth/auth';
 import { t } from '../domain/i18n';
 import { invitePreview } from '../domain/backend';
 import { isOrgCode } from '../domain/org';
@@ -23,16 +23,20 @@ export default function Katil() {
   const [mounted, setMounted] = useState(false);
   const [info, setInfo] = useState<Preview | null>(null);
   const [siteInfo, setSiteInfo] = useState<any>(null);
+  // Sunucu kodu tanımıyor (yazım hatası ya da silinmiş davet). Sunucuya ulaşılamadıysa bu değer değişmez: davet sayfası kalır.
+  const [missing, setMissing] = useState(false);
+  const noInvite = (x: unknown) => { if (!x) { setMissing(true); dropInvite(); } };
   useEffect(() => setMounted(true), []);
   const code = mounted ? String(Array.isArray(kod) ? kod[0] : kod || '').toUpperCase() : '';
   useEffect(() => {
     if (!mounted) return;
     if (!code) { router.replace('/giris'); return; }
     keepInvite(code);
-    if (live && !isOrgCode(code) && !isSiteCode(code)) invitePreview(code).then(setInfo).catch(() => {});
+    if (live && !isOrgCode(code) && !isSiteCode(code)) invitePreview(code).then((x) => { setInfo(x); noInvite(x); }).catch(() => {});
     // Site daveti: yönetimin girdiği ad, telefon ve e-posta kayıt formunu doldurur.
     if (live && isSiteCode(code) && !user) siteInviteInfo(code).then((x) => {
       setSiteInfo(x);
+      noInvite(x);
       if (x && !x.used) keepPrefill({ code, name: x.name || '', phone: x.phone || '', email: x.email || '' });
     }).catch(() => {});
     if (ready && live && user && !user.admin) join(code).then(() => router.replace('/uygulama'));
@@ -43,8 +47,10 @@ export default function Katil() {
   // Site dairesi daveti ("S" ile başlar): malik ya da kiracı ücretsiz hesapla katılır.
   const site = isSiteCode(code);
   const team = org || (!!info && info.role !== 'tenant');
-  const title = site ? t('Sitene davet edildin') : org ? t('Kurum yöneticisi olarak davet edildin') : team ? t('Ekibe davet edildin') : t('Kiraladığın mülke davet edildin');
-  const lead = site
+  const title = missing ? t('Davet bulunamadı') : site ? t('Sitene davet edildin') : org ? t('Kurum yöneticisi olarak davet edildin') : team ? t('Ekibe davet edildin') : t('Kiraladığın mülke davet edildin');
+  const lead = missing
+    ? t('Bu kodla bir davet yok. Bağlantıyı kontrol et ya da davet edenden yeni kod iste.')
+    : site
     ? t('Site yönetimin seni anahtar’a davet etti. Ücretsiz hesabını oluştur ya da giriş yap; aidatını, duyuruları ve taleplerini buradan izleyeceksin.')
     : org
     ? t('Kurumun seni anahtar’da yönetici olarak davet etti. Ücretsiz hesabını oluştur ya da giriş yap; kuruma otomatik katılacaksın.')
@@ -63,7 +69,12 @@ export default function Katil() {
           {info && !info.valid ? <Text v="small" color={c.badInk}>{t('Bu davet kullanılmış ya da süresi dolmuş. Mülk sahibinden yeni kod iste.')}</Text> : null}
         </View>
       ) : null}
-      {site ? (
+      {missing ? (
+        <>
+          <Button kind="primary" block title={t('Ana sayfaya dön')} onPress={() => router.replace('/')} />
+          <Button block kind="ghost" title={t('Hesabım var, giriş yap')} onPress={() => router.push('/giris')} />
+        </>
+      ) : site ? (
         <>
           <Button kind="primary" block title={t('Ücretsiz hesap oluştur')} onPress={() => router.push('/kayit/kiraci')} />
           <Button block kind="ghost" title={t('Hesabım var, giriş yap')} onPress={() => router.push('/giris')} />

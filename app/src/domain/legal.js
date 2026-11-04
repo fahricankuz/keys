@@ -5,6 +5,7 @@
    Sunucu kuralları: supabase/schema.sql 22. bölüm (fiyat, durum ve iletişim bilgisi sunucuda belirlenir). */
 
 import { t } from './i18n.js';
+import { logCaught } from './logs.js';
 import { CONFIG, LIVE } from './config.js';
 import { client, live, storeFile } from './backend.js';
 import { storedPath } from './mapping.js';
@@ -54,7 +55,7 @@ export async function refreshLegal(redraw = true){
   try {
     live.legal = must(await (await client()).from('legal_requests').select('*').eq('user_id', live.user.id)) || [];
     live.legal.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
-  } catch(e){ console.warn('Hukuki talepler okunamadı', e); }
+  } catch(e){ logCaught('Hukuki talepler okunamadı', e); }
   if (redraw) emit();
   return live.legal || [];
 }

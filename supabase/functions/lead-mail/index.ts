@@ -8,6 +8,9 @@
 
 import { renderAck } from './ack.ts';
 import { mailConfigured, mailMissing, sendMail } from '../_shared/mail.ts';
+import { logger } from '../_shared/log.ts';
+
+const log = logger('lead-mail');
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 
@@ -80,8 +83,8 @@ ${r.message ? `<div style="margin-top:12px;padding:14px;background:#F3ECE5;borde
       });
       const a = await sendMail({ to, replyTo: env('LEAD_TO') || 'info@anahtar.io', subject: m.subject, html: m.html, text: m.text });
       ack = a.ok;
-      if (!a.ok) console.error('teşekkür e-postası hatası', a.error);
-    } catch (e) { console.error('teşekkür e-postası hatası', (e as Error).message); }
+      if (!a.ok) await log.error('teşekkür e-postası hatası', a.error);
+    } catch (e) { await log.error('teşekkür e-postası hatası', e); }
   }
   return Response.json({ ok: true, ack });
 });

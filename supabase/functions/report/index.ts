@@ -16,6 +16,9 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { renderReport, type Report } from './template.ts';
 import { renderSiteReport, type SiteReport } from './site-template.ts';
 import { mailConfigured, mailMissing, sendMail } from '../_shared/mail.ts';
+import { logger } from '../_shared/log.ts';
+
+const log = logger('report');
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
@@ -61,12 +64,12 @@ Deno.serve(async (req) => {
       sent++;
     } catch (e) {
       failed++;
-      console.error('rapor gönderilemedi', p.user_id, (e as Error).message);
+      await log.error('rapor gönderilemedi', { user_id: p.user_id, error: (e as Error).message });
     }
   }
   // Site yönetim kurulu raporu.
   const { data: siteTo, error: se } = await admin.rpc('site_report_recipients');
-  if (se) console.error('site raporu alıcıları okunamadı', se.message);
+  if (se) await log.error('site raporu alıcıları okunamadı', se.message);
   const cache = new Map<string, SiteReport>();
   for (const p of (siteTo ?? []) as { org_id: string; user_id: string; email: string; name: string }[]) {
     if (body.only && body.only !== p.user_id) continue;
@@ -82,7 +85,7 @@ Deno.serve(async (req) => {
       sent++;
     } catch (e) {
       failed++;
-      console.error('site raporu gönderilemedi', p.user_id, (e as Error).message);
+      await log.error('site raporu gönderilemedi', { user_id: p.user_id, error: (e as Error).message });
     }
   }
   return Response.json({ period, ref, sent, failed });

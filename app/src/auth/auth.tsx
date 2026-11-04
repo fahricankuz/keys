@@ -77,6 +77,7 @@ async function watchSession() {
 
 /** Bekleyen davet kodu (/katil bağlantısından gelir); giriş sonrası kabul edilir. */
 export const keepInvite = (code: string) => { try { storage.setItem(INVITE, code.trim().toUpperCase()); } catch {} };
+export const dropInvite = () => { try { storage.removeItem(INVITE); } catch {} };
 /** Site davetinde yönetimin girdiği ad, telefon ve e-posta (kayıt formu bunlarla dolu açılır). */
 const PREFILL = 'anahtar-davet-bilgi';
 export const keepPrefill = (o: { code: string; name?: string; phone?: string; email?: string }) => { try { storage.setItem(PREFILL, JSON.stringify(o)); } catch {} };
@@ -176,6 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = useCallback(async ({ name, email, password, role, phone = '' }: { name: string; email: string; password: string; role: Role; phone?: string }) => {
     email = email.trim().toLowerCase(); name = name.trim(); phone = phone.trim().slice(0, 30);
     if (!name || !email || password.length < 8) return t('Adını, e-postanı ve en az 8 karakterli bir şifre gir.');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return t('Geçerli bir e-posta adresi yaz.');
     try {
       if (LIVE) {
         if (captchaPending()) return t('Güvenlik doğrulaması bitsin, sonra tekrar dene.');

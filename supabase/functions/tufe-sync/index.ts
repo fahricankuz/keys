@@ -11,6 +11,9 @@
 // Oran endeks serisinden hesaplanır: son 12 ayın ortalaması ÷ önceki 12 ayın ortalaması − 1. TÜİK yuvarlanmış endeksten
 // yayımladığı için sonuç ±0,01 puan farklı olabilir; yöneticinin elle girdiği ("manual") aylar hiçbir zaman ezilmez.
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { logger } from '../_shared/log.ts';
+
+const log = logger('tufe-sync');
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
@@ -61,18 +64,18 @@ Deno.serve(async (req) => {
         signal: AbortSignal.timeout(20000)
       });
     } catch (e) {
-      console.error('EVDS bağlantı hatası', e);
+      await log.error('EVDS bağlantı hatası', e);
       return Response.json({ error: 'EVDS’e bağlanılamadı', detail: String((e as Error)?.message ?? e) }, { status: 502 });
     }
     const text = await res.text();
     if (!res.ok) {
-      console.error('EVDS yanıtı', res.status, text.slice(0, 300));
+      await log.error('EVDS yanıtı', { status: res.status, body: text.slice(0, 300) });
       return Response.json({ error: `EVDS ${res.status}`, detail: text.slice(0, 300) }, { status: 502 });
     }
     let body: { items?: Record<string, unknown>[] };
     try { body = JSON.parse(text); } catch {
       // Anahtar geçersizse ya da adres değiştiyse EVDS JSON yerine HTML sayfası döndürür.
-      console.error('EVDS JSON döndürmedi', text.slice(0, 300));
+      await log.error('EVDS JSON döndürmedi', text.slice(0, 300));
       return Response.json({ error: 'EVDS JSON döndürmedi (API anahtarını ve EVDS_URL’yi kontrol et)', detail: text.slice(0, 300) }, { status: 502 });
     }
     const col = series.replaceAll('.', '_');
@@ -81,19 +84,28 @@ Deno.serve(async (req) => {
       const k = monthKey(String(it.Tarih ?? '')), v = Number(it[col]);
       if (k && isFinite(v) && v > 0) index.set(k, v);
     }
-    if (!index.size) return Response.json({ error: 'EVDS veri döndürmedi', detail: text.slice(0, 300) }, { status: 502 });
+    if (!index.size) {
+      await log.error('EVDS veri döndürmedi', text.slice(0, 300));
+      return Response.json({ error: 'EVDS veri döndürmedi', detail: text.slice(0, 300) }, { status: 502 });
+    }
     const rates = avg12(index);
     const { data: manual, error: readErr } = await admin.from('cpi_rates').select('month').eq('source', 'manual');
-    if (readErr) return Response.json({ error: 'cpi_rates okunamadı', detail: readErr.message }, { status: 500 });
+    if (readErr) {
+      await log.error('cpi_rates okunamadı', readErr.message);
+      return Response.json({ error: 'cpi_rates okunamadı', detail: readErr.message }, { status: 500 });
+    }
     const keep = new Set((manual ?? []).map((r: { month: string }) => r.month));
     const rows = [...rates].filter(([m]) => !keep.has(m)).map(([month, v]) => ({ month, avg12: v, source: 'evds', updated_at: new Date().toISOString() }));
     if (rows.length) {
       const { error } = await admin.from('cpi_rates').upsert(rows, { onConflict: 'month' });
-      if (error) return Response.json({ error: 'cpi_rates yazılamadı', detail: error.message }, { status: 500 });
+      if (error) {
+        await log.error('cpi_rates yazılamadı', error.message);
+        return Response.json({ error: 'cpi_rates yazılamadı', detail: error.message }, { status: 500 });
+      }
     }
     return Response.json({ months: rows.length, latest: rows.at(-1) ?? null });
   } catch (e) {
-    console.error('tufe-sync beklenmeyen hata', e);
+    await log.error('beklenmeyen hata', e);
     return Response.json({ error: 'Beklenmeyen hata', detail: String((e as Error)?.message ?? e) }, { status: 500 });
   }
 });

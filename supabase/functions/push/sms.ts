@@ -2,6 +2,9 @@
 //   SMS_PROVIDER=netgsm  → NETGSM_USER, NETGSM_PASS, NETGSM_HEADER (onaylı gönderici başlığı, ör. ANAHTAR)
 //   SMS_PROVIDER=twilio  → TWILIO_SID, TWILIO_TOKEN, TWILIO_FROM
 // Bilgilendirme amaçlı (işlem) SMS'ler için İYS onayı gerekmez; ticari ileti gönderilmez.
+import { logger } from '../_shared/log.ts';
+
+const log = logger('push');
 const env = (k: string) => Deno.env.get(k) ?? '';
 
 /** Türkiye numaralarını 905XXXXXXXXX biçimine getirir; geçersizse null. */
@@ -27,7 +30,7 @@ export async function sendSms(phone: string, text: string): Promise<boolean> {
       body: JSON.stringify({ msgheader: env('NETGSM_HEADER'), encoding: 'TR', iysfilter: '0', messages: [{ msg, no: to }] })
     });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok || String(body.code ?? '00') !== '00') { console.error('netgsm hatası', res.status, JSON.stringify(body)); return false; }
+    if (!res.ok || String(body.code ?? '00') !== '00') { await log.error('netgsm hatası', { status: res.status, body }); return false; }
     return true;
   }
   if (p === 'twilio') {
@@ -37,7 +40,7 @@ export async function sendSms(phone: string, text: string): Promise<boolean> {
       headers: { authorization: 'Basic ' + btoa(sid + ':' + env('TWILIO_TOKEN')), 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ To: '+' + to, From: env('TWILIO_FROM'), Body: msg })
     });
-    if (!res.ok) { console.error('twilio hatası', res.status, await res.text()); return false; }
+    if (!res.ok) { await log.error('twilio hatası', { status: res.status, body: await res.text() }); return false; }
     return true;
   }
   return false;

@@ -1,12 +1,13 @@
-/* Üretim hata kaydı: yakalanmamış hata, söz (promise) reddi ve ekran hatası (ErrorBoundary) sunucuya yazılır
-   (supabase/schema.sql 25. bölüm → report_error; yönetici paneli → Hatalar). Kişisel veri gönderilmez: yalnız hata metni,
-   ekran yolu, sürüm ve platform. Aynı hata bir oturumda bir kez, en çok 20 farklı hata gönderilir; sunucu da sınırlar.
+/* Üretim hata kaydı: yakalanmamış hata, söz (promise) reddi, ekran hatası (ErrorBoundary) ve yakalanan hata (logs.js) sunucuya yazılır
+   (report_error; yönetici paneli → Hatalar). Yalnız hata metni, ekran yolu, sürüm ve platform gönderilir; metindeki e-posta,
+   telefon ve jetonlar sunucuda temizlenir (log_redact), kayıtlar 90 gün saklanır. Ayrıntı: docs/loglar.md. Aynı hata bir oturumda bir kez, en çok 20 farklı hata gönderilir; sunucu da sınırlar.
    Oturumu olmayan ziyaretçide sunucu kütüphanesi yüklenmeden doğrudan REST ucuna gider. */
 
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { CONFIG, LIVE } from './config.js';
 import { live, client } from './backend.js';
+import { setLogSink } from './logs.js';
 
 const FAKE = process.env.EXPO_PUBLIC_SUPABASE_URL === 'fake:';
 // Beklenen ya da bizim dışımızdaki gürültü: ağ kopması, tarayıcı eklentileri, ResizeObserver uyarısı.
@@ -54,6 +55,10 @@ let installed = false;
 export function installErrorReporting(){
   if (installed || !LIVE) return;
   installed = true;
+  setLogSink((context, err) => {
+    const m = String((err && (err.message || err.reason)) || err || '');
+    reportError({ message: context + ': ' + m, stack: err && err.stack }, 'caught');
+  });
   if (Platform.OS === 'web' && typeof window !== 'undefined'){
     window.addEventListener('error', (e) => reportError(e.error || e.message, 'error'));
     window.addEventListener('unhandledrejection', (e) => reportError(e.reason, 'rejection'));

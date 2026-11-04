@@ -13,6 +13,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { renderOutbox } from './template.ts';
 import { mailConfigured, mailMissing, sendMail } from '../_shared/mail.ts';
+import { logger } from '../_shared/log.ts';
+
+const log = logger('mail-send');
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
@@ -27,14 +30,14 @@ function safeEqual(a: string, b: string): boolean {
 /** Tek satırı gönderir: 'sent' | 'skipped' (başkası ayırmış / gönderilmiş / 5 deneme) | 'failed'. */
 async function sendOne(id: number): Promise<'sent' | 'skipped' | 'failed'> {
   const { data: row, error } = await admin.rpc('mail_claim', { rid: id });
-  if (error) { console.error('mail_claim', error.message); return 'failed'; }
+  if (error) { await log.error('mail_claim', error.message); return 'failed'; }
   if (!row || !row.id) return 'skipped';
   const contact = env('LEAD_TO') || 'info@anahtar.io';
   const to = row.to_email || contact;
   const mail = renderOutbox(row, env('APP_URL'), contact);
-  if (!mail) { await admin.rpc('mail_fail', { rid: id, msg: 'Bilinmeyen tür: ' + row.kind }); return 'failed'; }
+  if (!mail) { await log.error('bilinmeyen e-posta türü', { id, kind: row.kind }); await admin.rpc('mail_fail', { rid: id, msg: 'Bilinmeyen tür: ' + row.kind }); return 'failed'; }
   const res = await sendMail({ to, replyTo: contact, subject: mail.subject, html: mail.html, text: mail.text });
-  if (!res.ok) { await admin.rpc('mail_fail', { rid: id, msg: res.error ?? 'gönderilemedi' }); return 'failed'; }
+  if (!res.ok) { await log.warn('e-posta gönderilemedi', { id, kind: row.kind, error: res.error }); await admin.rpc('mail_fail', { rid: id, msg: res.error ?? 'gönderilemedi' }); return 'failed'; }
   await admin.rpc('mail_done', { rid: id });
   return 'sent';
 }
@@ -48,7 +51,8 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   let ids: number[] = [];
   if (body?.sweep) {
-    const { data } = await admin.rpc('mail_retry');
+    const { data, error } = await admin.rpc('mail_retry');
+    if (error) await log.error('mail_retry', error.message);
     ids = ((data ?? []) as unknown[]).map((x) => Number(x)).filter((x) => Number.isFinite(x));
   } else if (body?.table === 'mail_outbox' && body?.type === 'INSERT' && body?.record?.id) {
     ids = [Number(body.record.id)];

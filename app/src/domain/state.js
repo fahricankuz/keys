@@ -1,6 +1,7 @@
 /* Uygulama durumu: demo verisi, kalıcılık ve tema. */
 
 import { t0, iso, add, addM, mkey, parse, DAY } from './util.js';
+import { logCaught } from './logs.js';
 import { VERSION, LEGACY_KEYS, migrate } from './migrate.js';
 import { LIVE } from './config.js';
 import { storage } from './storage.js';
@@ -319,7 +320,7 @@ function load(){
       try { storage.setItem(KEY, JSON.stringify(next)); } catch(e){}
       return next;
     } catch(e){
-      console.error('Veri geçişi başarısız', e);
+      logCaught('Veri geçişi başarısız', e);
       bootInfo.corrupt = true;
     }
   }
