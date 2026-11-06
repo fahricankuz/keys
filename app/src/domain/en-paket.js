@@ -658,5 +658,14 @@ export const EN_PAKET = {
   "Tahsilat − gider": "Collected − expenses",
   "Uygulamadaki son 13 ayın kayıtlarından hazırlanmıştır.": "Prepared from the last 13 months of records in the app.",
   "Yıllık tutar": "Annual amount",
-  "Genel kurul": "General meeting"
+  "Genel kurul": "General meeting",
+  "Mağaza içi satın alma bu cihazda henüz açık değil.": "In-app purchase isn't available on this device yet.",
+  "1-{n} mülk için. 10 ve üstü mülk için Kurumsal paket.": "For 1-{n} properties. For 10 or more, the Enterprise plan.",
+  "Bu paket mağazada henüz tanımlı değil.": "This plan isn't set up in the store yet.",
+  "{store} ile abone ol": "Subscribe with {store}",
+  "Aboneliğin açıldı. Teşekkürler!": "Your subscription is active. Thank you!",
+  "Abonelik {store} hesabından ödenir ve dönem sonunda kendiliğinden yenilenir; yenilemeden en az 24 saat önce iptal etmezsen aynı ücret yeniden alınır. Aboneliği {store} ayarlarından yönetebilir ya da iptal edebilirsin. İlk ay ücretsizse, deneme bitmeden iptal edersen ücret alınmaz.": "Payment is charged to your {store} account and the subscription renews automatically at the end of each period unless cancelled at least 24 hours before renewal. You can manage or cancel it in your {store} settings. If the first month is free, cancelling before the trial ends means you won't be charged.",
+  "Bu mağaza hesabında etkin abonelik bulunamadı.": "No active subscription was found on this store account.",
+  "Aboneliğin geri yüklendi.": "Your subscription has been restored.",
+  "Bu paket mağazada bulunamadı.": "This plan wasn't found in the store."
 };

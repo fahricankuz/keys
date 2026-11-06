@@ -1,6 +1,6 @@
 /* Alt sayfalar (sheet). Her biri tek bir form ya da görünüm; kayıt işlemleri services.js'te. */
 import { ReactNode, useEffect, useState } from 'react';
-import { Image, Linking, Pressable, Share, Text as RNText, TextInput, View } from 'react-native';
+import { Image, Linking, Platform, Pressable, Share, Text as RNText, TextInput, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { myOrgs } from '../domain/org';
 import { mySiteUnits } from '../domain/site';
@@ -31,6 +31,10 @@ import { useSheet } from './overlays';
 import { PayButton } from '../ui/motion';
 import { host } from '../domain/host';
 import { MailPreviewSheet, MailReportSettings } from './report-mail';
+import { StorePurchaseSheet } from './store-purchase';
+import { storeAvailable, restoreStore, manageStore } from '../domain/iap';
+
+const NATIVE = Platform.OS === 'ios' || Platform.OS === 'android';
 import { DevicePush } from './device-push';
 import { PlanCard } from '../site/PlanCard';
 import { AddressFields } from './address';
@@ -237,7 +241,7 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
             {hasFeature('sms')
               ? <OnOff label={t('SMS (kira, aidat, sözleşme ve sigorta hatırlatmaları)')} k="sms" />
               : (
-                <PressScale onPress={() => { host.closeSheet(); host.go('/satin-al?plan=bes'); }} accessibilityRole="link" accessibilityLabel={t('SMS hatırlatmaları Profesyonel paketinde. Profesyonel’e geç.')} scaleTo={0.99}
+                <PressScale onPress={() => { if (NATIVE) open('magaza-satin-al', { plan: 'bes' }); else { host.closeSheet(); host.go('/satin-al?plan=bes'); } }} accessibilityRole="link" accessibilityLabel={t('SMS hatırlatmaları Profesyonel paketinde. Profesyonel’e geç.')} scaleTo={0.99}
                   style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 6 }}>
                   <Text v="small" muted style={{ flex: 1, fontFamily: fonts.bodyBold }}>{t('SMS (kira, aidat, sözleşme ve sigorta hatırlatmaları)')}</Text>
                   <Chip tone="accent" label={t('Profesyonel’e özel')} />
@@ -804,6 +808,8 @@ function RefundSheet({ pid, close }: { pid?: string; close: () => void }) {
 /** Kurumsal için iletişim formu açılır; Başlangıç ve Profesyonel satın alma sayfasına (paket, dönem ve mülk adedi seçimi) gider. */
 function pickTier(id: string, units: number | null, open: (n: string, p?: any) => void, yearly = false) {
   if (id === 'kurumsal') open('kurumsal-basvuru');
+  // Telefon uygulaması: mağaza içi satın alma (web ödeme sayfasına yönlendirme mağaza kuralına aykırı).
+  else if (NATIVE) open('magaza-satin-al', { plan: id, yearly, units: units || 1 });
   else {
     host.closeSheet();
     host.go('/satin-al?plan=' + id + '&donem=' + (yearly ? 'yillik' : 'aylik') + (units ? '&adet=' + Math.min(units, maxUnits()) : ''));
@@ -849,7 +855,7 @@ function SubscriptionSheet() {
         {status.pct != null ? <View style={{ height: 6, borderRadius: 3, backgroundColor: 'rgba(250,245,240,0.14)', overflow: 'hidden' }}><View style={{ width: status.pct + '%' as any, height: 6, backgroundColor: c.lemon }} /></View> : null}
         <Text v="small" color={c.heroMuted}>{status.body}</Text>
       </View>
-      {paused() ? (
+      {paused() && !(NATIVE && storeAvailable()) ? (
         <Row gap={10} align="flex-start" style={{ paddingHorizontal: 4 }}>
           <Icon name="bell" size={16} color={c.muted} />
           <Muted style={{ flex: 1 }}>{t('Ödeme sistemimizi güncelliyoruz. Paket satın alma kısa süre içinde açılacak; fiyatlar kesinleşince burada görünür.')}</Muted>
@@ -874,6 +880,12 @@ function SubscriptionSheet() {
         <Icon name="check" size={16} color={c.okInk} />
         <Muted style={{ flex: 1 }}>{t('Kiracıların ve ekip üyelerin her zaman ücretsiz. Her paket 1 ay ücretsiz denemeyle başlar.')}</Muted>
       </Row>
+      {NATIVE && storeAvailable() ? (
+        <Row wrap gap={8} style={{ justifyContent: 'center' }}>
+          <Button kind="ghost" title={t('Satın alımları geri yükle')} onPress={() => { restoreStore().catch(() => {}); }} />
+          {['app_store', 'play_store'].includes(String(a.store)) ? <Button kind="quiet" title={t('Aboneliği yönet')} onPress={() => { manageStore().catch(() => {}); }} /> : null}
+        </Row>
+      ) : null}
       <Row gap={16} style={{ justifyContent: 'center' }}>
         <PressScale onPress={() => Linking.openURL(CONFIG.legal.terms)} accessibilityRole="link"><Text v="small" color={c.muted} style={{ textDecorationLine: 'underline' }}>{t('Kullanım koşulları')}</Text></PressScale>
         <PressScale onPress={() => Linking.openURL(CONFIG.legal.privacy)} accessibilityRole="link"><Text v="small" color={c.muted} style={{ textDecorationLine: 'underline' }}>{t('Gizlilik politikası')}</Text></PressScale>
@@ -975,6 +987,7 @@ export function renderSheet(name: string, p: any, close: () => void): ReactNode 
     case 'abonelik': return <SubscriptionSheet />;
     case 'rapor-eposta': return <MailPreviewSheet />;
     case 'kurumsal-basvuru': return <EnterpriseSheet close={close} />;
+    case 'magaza-satin-al': return <StorePurchaseSheet plan={p.plan} yearly={p.yearly} units={p.units} close={close} />;
     case 'paket': return <UpgradeSheet need={p.need} suggest={p.suggest} />;
     case 'destek-talebi': return <SupportSheet kind={p.kind} units={p.units} message={p.message} close={close} />;
     case 'sikayet': return <ReportSheet pid={p.pid} kind={p.kind} ref={p.ref} user={p.user} name={p.name} snapshot={p.snapshot} close={close} />;

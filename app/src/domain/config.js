@@ -22,6 +22,11 @@ export const CONFIG = {
       %0,5 anahtar hizmet bedeli. Ödeme kuruluşu sözleşmesi yapılıp provider yazılana kadar kartla ödeme "yakında" görünür. */
   cardPay: { provider: '', feeRate: 0.025, providerRate: 0.02 },
   billing: {
+    /** Telefon uygulamasında mağaza içi satın alma (RevenueCat). Herkese açık SDK anahtarları (gizli değildir):
+        RevenueCat → Project settings → API keys → App Store / Play Store uygulaması. Tanımlı değilse telefonda satın alma
+        yerine "web'den yönet" bilgisi gösterilmez, paketler yalnız görüntülenir. Web'deki sanal POS bundan etkilenmez. */
+    revenuecatIosKey: process.env.EXPO_PUBLIC_RC_IOS_KEY || '',
+    revenuecatAndroidKey: process.env.EXPO_PUBLIC_RC_ANDROID_KEY || '',
     /** Fiyatlar tanımlanana kadar satın alma kapalıdır; herkes deneme ya da yöneticinin verdiği paketle kullanır. */
     paused: true,
     /** Mülk sahibi paketleri: fiyat MÜLK BAŞINA ve KDV dahildir (aylık ve yıllık; yıllık = aylığın 10 katı, 2 ay bedava).

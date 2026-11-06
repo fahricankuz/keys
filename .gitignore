@@ -10,3 +10,4 @@ hostinger-site/
 !/hostinger/site/assets/node_modules/
 dist/
 supabase/.temp/
+magaza-ekranlari/

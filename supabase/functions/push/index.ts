@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
   const { data: devices } = await admin.from('device_tokens').select('token, platform').eq('user_id', n.user_id);
   for (const d of devices ?? []) {
     try {
-      const note = { title: n.title, body: n.body, url: n.url, tag: n.tag };
+      const note = { title: n.title, body: n.body, url: panelPath(n.url), tag: n.tag };   // uygulama da /uygulama/… yollarını kullanır
       const r = d.platform === 'ios' ? await sendApns(d.token, note) : await sendFcm(d.token, note);
       if (r === 'ok') sent++;
       if (r === 'gone') await admin.from('device_tokens').delete().eq('token', d.token);

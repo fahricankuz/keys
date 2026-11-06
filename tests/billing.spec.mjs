@@ -48,3 +48,12 @@ test('webhook olayındaki kullanıcılar: anonim kimlikler atlanır, aktarım ik
   expect(affectedUsers({ type:'TRANSFER', transferred_from:[U], transferred_to:[V] }).sort()).toEqual([U, V].sort());
   expect(isUserId('$RCAnonymousID:x')).toBe(false);
 });
+
+test('Google Play kimliği (abonelik:temel-plan) sunucunun tanıdığı biçime çevrilir; App Store kimliği aynen kalır', () => {
+  const g = rowFromSubscriber(U, { entitlements: { pro: { expires_date:'2026-10-23T12:00:00Z', product_identifier:'bes_3:yillik' } },
+    subscriptions: { 'bes_3:yillik': { store:'play_store', period_type:'normal' } } }, 'pro', NOW);
+  expect(g).toMatchObject({ product_id:'bes_3_yillik', store:'play_store', active:true });
+  const a = rowFromSubscriber(U, { entitlements: { pro: { expires_date:'2026-10-23T12:00:00Z', product_identifier:'tek_1_aylik' } },
+    subscriptions: { tek_1_aylik: { store:'app_store' } } }, 'pro', NOW);
+  expect(a.product_id).toBe('tek_1_aylik');
+});
