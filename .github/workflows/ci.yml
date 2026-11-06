@@ -12,7 +12,8 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-24.04   # ubuntu-latest (26.04) Playwright 1.49 bağımlılıklarını kuramıyor
-    timeout-minutes: 20
+    # Testler ~11 dk; GitHub yavaşladığında (paket deposu, kuyruk) iş kesilmesin diye pay.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,7 +22,23 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm ci --prefix app
-      - run: npx playwright install --with-deps chromium
+      # Tarayıcı önbellekten gelir (Playwright sürümü değişince yeniden indirilir).
+      - name: Playwright sürümü
+        id: pw
+        run: echo "v=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.v }}
+      - run: npx playwright install chromium
+      # Sistem paketleri yalnız tarayıcı açılamazsa kurulur: ubuntu-24.04 imajında Chromium kütüphaneleri hazır gelir;
+      # "--with-deps" her seferinde testlerde gerekmeyen yazı tiplerini (CJK, Tay) Ubuntu deposundan indiriyordu (5–9 dk).
+      - name: Tarayıcı açılıyor mu (gerekirse sistem paketleri)
+        run: |
+          if ! timeout 60 node -e "require('@playwright/test').chromium.launch().then((b) => b.close())"; then
+            echo "Chromium açılamadı; sistem paketleri kuruluyor."
+            npx playwright install-deps chromium
+          fi
       - run: npm test
       - uses: actions/upload-artifact@v4
         if: failure()
