@@ -417,7 +417,7 @@ export const A = {
 
   clearInbox: () => { S.inbox = []; save(); },
   theme: d => { setTheme(d.v); },
-  setSetting: d => { S.settings[d.k] = d.bool ? !!d.v : Math.max(0, Number(d.v) || 0); save(); },
+  setSetting: d => { S.settings[d.k] = d.bool ? !!d.v : d.str ? String(d.v ?? '').slice(0, 40) : Math.max(0, Number(d.v) || 0); save(); },
   lang: d => {
     S.lang = d.v; save(); setLang(d.v);
     // Modül düzeyindeki etiketler (durum adları, sekmeler) dil değişince yeniden kurulsun diye web'de sayfa yenilenir.

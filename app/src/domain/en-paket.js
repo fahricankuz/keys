@@ -752,5 +752,21 @@ export const EN_PAKET = {
   "Henüz paylaşılan belge yok.": "No documents shared yet.",
   "Birimler, aidat, giderler, duyurular": "Units, dues, expenses, announcements",
   "Başka bir mülk": "Another property",
-  "Kiraladığın bir ev için davet kodun var mı?": "Have an invite code for a home you rent?"
+  "Kiraladığın bir ev için davet kodun var mı?": "Have an invite code for a home you rent?",
+  "Rapor para birimi": "Report currency",
+  "Kur farkı: dövizli sözleşmelerde tahsil edilen TL ile sözleşme tutarının ödeme günündeki TL karşılığı arasındaki fark (TCMB döviz satış kuru).": "FX difference: for foreign-currency leases, the gap between the lira collected and the contract amount's lira value on the payment day (CBRT selling rate).",
+  "TCMB döviz satış kuru; her işlem kendi gününün kuruyla (tahsilat: ödeme günü, istenen: son ödeme günü, gider: harcama günü). Hafta sonu ve tatilde son iş gününün kuru. Dövizli sözleşmede sözleşmedeki tutar esas alınır, TL’nin değer farkı “Kur farkı” satırındadır.": "CBRT selling rate; each transaction at its own day’s rate (collections: payment day, billed: due date, expenses: spending day). Weekends and holidays use the last business day’s rate. Foreign-currency leases use the contract amount; the lira’s value change is shown on the “FX difference” line.",
+  "Bazı işlemlerin günü için kur henüz yok; bu işlemler toplama katılmadı.": "Some transactions have no rate for their day yet; they are left out of the totals.",
+  "TL": "TRY",
+  "Dolar": "US dollar",
+  "Avro": "Euro",
+  "en yüksek {v}": "peak {v}",
+  "12 aylık gelir": "12-month revenue",
+  "İstenen tutar (kira, ortak gider, ciro farkı ve diğer tahakkuklar). Döviz karşılığı her tahakkukun son ödeme günündeki TCMB satış kuruyla.": "Billed amount (rent, service charge, turnover rent and other charges). Foreign-currency value at the CBRT selling rate on each charge’s due date.",
+  "Gri ay: kur henüz yok.": "Grey month: no rate yet.",
+  "kur farkı": "FX difference",
+  "Kur farkı": "FX difference",
+  "mr": "bn",
+  "mn": "m",
+  "b": "k"
 };
