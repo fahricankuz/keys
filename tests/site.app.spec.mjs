@@ -58,6 +58,7 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await expect(page.getByText('2 daire eklendi.')).toBeVisible();
   await expect(page.getByText('Ali Malik')).toBeVisible();
   // Kişi ekle → Davet gönder: e-posta fonksiyonu çağrılır, WhatsApp hazır mesajla (bağlantı ve kod) açılır.
+  await page.getByRole('button', { name: /^A Blok No 1 · / }).click();            // satır dokununca açılır
   await page.getByRole('button', { name: 'Kişi ekle' }).first().click();
   await page.getByLabel('Ad soyad').fill('Mehmet Kiracı');
   await page.getByLabel('Telefon', { exact: true }).fill('0532 123 45 67');
@@ -78,7 +79,7 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await expect(page.getByText('Mehmet Kiracı')).toBeVisible();
   await expect(page.getByText('Davet gönderildi')).toBeVisible();
 
-  await page.getByRole('link', { name: 'Aidat ve tahakkuk', exact: true }).first().click();
+  await page.getByRole('link', { name: 'Aidat', exact: true }).first().click();
   await expect(page.getByText('2 daireye toplam ₺2.500')).toBeVisible();
   await page.getByRole('button', { name: 'Tahakkuk et' }).click();
   await expect(page.getByText('2 daireye tahakkuk edildi.')).toBeVisible();
@@ -192,6 +193,7 @@ test('ev sahibi mülkünü site dairesine bağlar; kiracı kira ile aidatı ayn�
   await expect(page).toHaveURL(/\/uygulama\/site$/);            // kurum yöneticisi girişte kendi panelinde açılır
   await page.goto(url('/uygulama/site'));
   await page.getByRole('link', { name: 'Daireler', exact: true }).first().click();
+  await page.getByRole('button', { name: /^A Blok No 1 · / }).click();
   await expect(page.getByText('Ev sahibi üzerinden')).toBeVisible();              // kiracı ev sahibinin anahtar hesabı üzerinden bağlı
   await page.getByRole('link', { name: 'İşletme projesi', exact: true }).first().click();
   await page.getByLabel('Gider kalemi').fill('Asansör bakımı');

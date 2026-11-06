@@ -82,7 +82,7 @@ export function sectorSections(org){
   const list = [
     { key: 'ozet', label: t('Özet'), icon: 'grid' },
     { key: 'birimler', label: T.units, icon: 'home' },
-    { key: 'tahakkuk', label: site ? t('Aidat ve tahakkuk') : t('Kira ve tahakkuk'), icon: 'card' }
+    { key: 'tahakkuk', label: site ? t('Aidat') : t('Kira'), icon: 'card' }
   ];
   if (!site && hasModule(org, 'ciro_kira')) list.push({ key: 'ciro', label: t('Ciro'), icon: 'chart' });
   if (!site && hasModule(org, 'endeksleme')) list.push({ key: 'artis', label: t('Kira artışları'), icon: 'calendar' });

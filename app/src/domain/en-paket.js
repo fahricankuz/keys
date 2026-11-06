@@ -667,5 +667,8 @@ export const EN_PAKET = {
   "Abonelik {store} hesabından ödenir ve dönem sonunda kendiliğinden yenilenir; yenilemeden en az 24 saat önce iptal etmezsen aynı ücret yeniden alınır. Aboneliği {store} ayarlarından yönetebilir ya da iptal edebilirsin. İlk ay ücretsizse, deneme bitmeden iptal edersen ücret alınmaz.": "Payment is charged to your {store} account and the subscription renews automatically at the end of each period unless cancelled at least 24 hours before renewal. You can manage or cancel it in your {store} settings. If the first month is free, cancelling before the trial ends means you won't be charged.",
   "Bu mağaza hesabında etkin abonelik bulunamadı.": "No active subscription was found on this store account.",
   "Aboneliğin geri yüklendi.": "Your subscription has been restored.",
-  "Bu paket mağazada bulunamadı.": "This plan wasn't found in the store."
+  "Bu paket mağazada bulunamadı.": "This plan wasn't found in the store.",
+  "KDV hariç": "excl. VAT",
+  "Kimse yok": "No one yet",
+  "E-postayı tekrar gönder": "Resend email"
 };

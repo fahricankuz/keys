@@ -1,4 +1,4 @@
-import { ReactNode, useRef, useState } from 'react';
+import { createContext, ReactNode, useContext, useRef, useState } from 'react';
 import {
   Platform, Pressable, PressableProps, StyleProp, StyleSheet, Text as RNText, TextInput, TextInputProps, TextStyle, View, ViewStyle
 } from 'react-native';
@@ -69,12 +69,17 @@ export function PressScale({ children, style, wrapStyle, scaleTo = 0.97, hoverSc
     sessiz: Taş Gri Açık · pasif: Taş Gri Açık + Taş Gri Orta. Gölge ve yükselme yok; geçişler yumuşak. */
 const ACCENT_HOVER = '#D93F3D';
 
+/** Panel (uygulama, kurum ve yönetici paneli) içinde düğmeler daha küçüktür; tanıtım sitesinde büyük kalır.
+    Telefonda en az 44 px (parmakla rahat basılır). */
+export const PanelUI = createContext(false);
+
 export function Button({ title, onPress, kind = 'primary', block, disabled, loading, style, icon }: {
   title: string; onPress?: () => void; kind?: 'primary' | 'dark' | 'ghost' | 'quiet' | 'onDark';
   block?: boolean; disabled?: boolean; loading?: boolean; style?: StyleProp<ViewStyle>; icon?: ReactNode;
 }) {
   const c = useColors();
   const { phone } = useBreakpoint();
+  const panel = useContext(PanelUI);
   const [hover, setHover] = useState(false);
   const [focus, setFocus] = useState(false);
   const off = !!(disabled || loading);
@@ -105,8 +110,8 @@ export function Button({ title, onPress, kind = 'primary', block, disabled, load
       onBlur={() => setFocus(false)}
       style={[
         {
-          minHeight: phone ? 46 : 52, paddingHorizontal: phone ? 20 : 26, borderRadius: radius.pill, backgroundColor: bg,
-          borderWidth: 2, borderColor: border, boxShadow: focus ? `0 0 0 3px ${c.bg}, 0 0 0 5px ${ring}` : hot ? '0 6px 18px rgba(201,45,43,0.28)' : 'none', ...web,
+          minHeight: panel ? (phone ? 44 : 40) : phone ? 46 : 52, paddingHorizontal: panel ? 16 : phone ? 20 : 26, borderRadius: radius.pill, backgroundColor: bg,
+          borderWidth: panel ? 1.5 : 2, borderColor: border, boxShadow: focus ? `0 0 0 3px ${c.bg}, 0 0 0 5px ${ring}` : hot ? '0 6px 18px rgba(201,45,43,0.28)' : 'none', ...web,
           flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
           alignSelf: block ? 'stretch' : 'flex-start'
         },
@@ -114,7 +119,7 @@ export function Button({ title, onPress, kind = 'primary', block, disabled, load
       ]}
     >
       {icon}
-      {loading ? <Loader size={28} mono={fg} /> : <RNText style={{ color: fg, fontFamily: fonts.bodyBold, fontSize: phone ? 15 : 16, ...(Platform.OS === 'web' ? { transitionProperty: 'color', transitionDuration: '220ms' } as any : null) }}>{title}</RNText>}
+      {loading ? <Loader size={panel ? 22 : 28} mono={fg} /> : <RNText numberOfLines={1} style={{ color: fg, fontFamily: fonts.bodyBold, fontSize: panel ? 15 : phone ? 15 : 16, ...(Platform.OS === 'web' ? { transitionProperty: 'color', transitionDuration: '220ms' } as any : null) }}>{title}</RNText>}
     </PressScale>
   );
 }
