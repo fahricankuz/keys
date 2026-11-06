@@ -111,7 +111,7 @@ export function Overview({ d, org, can, reload, go, ChargeRow }: {
   const debtors = Object.entries(debt).sort((a, b) => b[1].left - a[1].left);
   const debtTotal = debtors.reduce((a, [, v]) => a + v.left, 0);
 
-  const heroLabel = commercial ? t('{month} kira tahakkuku', { month: monthYear(m) }) : t('{month} aidatı', { month: monthYear(m) });
+  const heroLabel = commercial ? t('{month} kiraları', { month: monthYear(m) }) : t('{month} aidatı', { month: monthYear(m) });
   const parts = commercial
     ? [byKind.kira ? t('Sabit kira') + ' ' + tl(byKind.kira) : '', byKind.ciro ? t('ciro farkı') + ' ' + tl(byKind.ciro) : '',
        byKind.ortak_gider ? t('ortak gider') + ' ' + tl(byKind.ortak_gider) : '', fxUsed ? t('dövizli sözleşmeler kurla') : ''].filter(Boolean).join(' · ')
@@ -155,7 +155,7 @@ export function Overview({ d, org, can, reload, go, ChargeRow }: {
   }
 
   const debtCard = (
-    <Section title={commercial ? t('Geciken kiralar') : t('Borçlular')} link={t('Tahakkuk')} onLink={() => go('tahakkuk')}>
+    <Section title={commercial ? t('Geciken kiralar') : t('Borçlular')} link={commercial ? t('Kira') : t('Aidat')} onLink={() => go('tahakkuk')}>
       {debtors.length ? debtors.slice(0, 6).map(([uid, v], i) => (
         <Line key={uid} first={!i} title={unitBy[uid] ? unitLabel(unitBy[uid]) : '—'}
           sub={[[...v.kinds].join(' + '), v.fx, t('{n} gün', { n: v.days }), !commercial && v.fee ? t('Gecikme tazminatı') + ' ' + tl(v.fee) : ''].filter(Boolean).join(' · ')}

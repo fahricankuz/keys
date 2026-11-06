@@ -82,8 +82,8 @@ test('AVM: mağaza ve sözleşme, döviz kira tahakkuku, ciro bildirimi ve fark�
   await expect(page.getByText('Döviz kirası olan birimler için kuru yaz.')).toBeVisible();
   await page.getByLabel('USD kuru (₺)').fill('34');
   await expect(page.getByText('1 birime toplam ₺81.600')).toBeVisible();
-  await page.getByRole('button', { name: 'Tahakkuk et' }).click();
-  await expect(page.getByText('1 birime tahakkuk edildi.')).toBeVisible();
+  await page.getByRole('button', { name: 'Oluştur', exact: true }).click();
+  await expect(page.getByText('1 birime eklendi.')).toBeVisible();
   let d = await db(page);
   expect(d.tables.site_charges[0]).toMatchObject({ kind: 'kira', amount: 81600, currency: 'USD', fx: 34, orig_amount: 2000, due_on: month + '-05' });
 

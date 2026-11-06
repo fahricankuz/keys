@@ -191,7 +191,7 @@ function UnitRow({ u, d, oid, org, can, reload, first }: { u: any; d: any; oid: 
               <Pill label={t('Aidatı malik öder')} on={u.payer === 'malik'} onPress={() => act(() => saveUnit(oid, { ...u, payer: 'malik' }))} />
             </> : null}
             {can('units.manage') && !people.length ? <Text v="small" color={c.badInk} accessibilityRole="button" style={{ fontFamily: fonts.bodyBold, textDecorationLine: 'underline', paddingHorizontal: 6 }} onPress={async () => {
-              if (await host.ask({ title: t('{x} silinsin mi?', { x: label }), body: t('Tahakkukları da silinir. Bu işlem geri alınamaz.'), ok: t('Sil'), danger: true })) act(() => deleteUnit(u.id));
+              if (await host.ask({ title: t('{x} silinsin mi?', { x: label }), body: t('Aidat ve ödeme kayıtları da silinir. Bu işlem geri alınamaz.'), ok: t('Sil'), danger: true })) act(() => deleteUnit(u.id));
             }}>{commercial ? t('Birimi sil') : t('Daireyi sil')}</Text> : null}
           </View>
           {edit ? (commercial ? <LeaseForm u={u} oid={oid} done={() => { setEdit(false); reload(); }} />

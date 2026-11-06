@@ -99,46 +99,45 @@ function ChargeRow({ x, unit, can, reload }: { x: any; unit: any; can: (p: strin
 }
 
 /** Otomatik aidat: ayın seçilen gününde dairelerin aylık aidatı kendiliğinden tahakkuk edilir (schema.sql 29. bölüm). */
+/** Aylık aidat kira gibi otomatiktir: her dairenin aidatı her ay kendiliğinden yazılır; yönetici yalnız son ödeme gününü seçer. */
 function AutoAidat({ d, oid, can, reload }: { d: any; oid: string; can: (p: string) => boolean; reload: () => void }) {
   const c = useColors();
   const a = d.auto;
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ run_day: String(a?.run_day || 1), due_day: String(a?.due_day || 10) });
+  const [due, setDue] = useState(String(a?.due_day || 10));
   const [err, setErr] = useState<string | null>(null);
   const next = nextAuto(a);
   const units = d.units.filter((u: any) => Number(u.aidat) > 0);
   const total = units.reduce((s: number, u: any) => s + Number(u.aidat), 0);
   const manage = can('charges.manage');
   const save = async (enabled: boolean) => {
-    const run = Number(f.run_day), due = Number(f.due_day);
-    if (!(run >= 1 && run <= 28) || !(due >= 1 && due <= 28)) { setErr(t('Günler 1 ile 28 arasında olmalı.')); return; }
+    const n = Number(due);
+    if (!(n >= 1 && n <= 28)) { setErr(t('Gün 1 ile 28 arasında olmalı.')); return; }
     setErr(null);
-    try { await saveAuto(oid, { enabled, run_day: run, due_day: due }, a); setOpen(false); reload(); } catch (e) { setErr(humanError(e)); }
+    try { await saveAuto(oid, { enabled, run_day: 1, due_day: n }, a); setOpen(false); reload(); } catch (e) { setErr(humanError(e)); }
   };
-  const dayField = (v: string) => <View style={{ flexGrow: 1, flexBasis: 140 }}><MoneyField label={v === 'run_day' ? t('Tahakkuk günü (1–28)') : t('Son ödeme günü (1–28)')} value={(f as any)[v]} decimals={0}
-    onChange={(x) => setF({ ...f, [v]: x.slice(0, 2) })} /></View>;
   return (
     <Card gap={10}>
       <Row between wrap>
         <View style={{ flex: 1, minWidth: 200, gap: 2 }}>
-          <Row gap={8}><H2>{t('Otomatik aidat')}</H2><Chip tone={a?.enabled ? 'ok' : 'neutral'} label={a?.enabled ? t('Açık') : t('Kapalı')} /></Row>
+          <Row gap={8}><H2>{t('Aylık aidat')}</H2><Chip tone={a?.enabled ? 'ok' : 'neutral'} label={a?.enabled ? t('Otomatik') : t('Kapalı')} /></Row>
           <Muted>{a?.enabled
-            ? t('Her ayın {run}. günü tahakkuk edilir, son ödeme ayın {due}. günü.', { run: a.run_day, due: a.due_day })
-            : t('Ayın seçtiğin gününde dairelerin aylık aidatı kendiliğinden tahakkuk edilir; her ay elle girmezsin.')}</Muted>
+            ? t('Her dairenin aylık aidatı her ay kendiliğinden yazılır; son ödeme günü ayın {due}’i.', { due: a.due_day })
+            : t('Otomatik aidat kapalı. Açarsan her dairenin aylık aidatı her ay kendiliğinden yazılır.')}</Muted>
         </View>
-        {manage && !open ? <Button kind={a?.enabled ? 'ghost' : 'primary'} title={a?.enabled ? t('Ayarla') : t('Otomatik aidatı aç')} onPress={() => setOpen(true)} /> : null}
+        {manage && !open ? <Button kind={a?.enabled ? 'ghost' : 'primary'} title={a?.enabled ? t('Değiştir') : t('Otomatik aidatı aç')} onPress={() => setOpen(true)} /> : null}
       </Row>
       {a?.enabled && next ? (
         <View style={{ backgroundColor: c.surface2, borderRadius: radius.md, padding: 12, gap: 2 }}>
-          <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{t('Sonraki tahakkuk: {date}', { date: day(next.date) })}</Text>
-          <Muted>{units.length ? t('{n} daire · toplam {sum} · son ödeme {due}', { n: units.length, sum: tl(total), due: day(next.due) }) : t('Dairelerde aylık aidat tanımlı değil; tutarları Daireler ekranından gir.')}</Muted>
+          <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{t('Sonraki aidat: {month} · son ödeme {due}', { month: monthYear(String(next.date).slice(0, 7)), due: day(next.due) })}</Text>
+          <Muted>{units.length ? t('{n} daire · toplam {sum}', { n: units.length, sum: tl(total) }) : t('Dairelerde aylık aidat tanımlı değil; tutarları Daireler ekranından gir.')}</Muted>
           <Muted>{t('Hatırlatmalar: son ödemeden 3 gün önce, son gün, 5 ve 15 gün sonra.')}</Muted>
         </View>
       ) : null}
       {open ? (
         <Stack gap={10}>
-          <Row gap={10} wrap align="flex-start">{dayField('run_day')}{dayField('due_day')}</Row>
-          <Muted>{t('Tutar her dairenin kendi aylık aidatıdır. Yakıt, demirbaş gibi ek toplamaları aşağıdan girersin.')}</Muted>
+          <View style={{ maxWidth: 220 }}><MoneyField label={t('Son ödeme günü (1–28)')} value={due} decimals={0} onChange={(x) => setDue(x.slice(0, 2))} /></View>
+          <Muted>{t('Tutar her dairenin kendi aylık aidatıdır (Daireler ekranı). Yakıt, demirbaş gibi tek seferlik toplamaları aşağıdaki Ek ödeme iste ile istersin.')}</Muted>
           <Err e={err} />
           <Row wrap>
             <Button title={a?.enabled ? t('Kaydet') : t('Aç ve kaydet')} onPress={() => save(true)} />
@@ -155,7 +154,10 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
   const c = useColors();
   const commercial = isCommercial(d.sector);
   const [month, setMonth] = useState(seed?.month || thisMonth());
-  const [kind, setKind] = useState(seed?.kind || (commercial ? 'kira' : (d.modules || []).includes('aidat') ? 'aidat' : 'ozel'));
+  const autoOn = !commercial && !!d.auto?.enabled;
+  // Site: aidat otomatikken buradaki form yalnız ek ödemeler içindir (yakıt, demirbaş, özel toplama).
+  const [kind, setKind] = useState(seed?.kind || (commercial ? 'kira' : !autoOn && (d.modules || []).includes('aidat') ? 'aidat' : 'ozel'));
+  const [extra, setExtra] = useState(!!seed);
   const [title, setTitle] = useState(seed?.title || '');
   const [mode, setMode] = useState(seed?.mode || (commercial ? 'rent' : 'unit'));
   const [value, setValue] = useState(seed?.value ? String(seed.value) : '');
@@ -178,8 +180,8 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
     setErr(null); setMsg(null);
     try {
       const n = await createCharges(oid, { month, kind, title: title.trim(), mode, value: Number(String(value).replace(',', '.')) || 0, units: d.units, existing: d.charges, fx: fxNum });
-      setMsg(n ? (commercial ? t('{n} birime tahakkuk edildi.', { n }) : t('{n} daireye tahakkuk edildi.', { n }))
-        : commercial ? t('Bu ay ve tür için tüm birimlere zaten tahakkuk edilmiş.') : t('Bu ay ve tür için tüm dairelere zaten tahakkuk edilmiş.'));
+      setMsg(n ? (commercial ? t('{n} birime eklendi.', { n }) : t('{n} daireye eklendi.', { n }))
+        : commercial ? t('Bu ay ve tür için tüm birimlerde zaten var.') : t('Bu ay ve tür için tüm dairelerde zaten var.'));
       setView(month); reload();
     } catch (e) { setErr(humanError(e)); }
   };
@@ -191,15 +193,21 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
   return (
     <Stack>
       {!commercial && (d.modules || []).includes('aidat') ? <AutoAidat d={d} oid={oid} can={can} reload={reload} /> : null}
-      {can('charges.manage') ? (
+      {can('charges.manage') && !commercial && !extra ? (
+        <Row wrap gap={8}>
+          <Button kind="ghost" title={t('Ek ödeme iste')} onPress={() => setExtra(true)} />
+          <Muted style={{ flex: 1, minWidth: 200 }}>{t('Yakıt, demirbaş ya da özel bir toplama için tek seferlik.')}</Muted>
+        </Row>
+      ) : null}
+      {can('charges.manage') && (commercial || extra) ? (
         <Card gap={10}>
-          <H2>{!commercial && d.auto?.enabled ? t('Ek tahakkuk') : t('Toplu tahakkuk')}</H2>
-          {!commercial && d.auto?.enabled ? <Muted>{t('Yakıt, demirbaş, özel toplama ya da otomatik aidatın dışında kalan bir ay için.')}</Muted> : null}
+          <Row between><H2>{commercial ? t('Kira ve ortak gider oluştur') : t('Ek ödeme iste')}</H2>{!commercial ? <Button kind="quiet" title={t('Kapat')} onPress={() => setExtra(false)} /> : null}</Row>
+          {!commercial ? <Muted>{t('Seçtiğin ay için dairelere tek seferlik ödeme yazılır; sakinler bildirim alır.')}</Muted> : null}
           <Row gap={10} wrap align="flex-end">
             <View style={{ flexGrow: 1, flexBasis: 140 }}><Field label={t('Ay (YYYY-AA)')} value={month} onChangeText={setMonth} maxLength={7} /></View>
             {kind === 'ozel' ? <View style={{ flexGrow: 2, flexBasis: 200 }}><Field label={t('Başlık')} value={title} onChangeText={setTitle} maxLength={120} placeholder={t('ör. Çatı onarımı')} /></View> : null}
           </Row>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{KINDS(d.sector).filter((k) => (k.key !== 'aidat' || (d.modules || []).includes('aidat')) && (k.key !== 'ortak_gider' || (d.modules || []).includes('ortak_gider'))).map((k) => <Pill key={k.key} label={k.label} on={kind === k.key} onPress={() => { setKind(k.key); if (commercial) setMode(k.key === 'kira' ? 'rent' : k.key === 'ortak_gider' ? 'unit' : 'area'); }} />)}</View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{KINDS(d.sector).filter((k) => (k.key !== 'aidat' || ((d.modules || []).includes('aidat') && !autoOn)) && (k.key !== 'ortak_gider' || (d.modules || []).includes('ortak_gider'))).map((k) => <Pill key={k.key} label={k.label} on={kind === k.key} onPress={() => { setKind(k.key); if (commercial) setMode(k.key === 'kira' ? 'rent' : k.key === 'ortak_gider' ? 'unit' : 'area'); }} />)}</View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{MODES(d.sector).map((k) => <Pill key={k.key} label={k.label} on={mode === k.key} onPress={() => setMode(k.key)} />)}</View>
           {mode !== 'unit' && mode !== 'rent' ? <MoneyField label={mode === 'fixed' ? (commercial ? t('Birim başına tutar (₺)') : t('Daire başına tutar (₺)')) : t('Dağıtılacak toplam (₺)')} value={value} onChange={(v) => setValue(v)} /> : null}
           {curs.length ? (
@@ -211,7 +219,7 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
           <Muted>{fxMissing ? t('Döviz kirası olan birimler için kuru yaz.') : plan.length ? t('{n} {word} toplam {sum}', { n: plan.length, word, sum: tl(sum) })
             : mode === 'unit' ? (commercial ? t('Birimlerde ortak gider avansı tanımlı değil.') : t('Dairelerde aylık aidat tanımlı değil.'))
             : mode === 'rent' ? t('Birimlerde kira tanımlı değil.') : t('Tutar yaz.')}</Muted>
-          <Button title={t('Tahakkuk et')} disabled={!valid} onPress={submit} style={{ alignSelf: 'flex-start' }} />
+          <Button title={commercial ? t('Oluştur') : t('Ödemeyi iste')} disabled={!valid} onPress={submit} style={{ alignSelf: 'flex-start' }} />
           <Err e={err} />
           {msg ? <Text v="small" color={c.okInk}>{msg}</Text> : null}
         </Card>
@@ -220,7 +228,7 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
         <MonthStepper value={view} onChange={setView} min={months[Math.min(12, months.length) - 1]} max={months[0]} />
         {list.length ? <Muted>{t('Tahsil edilen {got} / {owed} · kartla {card} · dekont ve havale {other}', { got: tl(byCard + byOther), owed: tl(owed), card: tl(byCard), other: tl(byOther) })}</Muted> : null}
       </Row>
-      {list.length ? list.map((x: any) => <ChargeRow key={x.id} x={x} unit={unitBy[x.unit_id]} can={can} reload={reload} />) : <Empty>{t('Bu ay için tahakkuk yok.')}</Empty>}
+      {list.length ? list.map((x: any) => <ChargeRow key={x.id} x={x} unit={unitBy[x.unit_id]} can={can} reload={reload} />) : <Empty>{commercial ? t('Bu ay için kayıt yok.') : t('Bu ay için aidat ya da ödeme yok.')}</Empty>}
     </Stack>
   );
 }
@@ -417,11 +425,11 @@ function Report({ d, org }: { d: any; org: string }) {
       <Card gap={12}>
         <View style={{ gap: 2 }}><Label>{org} · {t('{n} daire', { n: r.units })}</Label><Text v="h3">{title}</Text></View>
         <Row wrap>
-          <View style={{ flex: 1, minWidth: 130 }}><Muted>{t('Tahakkuk')}</Muted><Text v="h3">{tl(charged)}</Text></View>
+          <View style={{ flex: 1, minWidth: 130 }}><Muted>{t('İstenen')}</Muted><Text v="h3">{tl(charged)}</Text></View>
           <View style={{ flex: 1, minWidth: 130 }}><Muted>{t('Tahsil edilen')}</Muted><Text v="h3">{tl(got)}</Text><Muted>{charged ? Math.round((got / charged) * 100) + '%' : '—'}</Muted></View>
           <View style={{ flex: 1, minWidth: 130 }}><Muted>{t('Giderler')}</Muted><Text v="h3">{tl(spent)}</Text></View>
         </Row>
-        {r.charges.length ? <View><Label>{t('Tahakkuk ve tahsilat')}</Label>{r.charges.map((x: any, i: number) => line(kindLabel(x.kind), tl(x.collected) + ' / ' + tl(x.charged), i))}</View> : null}
+        {r.charges.length ? <View><Label>{t('İstenen ve tahsil edilen')}</Label>{r.charges.map((x: any, i: number) => line(kindLabel(x.kind), tl(x.collected) + ' / ' + tl(x.charged), i))}</View> : null}
         {r.expenses.length ? <View><Label>{t('Giderler')}</Label>{r.expenses.map((x: any, i: number) => line(x.cat, tl(x.total), i))}</View> : null}
         {r.budget ? (
           <View><Label>{t('İşletme projesi {year} · harcanan / öngörülen', { year: r.budget.year })}</Label>
@@ -694,7 +702,7 @@ export function SiteUnitCharges({ unitId }: { unitId: string }) {
         </View>
         <View style={{ alignItems: 'flex-end' }}><Muted>{t('Ödenmemiş')}</Muted><Text v="h3" color={due ? c.badInk : c.okInk}>{tl(due)}</Text></View>
       </Row>
-      {!list ? <Spin /> : list.length ? <View>{list.slice(0, 6).map((x) => <MyCharge key={x.id} x={x} payer={payer} reload={load} site={!isCommercial(u.sector)} />)}</View> : <Muted>{t('Tahakkuk yok.')}</Muted>}
+      {!list ? <Spin /> : list.length ? <View>{list.slice(0, 6).map((x) => <MyCharge key={x.id} x={x} payer={payer} reload={load} site={!isCommercial(u.sector)} />)}</View> : <Muted>{t('Ödeme kaydı yok.')}</Muted>}
     </Stack>
   );
 }
@@ -761,7 +769,7 @@ function TurnoverBox({ u }: { u: any }) {
   return (
     <View style={{ gap: 8, paddingTop: 8, borderTopWidth: 1, borderColor: c.line }}>
       <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{t('Ciro bildirimi')} · %{u.turnover_rate}</Text>
-      <Muted>{t('Aylık cironu bildir. Cironun %{n}’i sabit kirayı aşarsa aradaki fark yönetim onayıyla tahakkuk edilir.', { n: u.turnover_rate })}</Muted>
+      <Muted>{t('Aylık cironu bildir. Cironun %{n}’i sabit kirayı aşarsa aradaki fark yönetim onayıyla kiraya eklenir.', { n: u.turnover_rate })}</Muted>
       <Row gap={10} wrap align="flex-end">
         <View style={{ flexGrow: 1, flexBasis: 120 }}><Field label={t('Ay (YYYY-AA)')} value={month} onChangeText={setMonth} maxLength={7} /></View>
         <View style={{ flexGrow: 1, flexBasis: 160 }}><MoneyField label={t('Ciro (₺, KDV hariç)')} value={amount} onChange={(v) => setAmount(v)} /></View>
@@ -817,8 +825,8 @@ export function ResidentSiteScreen() {
             </Row>
             {!payer ? <Muted>{u.role === 'malik'
               ? t('Aidatı kiracın öder; dairenin aidat durumunu buradan izleyebilirsin.')
-              : t('Aidatı malik öder. Sana tahakkuk gelirse aşağıdaki talep formundan yönetime bildirebilirsin.')}</Muted> : null}
-            {!d ? <Spin /> : mine.length ? <View>{mine.map((x: any) => <MyCharge key={x.id} x={x} payer={payer} reload={load} site={!isCommercial(u.sector)} />)}</View> : <Muted>{t('Tahakkuk yok.')}</Muted>}
+              : t('Aidatı malik öder. Sana aidat yazılırsa aşağıdaki talep formundan yönetime bildirebilirsin.')}</Muted> : null}
+            {!d ? <Spin /> : mine.length ? <View>{mine.map((x: any) => <MyCharge key={x.id} x={x} payer={payer} reload={load} site={!isCommercial(u.sector)} />)}</View> : <Muted>{t('Ödeme kaydı yok.')}</Muted>}
             {isCommercial(u.sector) && Number(u.turnover_rate) > 0 && u.role === 'kiraci' ? <TurnoverBox u={u} /> : null}
           </Card>
         );

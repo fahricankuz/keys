@@ -91,9 +91,10 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await expect(page.getByText('Davet gönderildi')).toBeVisible();
 
   await page.getByRole('link', { name: 'Aidat', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Ek ödeme iste' }).click();        // otomatik aidat kapalıyken aidat da buradan istenir
   await expect(page.getByText('2 daireye toplam ₺2.500')).toBeVisible();
-  await page.getByRole('button', { name: 'Tahakkuk et' }).click();
-  await expect(page.getByText('2 daireye tahakkuk edildi.')).toBeVisible();
+  await page.getByRole('button', { name: 'Ödemeyi iste' }).click();
+  await expect(page.getByText('2 daireye eklendi.')).toBeVisible();
   await page.getByRole('link', { name: 'Duyurular', exact: true }).first().click();
   await page.getByLabel('Başlık').fill('Su kesintisi');
   await page.getByLabel('Duyuru metni').fill('Yarın 10-14 arası su kesilecek.');
@@ -155,8 +156,8 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await page.getByRole('button', { name: 'Dairelere dağıt' }).click();
   await expect(page.getByLabel('Başlık')).toHaveValue('Çatı onarımı');
   await expect(page.getByText('2 daireye toplam ₺3.000')).toBeVisible();
-  await page.getByRole('button', { name: 'Tahakkuk et' }).click();
-  await expect(page.getByText('2 daireye tahakkuk edildi.')).toBeVisible();
+  await page.getByRole('button', { name: 'Ödemeyi iste' }).click();
+  await expect(page.getByText('2 daireye eklendi.')).toBeVisible();
   d = await db(page);
   expect(d.tables.site_charges.filter(x => x.kind === 'ozel').map(x => x.amount).sort()).toEqual([1000, 2000]);   // arsa payı 2:1
 

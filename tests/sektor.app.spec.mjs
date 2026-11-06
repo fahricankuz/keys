@@ -94,7 +94,7 @@ test('AVM: kira tahakkuku ve tahsilatı en üstte; ciro ve kira artışları mod
   };
   await login(page, withOrg('avm', ['kira', 'ortak_gider', 'endeksleme', 'doluluk', 'rapor'], { tables }));
   await expect(page).toHaveURL(/\/uygulama\/site$/);
-  await expect(page.getByText(/kira tahakkuku$/i).first()).toBeVisible();
+  await expect(page.getByText(/kiraları$/i).first()).toBeVisible();
   await expect(page.getByText('₺118.000').first()).toBeVisible();              // 68.000 + 50.000
   await expect(page.getByText('₺50.000').first()).toBeVisible();               // tahsil edilen
   await expect(page.getByText('Geciken kiralar')).toBeVisible();

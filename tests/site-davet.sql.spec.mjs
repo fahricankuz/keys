@@ -52,7 +52,8 @@ test('otomatik aidat: yalnız yönetim ayarlar; günü gelince aidatı olan dair
   await as(ID.X);
   expect(await tryCall(db, `insert into public.site_auto (org_id, enabled) values ($1, true)`, [org])).toMatch(/row-level security/);
   await as(M);
-  await q(`insert into public.site_auto (org_id, enabled, run_day, due_day, start_month) values ($1, true, 5, 3, '2026-11')`, [org]);
+  await q(`insert into public.site_auto (org_id, enabled, run_day, due_day, start_month) values ($1, true, 5, 3, '2026-11')
+    on conflict (org_id) do update set enabled = true, run_day = 5, due_day = 3, start_month = '2026-11', last_month = null`, [org]);
   expect(await tryCall(db, `select public.site_auto_run('2026-11-05')`)).toMatch(/permission denied/);
   await as(null);
   expect((await q(`select public.site_auto_run('2026-10-20') n`))[0].n).toBe(0);    // başlangıç ayından önce
