@@ -5,11 +5,14 @@ import { useMemo, useState } from 'react';
 import { TextInput, View } from 'react-native';
 import { t } from '../domain/i18n';
 import { humanError } from '../domain/backend';
-import { saveUnit, deleteUnit, parseUnits, importUnits, unitLabel, isCommercial, inviteState } from '../domain/site';
+import { saveUnit, deleteUnit, unitLabel, isCommercial, inviteState } from '../domain/site';
+import { templateCsv, templateXlsx, readTable } from '../domain/importer';
+import { unitColumns, validateUnits, importUnitItems } from '../domain/unit-import';
+import { pickTable } from './media';
 import { tl, fmtFull, parse, match } from '../domain/util';
 import { Button, Chip, Field, PressScale, Text } from '../ui/kit';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
-import { Card, Empty, Muted, Note, Row, Seg, Stack } from './blocks';
+import { Card, Empty, H2, Muted, Note, Row, Seg, Stack } from './blocks';
 import { SetupWizard } from './site-overview';
 import { MoneyField } from './forms';
 import { Pill } from './org';
@@ -200,17 +203,72 @@ function UnitRow({ u, d, oid, org, can, reload, first }: { u: any; d: any; oid: 
   );
 }
 
+/** Toplu ekleme: şablonu indir → doldur → yükle → önizleme → kaydet. E-postası olan kişilere davet kendiliğinden gider. */
+function BulkUnits({ d, oid, commercial, done }: { d: any; oid: string; commercial: boolean; done: (msg: string) => void }) {
+  const c = useColors();
+  const [file, setFile] = useState('');
+  const [fatal, setFatal] = useState<any[]>([]);
+  const [items, setItems] = useState<any[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const cols = unitColumns(commercial);
+  const base = commercial ? 'anahtar-birim-sablonu' : 'anahtar-daire-sablonu';
+  const sheet = commercial ? t('Birimler') : t('Daireler');
+  const m = (e: any) => t(e.msg, e.p ? Object.fromEntries(Object.entries(e.p).map(([k, v]) => [k, t(String(v))])) : undefined);
+  const choose = async () => {
+    const f = await pickTable();
+    if (!f) return;
+    setFile(f.name); setErr(null);
+    try { const r = validateUnits(await readTable(f.bytes), commercial, d.units); setFatal(r.fatal); setItems(r.items); }
+    catch { setFatal([{ msg: 'Dosya okunamadı. Excel (.xlsx) ya da CSV dosyası seç.' }]); setItems([]); }
+  };
+  const bad = items.filter((x) => x.errors.length), ok = items.length - bad.length;
+  const invites = items.filter((x) => !x.errors.length).reduce((n, x) => n + x.people.filter((p: any) => p.email).length, 0);
+  return (
+    <Card gap={12}>
+      <H2>{commercial ? t('Birimleri dosyadan ekle') : t('Daireleri dosyadan ekle')}</H2>
+      <Muted>{t('1. Şablonu indir. 2. Her satıra bir {w} yaz; ilk satırdaki başlıkları değiştirme. 3. Dosyayı yükle, kontrol et, ekle.', { w: commercial ? t('birim') : t('daire') })}</Muted>
+      <Muted>{commercial ? t('Kiracının e-postasını yazarsan davet e-postası eklerken kendiliğinden gider.') : t('Malik ya da kiracının e-postasını yazarsan davet e-postası eklerken kendiliğinden gider.')}</Muted>
+      <Row wrap gap={8}>
+        <Button kind="ghost" title={t('Şablonu indir (Excel)')} onPress={async () => host.saveFile(base + '.xlsx', await templateXlsx(cols, sheet), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')} />
+        <Button kind="quiet" title={t('CSV şablonu')} onPress={() => host.saveFile(base + '.csv', templateCsv(cols), 'text/csv;charset=utf-8')} />
+        <Button title={file ? t('Başka dosya') : t('Dosyayı yükle')} onPress={choose} />
+      </Row>
+      {file ? <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{file} · {t('{n} satır', { n: items.length })} · {t('{n} hazır', { n: ok })}{bad.length ? ' · ' + t('{n} hatalı', { n: bad.length }) : ''}</Text> : null}
+      {fatal.length ? <Note warn>{fatal.map(m).join('\n')}</Note> : null}
+      {bad.length ? (
+        <View style={{ gap: 4, backgroundColor: c.surface2, borderRadius: radius.md, padding: 12 }}>
+          <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{t('Hatalı satırlar eklenmez:')}</Text>
+          {bad.slice(0, 20).map((x) => <Text key={x.line} v="small">{t('Satır {n}', { n: x.line })}: {x.errors.map(m).join(', ')}</Text>)}
+          {bad.length > 20 ? <Muted>{t('ve {n} satır daha', { n: bad.length - 20 })}</Muted> : null}
+        </View>
+      ) : null}
+      {ok ? (
+        <Button title={commercial ? t('{n} birimi ekle', { n: ok }) : t('{n} daireyi ekle', { n: ok })} loading={busy} onPress={async () => {
+          setBusy(true); setErr(null);
+          try {
+            const r = await importUnitItems(oid, items, commercial);
+            done([commercial ? t('{n} birim eklendi.', { n: r.units }) : t('{n} daire eklendi.', { n: r.units }),
+              r.people ? t('{n} kişi eklendi.', { n: r.people }) : '', r.mailed ? t('{n} kişiye davet e-postası gönderildi.', { n: r.mailed }) : ''].filter(Boolean).join(' '));
+          } catch (e) { setErr(humanError(e)); }
+          setBusy(false);
+        }} />
+      ) : null}
+      {ok && invites ? <Muted>{t('{n} kişiye davet e-postası gidecek.', { n: invites })}</Muted> : null}
+      <Err e={err} />
+    </Card>
+  );
+}
+
 export function Units({ d, oid, org, orgRow, can, reload }: { d: any; oid: string; org: string; orgRow?: any; can: (p: string) => boolean; reload: () => void }) {
   const c = useColors();
   const { phone } = useBreakpoint();
   const commercial = isCommercial(d.sector);
   const [mode, setMode] = useState<'' | 'one' | 'bulk'>('');
   const [u, setU] = useState<any>({ block: '', no: '', area: '', share: '', aidat: '', rent: '', currency: 'TRY' });
-  const [bulk, setBulk] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [q, setQ] = useState('');
-  const parsed = useMemo(() => parseUnits(bulk, commercial), [bulk, commercial]);
   const blocks = [...new Set(d.units.map((x: any) => x.block))] as string[];
   const [b, setB] = useState('all');
   const [limitShown, setLimitShown] = useState(50);   // çok daireli sitede liste 50'şer açılır
@@ -221,8 +279,6 @@ export function Units({ d, oid, org, orgRow, can, reload }: { d: any; oid: strin
   const shown = d.units.filter((x: any) => (b === 'all' || (b === '__davet' ? peopleOf(x.id).some((r: any) => inviteState(r) === 'none') || !peopleOf(x.id).length : x.block === b))
     && (!q.trim() || match([unitLabel(x), ...peopleOf(x.id).map((r: any) => r.name + ' ' + r.phone)].join(' '), q)));
   const act = async (fn: () => Promise<any>) => { setErr(null); setMsg(null); try { await fn(); reload(); } catch (e) { setErr(humanError(e)); } };
-  // m² zorunlu: gider dağıtımı ve doluluk m²'ye dayanır. Toplu listede m²'si eksik satırlar eklenmeden önce gösterilir.
-  const noArea = parsed.rows.filter((r: any) => !(Number(String(r.area || '').replace(',', '.')) > 0));
   const missingArea = d.units.filter((x: any) => !(Number(x.area) > 0)).length;
   const limit = Number(orgRow?.units) || 0;
   const W = commercial ? t('birim') : t('daire');
@@ -271,21 +327,7 @@ export function Units({ d, oid, org, orgRow, can, reload }: { d: any; oid: strin
           </Row>
         </Card>
       ) : null}
-      {mode === 'bulk' ? (
-        <Card gap={10}>
-          <Muted>{commercial
-            ? t('Her satıra bir birim: Kat; No; m²; Aylık kira; Para birimi (TRY, USD, EUR); Kiracı; Telefon. Excel’den kopyalayıp yapıştırabilirsin.')
-            : t('Her satıra bir daire: Blok; No; m²; Arsa payı; Aidat; Malik adı; Malik telefonu. Excel’den kopyalayıp yapıştırabilirsin.')}</Muted>
-          <TextInput value={bulk} onChangeText={setBulk} multiline accessibilityLabel={commercial ? t('Birim listesi') : t('Daire listesi')}
-            placeholder={commercial ? 'Zemin kat;Z-12;200;2000;USD;Moda Giyim A.Ş.;0212…\n1. kat;101;120;85000;TRY' : 'A;1;120;2;1500;Ayşe Yılmaz;0532…\nA;2;80;1;1000'} placeholderTextColor={c.muted}
-            style={{ minHeight: 140, borderRadius: radius.md, borderWidth: 1.5, borderColor: c.line, padding: 14, color: c.ink, backgroundColor: c.bg, fontFamily: fonts.body, fontSize: 15, textAlignVertical: 'top' } as any} />
-          <Muted>{commercial ? t('{n} birim okundu', { n: parsed.rows.length }) : t('{n} daire okundu', { n: parsed.rows.length })}{parsed.skipped.length ? ' · ' + t('{n} satır atlandı (daire no yok)', { n: parsed.skipped.length }) : ''}</Muted>
-          {noArea.length ? <Note warn>{t('m²’si eksik satırlar: {list}. m² ekleyip yeniden dene.', { list: noArea.slice(0, 8).map((r: any) => [r.block, r.no].filter(Boolean).join(' ')).join(', ') + (noArea.length > 8 ? '…' : '') })}</Note> : null}
-          <Button title={commercial ? t('Birimleri ekle') : t('Daireleri ekle')} disabled={!parsed.rows.length || noArea.length > 0} onPress={() => act(async () => {
-            const n = await importUnits(oid, parsed.rows, commercial); setBulk(''); setMsg(commercial ? t('{n} birim eklendi.', { n }) : t('{n} daire eklendi.', { n }));
-          })} />
-        </Card>
-      ) : null}
+      {mode === 'bulk' ? <BulkUnits d={d} oid={oid} commercial={commercial} done={(m: string) => { setMode(''); setMsg(m); reload(); }} /> : null}
       <Err e={err} />
       {msg ? <Text v="small" color={c.okInk}>{msg}</Text> : null}
       {d.units.length ? (

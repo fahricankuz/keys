@@ -52,11 +52,22 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await expect(page).toHaveURL(/\/uygulama\/site$/);            // kurum yöneticisi girişte kendi panelinde açılır
   await page.getByRole('link', { name: 'Daireler', exact: true }).first().click();
   await page.getByRole('button', { name: 'Toplu ekle' }).click();
-  await page.getByLabel('Daire listesi').fill('Blok;No;m2;Arsa payı;Aidat;Malik\nA;1;120;2;1500;Ali Malik;05320000000\nA;2;80;1;1000;Veli Malik');
-  await expect(page.getByText('2 daire okundu')).toBeVisible();
-  await page.getByRole('button', { name: 'Daireleri ekle' }).click();
-  await expect(page.getByText('2 daire eklendi.')).toBeVisible();
+  // Şablon indirilir; doldurulan dosya yüklenir: hatalı satır (m² yok) eklenmez, e-postası olan malike davet kendiliğinden gider.
+  const dl = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Şablonu indir (Excel)' }).click();
+  expect((await dl).suggestedFilename()).toBe('anahtar-daire-sablonu.xlsx');
+  const csv = 'Blok;Daire no;m²;Arsa payı;Aylık aidat (₺);Malik adı;Malik telefonu;Malik e-posta\nA;1;120;2;1500;Ali Malik;05320000000;\nA;2;80;1;1000;Veli Malik;;veli@ornek.com\nA;3;;1;1000;Eksik Metrekare;;';
+  const pick = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Dosyayı yükle' }).click();
+  await (await pick).setFiles({ name: 'daireler.csv', mimeType: 'text/csv', buffer: Buffer.from(csv, 'utf8') });
+  await expect(page.getByText(/3 satır · 2 hazır · 1 hatalı/)).toBeVisible();
+  await expect(page.getByText(/Satır 4: m² eksik ya da hatalı/)).toBeVisible();
+  await page.getByRole('button', { name: '2 daireyi ekle' }).click();
+  await expect(page.getByText(/2 daire eklendi\. 2 kişi eklendi\. 1 kişiye davet e-postası gönderildi\./)).toBeVisible();
   await expect(page.getByText('Ali Malik')).toBeVisible();
+  const veli = (await db(page)).tables.site_residents.find((r) => r.name === 'Veli Malik');
+  expect(veli.email).toBe('veli@ornek.com');
+  await expect.poll(async () => (await db(page)).invokedBodies || []).toContainEqual({ name: 'site-invite', body: { resident: veli.id } });
   // Kişi ekle → Davet gönder: e-posta fonksiyonu çağrılır, WhatsApp hazır mesajla (bağlantı ve kod) açılır.
   await page.getByRole('button', { name: /^A Blok No 1 · / }).click();            // satır dokununca açılır
   await page.getByRole('button', { name: 'Kişi ekle' }).first().click();
