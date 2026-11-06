@@ -7,6 +7,10 @@ export type SiteReport = {
   budget: { year: number; total: number; approved_on: string | null; items: { cat: string; amount: number }[] } | null;
   debtors: { unit: string; unpaid: number }[];
   requests: { opened: number; open: number };
+  /** Dolar karşılıkları (migration rapor_dolar_karsiligi; eski sunucuda yok). */
+  usd?: { charged: number; collected: number; spent: number; fx_diff: number; missing: boolean; rate: number | null; rate_day: string | null } | null;
+  /** Dövizli sözleşmelerde TL kur farkı. */
+  fx_diff_try?: number | null;
 };
 
 const C = { tugla: '#C8302E', kirec: '#FAF5F0', kart: '#FFFDFB', baca: '#1D1A19', kahve: '#5C4F4A', duman: '#A39A95',
@@ -17,7 +21,9 @@ const LOGO_URL = 'https://anahtar.io/mail/anahtar-logo-mail-kirmizi.png';
 const KIND: Record<string, string> = { aidat: 'Aidat', yakit: 'Yakıt', demirbas: 'Demirbaş', ozel: 'Özel toplama',
   kira: 'Kira', ortak_gider: 'Ortak alan gideri', ciro: 'Ciro farkı' };
 const esc = (s: string) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
-const money = (n: number) => '₺' + Math.round(Number(n) || 0).toLocaleString('tr-TR');
+const money = (n: number) => (Number(n) < 0 ? '−' : '') + '₺' + Math.abs(Math.round(Number(n) || 0)).toLocaleString('tr-TR');
+const usd = (n: number) => (Number(n) < 0 ? '−' : '') + '$' + Math.abs(Math.round(Number(n) || 0)).toLocaleString('tr-TR');
+const dayTr = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 
 export function renderSiteReport(r: SiteReport, o: { name?: string; appUrl: string }) {
   const start = new Date(r.from + 'T12:00:00Z');
@@ -41,6 +47,15 @@ export function renderSiteReport(r: SiteReport, o: { name?: string; appUrl: stri
     return row(esc(it.cat), `${money(used)} / ${money(plan)}`, i, used > plan ? C.gulKoyu : C.baca);
   }).join('') : '';
 
+  const u = r.usd && (Number(r.usd.charged) || Number(r.usd.spent) || Number(r.usd.collected)) ? r.usd : null;
+  const diffTry = Math.round(Number(r.fx_diff_try) || 0);
+  const usdRows = u ? [
+    row('İstenen', usd(u.charged), 0), row('Tahsil edilen', usd(u.collected), 1),
+    ...(Math.round(Number(u.fx_diff)) ? [row('Kur farkı', usd(u.fx_diff), 2, Number(u.fx_diff) < 0 ? C.gulKoyu : C.baca)] : []),
+    row('Giderler', usd(u.spent), 3)
+  ].join('') : '';
+  const usdNote = u ? `<div style="font:500 12.5px/1.5 ${FONT};color:${C.duman};margin:8px 6px 0">TCMB döviz satış kuru; her işlem kendi gününün kuruyla (tahsilat: ödeme günü, istenen: son ödeme günü, gider: harcama günü), hafta sonu ve tatilde son iş günü.${u.rate && u.rate_day ? ` Dönem sonu kuru: 1 $ = ₺${Number(u.rate).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} (${dayTr(u.rate_day)}).` : ''}${u.missing ? ' Kuru henüz olmayan işlemler dolar toplamına katılmadı.' : ''}</div>` : '';
+
   const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(title)}</title></head>
 <body style="margin:0;padding:0;background:${C.kirec}">
@@ -58,8 +73,11 @@ export function renderSiteReport(r: SiteReport, o: { name?: string; appUrl: stri
       <div style="font:800 44px/1.1 ${FONT};color:${C.kirec};letter-spacing:-1.5px;margin-top:4px">%${pct}</div>
       <div style="background:#3A3330;border-radius:999px;height:10px;margin-top:14px;overflow:hidden"><div style="background:${C.bal};width:${pct}%;height:10px"></div></div>
       <div style="font:500 13px ${FONT};color:${C.duman};margin-top:10px">${money(charged)} tahakkukun ${money(collected)} tutarı tahsil edildi · giderler ${money(spent)}</div>
+      ${u ? `<div style="font:600 13px ${FONT};color:${C.kirec};margin-top:6px">≈ ${usd(u.charged)} istenen · ${usd(u.collected)} tahsil edildi</div>` : ''}
     </div>
-    ${r.charges.length ? section('Tahakkuk ve tahsilat', r.charges.map((x, i) => row(KIND[x.kind] || esc(x.kind), `${money(x.collected)} / ${money(x.charged)}`, i)).join('')) : ''}
+    ${r.charges.length ? section('Tahakkuk ve tahsilat', r.charges.map((x, i) => row(KIND[x.kind] || esc(x.kind), `${money(x.collected)} / ${money(x.charged)}`, i)).join('')
+      + (diffTry ? row('Kur farkı (dövizli sözleşmeler)', money(diffTry), 1, diffTry < 0 ? C.gulKoyu : C.baca) : '')) : ''}
+    ${u ? section('Dolar karşılığı', usdRows) + usdNote : ''}
     ${r.expenses.length ? section('Giderler', r.expenses.map((x, i) => row(esc(x.cat), money(x.total), i)).join('')) : ''}
     ${r.budget ? section(`İşletme projesi ${r.budget.year}${r.budget.approved_on ? ' (onaylı)' : ''} · harcanan / öngörülen`, budgetRows) : ''}
     ${r.debtors.length ? section(site ? 'Borçlu daireler' : 'Borçlu birimler', r.debtors.map((x, i) => row(esc(x.unit), money(x.unpaid), i, C.gulKoyu)).join('')) : ''}
@@ -72,6 +90,7 @@ export function renderSiteReport(r: SiteReport, o: { name?: string; appUrl: stri
 </table></td></tr></table></body></html>`;
 
   const text = [title, '', `Tahsilat oranı: %${pct} — ${money(charged)} tahakkukun ${money(collected)} tutarı tahsil edildi.`, `Giderler: ${money(spent)}`,
+    ...(u ? [`Dolar karşılığı: ${usd(u.charged)} istenen, ${usd(u.collected)} tahsil edildi, giderler ${usd(u.spent)}${Math.round(Number(u.fx_diff)) ? `, kur farkı ${usd(u.fx_diff)}` : ''} (TCMB döviz satış kuru).`] : []),
     ...r.debtors.map((d) => `• ${d.unit}: ${money(d.unpaid)}`), '', url].join('\n');
   return { subject: `anahtar · ${r.org} · ${title.charAt(0).toUpperCase() + title.slice(1)}`, html, text };
 }

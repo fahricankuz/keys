@@ -32,6 +32,9 @@ import { host } from '../domain/host';
 import { Pill } from './org';
 import { Page } from './screens';
 import { Meetings, ResidentMeetings } from './site-meetings';
+import { CurrencySwitch, FxNote, RevenueChart, useFx, useReportCurrency } from './fx-ui';
+import { fmtMoney } from '../domain/money';
+import { amountIn } from '../domain/fx-report';
 
 // Tarihler yerel saatle (Türkiye UTC+3; ISO dönüşümü gece yarısından sonra bir önceki güne/aya kayardı).
 const thisMonth = () => mkey(new Date());
@@ -447,11 +450,16 @@ function Report({ d, org }: { d: any; org: string }) {
   const [ref, setRef] = useState(thisMonth() + '-01');
   const months = Array.from({ length: 12 }, (_, i) => { const x = new Date(); x.setDate(1); x.setMonth(x.getMonth() - i); return mkey(x) + '-01'; });
   const years = [0, 1, 2].map((i) => (new Date().getFullYear() - i) + '-01-01');
-  const r = siteReport(d, period, ref);
+  const [pc, setPc] = useReportCurrency();
+  const { table } = useFx(period === 'year' ? (Number(ref.slice(0, 4)) - 1) + '-01-01' : (() => { const x = parse(ref); x.setMonth(x.getMonth() - 12); return mkey(x) + '-01'; })());
+  const M = (n: any) => fmtMoney(n, pc);
+  const r = siteReport(d, period, ref, pc, table);
+  const endMonth = period === 'year' ? ref.slice(0, 4) + '-12' : ref.slice(0, 7);
   const charged = r.charges.reduce((a: number, x: any) => a + x.charged, 0);
   const got = r.charges.reduce((a: number, x: any) => a + x.collected, 0);
   const spent = r.expenses.reduce((a: number, x: any) => a + x.total, 0);
   const share = period === 'year' ? 1 : 1 / 12;
+  const periodEnd = iso(new Date(Number(endMonth.slice(0, 4)), Number(endMonth.slice(5, 7)), 0));
   const line = (a: string, b: string, i: number, bad?: boolean) => (
     <Row key={a + i} between style={{ paddingVertical: 9, borderTopWidth: i ? 1 : 0, borderColor: c.line }}>
       <Text v="small" style={{ fontFamily: fonts.bodyBold, flex: 1 }}>{a}</Text><Text v="small" style={{ fontFamily: fonts.bodyXBold }} color={bad ? c.badInk : c.ink}>{b}</Text>
@@ -460,7 +468,10 @@ function Report({ d, org }: { d: any; org: string }) {
   const title = period === 'year' ? t('{year} yıllık yönetim raporu', { year: ref.slice(0, 4) }) : t('{month} yönetim raporu', { month: monthYear(ref.slice(0, 7)) });
   return (
     <Stack>
-      <Seg value={period} onChange={(v: any) => { setPeriod(v); setRef(v === 'year' ? years[0] : months[0]); }} options={[['month', t('Aylık')], ['year', t('Yıllık')]]} />
+      <Row wrap>
+        <Seg value={period} onChange={(v: any) => { setPeriod(v); setRef(v === 'year' ? years[0] : months[0]); }} options={[['month', t('Aylık')], ['year', t('Yıllık')]]} />
+        <CurrencySwitch value={pc} onChange={setPc} />
+      </Row>
       {period === 'year'
         ? <Stepper name={t('yıl')} label={ref.slice(0, 4)} prev={ref > years[years.length - 1]} next={ref < years[0]}
             onPrev={() => setRef((Number(ref.slice(0, 4)) - 1) + '-01-01')} onNext={() => setRef((Number(ref.slice(0, 4)) + 1) + '-01-01')} />
@@ -468,23 +479,27 @@ function Report({ d, org }: { d: any; org: string }) {
       <Card gap={12}>
         <View style={{ gap: 2 }}><Label>{org} · {t('{n} daire', { n: r.units })}</Label><Text v="h3">{title}</Text></View>
         <Row wrap>
-          <View style={{ flex: 1, minWidth: 130 }}><Muted>{t('İstenen')}</Muted><Text v="h3">{tl(charged)}</Text></View>
-          <View style={{ flex: 1, minWidth: 130 }}><Muted>{t('Tahsil edilen')}</Muted><Text v="h3">{tl(got)}</Text><Muted>{charged ? Math.round((got / charged) * 100) + '%' : '—'}</Muted></View>
-          <View style={{ flex: 1, minWidth: 130 }}><Muted>{t('Giderler')}</Muted><Text v="h3">{tl(spent)}</Text></View>
+          <View style={{ flex: 1, minWidth: 130 }}><Muted>{t('İstenen')}</Muted><Text v="h3">{M(charged)}</Text></View>
+          <View style={{ flex: 1, minWidth: 130 }}><Muted>{t('Tahsil edilen')}</Muted><Text v="h3">{M(got)}</Text><Muted>{charged ? Math.round((got / charged) * 100) + '%' : '—'}</Muted></View>
+          <View style={{ flex: 1, minWidth: 130 }}><Muted>{t('Giderler')}</Muted><Text v="h3">{M(spent)}</Text></View>
         </Row>
-        {r.charges.length ? <View><Label>{t('İstenen ve tahsil edilen')}</Label>{r.charges.map((x: any, i: number) => line(kindLabel(x.kind), tl(x.collected) + ' / ' + tl(x.charged), i))}</View> : null}
-        {r.expenses.length ? <View><Label>{t('Giderler')}</Label>{r.expenses.map((x: any, i: number) => line(x.cat, tl(x.total), i))}</View> : null}
+        {r.charges.length ? <View><Label>{t('İstenen ve tahsil edilen')}</Label>{r.charges.map((x: any, i: number) => line(kindLabel(x.kind), M(x.collected) + ' / ' + M(x.charged), i))}
+          {Math.round(r.fxDiff) ? line(t('Kur farkı'), M(r.fxDiff), r.charges.length, r.fxDiff < 0) : null}</View> : null}
+        {r.expenses.length ? <View><Label>{t('Giderler')}</Label>{r.expenses.map((x: any, i: number) => line(x.cat, M(x.total), i))}</View> : null}
         {r.budget ? (
           <View><Label>{t('İşletme projesi {year} · harcanan / öngörülen', { year: r.budget.year })}</Label>
             {r.budget.items.map((it: any, i: number) => {
               const used = r.expenses.filter((e: any) => e.cat.toLocaleLowerCase('tr') === String(it.cat).toLocaleLowerCase('tr')).reduce((a: number, e: any) => a + e.total, 0);
-              return line(it.cat, tl(used) + ' / ' + tl(Number(it.amount) * share), i, used > Number(it.amount) * share);
+              const plan = amountIn(Number(it.amount) * share, periodEnd, pc, table);
+              return line(it.cat, M(used) + ' / ' + M(plan), i, plan != null && used > plan);
             })}
           </View>
         ) : null}
-        <View><Label>{t('Borçlu daireler')}</Label>{r.debtors.length ? r.debtors.map((x: any, i: number) => line(x.unit, tl(x.unpaid), i, true)) : <Muted>{t('Gecikmiş borç yok.')}</Muted>}</View>
+        <View><Label>{t('Borçlu daireler')}</Label>{r.debtors.length ? r.debtors.map((x: any, i: number) => line(x.unit, M(x.unpaid), i, true)) : <Muted>{t('Gecikmiş borç yok.')}</Muted>}</View>
         <Muted>{t('Talepler')}: {t('{n} açıldı', { n: r.requests.opened })} · {t('{n} açık bekliyor', { n: r.requests.open })}</Muted>
+        {pc !== 'TRY' || Math.round(r.fxDiff) || r.fxMissing ? <FxNote cur={pc} missing={r.fxMissing} /> : null}
       </Card>
+      <RevenueChart charges={d.charges} endMonth={endMonth} cur={pc} table={table} />
       {typeof window !== 'undefined' && (window as any).print ? <Button kind="ghost" title={t('Yazdır / PDF')} onPress={() => (window as any).print()} style={{ alignSelf: 'flex-start' }} /> : null}
       <Muted>{t('Bu rapor her ayın 1’inde (yıllığı 1 Ocak’ta) “Raporlar” yetkisi olan yöneticilere e-postayla da gider.')}</Muted>
     </Stack>

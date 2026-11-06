@@ -11,6 +11,7 @@ import { storedPath } from './mapping.js';
 import { emit, S, ui } from './state.js';
 import { iso, mkey } from './util.js';
 import { CONFIG } from './config.js';
+import { amountIn, chargeIn } from './fx-report.js';
 
 function must(res){
   if (res.error) throw res.error;
@@ -419,30 +420,39 @@ export async function applyBudgetAidat(oid, units, b){
 /** "2026-10" → "2026-11-01" (sonraki ayın ilk günü; saat diliminden bağımsız). */
 const nextMonthStart = (ym) => { const [a, b] = ym.split('-').map(Number); return b === 12 ? (a + 1) + '-01-01' : a + '-' + String(b + 1).padStart(2, '0') + '-01'; };
 
-export function siteReport(d, period, ref){
+/** Dönem raporu. cur ve table verilirse tutarlar o para biriminde, her işlem kendi gününün kuruyla (fx-report.js);
+    verilmezse kayıtlı TL. fxDiff: dövizli sözleşmelerde kur farkı; fxMissing: kuru olmayan işlem toplama katılmadı. */
+export function siteReport(d, period, ref, cur = 'TRY', table = null){
   const y = Number(String(ref).slice(0, 4)), mo = Number(String(ref).slice(5, 7));
   const m0 = period === 'year' ? y + '-01' : ref.slice(0, 7), m1 = period === 'year' ? y + '-12' : ref.slice(0, 7);
   const d0 = m0 + '-01', d1 = nextMonthStart(m1);
   const inP = (x) => x.month >= m0 && x.month <= m1;
   const kinds = {};
+  let fxDiff = 0, fxMissing = false;
   d.charges.filter(inP).forEach((x) => {
+    const v = chargeIn(x, cur, table);
     const k = kinds[x.kind] || (kinds[x.kind] = { kind: x.kind, charged: 0, collected: 0 });
-    k.charged += Number(x.amount);
-    k.collected += x.status === 'paid' ? Number(x.amount) : x.status === 'partial' ? Number(x.paid_amount) : 0;
+    k.charged += v.charged;
+    k.collected += v.collected;
+    fxDiff += v.diff; fxMissing = fxMissing || v.missing;
   });
   const cats = {};
-  d.expenses.filter((e) => e.spent_on >= d0 && e.spent_on < d1).forEach((e) => { cats[e.cat] = (cats[e.cat] || 0) + Number(e.amount); });
+  d.expenses.filter((e) => e.spent_on >= d0 && e.spent_on < d1).forEach((e) => {
+    const v = amountIn(e.amount, e.spent_on, cur, table);
+    if (v == null){ fxMissing = true; return; }
+    cats[e.cat] = (cats[e.cat] || 0) + v;
+  });
   const unitBy = Object.fromEntries(d.units.map((u) => [u.id, u]));
   const now = iso(new Date());
   const debt = {};
   d.charges.filter((x) => x.status !== 'paid' && x.month <= m1).forEach((x) => {
     const due = nextMonthStart(x.month);                         // ay sonundan sonraki gün
     if (due > (d1 < now ? d1 : now)) return;
-    debt[x.unit_id] = (debt[x.unit_id] || 0) + unpaidOf(x);
+    debt[x.unit_id] = (debt[x.unit_id] || 0) + (cur === 'TRY' ? unpaidOf(x) : chargeIn(x, cur, table).unpaid);
   });
   const budget = (d.budgets || []).find((b) => Number(b.year) === y) || null;
   return {
-    period, from: d0, to: d1, units: d.units.length, month: mo,
+    period, from: d0, to: d1, units: d.units.length, month: mo, cur, fxDiff, fxMissing,
     charges: Object.values(kinds),
     expenses: Object.entries(cats).map(([cat, total]) => ({ cat, total })).sort((a, b) => b.total - a.total),
     budget: budget ? { ...budget, total: budgetTotal(budget) } : null,

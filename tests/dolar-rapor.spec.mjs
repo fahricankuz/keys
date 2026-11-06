@@ -39,3 +39,38 @@ test('kur yoksa tutar uydurulmaz; gider harcama gününün kuruyla; 12 aylık ge
   expect(rev[0].month).toBe('2025-11');
   expect(rev[11]).toEqual({ month: '2026-10', value: 100, missing: false });
 });
+
+test('rapor e-postası: dolar bölümü, kur farkı ve kur dip notu; eski sunucu yanıtında bölüm yok', async () => {
+  const { renderSiteReport } = await import('../supabase/functions/report/site-template.ts');
+  const base = { org: 'Kordon AVM', sector: 'avm', period: 'month', from: '2026-10-01', to: '2026-10-31', units: 2,
+    charges: [{ kind: 'kira', charged: 44000, collected: 44000 }], expenses: [{ cat: 'Temizlik', total: 8400 }], budget: null, debtors: [], requests: { opened: 0, open: 0 } };
+  const old = renderSiteReport(base, { appUrl: 'https://anahtar.io' });
+  expect(old.html).not.toContain('Dolar karşılığı');
+  const m = renderSiteReport({ ...base, usd: { charged: 1100, collected: 1095.24, spent: 200, fx_diff: -47.62, missing: false, rate: 42, rate_day: '2026-10-20' }, fx_diff_try: -2000 },
+    { appUrl: 'https://anahtar.io' });
+  expect(m.html).toContain('Dolar karşılığı');
+  expect(m.html).toContain('$1.100');
+  expect(m.html).toContain('$1.095');
+  expect(m.html).toContain('−$48');
+  expect(m.html).toContain('Kur farkı (dövizli sözleşmeler)');
+  expect(m.html).toContain('−₺2.000');
+  expect(m.html).toContain('TCMB döviz satış kuru');
+  expect(m.html).toContain('1 $ = ₺42,00 (20 Ekim 2026)');
+  expect(m.text).toContain('Dolar karşılığı: $1.100 istenen');
+});
+
+test('para birimi ekranlarındaki her metnin İngilizce karşılığı var', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { EN_PAKET } = await import('../app/src/domain/en-paket.js');
+  const { EN_EXTRA } = await import('../app/src/domain/en-extra.js');
+  const { EN_MULK } = await import('../app/src/domain/en-mulk.js');
+  const { EN } = await import('../app/src/domain/en.js');
+  const all = { ...EN_EXTRA, ...EN_MULK, ...EN_PAKET, ...EN };
+  const keys = [];
+  for (const f of ['app-ui/fx-ui.tsx', 'domain/money.js']) {
+    const src = readFileSync(new URL('../app/src/' + f, import.meta.url), 'utf8');
+    for (const m of src.matchAll(/\bt\('((?:[^'\\]|\\.)*)'/g)) keys.push(m[1].replace(/\\'/g, "'"));
+  }
+  expect(keys.length).toBeGreaterThan(10);
+  expect(keys.filter((k) => !(k in all))).toEqual([]);
+});
