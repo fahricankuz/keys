@@ -31,6 +31,8 @@ import { useSheet } from './overlays';
 import { PayButton } from '../ui/motion';
 import { host } from '../domain/host';
 import { MailPreviewSheet, MailReportSettings } from './report-mail';
+import { JoinBanner } from './JoinCode';
+import { siteResidentOnly } from '../domain/site';
 import { StorePurchaseSheet } from './store-purchase';
 import { storeAvailable, restoreStore, manageStore } from '../domain/iap';
 
@@ -196,13 +198,13 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
           {mySiteUnits().length ? (
             <PressScale onPress={() => { if (!page) close(); router.push('/uygulama/sitem' as any); }} accessibilityRole="link" scaleTo={0.99} style={{ padding: 16, borderRadius: radius.lg, backgroundColor: c.tile, gap: 2 }}>
               <Label>{residentTitle(mySiteUnits())}</Label>
-              <Row between><Text v="body" style={{ fontFamily: fonts.bodyBold }}>{t('Tahakkuklar, duyurular ve yönetime talep')}</Text><Muted>›</Muted></Row>
+              <Row between><Text v="body" style={{ fontFamily: fonts.bodyBold }}>{t('Aidat, duyurular ve yönetime talep')}</Text><Muted>›</Muted></Row>
             </PressScale>
           ) : null}
           {myOrgs().some((o: any) => PORTFOLIO_SECTORS.includes(o.sector)) ? (
             <PressScale onPress={() => { if (!page) close(); router.push('/uygulama/site' as any); }} accessibilityRole="link" scaleTo={0.99} style={{ padding: 16, borderRadius: radius.lg, backgroundColor: c.tile, gap: 2 }}>
               <Label>{myOrgs().some((o: any) => o.sector === 'site') ? t('Site yönetimi') : t('Portföy yönetimi')}</Label>
-              <Row between><Text v="body" style={{ fontFamily: fonts.bodyBold }}>{t('Birimler, tahakkuk, giderler, duyurular')}</Text><Muted>›</Muted></Row>
+              <Row between><Text v="body" style={{ fontFamily: fonts.bodyBold }}>{t('Birimler, aidat, giderler, duyurular')}</Text><Muted>›</Muted></Row>
             </PressScale>
           ) : null}
           {myOrgs().length ? (
@@ -211,6 +213,7 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
               <Row between><Text v="body" style={{ fontFamily: fonts.bodyBold }}>{myOrgs().map((o: any) => o.name).join(', ')}</Text><Muted>›</Muted></Row>
             </PressScale>
           ) : null}
+          {siteResidentOnly() ? <OtherHomeCode /> : null}
           <ProfileForm />
           {LIVE ? <BlockedList /> : null}
           <Button kind="ghost" block title={t('Çıkış yap')} onPress={async () => { close(); await signOut(); router.replace('/'); }} />
@@ -800,6 +803,21 @@ function RefundSheet({ pid, close }: { pid?: string; close: () => void }) {
       <Row align="flex-start"><View style={{ flex: 1 }}><NumField label={t('İade edilen (₺)')} v={v} set={set} k="amount" /></View><View style={{ flex: 1 }}><DateField label={t('Tarih')} v={v} set={set} k="date" /></View></Row>
       <Actions onCancel={close} submitLabel={t('Kaydet')} onSubmit={() => submit('refund', { ...v, pid: p.id })} />
     </Stack>
+  );
+}
+
+/** Yalnız site sakini: kiraladığı bir ev için mülk sahibinden aldığı kodu buradan girer (ana ekranlarda sorulmaz). */
+function OtherHomeCode() {
+  const c = useColors();
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={{ gap: 10 }}>
+      <PressScale onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityState={{ expanded: open }} scaleTo={0.99} style={{ padding: 16, borderRadius: radius.lg, backgroundColor: c.tile, gap: 2 }}>
+        <Label>{t('Başka bir mülk')}</Label>
+        <Row between><Text v="body" style={{ fontFamily: fonts.bodyBold, flex: 1 }}>{t('Kiraladığın bir ev için davet kodun var mı?')}</Text><Muted>{open ? '⌄' : '›'}</Muted></Row>
+      </PressScale>
+      {open ? <JoinBanner /> : null}
+    </View>
   );
 }
 

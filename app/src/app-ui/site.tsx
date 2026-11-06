@@ -12,12 +12,12 @@ import {
   saveResident, deleteResident, createCharges, deleteCharge, decideCharge, markPaid, addExpense, deleteExpense, announce, deleteAnnouncement,
   answerRequest, mySiteUnits, loadMySite, payCharge, openSiteRequest, loadUnitCharges, budgetTotal, budgetAidat, saveBudget,
   applyBudgetAidat, loadBudgets, siteReport, isCommercial, overdue, occupancy, ciroDiff, reportTurnover, loadTurnovers, decideTurnover,
-  dueIncreases, applyIncrease, rentCharge, nextAuto, saveAuto, cardReady, cardTotal
+  dueIncreases, applyIncrease, rentCharge, nextAuto, saveAuto, cardReady, cardTotal, uploadSiteDoc, deleteSiteDoc, loadSiteDocs
 } from '../domain/site';
 import { loadRates } from '../domain/cpi';
 import { terms, sectorOf } from '../domain/org';
 import { tl, monthYear, fmtFull, parse, mkey, iso } from '../domain/util';
-import { Button, Chip, Field, Text } from '../ui/kit';
+import { Button, Chip, Field, PressScale, Text } from '../ui/kit';
 import { Loader } from '../ui/Loader';
 import { fonts, radius, useColors } from '../ui/theme';
 import { Card, DownloadLink, Empty, H2, Label, MonthStepper, Muted, Note, Row, Seg, Stack, StatusChip, Stepper } from './blocks';
@@ -28,6 +28,7 @@ import { Units } from './site-units';
 import { FileField, MoneyField } from './forms';
 import { useStore } from './hooks';
 import { Picked } from './media';
+import { host } from '../domain/host';
 import { Pill } from './org';
 import { Page } from './screens';
 import { Meetings, ResidentMeetings } from './site-meetings';
@@ -44,7 +45,7 @@ const CURS: [string, string][] = [['TRY', '₺ TL'], ['USD', '$ USD'], ['EUR', '
 /** Bu ekranın açıldığı kurum türleri: site yönetimi ve ticari portföy (AVM, depo, GYO). */
 export const PORTFOLIO_SECTORS = ['site', 'avm', 'depo', 'gyo'];
 /** Kurum paneli bölümlerinin adresleri (/uygulama/site/<bölüm>); menü org.js → sectorSections. */
-export const SECTION_KEYS = ['ozet', 'birimler', 'tahakkuk', 'ciro', 'artis', 'giderler', 'butce', 'duyurular', 'genelkurul', 'talepler', 'rapor'];
+export const SECTION_KEYS = ['ozet', 'birimler', 'tahakkuk', 'ciro', 'artis', 'giderler', 'butce', 'duyurular', 'genelkurul', 'belgeler', 'talepler', 'rapor'];
 export const sectionPath = (k: string) => (k === 'ozet' ? '/uygulama/site' : '/uygulama/site/' + k);
 /** Kişinin yönettiği sektör kurumu (birden çoksa seçili olan). */
 export function currentPortfolioOrg() {
@@ -62,38 +63,62 @@ function Err({ e }: { e: string | null }) {
   return e ? <Text v="small" color={c.badInk}>{e}</Text> : null;
 }
 
-function ChargeRow({ x, unit, can, reload }: { x: any; unit: any; can: (p: string) => boolean; reload: () => void }) {
+/** Ödeme kaydı. row: listede tek satır (daire · tür, tutar, durum); dokununca işlemler açılır. Onay bekleyen açık gelir. */
+function ChargeRow({ x, unit, can, reload, row, first }: { x: any; unit: any; can: (p: string) => boolean; reload: () => void; row?: boolean; first?: boolean }) {
   const c = useColors();
   const [why, setWhy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [opened, setOpened] = useState(!row || x.status === 'review');
   const act = async (fn: () => Promise<any>) => { setErr(null); try { await fn(); reload(); } catch (e) { setErr(humanError(e)); } };
   const open = async () => { const u = await fileUrl('sb:' + x.receipt_path); if (u && typeof window !== 'undefined') window.open(u, '_blank'); };
+  const head = unit ? unitLabel(unit) + ' · ' + kindLabel(x.kind, x.title) : kindLabel(x.kind, x.title);
+  const detail = monthYear(x.month) + ' · ' + tl(x.amount) + (x.orig_amount != null && x.currency !== 'TRY' ? ' (' + money(x.orig_amount, x.currency) + ' × ' + String(x.fx).replace('.', ',') + ')' : '')
+    + (x.status === 'review' || x.status === 'partial' ? ' · ' + t('Ödenen') + ' ' + tl(x.paid_amount) : '') + (x.paid_on ? ' · ' + day(x.paid_on) : x.due_on ? ' · ' + t('Vade') + ' ' + day(x.due_on) : '');
+  const actions = [
+    x.receipt_path ? <Button key="o" kind="ghost" title={t('Dekontu aç')} onPress={open} /> : null,
+    x.receipt_path ? <DownloadLink key="d" path={'sb:' + x.receipt_path} label={x.receipt_name || t('dekont')} /> : null,
+    can('payments.approve') && x.status === 'review' ? <Button key="a" title={t('Onayla')} onPress={() => act(() => decideCharge(x, true))} /> : null,
+    can('payments.approve') && x.status === 'review' ? <Button key="r" kind="ghost" title={t('Reddet')} onPress={() => setWhy(why == null ? '' : null)} /> : null,
+    can('payments.approve') && ['open', 'partial', 'rejected'].includes(x.status) ? <Button key="p" kind="ghost" title={t('Ödendi işaretle')} onPress={() => act(() => markPaid(x, x.amount))} /> : null,
+    can('charges.manage') && x.status === 'open' ? <Text key="s" v="small" color={c.badInk} accessibilityRole="button" style={{ textDecorationLine: 'underline', paddingHorizontal: 6 }} onPress={() => act(() => deleteCharge(x.id))}>{t('Sil')}</Text> : null
+  ].filter(Boolean);
+  const body = (
+    <>
+      {x.reject_reason ? <Text v="small" color={c.badInk}>{x.reject_reason}</Text> : null}
+      {actions.length ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>{actions}</View> : null}
+      {why != null ? (
+        <Row gap={10} wrap align="flex-end">
+          <View style={{ flexGrow: 1, flexBasis: 220 }}><Field label={t('Red gerekçesi')} value={why} onChangeText={setWhy} maxLength={200} /></View>
+          <Button kind="ghost" title={t('Reddet')} disabled={!why.trim()} onPress={() => act(() => decideCharge(x, false, why))} />
+        </Row>
+      ) : null}
+      <Err e={err} />
+    </>
+  );
+  if (row) return (
+    <View style={{ borderTopWidth: first ? 0 : 1, borderColor: c.line }}>
+      <PressScale onPress={() => setOpened(!opened)} accessibilityRole="button" accessibilityState={{ expanded: opened }} accessibilityLabel={head + ' · ' + tl(x.amount)} scaleTo={0.995}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: opened ? c.surface2 : 'transparent' }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text v="small" numberOfLines={1} style={{ fontFamily: fonts.bodyXBold }}>{head}</Text>
+          <Text v="small" muted numberOfLines={1}>{detail}</Text>
+        </View>
+        <StatusChip st={stOf(x)} />
+        <Text v="body" color={c.muted} style={{ transform: [{ rotate: opened ? '90deg' : '0deg' }] }}>›</Text>
+      </PressScale>
+      {opened && (actions.length || x.reject_reason || err) ? <View style={{ paddingHorizontal: 16, paddingBottom: 12, gap: 8, backgroundColor: c.surface2 }}>{body}</View> : null}
+    </View>
+  );
   return (
     <Card gap={8}>
       <Row between wrap>
         <View style={{ flex: 1, minWidth: 160 }}>
-          <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{unit ? unitLabel(unit) : '—'} · {kindLabel(x.kind, x.title)}</Text>
-          <Muted>{monthYear(x.month)} · {tl(x.amount)}{x.orig_amount != null && x.currency !== 'TRY' ? ' (' + money(x.orig_amount, x.currency) + ' × ' + String(x.fx).replace('.', ',') + ')' : ''}{x.status === 'review' || x.status === 'partial' ? ' · ' + t('Ödenen') + ' ' + tl(x.paid_amount) : ''}{x.paid_on ? ' · ' + day(x.paid_on) : x.due_on ? ' · ' + t('Vade') + ' ' + day(x.due_on) : ''}</Muted>
-          {x.reject_reason ? <Text v="small" color={c.badInk}>{x.reject_reason}</Text> : null}
+          <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{head}</Text>
+          <Muted>{detail}</Muted>
         </View>
         <StatusChip st={stOf(x)} />
       </Row>
-      <Row wrap>
-        {x.receipt_path ? <><Button kind="ghost" title={t('Dekontu aç')} onPress={open} /><DownloadLink path={'sb:' + x.receipt_path} label={x.receipt_name || t('dekont')} /></> : null}
-        {can('payments.approve') && x.status === 'review' ? <>
-          <Button title={t('Onayla')} onPress={() => act(() => decideCharge(x, true))} />
-          <Button kind="ghost" title={t('Reddet')} onPress={() => setWhy(why == null ? '' : null)} />
-        </> : null}
-        {can('payments.approve') && ['open', 'partial', 'rejected'].includes(x.status) ? <Button kind="ghost" title={t('Ödendi işaretle')} onPress={() => act(() => markPaid(x, x.amount))} /> : null}
-        {can('charges.manage') && x.status === 'open' ? <Button kind="quiet" title={t('Sil')} onPress={() => act(() => deleteCharge(x.id))} /> : null}
-      </Row>
-      {why != null ? (
-        <Row gap={10} wrap align="flex-end">
-          <View style={{ flexGrow: 1, flexBasis: 220 }}><Field label={t('Red gerekçesi')} value={why} onChangeText={setWhy} maxLength={200} /></View>
-          <Button kind="ghost" title={t('Reddet')} disabled={!why.trim()} onPress={() => act(() => decideCharge(x, false, why))} style={{ minHeight: 52 }} />
-        </Row>
-      ) : null}
-      <Err e={err} />
+      {body}
     </Card>
   );
 }
@@ -175,6 +200,13 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
   const unitBy: Record<string, any> = Object.fromEntries(d.units.map((u: any) => [u.id, u]));
   const months = [...new Set([thisMonth(), ...d.charges.map((x: any) => x.month)])].sort().reverse() as string[];
   const list = d.charges.filter((x: any) => x.month === view);
+  const [filter, setFilter] = useState('all');
+  const [more, setMore] = useState(50);
+  // Onay bekleyenler en üstte, sonra ödenmemişler, sonra daire sırası.
+  const rank = (x: any) => (x.status === 'review' ? 0 : x.status === 'paid' ? 2 : 1);
+  const unitOrder: Record<string, number> = Object.fromEntries(d.units.map((u: any, i: number) => [u.id, i]));
+  const shownList = list.filter((x: any) => filter === 'all' || (filter === 'wait' ? x.status === 'review' : filter === 'paid' ? x.status === 'paid' : ['open', 'partial', 'rejected'].includes(x.status)))
+    .sort((a: any, b: any) => rank(a) - rank(b) || (unitOrder[a.unit_id] ?? 0) - (unitOrder[b.unit_id] ?? 0));
   const valid = /^\d{4}-(0[1-9]|1[0-2])$/.test(month) && (kind !== 'ozel' || title.trim()) && plan.length > 0 && !fxMissing;
   const submit = async () => {
     setErr(null); setMsg(null);
@@ -228,7 +260,18 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
         <MonthStepper value={view} onChange={setView} min={months[Math.min(12, months.length) - 1]} max={months[0]} />
         {list.length ? <Muted>{t('Tahsil edilen {got} / {owed} · kartla {card} · dekont ve havale {other}', { got: tl(byCard + byOther), owed: tl(owed), card: tl(byCard), other: tl(byOther) })}</Muted> : null}
       </Row>
-      {list.length ? list.map((x: any) => <ChargeRow key={x.id} x={x} unit={unitBy[x.unit_id]} can={can} reload={reload} />) : <Empty>{commercial ? t('Bu ay için kayıt yok.') : t('Bu ay için aidat ya da ödeme yok.')}</Empty>}
+      {list.length ? (
+        <>
+          <Seg scroll value={filter} onChange={setFilter} options={[['all', t('Tümü') + ' · ' + list.length], ['wait', t('Onay bekleyen') + ' · ' + list.filter((x: any) => x.status === 'review').length],
+            ['open', t('Ödenmedi') + ' · ' + list.filter((x: any) => ['open', 'partial', 'rejected'].includes(x.status)).length], ['paid', t('Ödendi') + ' · ' + list.filter((x: any) => x.status === 'paid').length]]} />
+          {shownList.length ? (
+            <Card gap={0} style={{ padding: 0, overflow: 'hidden' }}>
+              {shownList.slice(0, more).map((x: any, i: number) => <ChargeRow key={x.id} row first={i === 0} x={x} unit={unitBy[x.unit_id]} can={can} reload={reload} />)}
+              {shownList.length > more ? <View style={{ borderTopWidth: 1, borderColor: c.line, padding: 12, alignItems: 'center' }}><Button kind="ghost" title={t('Daha fazla göster ({n} kaldı)', { n: shownList.length - more })} onPress={() => setMore(more + 50)} /></View> : null}
+            </Card>
+          ) : <Empty>{t('Bu filtrede kayıt yok.')}</Empty>}
+        </>
+      ) : <Empty>{commercial ? t('Bu ay için kayıt yok.') : t('Bu ay için aidat ya da ödeme yok.')}</Empty>}
     </Stack>
   );
 }
@@ -606,6 +649,7 @@ export function SiteAdminScreen({ section = 'ozet' }: { section?: string }) {
           {cur.key === 'rapor' && <Report d={d} org={org.name} />}
           {cur.key === 'duyurular' && <Notes d={d} oid={org.id} can={can} reload={load} />}
           {cur.key === 'genelkurul' && <Meetings d={d} org={org} can={can} />}
+          {cur.key === 'belgeler' && <SiteDocs d={d} oid={org.id} can={can} reload={load} />}
           {cur.key === 'talepler' && (d.requests.length ? d.requests.map((x: any) => <RequestCard key={x.id} x={x} unit={unitBy[x.unit_id]} can={can} reload={load} />) : <Empty>{t('Talep yok.')}</Empty>)}
         </>
       )}
@@ -790,10 +834,16 @@ function TurnoverBox({ u }: { u: any }) {
   );
 }
 
-export function ResidentSiteScreen() {
+type ResidentPart = 'all' | 'home' | 'pay' | 'req' | 'docs';
+
+/** Sakinin site ekranı. part: 'home' (özet), 'pay' (ödemeler), 'req' (talepler), 'docs' (belgeler); 'all' tek sayfada hepsi
+    (kendi mülkü de olan kişi "Sitem" menüsünden açar). */
+export function ResidentSiteScreen({ part = 'all' }: { part?: ResidentPart }) {
   useStore();
+  const router = useRouter();
   const units = mySiteUnits();
-  const title = residentTitle(units);
+  const home = residentTitle(units);
+  const title = part === 'pay' ? t('Ödemeler') : part === 'req' ? t('Talepler') : part === 'docs' ? t('Belgeler') : home;
   const anySite = units.some((u: any) => !isCommercial(u.sector));
   const [d, setD] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -804,13 +854,17 @@ export function ResidentSiteScreen() {
   useEffect(() => { load(); }, [load]);
   if (!units.length) return <Page title={title}><Note>{t('Bir siteye bağlı değilsin. Site yönetiminden aldığın davet kodunu girerek bağlanabilirsin.')}</Note></Page>;
   const target = units.find((u: any) => u.unit_id === req.unit) || units[0];
+  const show = (p: ResidentPart) => part === 'all' || part === p;
+  const open = (x: any) => x.status !== 'paid';
   return (
     <Page title={title} sub={[...new Set(units.map((u: any) => u.org))].join(', ')}>
       {err ? <Note warn>{err}</Note> : null}
-      {units.map((u: any) => {
+      {show('home') || show('pay') ? units.map((u: any) => {
         const payer = u.payer === u.role;
-        const mine = (d?.charges || []).filter((x: any) => x.unit_id === u.unit_id);
-        const due = mine.reduce((a: number, x: any) => a + unpaidOf(x), 0);
+        const all = (d?.charges || []).filter((x: any) => x.unit_id === u.unit_id);
+        // Özette yalnız ödenmemişler (en çok 3); Ödemeler'de geçmişin tamamı.
+        const mine = part === 'home' ? all.filter(open).slice(0, 3) : all;
+        const due = all.reduce((a: number, x: any) => a + unpaidOf(x), 0);
         return (
           <Card key={u.unit_id} gap={10}>
             <Row between align="flex-start">
@@ -826,46 +880,169 @@ export function ResidentSiteScreen() {
             {!payer ? <Muted>{u.role === 'malik'
               ? t('Aidatı kiracın öder; dairenin aidat durumunu buradan izleyebilirsin.')
               : t('Aidatı malik öder. Sana aidat yazılırsa aşağıdaki talep formundan yönetime bildirebilirsin.')}</Muted> : null}
-            {!d ? <Spin /> : mine.length ? <View>{mine.map((x: any) => <MyCharge key={x.id} x={x} payer={payer} reload={load} site={!isCommercial(u.sector)} />)}</View> : <Muted>{t('Ödeme kaydı yok.')}</Muted>}
-            {isCommercial(u.sector) && Number(u.turnover_rate) > 0 && u.role === 'kiraci' ? <TurnoverBox u={u} /> : null}
+            {!d ? <Spin /> : mine.length ? <View>{mine.map((x: any) => <MyCharge key={x.id} x={x} payer={payer} reload={load} site={!isCommercial(u.sector)} />)}</View>
+              : <Muted>{part === 'home' && all.length ? t('Bekleyen ödemen yok.') : t('Ödeme kaydı yok.')}</Muted>}
+            {part === 'home' && all.length ? <Button kind="ghost" title={t('Tüm ödemeler')} onPress={() => router.push('/uygulama/odemeler' as any)} /> : null}
+            {show('pay') && isCommercial(u.sector) && Number(u.turnover_rate) > 0 && u.role === 'kiraci' ? <TurnoverBox u={u} /> : null}
           </Card>
         );
-      })}
+      }) : null}
 
-      <Stack gap={8}>
-        <H2>{t('Duyurular')}</H2>
-        {d?.notes?.length ? d.notes.slice(0, 10).map((x: any) => (
-          <Card key={x.id} gap={4}><Row between wrap><Text v="body" style={{ fontFamily: fonts.bodyXBold }}>{x.title}</Text><Muted>{day(x.created_at)}</Muted></Row>{x.body ? <Text v="small">{x.body}</Text> : null}</Card>
-        )) : <Empty>{t('Henüz duyuru yok.')}</Empty>}
-      </Stack>
+      {show('home') ? (
+        <Stack gap={8}>
+          <H2>{t('Duyurular')}</H2>
+          {d?.notes?.length ? d.notes.slice(0, part === 'home' ? 5 : 10).map((x: any) => (
+            <Card key={x.id} gap={4}><Row between wrap><Text v="body" style={{ fontFamily: fonts.bodyXBold }}>{x.title}</Text><Muted>{day(x.created_at)}</Muted></Row>{x.body ? <Text v="small">{x.body}</Text> : null}</Card>
+          )) : <Empty>{t('Henüz duyuru yok.')}</Empty>}
+        </Stack>
+      ) : null}
 
-      <ResidentMeetings />
+      {show('home') ? <ResidentMeetings /> : null}
+      {show('home') ? <ResidentBudget units={units} /> : null}
 
-      <ResidentBudget units={units} />
+      {show('req') ? (
+        <Stack gap={8}>
+          {part === 'all' ? <H2>{t('Yönetime talep')}</H2> : null}
+          <Card gap={10}>
+            {units.length > 1 ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{units.map((u: any) => <Pill key={u.unit_id} label={unitLabel(u)} on={target.unit_id === u.unit_id} onPress={() => setReq({ ...req, unit: u.unit_id })} />)}</View> : null}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+              {Object.entries(REQ_CAT).filter(([k]) => anySite || k !== 'aidat').map(([k, l]) => <Pill key={k} label={t(l)} on={req.cat === k} onPress={() => setReq({ ...req, cat: k })} />)}
+            </View>
+            {req.cat === 'aidat' ? <Muted>{t('Aidatı sen ödemiyorsan (ör. sözleşmeye göre malik ödüyorsa) buradan yönetime bildir; yönetim dairenin ödeyenini değiştirir.')}</Muted> : null}
+            <Field label={t('Başlık')} value={req.title} onChangeText={(v) => setReq({ ...req, title: v })} maxLength={120} />
+            <Field label={t('Açıklama')} value={req.body} onChangeText={(v) => setReq({ ...req, body: v })} multiline maxLength={4000} />
+            <Button title={t('Talebi gönder')} style={{ alignSelf: 'flex-start' }} disabled={req.title.trim().length < 2} onPress={async () => {
+              setErr(null); setMsg(null);
+              try { await openSiteRequest(target.org_id, target.unit_id, req); setReq({ ...req, title: '', body: '' }); setMsg(t('Talebin yönetime iletildi.')); load(); } catch (e) { setErr(humanError(e)); }
+            }} />
+            {msg ? <Text v="small" color={c.okInk}>{msg}</Text> : null}
+          </Card>
+          {(d?.requests || []).map((x: any) => (
+            <Card key={x.id} gap={4}>
+              <Row between wrap><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{x.title}</Text><Chip tone={x.status === 3 ? 'ok' : 'warn'} label={REQ()[x.status]} /></Row>
+              {x.reply ? <Muted>{t('Yönetimin yanıtı')}: {x.reply}</Muted> : null}
+            </Card>
+          ))}
+        </Stack>
+      ) : null}
 
-      <Stack gap={8}>
-        <H2>{t('Yönetime talep')}</H2>
-        <Card gap={10}>
-          {units.length > 1 ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{units.map((u: any) => <Pill key={u.unit_id} label={unitLabel(u)} on={target.unit_id === u.unit_id} onPress={() => setReq({ ...req, unit: u.unit_id })} />)}</View> : null}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-            {Object.entries(REQ_CAT).filter(([k]) => anySite || k !== 'aidat').map(([k, l]) => <Pill key={k} label={t(l)} on={req.cat === k} onPress={() => setReq({ ...req, cat: k })} />)}
-          </View>
-          {req.cat === 'aidat' ? <Muted>{t('Aidatı sen ödemiyorsan (ör. sözleşmeye göre malik ödüyorsa) buradan yönetime bildir; yönetim dairenin ödeyenini değiştirir.')}</Muted> : null}
-          <Field label={t('Başlık')} value={req.title} onChangeText={(v) => setReq({ ...req, title: v })} maxLength={120} />
-          <Field label={t('Açıklama')} value={req.body} onChangeText={(v) => setReq({ ...req, body: v })} multiline maxLength={4000} />
-          <Button title={t('Talebi gönder')} style={{ alignSelf: 'flex-start' }} disabled={req.title.trim().length < 2} onPress={async () => {
-            setErr(null); setMsg(null);
-            try { await openSiteRequest(target.org_id, target.unit_id, req); setReq({ ...req, title: '', body: '' }); setMsg(t('Talebin yönetime iletildi.')); load(); } catch (e) { setErr(humanError(e)); }
-          }} />
-          {msg ? <Text v="small" color={c.okInk}>{msg}</Text> : null}
+      {show('docs') ? <ResidentDocs units={units} titled={part === 'all'} /> : null}
+    </Page>
+  );
+}
+
+/** Sakinin belgeleri: yönetimin siteye ve dairesine yüklediği belgeler; yönetime belge gönderme. */
+function ResidentDocs({ units, titled }: { units: any[]; titled?: boolean }) {
+  const c = useColors();
+  const [docs, setDocs] = useState<any[] | null>(null);
+  const [title, setTitle] = useState('');
+  const [files, setFiles] = useState<Picked[]>([]);
+  const [unit, setUnit] = useState(units[0]?.unit_id || '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const oids = [...new Set(units.map((u: any) => u.org_id))] as string[];
+  const load = useCallback(async () => { setDocs(await loadSiteDocs(oids)); }, [oids.join()]);
+  useEffect(() => { load(); }, [load]);
+  const target = units.find((u: any) => u.unit_id === unit) || units[0];
+  const unitBy = Object.fromEntries(units.map((u: any) => [u.unit_id, u]));
+  const shared = (docs || []).filter((x) => x.audience !== 'yonetim');
+  const sent = (docs || []).filter((x) => x.audience === 'yonetim');
+  return (
+    <Stack gap={8}>
+      {titled ? <H2>{t('Belgeler')}</H2> : null}
+      {!docs ? <Spin /> : shared.length ? shared.map((x) => (
+        <Card key={x.id} gap={4}>
+          <Row between wrap><Text v="body" style={{ fontFamily: fonts.bodyXBold, flexShrink: 1 }}>{x.title}</Text><Muted>{day(x.created_at)}</Muted></Row>
+          <Muted>{x.audience === 'daire' && unitBy[x.unit_id] ? t('Dairene özel') + ' · ' + unitLabel(unitBy[x.unit_id]) : t('Site yönetiminden')}</Muted>
+          <DownloadLink path={x.path} label={x.name || x.title} />
         </Card>
-        {(d?.requests || []).map((x: any) => (
+      )) : <Empty>{t('Yönetimin paylaştığı belge yok.')}</Empty>}
+      <Card gap={10}>
+        <H2>{t('Yönetime belge gönder')}</H2>
+        <Muted>{t('Kira sözleşmesi, ikametgâh, sayaç fotoğrafı gibi yönetimin istediği belgeleri buradan gönder; yalnız yönetim görür.')}</Muted>
+        {units.length > 1 ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{units.map((u: any) => <Pill key={u.unit_id} label={unitLabel(u)} on={target?.unit_id === u.unit_id} onPress={() => setUnit(u.unit_id)} />)}</View> : null}
+        <Field label={t('Belgenin adı')} value={title} onChangeText={setTitle} maxLength={160} placeholder={t('ör. Kira sözleşmesi')} />
+        <FileField label={t('Dosya (görsel ya da PDF)')} files={files} setFiles={setFiles} camera max={1} />
+        <Button title={t('Gönder')} loading={busy} disabled={title.trim().length < 2 || !files.length} style={{ alignSelf: 'flex-start' }} onPress={async () => {
+          setBusy(true); setErr(null); setMsg(null);
+          try { await uploadSiteDoc(target.org_id, { title, file: files[0], audience: 'yonetim', unitId: target.unit_id }); setTitle(''); setFiles([]); setMsg(t('Belgen yönetime gönderildi.')); load(); }
+          catch (e) { setErr(humanError(e)); }
+          setBusy(false);
+        }} />
+        {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
+        {msg ? <Text v="small" color={c.okInk}>{msg}</Text> : null}
+      </Card>
+      {sent.length ? <Stack gap={6}>
+        <Label>{t('Gönderdiklerin')}</Label>
+        {sent.map((x) => (
           <Card key={x.id} gap={4}>
-            <Row between wrap><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{x.title}</Text><Chip tone={x.status === 3 ? 'ok' : 'warn'} label={REQ()[x.status]} /></Row>
-            {x.reply ? <Muted>{t('Yönetimin yanıtı')}: {x.reply}</Muted> : null}
+            <Row between wrap><Text v="small" style={{ fontFamily: fonts.bodyXBold, flexShrink: 1 }}>{x.title}</Text><Muted>{day(x.created_at)}</Muted></Row>
+            <Row wrap gap={12}><DownloadLink path={x.path} label={x.name || x.title} />
+              <Text v="small" color={c.badInk} accessibilityRole="button" style={{ textDecorationLine: 'underline' }} onPress={async () => { try { await deleteSiteDoc(x.id); load(); } catch (e) { setErr(humanError(e)); } }}>{t('Sil')}</Text></Row>
           </Card>
         ))}
+      </Stack> : null}
+    </Stack>
+  );
+}
+
+/** Yönetim: sakinlerle paylaşılan belgeler (bütün site ya da tek daire) ve sakinlerden gelenler. */
+export function SiteDocs({ d, oid, can, reload }: { d: any; oid: string; can: (p: string) => boolean; reload: () => void }) {
+  const c = useColors();
+  const commercial = isCommercial(d.sector);
+  const [title, setTitle] = useState('');
+  const [files, setFiles] = useState<Picked[]>([]);
+  const [scope, setScope] = useState<'herkes' | 'daire'>('herkes');
+  const [q, setQ] = useState('');
+  const [unitId, setUnitId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const unitBy: Record<string, any> = Object.fromEntries(d.units.map((u: any) => [u.id, u]));
+  const docs = d.documents || [];
+  const incoming = docs.filter((x: any) => x.audience === 'yonetim');
+  const shared = docs.filter((x: any) => x.audience !== 'yonetim');
+  const hits = q.trim() ? d.units.filter((u: any) => unitLabel(u).toLocaleLowerCase('tr').includes(q.trim().toLocaleLowerCase('tr'))).slice(0, 6) : [];
+  const manage = can('documents.manage');
+  const row = (x: any, from?: boolean) => (
+    <Card key={x.id} gap={4}>
+      <Row between wrap><Text v="body" style={{ fontFamily: fonts.bodyXBold, flexShrink: 1 }}>{x.title}</Text><Muted>{day(x.created_at)}</Muted></Row>
+      <Muted>{from ? (unitBy[x.unit_id] ? unitLabel(unitBy[x.unit_id]) : '') : x.audience === 'daire' ? (unitBy[x.unit_id] ? unitLabel(unitBy[x.unit_id]) : '') : commercial ? t('Bütün kiracılar') : t('Bütün site')}</Muted>
+      <Row wrap gap={12}><DownloadLink path={x.path} label={x.name || x.title} />
+        {manage ? <Text v="small" color={c.badInk} accessibilityRole="button" style={{ textDecorationLine: 'underline' }} onPress={async () => {
+          if (await host.ask({ title: t('Belge silinsin mi?'), body: x.title, ok: t('Sil'), danger: true })) { try { await deleteSiteDoc(x.id); reload(); } catch (e) { setErr(humanError(e)); } }
+        }}>{t('Sil')}</Text> : null}</Row>
+    </Card>
+  );
+  return (
+    <Stack>
+      {manage ? (
+        <Card gap={10}>
+          <H2>{t('Belge paylaş')}</H2>
+          <Seg value={scope} onChange={(v) => setScope(v as any)} options={[['herkes', commercial ? t('Bütün kiracılar') : t('Bütün site')], ['daire', commercial ? t('Bir birim') : t('Bir daire')]]} />
+          {scope === 'daire' ? (
+            <View style={{ gap: 6 }}>
+              <Field label={commercial ? t('Birim') : t('Daire')} value={unitId && unitBy[unitId] ? unitLabel(unitBy[unitId]) : q} onChangeText={(v) => { setUnitId(''); setQ(v); }} placeholder={commercial ? 'Z-12' : 'A Blok No 1'} />
+              {!unitId && hits.length ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{hits.map((u: any) => <Pill key={u.id} label={unitLabel(u)} on={false} onPress={() => { setUnitId(u.id); setQ(''); }} />)}</View> : null}
+            </View>
+          ) : null}
+          <Field label={t('Belgenin adı')} value={title} onChangeText={setTitle} maxLength={160} placeholder={t('ör. 2027 işletme projesi')} />
+          <FileField label={t('Dosya (görsel ya da PDF)')} files={files} setFiles={setFiles} max={1} />
+          <Muted>{scope === 'herkes' ? (commercial ? t('Bütün kiracılar görür ve bildirim alır.') : t('Sitenin bütün sakinleri görür ve bildirim alır.')) : t('Yalnız seçtiğin dairenin sakinleri görür.')}</Muted>
+          <Button title={t('Paylaş')} loading={busy} disabled={title.trim().length < 2 || !files.length || (scope === 'daire' && !unitId)} style={{ alignSelf: 'flex-start' }} onPress={async () => {
+            setBusy(true); setErr(null);
+            try { await uploadSiteDoc(oid, { title, file: files[0], audience: scope, unitId: (scope === 'daire' ? unitId : null) as any }); setTitle(''); setFiles([]); setUnitId(''); reload(); }
+            catch (e) { setErr(humanError(e)); }
+            setBusy(false);
+          }} />
+          <Err e={err} />
+        </Card>
+      ) : null}
+      {incoming.length ? <Stack gap={6}><H2>{commercial ? t('Kiracılardan gelenler') : t('Sakinlerden gelenler')}</H2>{incoming.map((x: any) => row(x, true))}</Stack> : null}
+      <Stack gap={6}>
+        <H2>{t('Paylaşılanlar')}</H2>
+        {shared.length ? shared.map((x: any) => row(x)) : <Empty>{t('Henüz paylaşılan belge yok.')}</Empty>}
       </Stack>
-    </Page>
+    </Stack>
   );
 }

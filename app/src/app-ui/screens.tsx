@@ -25,6 +25,7 @@ import { useSheet } from './overlays';
 import { LegalList } from './legal';
 import { MailReportCard } from './report-mail';
 import { JoinBanner } from './JoinCode';
+import { siteResidentOnly } from '../domain/site';
 import { SiteTeaser } from './site';
 import { SetupChecklist } from './checklist';
 import { CertificateCard } from './certificate';
@@ -66,7 +67,7 @@ export function Page({ title, sub, back, children, fill }: { title: string; sub?
         </Row>
       </Row>
       <Animated.View entering={FadeIn.duration(280)} style={fill ? { flex: 1, minHeight: 0, gap: 12, marginTop: 12 } : { gap: 16, marginTop: 18 }}>
-        {ui.role === 'tenant' && !S.myHome ? <JoinBanner /> : null}
+        {ui.role === 'tenant' && !S.myHome && !siteResidentOnly() ? <JoinBanner /> : null}
         {children}
       </Animated.View>
     </Shell>

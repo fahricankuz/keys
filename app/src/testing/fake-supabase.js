@@ -7,7 +7,7 @@ const KEY = '__fakedb';
 const TABLES = ['profiles','properties','property_shared','memberships','invites','payments','rent_history',
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
-                'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes',
+                'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes','site_documents',
                 'legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates'];
 
 function load(){
@@ -43,6 +43,7 @@ function defaults(table, row, db){
   if (table === 'site_charges'){ r.status = r.status || 'open'; r.paid_amount = r.paid_amount || 0; r.title = r.title || ''; r.method = r.method || 'dekont'; r.currency = r.currency || 'TRY'; }
   if (table === 'site_requests'){ r.status = r.status || 0; r.reply = r.reply || ''; }
   if (table === 'site_meetings'){ r.status = r.status || 'cagrildi'; r.minutes = r.minutes || ''; r.agenda = r.agenda || []; r.kind = r.kind || 'olagan'; r.place = r.place || ''; }
+  if (table === 'site_documents'){ r.audience = r.audience || 'herkes'; r.unit_id = r.unit_id || null; r.uploaded_by = r.uploaded_by || db.session?.user.id || null; }
   if (table === 'site_polls'){ r.weighted = !!r.weighted; r.voters = r.voters || 'malik'; }
   if (table === 'invites'){ r.code = r.code || Math.random().toString(36).slice(2, 10).toUpperCase(); r.created_at = now(); r.accepted_by = null; }
   if (table === 'messages'){ r.at = r.at || now(); if (r.by_user === undefined) r.by_user = db.session?.user.id || null; }
@@ -125,6 +126,8 @@ function visible(db, table, row, actor){
     if (table === 'site_residents') return row.user_id === actor;
     if (table === 'site_announcements' || table === 'site_meetings' || table === 'site_polls') return mine.some(r => r.org_id === row.org_id);
     if (table === 'site_meeting_replies' || table === 'site_votes') return mine.some(r => r.unit_id === row.unit_id);
+    if (table === 'site_documents') return row.uploaded_by === actor || (row.audience === 'herkes' && mine.some(r => r.org_id === row.org_id))
+      || (row.audience === 'daire' && mine.some(r => r.unit_id === row.unit_id));
     if (table === 'site_requests') return row.user_id === actor;
     return false;
   }

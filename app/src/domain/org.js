@@ -91,6 +91,7 @@ export function sectorSections(org){
   if (hasModule(org, 'duyuru')) list.push({ key: 'duyurular', label: t('Duyurular'), icon: 'bell' });
   if (site && hasModule(org, 'duyuru')) list.push({ key: 'genelkurul', label: t('Genel kurul'), icon: 'calendar' });
   list.push({ key: 'talepler', label: t('Talepler'), icon: 'wrench' });
+  list.push({ key: 'belgeler', label: t('Belgeler'), icon: 'doc' });
   if (hasModule(org, 'rapor') && can('reports.view')) list.push({ key: 'rapor', label: t('Rapor'), icon: 'chart' });
   return list;
 }

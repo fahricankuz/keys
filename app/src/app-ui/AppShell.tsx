@@ -7,7 +7,7 @@ import { can, canAny, isTeam, memberRole, roleLabel } from '../domain/team';
 import { t } from '../domain/i18n';
 import { toApp } from '../domain/nav';
 import { myOrgs, sectorSections } from '../domain/org';
-import { mySiteUnits } from '../domain/site';
+import { mySiteUnits, siteResidentOnly } from '../domain/site';
 import { PORTFOLIO_SECTORS, currentPortfolioOrg, residentTitle, sectionPath } from './site';
 import { PanelUI, PressScale, Text } from '../ui/kit';
 import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
@@ -52,6 +52,16 @@ function sectorItems(org: any): { tabs: Item[]; extra: Item[]; side?: Item[] } {
 function items(): { tabs: Item[]; extra: Item[]; side?: Item[] } {
   const org = currentPortfolioOrg();
   if (org) return sectorItems(org);
+  // Yalnız site / AVM / depo sakini: sekmeler site ekranlarıdır (mesajlaşma yok; yönetime yazacağı her şey talep).
+  if (siteResidentOnly()) return {
+    tabs: [
+      { label: t('Ana sayfa'), icon: 'home', path: '/uygulama' },
+      { label: t('Ödemeler'), icon: 'card', path: '/uygulama/odemeler' },
+      { label: t('Talepler'), icon: 'wrench', path: '/uygulama/talepler' },
+      { label: t('Belgeler'), icon: 'doc', path: '/uygulama/belgeler' }
+    ],
+    extra: orgItem().filter((x) => x.path !== '/uygulama/sitem')
+  };
   if (ui.role === 'tenant') {
     const home = P(S.myHome);
     const n = home ? openReqs(home).length : 0;
