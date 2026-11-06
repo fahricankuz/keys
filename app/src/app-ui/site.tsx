@@ -35,6 +35,7 @@ import { Meetings, ResidentMeetings } from './site-meetings';
 import { CurrencySwitch, FxNote, RevenueChart, useFx, useReportCurrency } from './fx-ui';
 import { fmtMoney } from '../domain/money';
 import { amountIn } from '../domain/fx-report';
+import { InvestorReport } from './investor';
 
 // Tarihler yerel saatle (Türkiye UTC+3; ISO dönüşümü gece yarısından sonra bir önceki güne/aya kayardı).
 const thisMonth = () => mkey(new Date());
@@ -48,7 +49,7 @@ const CURS: [string, string][] = [['TRY', '₺ TL'], ['USD', '$ USD'], ['EUR', '
 /** Bu ekranın açıldığı kurum türleri: site yönetimi ve ticari portföy (AVM, depo, GYO). */
 export const PORTFOLIO_SECTORS = ['site', 'avm', 'depo', 'gyo'];
 /** Kurum paneli bölümlerinin adresleri (/uygulama/site/<bölüm>); menü org.js → sectorSections. */
-export const SECTION_KEYS = ['ozet', 'birimler', 'tahakkuk', 'ciro', 'artis', 'giderler', 'butce', 'duyurular', 'genelkurul', 'belgeler', 'talepler', 'rapor'];
+export const SECTION_KEYS = ['ozet', 'birimler', 'tahakkuk', 'ciro', 'artis', 'giderler', 'butce', 'duyurular', 'genelkurul', 'belgeler', 'talepler', 'rapor', 'yatirimci'];
 export const sectionPath = (k: string) => (k === 'ozet' ? '/uygulama/site' : '/uygulama/site/' + k);
 /** Kişinin yönettiği sektör kurumu (birden çoksa seçili olan). */
 export function currentPortfolioOrg() {
@@ -280,10 +281,13 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
 }
 
 function Expenses({ d, oid, can, reload, onDistribute }: { d: any; oid: string; can: (p: string) => boolean; reload: () => void; onDistribute?: (e: any) => void }) {
-  const [e, setE] = useState<any>({ cat: '', amount: '', spent_on: today(), note: '' });
+  const [e, setE] = useState<any>({ cat: '', amount: '', spent_on: today(), note: '', kind: 'isletme' });
   const [err, setErr] = useState<string | null>(null);
   const act = async (fn: () => Promise<any>) => { setErr(null); try { await fn(); reload(); } catch (x) { setErr(humanError(x)); } };
   const m = thisMonth();
+  // Ticari portföyde gider türü: ortak alan gideri (kiracıya yansır) ya da işletme gideri (NOI hesabı, yatırımcı raporu).
+  const typed = isCommercial(d.sector);
+  const kindName = (k: string) => (k === 'ortak' ? t('Ortak gider') : t('İşletme gideri'));
   const monthTotal = d.expenses.filter((x: any) => String(x.spent_on).startsWith(m)).reduce((a: number, x: any) => a + Number(x.amount), 0);
   return (
     <Stack>
@@ -295,9 +299,15 @@ function Expenses({ d, oid, can, reload, onDistribute }: { d: any; oid: string; 
             <View style={{ flexGrow: 1, flexBasis: 120 }}><MoneyField label={t('Tutar (₺)')} value={e.amount} onChange={(v) => setE({ ...e, amount: v })} /></View>
             <View style={{ flexGrow: 1, flexBasis: 140 }}><Field label={t('Tarih (YYYY-AA-GG)')} value={e.spent_on} onChangeText={(v) => setE({ ...e, spent_on: v })} maxLength={10} /></View>
           </Row>
+          {typed ? (
+            <View style={{ gap: 4 }}>
+              <Label>{t('Gider türü')}</Label>
+              <Seg value={e.kind} onChange={(v: any) => setE({ ...e, kind: v })} options={[['isletme', t('İşletme gideri')], ['ortak', t('Ortak gider (kiracıya yansır)')]]} wrap />
+            </View>
+          ) : null}
           <Field label={t('Not (isteğe bağlı)')} value={e.note} onChangeText={(v) => setE({ ...e, note: v })} maxLength={500} />
           <Button title={t('Gideri ekle')} style={{ alignSelf: 'flex-start' }} disabled={!e.cat.trim() || !e.amount}
-            onPress={() => act(async () => { await addExpense(oid, { ...e, amount: e.amount.replace(',', '.') }); setE({ cat: '', amount: '', spent_on: today(), note: '' }); })} />
+            onPress={() => act(async () => { await addExpense(oid, { ...e, kind: typed ? e.kind : 'isletme', amount: e.amount.replace(',', '.') }); setE({ cat: '', amount: '', spent_on: today(), note: '', kind: e.kind }); })} />
           <Err e={err} />
         </Card>
       ) : null}
@@ -305,7 +315,7 @@ function Expenses({ d, oid, can, reload, onDistribute }: { d: any; oid: string; 
       {d.expenses.length ? d.expenses.map((x: any) => (
         <Card key={x.id} gap={6}>
           <Row between wrap>
-            <View style={{ flex: 1, minWidth: 160 }}><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{x.cat}</Text><Muted>{day(x.spent_on)}{x.note ? ' · ' + x.note : ''}</Muted></View>
+            <View style={{ flex: 1, minWidth: 160 }}><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{x.cat}</Text><Muted>{day(x.spent_on)}{typed ? ' · ' + kindName(x.kind) : ''}{x.note ? ' · ' + x.note : ''}</Muted></View>
             <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{tl(x.amount)}</Text>
           </Row>
           {can('expenses.manage') ? (
@@ -662,6 +672,7 @@ export function SiteAdminScreen({ section = 'ozet' }: { section?: string }) {
             } : undefined} />}
           {cur.key === 'butce' && <Budget d={d} oid={org.id} can={can} reload={load} />}
           {cur.key === 'rapor' && <Report d={d} org={org.name} />}
+          {cur.key === 'yatirimci' && <InvestorReport d={d} org={org} />}
           {cur.key === 'duyurular' && <Notes d={d} oid={org.id} can={can} reload={load} />}
           {cur.key === 'genelkurul' && <Meetings d={d} org={org} can={can} />}
           {cur.key === 'belgeler' && <SiteDocs d={d} oid={org.id} can={can} reload={load} />}

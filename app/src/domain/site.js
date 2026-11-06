@@ -291,7 +291,9 @@ export async function markPaid(ch, amount, method = 'havale'){
 }
 
 export async function addExpense(oid, e){
-  must(await (await db()).from('site_expenses').insert({ org_id: oid, cat: e.cat, amount: Number(e.amount) || 0, spent_on: e.spent_on || iso(new Date()), note: e.note || '' }));
+  // Tür yalnız "ortak" seçilince yazılır (varsayılan işletme gideri; sütun migration yatirimci_raporu ile gelir).
+  must(await (await db()).from('site_expenses').insert({ org_id: oid, cat: e.cat, amount: Number(e.amount) || 0, spent_on: e.spent_on || iso(new Date()), note: e.note || '',
+    ...(e.kind === 'ortak' ? { kind: 'ortak' } : {}) }));
 }
 export async function deleteExpense(id){ must(await (await db()).from('site_expenses').delete().eq('id', id)); }
 export async function announce(oid, title, body){

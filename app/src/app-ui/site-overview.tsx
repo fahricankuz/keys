@@ -277,7 +277,7 @@ export function Overview({ d, org, can, reload, go, ChargeRow }: {
 
   const roadmap = sector === 'gyo' ? (
     <View style={{ borderWidth: 1.5, borderStyle: 'dashed', borderColor: c.line, borderRadius: radius.md, padding: 12 }}>
-      <Muted>{t('Yol planında: onay akışı (artış ve tahakkuk için çift imza), değerleme, yatırımcı raporu ve API.')}</Muted>
+      <Muted>{t('Yol planında: onay akışı (artış ve tahakkuk için çift imza), değerleme ve API.')}</Muted>
     </View>
   ) : null;
 
