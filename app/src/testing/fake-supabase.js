@@ -7,7 +7,7 @@ const KEY = '__fakedb';
 const TABLES = ['profiles','properties','property_shared','memberships','invites','payments','rent_history',
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
-                'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes','site_documents',
+                'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes','site_documents','site_investor_notes','mail_outbox',
                 'fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates'];
 
 function load(){
@@ -25,7 +25,7 @@ const KEYS = {
   profiles:['id'], properties:['id'], property_shared:['property_id'], memberships:['property_id','user_id'],
   invites:['code'], payments:['property_id','month','kind'], rent_history:['id'], requests:['id'], messages:['id'],
   documents:['id'], expenses:['id'], notifications:['id'], push_subscriptions:['endpoint'], subscriptions:['user_id'], device_tokens:['token'],
-  site_meeting_replies:['meeting_id','unit_id'], site_votes:['poll_id','unit_id'],
+  site_meeting_replies:['meeting_id','unit_id'], site_votes:['poll_id','unit_id'], site_investor_notes:['org_id','period'],
   site_budgets:['org_id','year'], site_auto:['org_id'], site_turnovers:['unit_id','month'], legal_notes:['request_id'], user_blocks:['user_id','blocked'],
   admins:['user_id'], reviews:['kind','property_id','ref_id'], bans:['user_id'], admin_audit:['id']
 };
@@ -403,11 +403,11 @@ export function createClient(url, key, opts){
         return { data:id, error:null };
       }
       // Kurumlar: schema.sql 16. bölüm ile aynı kurallar (özet).
-      if (/^(my_orgs|org_|accept_org_invite|admin_org|admin_add_property)/.test(name)){
+      if (/^(my_orgs|org_|accept_org_invite|admin_org|admin_add_property|investor_report_mail)/.test(name)){
         const T = db.tables, A = args || {};
         const PERMS = ['org.settings','org.members','units.manage','residents.manage','charges.manage','payments.approve','expenses.manage','requests.manage','announce','documents.manage','reports.view'];
-        const MODS = ['kira','aidat','gider_dagitim','duyuru','ciro_kira','ortak_gider','endeksleme','doluluk','onay_akisi','rapor','api'];
-        const SECMOD = { site:['aidat','gider_dagitim','duyuru','rapor'], avm:['kira','ortak_gider','ciro_kira','doluluk','rapor'], depo:['kira','ortak_gider','endeksleme','rapor'], gyo:['kira','ortak_gider','doluluk','onay_akisi','rapor','api'] };
+        const MODS = ['kira','aidat','gider_dagitim','duyuru','ciro_kira','ortak_gider','endeksleme','doluluk','onay_akisi','rapor','api','yatirimci'];
+        const SECMOD = { site:['aidat','gider_dagitim','duyuru','rapor'], avm:['kira','ortak_gider','ciro_kira','doluluk','rapor'], depo:['kira','ortak_gider','endeksleme','rapor'], gyo:['kira','ortak_gider','endeksleme','doluluk','duyuru','rapor','yatirimci'] };
         const err = (message, code = '42501') => ({ data:null, error:{ message, code } });
         const ok = (data) => { persist(db); return { data, error:null }; };
         const adm = isAdmin(db, me);
@@ -420,9 +420,17 @@ export function createClient(url, key, opts){
         const pmail = id => (db.users.find(u => u.id === id) || {}).email || '';
         const setMaster = (oid, uid) => { T.org_members.forEach(m => { if (m.org_id === oid && m.is_master && m.user_id !== uid) m.is_master = false; });
           const m = mem(oid, uid); if (m) Object.assign(m, { is_master:true, role_id:null }); else T.org_members.push({ org_id:oid, user_id:uid, role_id:null, is_master:true, created_at:now() }); };
+        if (name === 'investor_report_mail'){
+          if (!can(A.oid, 'reports.view')) return err('Rapor yetkin yok');
+          const o = T.organizations.find(x => x.id === A.oid);
+          if (!o || !(o.modules || []).includes('yatirimci')) return err('Yatırımcı raporu bu kurumda kapalı');
+          const u = db.users.find(x => x.id === me) || {};
+          T.mail_outbox.push({ id:T.mail_outbox.length + 1, kind:'investor_report', to_email:u.email || '', data:{ ...(A.summary || {}), org:o.name, oid:o.id, period:A.period, uid:me }, created_at:now() });
+          return ok(null);
+        }
         if (name === 'my_orgs') return ok(T.org_members.filter(m => m.user_id === me).map(m => {
           const o = T.organizations.find(x => x.id === m.org_id), r = T.org_roles.find(x => x.id === m.role_id);
-          return { id:o.id, name:o.name, sector:o.sector, modules:o.modules, status:o.status, units:o.units ?? null, master:m.is_master,
+          return { id:o.id, name:o.name, sector:o.sector, modules:o.modules, status:o.status, units:o.units ?? null, report_currency:o.report_currency || 'USD', master:m.is_master,
                    role: r ? { id:r.id, name:r.name } : null, perms: m.is_master ? PERMS : (r ? r.perms : []) };
         }).sort((a, b) => a.name.localeCompare(b.name)));
         if (name === 'org_detail'){
@@ -491,7 +499,7 @@ export function createClient(url, key, opts){
           if (String(p.name || '').trim().length < 2) return err('Kurum adını yaz', '22023');
           const mods = p.modules ? [...new Set(p.modules)].sort() : (SECMOD[p.sector] || ['kira','rapor']);
           if (mods.some(x => !MODS.includes(x))) return err('Geçersiz modül', '22023');
-          const fields = { name:String(p.name).trim(), sector:p.sector, modules:mods, units:p.units ? Number(p.units) : null, contract_until:p.contract_until || null, billing:p.billing || {}, note:p.note || '' };
+          const fields = { name:String(p.name).trim(), sector:p.sector, modules:mods, units:p.units ? Number(p.units) : null, contract_until:p.contract_until || null, billing:p.billing || {}, note:p.note || '', report_currency:p.report_currency === 'EUR' ? 'EUR' : 'USD' };
           if (!p.id){
             const id = uuid();
             T.organizations.push(Object.assign({ id, status:p.status || 'active', lead_id:p.lead_id || null, created_at:now() }, fields));

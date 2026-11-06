@@ -1,4 +1,5 @@
-// anahtar — gönderim kuyruğundaki e-postaların (mail_outbox) HTML'i: hesap silindi, ekibe paket seçimi, kurum yöneticisi daveti.
+// anahtar — gönderim kuyruğundaki e-postaların (mail_outbox) HTML'i: hesap silindi, ekibe paket seçimi, kurum yöneticisi daveti,
+// yatırımcı raporu özeti ("Mailime gönder").
 // Saf işlev (Deno ve Node'da çalışır; testler önizleme üretir). E-posta istemcileri için: tablo düzeni, satır içi stil, sistem yazı tipi.
 // Müşteriye giden iletiler kırmızı bantta kırmızı zeminli logoyla (anahtar-logo-mail-kirmizi.png) gelir; karanlık modda da bozulmaz.
 
@@ -88,6 +89,30 @@ export function renderOutbox(row: OutboxRow, appUrl?: string, contact = 'info@an
           lead: ['Merhaba,', `${d.org || 'Bir kurum'} için anahtar yöneticisi olarak davet edildin. Bu e-posta adresiyle hesap aç (ya da giriş yap) ve aşağıdaki davet bağlantısıyla katıl.`],
           rows: [['Kurum', String(d.org ?? '')], ['Davet kodu', code]],
           button: { label: 'Daveti kabul et', url }, note: `Bu e-postayı beklemiyorsan görmezden gelebilir ya da ${contact} adresine yazabilirsin.` };
+    return { subject, html: layout(L), text: plain(L) };
+  }
+  if (row.kind === 'investor_report') {
+    // Özet değerleri uygulamada biçimlenir (para birimi ve yüzde); burada yalnız gösterilir (layout kaçışlar).
+    const period = /^\d{4}(-Q[1-4])?$/.test(String(d.period ?? '')) ? String(d.period) : '';
+    const url = `${app}/uygulama/site/yatirimci${period ? '?donem=' + encodeURIComponent(period) : ''}`;
+    const label = String(d.label ?? period);
+    const v = (k: string) => String(d[k] ?? '');
+    subject = en ? `${d.org || 'anahtar'} · Investor report · ${label}` : `${d.org || 'anahtar'} · Yatırımcı raporu · ${label}`;
+    L = en
+      ? { lang: lg, foot, title: `Investor report · ${label}`,
+          lead: ['Hi,', `Here is the summary of the ${d.org || ''} investor report. Open the report to download the A4 PDF.`],
+          rows: [['Period revenue', v('revenue')], ['NOI', v('noi')], ['NOI margin', v('margin')], ['Occupancy (m²)', v('occupancy')], ['WALE', v('wale')],
+                 ['Collection rate', v('collection')], ['Receivables over 30 days', v('receivables')], ['FX difference', v('fx_diff')],
+                 [`Previous period (${v('prev_label')})`, v('prev_revenue')]],
+          button: { label: 'Open the report', url },
+          note: 'Amounts at the CBRT selling rate of each transaction’s day. This report does not replace audited financial statements or a valuation report.' }
+      : { lang: lg, foot, title: `Yatırımcı raporu · ${label}`,
+          lead: ['Merhaba,', `${d.org || ''} yatırımcı raporunun özeti aşağıda. A4 PDF’i indirmek için raporu aç.`],
+          rows: [['Dönem geliri', v('revenue')], ['NOI', v('noi')], ['NOI marjı', v('margin')], ['Doluluk (m²)', v('occupancy')], ['WALE', v('wale')],
+                 ['Tahsilat oranı', v('collection')], ['30 günü geçen alacak', v('receivables')], ['Kur farkı', v('fx_diff')],
+                 [`Önceki dönem (${v('prev_label')})`, v('prev_revenue')]],
+          button: { label: 'Raporu aç', url },
+          note: 'Tutarlar her işlemin kendi gününün TCMB döviz satış kuruyla çevrilmiştir. Bu rapor denetlenmiş finansal tablo ya da değerleme raporu yerine geçmez.' };
     return { subject, html: layout(L), text: plain(L) };
   }
   return null;
