@@ -11,7 +11,7 @@ import {
   KINDS, MODES, kindLabel, unitLabel, distribute, unpaidOf, lateFee, loadSiteAdmin, saveUnit, deleteUnit, parseUnits, importUnits,
   saveResident, deleteResident, createCharges, deleteCharge, decideCharge, markPaid, addExpense, deleteExpense, announce, deleteAnnouncement,
   answerRequest, mySiteUnits, loadMySite, payCharge, openSiteRequest, loadUnitCharges, budgetTotal, budgetAidat, saveBudget,
-  applyBudgetAidat, loadBudgets, siteReport, unitPays, payerText, isCommercial, overdue, occupancy, ciroDiff, reportTurnover, loadTurnovers, decideTurnover,
+  applyBudgetAidat, loadBudgets, siteReport, unitPays, payerText, depositKindLabel, isCommercial, overdue, occupancy, ciroDiff, reportTurnover, loadTurnovers, decideTurnover,
   dueIncreases, applyIncrease, rentCharge, nextAuto, saveAuto, cardReady, cardTotal, uploadSiteDoc, deleteSiteDoc, loadSiteDocs
 } from '../domain/site';
 import { loadRates } from '../domain/cpi';
@@ -136,7 +136,9 @@ function AutoAidat({ d, oid, can, reload }: { d: any; oid: string; can: (p: stri
   const [due, setDue] = useState(String(a?.due_day || 10));
   const [err, setErr] = useState<string | null>(null);
   const next = nextAuto(a);
-  const units = d.units.filter((u: any) => Number(u.aidat) > 0);
+  // Ticari portföy (AVM, depo, GYO): kiracısı olan ve sözleşmesi süren birimlerin kirası ve ortak gideri (sunucu: site_auto_run).
+  const commercial = isCommercial(d.sector);
+  const units = commercial ? d.units.filter((u: any) => Number(u.rent) > 0) : d.units.filter((u: any) => Number(u.aidat) > 0);
   const total = units.reduce((s: number, u: any) => s + Number(u.aidat), 0);
   const manage = can('charges.manage');
   const save = async (enabled: boolean) => {
@@ -149,28 +151,37 @@ function AutoAidat({ d, oid, can, reload }: { d: any; oid: string; can: (p: stri
     <Card gap={10}>
       <Row between wrap>
         <View style={{ flex: 1, minWidth: 200, gap: 2 }}>
-          <Row gap={8}><H2>{t('Aylık aidat')}</H2><Chip tone={a?.enabled ? 'ok' : 'neutral'} label={a?.enabled ? t('Otomatik') : t('Kapalı')} /></Row>
-          <Muted>{a?.enabled
-            ? t('Her dairenin aylık aidatı her ay kendiliğinden yazılır; son ödeme günü ayın {due}’i.', { due: a.due_day })
-            : t('Otomatik aidat kapalı. Açarsan her dairenin aylık aidatı her ay kendiliğinden yazılır.')}</Muted>
+          <Row gap={8}><H2>{commercial ? t('Aylık kira ve ortak gider') : t('Aylık aidat')}</H2><Chip tone={a?.enabled ? 'ok' : 'neutral'} label={a?.enabled ? t('Otomatik') : t('Kapalı')} /></Row>
+          <Muted>{commercial
+            ? (a?.enabled
+              ? t('Kiracısı olan ve sözleşmesi süren her birimin kirası ve ortak gideri her ayın 1’inde kendiliğinden yazılır; vade, sözleşmedeki ödeme günü.')
+              : t('Otomatik kira kapalı. Açarsan kiracısı olan ve sözleşmesi süren her birimin kirası ve ortak gideri her ay kendiliğinden yazılır.'))
+            : a?.enabled
+              ? t('Her dairenin aylık aidatı her ay kendiliğinden yazılır; son ödeme günü ayın {due}’i.', { due: a.due_day })
+              : t('Otomatik aidat kapalı. Açarsan her dairenin aylık aidatı her ay kendiliğinden yazılır.')}</Muted>
         </View>
-        {manage && !open ? <Button kind={a?.enabled ? 'ghost' : 'primary'} title={a?.enabled ? t('Değiştir') : t('Otomatik aidatı aç')} onPress={() => setOpen(true)} /> : null}
+        {manage && !open ? <Button kind={a?.enabled ? 'ghost' : 'primary'} title={a?.enabled ? t('Değiştir') : commercial ? t('Otomatik kirayı aç') : t('Otomatik aidatı aç')} onPress={() => setOpen(true)} /> : null}
       </Row>
       {a?.enabled && next ? (
         <View style={{ backgroundColor: c.surface2, borderRadius: radius.md, padding: 12, gap: 2 }}>
-          <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{t('Sonraki aidat: {month} · son ödeme {due}', { month: monthYear(String(next.date).slice(0, 7)), due: day(next.due) })}</Text>
-          <Muted>{units.length ? t('{n} daire · toplam {sum}', { n: units.length, sum: tl(total) }) : t('Dairelerde aylık aidat tanımlı değil; tutarları Daireler ekranından gir.')}</Muted>
+          <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{commercial ? t('Sonraki kira: {month}', { month: monthYear(String(next.date).slice(0, 7)) })
+            : t('Sonraki aidat: {month} · son ödeme {due}', { month: monthYear(String(next.date).slice(0, 7)), due: day(next.due) })}</Text>
+          <Muted>{commercial
+            ? (units.length ? t('{n} birimde kira tanımlı; dövizli kira o günün TCMB satış kuruyla TL’ye çevrilir, KDV ve stopaj sözleşmeye göre.', { n: units.length }) : t('Birimlerde kira tanımlı değil.'))
+            : units.length ? t('{n} daire · toplam {sum}', { n: units.length, sum: tl(total) }) : t('Dairelerde aylık aidat tanımlı değil; tutarları Daireler ekranından gir.')}</Muted>
           <Muted>{t('Hatırlatmalar: son ödemeden 3 gün önce, son gün, 5 ve 15 gün sonra.')}</Muted>
         </View>
       ) : null}
       {open ? (
         <Stack gap={10}>
+          {commercial ? <Muted>{t('Tutar her birimin sözleşmesindeki kira ve ortak gider avansıdır; vade sözleşmedeki ödeme günü. Ciro farkı onaydan sonra ayrıca yazılır. Aynı ay elle oluşturulmuş kayıt varsa ikinci kez yazılmaz.')}</Muted> : <>
           <View style={{ maxWidth: 220 }}><MoneyField label={t('Son ödeme günü (1–28)')} value={due} decimals={0} onChange={(x) => setDue(x.slice(0, 2))} /></View>
           <Muted>{t('Tutar her dairenin kendi aylık aidatıdır (Daireler ekranı). Yakıt, demirbaş gibi tek seferlik toplamaları aşağıdaki Ek ödeme iste ile istersin.')}</Muted>
+          </>}
           <Err e={err} />
           <Row wrap>
             <Button title={a?.enabled ? t('Kaydet') : t('Aç ve kaydet')} onPress={() => save(true)} />
-            {a?.enabled ? <Button kind="ghost" title={t('Otomatik aidatı kapat')} onPress={() => save(false)} /> : null}
+            {a?.enabled ? <Button kind="ghost" title={commercial ? t('Otomatik kirayı kapat') : t('Otomatik aidatı kapat')} onPress={() => save(false)} /> : null}
             <Button kind="quiet" title={t('Vazgeç')} onPress={() => setOpen(false)} />
           </Row>
         </Stack>
@@ -228,7 +239,7 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
   const owed = list.reduce((a: number, x: any) => a + Number(x.amount), 0);
   return (
     <Stack>
-      {!commercial && (d.modules || []).includes('aidat') ? <AutoAidat d={d} oid={oid} can={can} reload={reload} /> : null}
+      {(!commercial && (d.modules || []).includes('aidat')) || (commercial && (d.modules || []).includes('kira')) ? <AutoAidat d={d} oid={oid} can={can} reload={reload} /> : null}
       {can('charges.manage') && !commercial && !extra ? (
         <Row wrap gap={8}>
           <Button kind="ghost" title={t('Ek ödeme iste')} onPress={() => setExtra(true)} />
@@ -898,7 +909,11 @@ export function ResidentSiteScreen({ part = 'all' }: { part?: ResidentPart }) {
                 <Label>{u.org}</Label>
                 <Text v="h3">{unitLabel(u)}</Text>
                 <Muted>{isCommercial(u.sector)
-                  ? [t('Kiracı'), u.rent != null ? t('Kira') + ' ' + money(u.rent, u.currency) + ' ' + t('/ ay') : '', u.lease_end ? t('Sözleşme bitişi') + ' ' + day(u.lease_end) : ''].filter(Boolean).join(' · ')
+                  ? [t('Kiracı'), u.rent != null ? t('Kira') + ' ' + money(u.rent, u.currency) + ' ' + t('/ ay') : '', u.lease_end ? t('Sözleşme bitişi') + ' ' + day(u.lease_end) : '',
+                     u.deposit && Number(u.deposit.amount) > 0 ? t('Depozito') + ' ' + money(u.deposit.amount, u.deposit.currency) + ' (' + depositKindLabel(u.deposit.kind)
+                       + (u.deposit.kind === 'teminat' && u.deposit.until ? ', ' + t('bitiş {d}', { d: day(u.deposit.until) }) : '') + ')'
+                       + (u.deposit.returned_on ? ' · ' + t('{d} iade edildi: {v}', { d: day(u.deposit.returned_on), v: money(u.deposit.returned ?? 0, u.deposit.currency) })
+                         + (u.deposit.cut_reason ? ' · ' + t('kesinti: {r}', { r: u.deposit.cut_reason }) : '') : '') : ''].filter(Boolean).join(' · ')
                   : (u.role === 'malik' ? t('Malik') : t('Kiracı')) + ' · ' + payerText(u.payer, u.payer_effective)}</Muted>
               </View>
               <View style={{ alignItems: 'flex-end' }}><Muted>{t('Ödenmemiş')}</Muted><Text v="h3" color={due ? c.badInk : c.okInk}>{tl(due)}</Text></View>

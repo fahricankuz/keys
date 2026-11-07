@@ -11,6 +11,8 @@ permissions:
 
 jobs:
   test:
+    # Görünen ad zorunlu kontroldür (ana dal koruması): PR'da atlanan yayın işiyle ("test") karışmasın diye ayrı.
+    name: Testler (tam set)
     runs-on: ubuntu-24.04   # ubuntu-latest (26.04) Playwright 1.49 bağımlılıklarını kuramıyor
     # Testler ~11 dk; GitHub yavaşladığında (paket deposu, kuyruk) iş kesilmesin diye pay.
     timeout-minutes: 30
@@ -39,6 +41,9 @@ jobs:
             echo "Chromium açılamadı; sistem paketleri kuruluyor."
             npx playwright install-deps chromium
           fi
+      # Tutanak belgesi testi PDF'in metnini ve sayfa sayısını okur (pdftotext, pdfinfo); küçük paket, yazı tipi içermez.
+      - name: PDF araçları (poppler-utils)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends poppler-utils
       - run: npm test
       - uses: actions/upload-artifact@v4
         if: failure()
