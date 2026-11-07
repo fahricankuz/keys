@@ -197,6 +197,19 @@ export async function loadHealth(){
 }
 
 /** Müşteriyle temas notu (kişi ya da kurum). */
+/** Panelden e-posta (migration panel_eposta): p {to, subject, body, request_id?, user_id?, org_id?}. */
+export async function adminSendEmail(p){
+  return must(await (await client()).rpc('admin_send_email', { p }));
+}
+
+/** Panelden gönderilen son e-postalar (talebin altındaki "gönderildi" notları için). */
+export async function loadAdminEmails(){
+  try {
+    return must(await (await client()).from('admin_emails').select('id, to_email, subject, request_id, user_id, org_id, created_at')
+      .order('created_at', { ascending: false }).limit(500)) || [];
+  } catch { return []; }
+}
+
 export async function addContact({ user_id = null, org_id = null, note }){
   must(await (await client()).from('customer_contacts').insert({ user_id, org_id, note: String(note || '').trim() }));
 }
