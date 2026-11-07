@@ -408,7 +408,7 @@ export function PropDetail({ pid, sub = 'ozet' }: { pid: string; sub?: string })
       {/* Sohbet ekranı sayfayı doldurur: üstteki bant ve sekme şeridi esnemesin (yoksa dikeyde uzarlar). */}
       <View style={{ flexGrow: 0, flexShrink: 0, gap: 16 }}>
         <SubBanner full={false} />
-        <Seg scroll value={strip} onChange={(v) => go('/mulk-sahibi/mulk/' + p.id + '/' + v)} options={subs} />
+        <Seg scroll wrap value={strip} onChange={(v) => go('/mulk-sahibi/mulk/' + p.id + '/' + v)} options={subs} />
       </View>
       {sub === 'mesaj' ? <View style={{ flex: 1, minHeight: 0 }}>{body}</View> : body}
     </Page>
