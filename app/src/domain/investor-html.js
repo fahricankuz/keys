@@ -49,6 +49,8 @@ export function investorHtml(r, o = {}){
   const M = (n) => fmtMoney(n, r.cur);
   const TL = (n) => fmtMoney(n, 'TRY');
   const sym = fxSymbol(r.cur);
+  const tlOnly = r.cur === 'TRY';                       // TL raporu: çeviri yok, kur dip notu yok, TL sütunu tekrarlanmaz
+  const curName = tlOnly ? 'TL' : r.cur;
   const gen = o.generated || new Date();
   const title = `${r.org} · ${t('Yatırımcı raporu')} · ${r.range.label}`;
   const foot = (n) => `<div class="foot"><span>${esc(r.org)} · ${esc(r.range.label)}</span><span>${esc(t('anahtar · anahtar.io'))}</span><span>${n} / 3</span></div>`;
@@ -70,7 +72,8 @@ export function investorHtml(r, o = {}){
   </div>
   <div class="kpis">${kpis.map(([a, b, s]) => `<div class="kpi"><div class="kl">${esc(a)}</div><div class="kv" style="font-size:${fit(b, 34, 20)}px">${esc(b)}</div><div class="ks">${esc(s)}</div></div>`).join('')}</div>
   <div class="cover-note">
-    <p>${esc(t('Tutarlar {c} cinsindendir; her işlem kendi gününün TCMB döviz satış kuruyla çevrilmiştir.', { c: r.cur === 'EUR' ? t('avro') : t('dolar') }))}${r.rate ? ' ' + esc(t('Dönem sonu kuru: 1 {s} = {v}.', { s: sym, v: fmtMoney(r.rate, 'TRY', 2) })) : ''}</p>
+    <p>${tlOnly ? esc(t('Tutarlar TL’dir; dövizli sözleşmelerde tahakkuk anında TL’ye çevrilmiş tutar kullanılır.'))
+      : esc(t('Tutarlar {c} cinsindendir; her işlem kendi gününün TCMB döviz satış kuruyla çevrilmiştir.', { c: r.cur === 'EUR' ? t('avro') : t('dolar') })) + (r.rate ? ' ' + esc(t('Dönem sonu kuru: 1 {s} = {v}.', { s: sym, v: fmtMoney(r.rate, 'TRY', 2) })) : '')}</p>
     <p>${esc(t('Hazırlanma: {d}', { d: day(gen.toISOString ? isoLocal(gen) : gen) }))} · ${esc(t('Doluluk, WALE ve sözleşme bilgileri {d} tarihindeki durumdur.', { d: day(r.asOf) }))}</p>
   </div>
   ${foot(1)}
@@ -84,20 +87,23 @@ export function investorHtml(r, o = {}){
     [t('İşletme gideri'), -r.tl.opex, -r.now.opex, -r.prev.opex, 0],
     [t('NOI'), r.tl.noi, r.now.noi, r.prev.noi, 2]
   ];
+  // TL raporunda TL sütunu döviz sütunuyla aynı olacağı için gösterilmez.
+  const cell = (tl, now, prev, chg) => (tlOnly ? '' : `<td class="n">${esc(tl)}</td>`) + `<td class="n">${esc(now)}</td><td class="n">${esc(prev)}</td><td class="n">${esc(chg)}</td>`;
   const summary = `<table class="t sum">
-    <colgroup><col style="width:34%"><col style="width:18%"><col style="width:16%"><col style="width:18%"><col style="width:14%"></colgroup>
-    <tr><th>${esc(t('Kalem'))}</th><th class="n">TL</th><th class="n">${esc(r.cur)}</th><th class="n">${esc(t('Önceki dönem'))} (${esc(r.cur)})</th><th class="n">${esc(t('Değişim'))}</th></tr>
-    ${rows.map(([a, tl, now, prev, kind]) => `<tr class="${kind === 2 ? 'strong' : ''}"><td>${esc(a)}</td><td class="n">${esc(TL(tl))}</td><td class="n">${esc(M(now))}</td><td class="n">${esc(M(prev))}</td><td class="n">${esc(pct(change(now, prev)))}</td></tr>`).join('')}
-    <tr><td>${esc(t('NOI marjı'))}</td><td class="n">${esc(pct(r.tl.margin))}</td><td class="n">${esc(pct(r.now.margin))}</td><td class="n">${esc(pct(r.prev.margin))}</td><td class="n"></td></tr>
-    <tr><td>${esc(t('Tahsilat oranı'))}</td><td class="n">${esc(pct(r.tl.collection))}</td><td class="n">${esc(pct(r.now.collection))}</td><td class="n">${esc(pct(r.prev.collection))}</td><td class="n"></td></tr>
-    <tr><td>${esc(t('Kur farkı'))}</td><td class="n">${esc(TL(r.tl.diff))}</td><td class="n">${esc(M(r.now.diff))}</td><td class="n">${esc(M(r.prev.diff))}</td><td class="n"></td></tr>
+    <colgroup>${tlOnly ? '<col style="width:40%"><col style="width:22%"><col style="width:22%"><col style="width:16%">'
+      : '<col style="width:34%"><col style="width:18%"><col style="width:16%"><col style="width:18%"><col style="width:14%">'}</colgroup>
+    <tr><th>${esc(t('Kalem'))}</th>${tlOnly ? '' : '<th class="n">TL</th>'}<th class="n">${esc(curName)}</th><th class="n">${esc(t('Önceki dönem'))} (${esc(curName)})</th><th class="n">${esc(t('Değişim'))}</th></tr>
+    ${rows.map(([a, tl, now, prev, kind]) => `<tr class="${kind === 2 ? 'strong' : ''}"><td>${esc(a)}</td>${cell(TL(tl), M(now), M(prev), pct(change(now, prev)))}</tr>`).join('')}
+    <tr><td>${esc(t('NOI marjı'))}</td>${cell(pct(r.tl.margin), pct(r.now.margin), pct(r.prev.margin), '')}</tr>
+    <tr><td>${esc(t('Tahsilat oranı'))}</td>${cell(pct(r.tl.collection), pct(r.now.collection), pct(r.prev.collection), '')}</tr>
+    <tr><td>${esc(t('Kur farkı'))}</td>${cell(TL(r.tl.diff), M(r.now.diff), M(r.prev.diff), '')}</tr>
   </table>
   <div class="small">${esc(t('Önceki dönem: {p}. Kur farkı: dövizli sözleşmelerde tahsil edilen TL’nin ödeme günündeki karşılığı ile sözleşme tutarı arasındaki fark.', { p: r.prevRange.label }))}</div>`;
   const assets = more(r.assets, 6);
   const exp = more(r.expiries, 7);
   const page2 = `<section class="page">
   <h2>${esc(t('Özet'))}</h2>${summary}
-  <h3>${esc(t('12 aylık gelir ({c})', { c: r.cur }))}</h3>${chartSvg(r.chart, r.cur)}
+  <h3>${esc(t('12 aylık gelir ({c})', { c: curName }))}</h3>${chartSvg(r.chart, r.cur)}
   <div class="cols">
     <div><h3>${esc(t('Varlık bazında doluluk (m²)'))}</h3>
       <table class="t"><colgroup><col style="width:38%"><col style="width:22%"><col style="width:40%"></colgroup>
@@ -120,7 +126,7 @@ export function investorHtml(r, o = {}){
   <h2>${esc(t('Ayrıntılar'))}</h2>
   <h3>${esc(t('En büyük 10 kiracı'))}</h3>
   <table class="t"><colgroup><col style="width:34%"><col style="width:14%"><col style="width:20%"><col style="width:12%"><col style="width:20%"></colgroup>
-    <tr><th>${esc(t('Kiracı'))}</th><th class="n">m²</th><th class="n">${esc(t('Yıllık kira'))} (${esc(r.cur)})</th><th class="n">${esc(t('Pay'))}</th><th class="n">${esc(t('Bitiş'))}</th></tr>
+    <tr><th>${esc(t('Kiracı'))}</th><th class="n">m²</th><th class="n">${esc(t('Yıllık kira'))} (${esc(curName)})</th><th class="n">${esc(t('Pay'))}</th><th class="n">${esc(t('Bitiş'))}</th></tr>
     ${r.tenants.length ? r.tenants.map((x) => `<tr><td class="clip">${esc(x.name)}${x.name !== x.unit ? `<span class="sub">${esc(x.unit)}</span>` : ''}</td><td class="n">${esc(num(x.area))}</td><td class="n">${esc(M(x.rent))}</td><td class="n">${esc(pct(x.share))}</td><td class="n">${esc(x.end ? day(x.end) : t('Süresiz'))}</td></tr>`).join('') : `<tr><td colspan="5" class="small">${esc(t('Kiracı kaydı yok.'))}</td></tr>`}
   </table>
   <div class="cols">
@@ -140,9 +146,11 @@ export function investorHtml(r, o = {}){
   <h3>${esc(t('Yöntem notu'))}</h3>
   <div class="method">
     <p>${esc(t('Bu rapor anahtar’a girilen kayıtlardan hazırlanmıştır; denetlenmiş finansal tablo ya da değerleme raporu yerine geçmez.'))}</p>
-    <p>${esc(t('Kur: TCMB döviz satış kuru. Her işlem kendi gününün kuruyla çevrilir: tahsilat ödeme günü, istenen tutar son ödeme günü, gider harcama günü; hafta sonu ve tatilde son iş gününün kuru. Ödeme günü girilmemiş tahsilatta son ödeme günü kullanılır. Dövizli sözleşmede sözleşmedeki döviz tutarı esas alınır.'))}</p>
+    <p>${tlOnly
+      ? esc(t('Tutarlar kayıtlı TL değerleridir. Kur farkı: dövizli sözleşmelerde tahsil edilen TL ile sözleşme tutarının ödeme günündeki TCMB döviz satış kuru karşılığı arasındaki fark.'))
+      : esc(t('Kur: TCMB döviz satış kuru. Her işlem kendi gününün kuruyla çevrilir: tahsilat ödeme günü, istenen tutar son ödeme günü, gider harcama günü; hafta sonu ve tatilde son iş gününün kuru. Ödeme günü girilmemiş tahsilatta son ödeme günü kullanılır. Dövizli sözleşmede sözleşmedeki döviz tutarı esas alınır.'))}</p>
     <p>${esc(t('NOI = brüt kira (kira ve ciro farkı) + ortak gider tahakkuku − ortak gider harcaması − işletme gideri. WALE kira ağırlıklıdır. Doluluk m² üzerinden, kiracısı olan ve sözleşmesi süren birimlerle hesaplanır.'))}</p>
-    ${r.missing ? `<p>${esc(t('Bazı işlemlerin günü için kur bulunamadı; bu işlemler döviz toplamlarına katılmadı.'))}</p>` : ''}
+    ${r.missing && !tlOnly ? `<p>${esc(t('Bazı işlemlerin günü için kur bulunamadı; bu işlemler döviz toplamlarına katılmadı.'))}</p>` : ''}
   </div>
   ${foot(3)}
 </section>`;

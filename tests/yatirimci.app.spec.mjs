@@ -66,6 +66,15 @@ test('GYO: menüde yatırımcı raporu; göstergeler dolarda; not kaydedilir; ma
   await expect(page.getByText('Not kaydedildi.')).toBeVisible();
   await page.getByRole('button', { name: 'Mailime gönder' }).click();
   await expect(page.getByText('Rapor özeti ve bağlantısı e-postana gönderildi.')).toBeVisible();
+  // ₺ seçilince tutarlar TL; seçim hesapta saklanır, sayfayı yeniden açınca korunur.
+  await page.getByRole('button', { name: '₺ TL' }).click();
+  await expect(page.getByText(/· Yatırımcı raporu · TL/)).toBeVisible();
+  await expect(page.getByText(/^₺[1-9][\d.]*$/).first()).toBeVisible();
+  await page.waitForTimeout(1500);
+  await page.reload();
+  await expect(page.getByText(/· Yatırımcı raporu · TL/)).toBeVisible();
+  await page.getByRole('button', { name: '$ USD' }).click();
+  await expect(page.getByText(/· Yatırımcı raporu · USD/)).toBeVisible();
   const fake = await page.evaluate(() => JSON.parse(localStorage.getItem('__fakedb')).tables);
   expect(fake.site_investor_notes).toEqual([expect.objectContaining({ org_id: 'o1', note: 'Doluluk hedefi %95.' })]);
   expect(fake.mail_outbox).toEqual([expect.objectContaining({ kind: 'investor_report', to_email: 'ev@ornek.com', data: expect.objectContaining({ org: 'Marmara GYO', currency: 'USD' }) })]);

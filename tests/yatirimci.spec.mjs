@@ -143,6 +143,22 @@ test('A4 belgesi: üç sayfa, betik yok, kaçışlı ad, not yalnız doluysa, y�
   expect((big.match(/<td class="clip">Kiracı \d+/g) || []).length).toBeLessThanOrEqual(10);
 });
 
+test('TL raporu: çeviri yok, TL sütunu tekrarlanmaz, kur dip notu yok; kurumun varsayılanı yalnız seçim yoksa', () => {
+  const tl = M.investorReport({ d: fixture(), org, key: '2026-Q3', table: rates(), cur: 'TRY', today: new Date('2026-11-06T12:00:00Z') });
+  expect(tl.cur).toBe('TRY');
+  expect(tl.now.gross).toBe(2100000);                                    // kayıtlı TL
+  expect(tl.rate).toBe(null);
+  const html = M.investorHtml(tl, {});
+  expect(html).not.toContain('TCMB döviz satış kuruyla çevrilmiştir');
+  expect(html).not.toContain('Dönem sonu kuru');
+  expect(html).toContain('Tutarlar TL’dir');
+  expect(html).toContain('12 aylık gelir (TL)');
+  expect(html).not.toContain('<th class="n">TL</th><th class="n">TL</th>');
+  expect(html).toContain('₺2.100.000');
+  expect(M.investorReport({ d: fixture(), org: { ...org, report_currency: 'EUR' }, key: '2026-Q3', table: rates() }).cur).toBe('EUR');
+  expect(M.investorReport({ d: fixture(), org: { ...org, report_currency: 'EUR' }, key: '2026-Q3', table: rates(), cur: 'USD' }).cur).toBe('USD');
+});
+
 test('mailime gönder e-postası: özet satırları, rapor bağlantısı (dönemle), kaçış ve İngilizce', () => {
   const data = { org: 'Marmara <GYO>', period: '2026-Q3', label: '3. çeyrek 2026', revenue: '$55.500', noi: '$52.000', margin: '%93,7', occupancy: '%50', wale: '2,4 yıl',
     collection: '%95,5', receivables: '$2.500', fx_diff: '$0', prev_revenue: '$10.000', prev_label: '2. çeyrek 2026' };
