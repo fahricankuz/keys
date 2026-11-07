@@ -176,7 +176,13 @@
           "microphonePermission": false
         }
       ],
-      "expo-document-picker"
+      "expo-document-picker",
+      [
+        "expo-notifications",
+        {
+          "color": "#C8302E"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false

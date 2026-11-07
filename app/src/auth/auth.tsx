@@ -1,6 +1,8 @@
 /* Oturum. Supabase kuruluysa gerçek hesap; değilse bu cihaza özel yerel hesap.
    Uygulama (/uygulama) yalnızca oturumla açılır. */
 import { CAPTCHA_KEY, captchaPending, captchaSpent, captchaToken } from './captcha';
+import { logOutStore } from '../domain/iap';
+import { unregisterDevice } from '../domain/native-push';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { hydrate, storage } from '../domain/storage';
 import { LIVE, CONFIG } from '../domain/config';
@@ -234,6 +236,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     leaving = true;
+    try { await logOutStore(); } catch {}
+    try { if (LIVE) await unregisterDevice(); } catch {}
     try { if (LIVE) await backend.closeSession(); } catch {}
     leaving = false;
     storage.removeItem(SESSION);

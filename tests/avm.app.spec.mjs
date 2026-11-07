@@ -57,7 +57,7 @@ test('AVM: mağaza ve sözleşme, döviz kira tahakkuku, ciro bildirimi ve fark�
   await page.getByRole('button', { name: 'Birimi ekle' }).click();
   await expect(page.getByText('Birim eklendi.')).toBeVisible();
   await expect(page.getByText('Zemin kat · Z-12')).toBeVisible();
-  await page.getByRole('button', { name: 'Zemin kat · Z-12 için diğer işlemler' }).click();
+  await page.getByRole('button', { name: /^Zemin kat · Z-12 · / }).click();          // satır dokununca açılır
   await page.getByRole('button', { name: 'Sözleşmeyi düzenle' }).click();
   await page.getByLabel('Ciro kirası (%)').fill('8');
   await page.getByLabel('Ödeme günü').fill('5');
@@ -66,23 +66,24 @@ test('AVM: mağaza ve sözleşme, döviz kira tahakkuku, ciro bildirimi ve fark�
   await page.getByLabel('Yıllık artış oranı (%)').fill('25');
   await page.getByRole('checkbox', { name: 'KDV eklenir (%20)' }).click();
   await page.getByRole('button', { name: 'Sözleşmeyi kaydet' }).click();
-  await expect(page.getByText('Kira $2.000 + KDV')).toBeVisible();
+  await expect(page.getByText('$2.000').first()).toBeVisible();
+  await expect(page.getByText(/KDV hariç/).first()).toBeVisible();
   await expect(page.getByText(/Ciro %8/).first()).toBeVisible();
   await page.getByRole('button', { name: 'Kiracı ekle' }).click();
   await page.getByLabel('Kiracı firma ya da ad soyad').fill('Moda Giyim A.Ş.');
   await page.getByRole('button', { name: 'Davet gönder' }).click();
   await expect(page.getByText('Davet hazır')).toBeVisible();
   await page.getByRole('button', { name: 'Tamam' }).click();
-  await expect(page.getByText('Moda Giyim A.Ş.')).toBeVisible();
+  await expect(page.getByText('Moda Giyim A.Ş.').first()).toBeVisible();
   const code = (await db(page)).tables.site_residents[0].code;
 
   // Kira tahakkuku: USD kuru girilir; 2.000 × 34 × 1,20 (KDV) = 81.600; vade sözleşmedeki ödeme günü.
-  await page.getByRole('link', { name: 'Kira ve tahakkuk', exact: true }).first().click();
+  await page.getByRole('link', { name: 'Kira', exact: true }).first().click();
   await expect(page.getByText('Döviz kirası olan birimler için kuru yaz.')).toBeVisible();
   await page.getByLabel('USD kuru (₺)').fill('34');
   await expect(page.getByText('1 birime toplam ₺81.600')).toBeVisible();
-  await page.getByRole('button', { name: 'Tahakkuk et' }).click();
-  await expect(page.getByText('1 birime tahakkuk edildi.')).toBeVisible();
+  await page.getByRole('button', { name: 'Oluştur', exact: true }).click();
+  await expect(page.getByText('1 birime eklendi.')).toBeVisible();
   let d = await db(page);
   expect(d.tables.site_charges[0]).toMatchObject({ kind: 'kira', amount: 81600, currency: 'USD', fx: 34, orig_amount: 2000, due_on: month + '-05' });
 

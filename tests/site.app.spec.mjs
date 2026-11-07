@@ -52,12 +52,24 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await expect(page).toHaveURL(/\/uygulama\/site$/);            // kurum yöneticisi girişte kendi panelinde açılır
   await page.getByRole('link', { name: 'Daireler', exact: true }).first().click();
   await page.getByRole('button', { name: 'Toplu ekle' }).click();
-  await page.getByLabel('Daire listesi').fill('Blok;No;m2;Arsa payı;Aidat;Malik\nA;1;120;2;1500;Ali Malik;05320000000\nA;2;80;1;1000;Veli Malik');
-  await expect(page.getByText('2 daire okundu')).toBeVisible();
-  await page.getByRole('button', { name: 'Daireleri ekle' }).click();
-  await expect(page.getByText('2 daire eklendi.')).toBeVisible();
+  // Şablon indirilir; doldurulan dosya yüklenir: hatalı satır (m² yok) eklenmez, e-postası olan malike davet kendiliğinden gider.
+  const dl = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Şablonu indir (Excel)' }).click();
+  expect((await dl).suggestedFilename()).toBe('anahtar-daire-sablonu.xlsx');
+  const csv = 'Blok;Daire no;m²;Arsa payı;Aylık aidat (₺);Malik adı;Malik telefonu;Malik e-posta\nA;1;120;2;1500;Ali Malik;05320000000;\nA;2;80;1;1000;Veli Malik;;veli@ornek.com\nA;3;;1;1000;Eksik Metrekare;;';
+  const pick = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Dosyayı yükle' }).click();
+  await (await pick).setFiles({ name: 'daireler.csv', mimeType: 'text/csv', buffer: Buffer.from(csv, 'utf8') });
+  await expect(page.getByText(/3 satır · 2 hazır · 1 hatalı/)).toBeVisible();
+  await expect(page.getByText(/Satır 4: m² eksik ya da hatalı/)).toBeVisible();
+  await page.getByRole('button', { name: '2 daireyi ekle' }).click();
+  await expect(page.getByText(/2 daire eklendi\. 2 kişi eklendi\. 1 kişiye davet e-postası gönderildi\./)).toBeVisible();
   await expect(page.getByText('Ali Malik')).toBeVisible();
+  const veli = (await db(page)).tables.site_residents.find((r) => r.name === 'Veli Malik');
+  expect(veli.email).toBe('veli@ornek.com');
+  await expect.poll(async () => (await db(page)).invokedBodies || []).toContainEqual({ name: 'site-invite', body: { resident: veli.id } });
   // Kişi ekle → Davet gönder: e-posta fonksiyonu çağrılır, WhatsApp hazır mesajla (bağlantı ve kod) açılır.
+  await page.getByRole('button', { name: /^A Blok No 1 · / }).click();            // satır dokununca açılır
   await page.getByRole('button', { name: 'Kişi ekle' }).first().click();
   await page.getByLabel('Ad soyad').fill('Mehmet Kiracı');
   await page.getByLabel('Telefon', { exact: true }).fill('0532 123 45 67');
@@ -78,10 +90,11 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await expect(page.getByText('Mehmet Kiracı')).toBeVisible();
   await expect(page.getByText('Davet gönderildi')).toBeVisible();
 
-  await page.getByRole('link', { name: 'Aidat ve tahakkuk', exact: true }).first().click();
+  await page.getByRole('link', { name: 'Aidat', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Ek ödeme iste' }).click();        // otomatik aidat kapalıyken aidat da buradan istenir
   await expect(page.getByText('2 daireye toplam ₺2.500')).toBeVisible();
-  await page.getByRole('button', { name: 'Tahakkuk et' }).click();
-  await expect(page.getByText('2 daireye tahakkuk edildi.')).toBeVisible();
+  await page.getByRole('button', { name: 'Ödemeyi iste' }).click();
+  await expect(page.getByText('2 daireye eklendi.')).toBeVisible();
   await page.getByRole('link', { name: 'Duyurular', exact: true }).first().click();
   await page.getByLabel('Başlık').fill('Su kesintisi');
   await page.getByLabel('Duyuru metni').fill('Yarın 10-14 arası su kesilecek.');
@@ -110,7 +123,7 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await expect(page.getByText('Su kesintisi')).toBeVisible();
   await page.getByRole('button', { name: 'Dekont yükle' }).click();
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Dosya seç' }).click();
+  await page.getByRole('button', { name: 'Dosya seç' }).first().click();         // ikincisi Belgeler bölümünde
   await (await chooser).setFiles(PNG);
   await expect(page.getByText('dekont.png')).toBeVisible();
   await page.getByRole('button', { name: 'Yönetime gönder' }).click();
@@ -143,8 +156,8 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await page.getByRole('button', { name: 'Dairelere dağıt' }).click();
   await expect(page.getByLabel('Başlık')).toHaveValue('Çatı onarımı');
   await expect(page.getByText('2 daireye toplam ₺3.000')).toBeVisible();
-  await page.getByRole('button', { name: 'Tahakkuk et' }).click();
-  await expect(page.getByText('2 daireye tahakkuk edildi.')).toBeVisible();
+  await page.getByRole('button', { name: 'Ödemeyi iste' }).click();
+  await expect(page.getByText('2 daireye eklendi.')).toBeVisible();
   d = await db(page);
   expect(d.tables.site_charges.filter(x => x.kind === 'ozel').map(x => x.amount).sort()).toEqual([1000, 2000]);   // arsa payı 2:1
 
@@ -192,6 +205,7 @@ test('ev sahibi mülkünü site dairesine bağlar; kiracı kira ile aidatı ayn�
   await expect(page).toHaveURL(/\/uygulama\/site$/);            // kurum yöneticisi girişte kendi panelinde açılır
   await page.goto(url('/uygulama/site'));
   await page.getByRole('link', { name: 'Daireler', exact: true }).first().click();
+  await page.getByRole('button', { name: /^A Blok No 1 · / }).click();
   await expect(page.getByText('Ev sahibi üzerinden')).toBeVisible();              // kiracı ev sahibinin anahtar hesabı üzerinden bağlı
   await page.getByRole('link', { name: 'İşletme projesi', exact: true }).first().click();
   await page.getByLabel('Gider kalemi').fill('Asansör bakımı');
@@ -259,4 +273,57 @@ test('genel kurul: yönetim çağırır ve paketi açar, yoklama açar; malik ka
   await page.getByLabel('Karar defteri notu (toplantıdan sonra)').fill('Çatı yalıtımı oy birliğiyle kabul edildi.');
   await page.getByRole('button', { name: 'Toplantı yapıldı olarak kaydet' }).click();
   await expect(page.getByText('Yapıldı')).toBeVisible();
+});
+
+test('yalnız site sakini: "Mülküne bağlan" yok; ana sayfa, ödemeler, talepler ve belgeler site ekranı; yönetim belge paylaşır', async ({ page }) => {
+  await page.addInitScript(([T]) => {
+    const d = JSON.parse(localStorage.getItem('__fakedb'));
+    if (!d || (d.tables.site_units || []).length) return;
+    const at = new Date().toISOString(), m = at.slice(0, 7);
+    d.tables.memberships = d.tables.memberships.filter((x) => x.user_id !== T);           // kiracının mülkü yok, yalnız site sakini
+    d.tables.site_units = [{ id: 'u1', org_id: 'o1', block: 'A', no: '1', area: 100, share: 1, aidat: 1500, payer: 'kiraci', created_at: at }];
+    d.tables.site_residents = [{ id: 'r1', org_id: 'o1', unit_id: 'u1', user_id: T, role: 'kiraci', name: 'Mehmet Kiracı', code: 'S1111111', created_at: at }];
+    d.tables.site_charges = [{ id: 'c1', org_id: 'o1', unit_id: 'u1', month: m, kind: 'aidat', title: '', amount: 1500, status: 'open', paid_amount: 0, created_at: at }];
+    d.tables.site_documents = [{ id: 'd1', org_id: 'o1', unit_id: null, audience: 'herkes', title: '2027 işletme projesi', name: 'proje.pdf', path: 'site-o1/proje.pdf', uploaded_by: null, created_at: at }];
+    localStorage.setItem('__fakedb', JSON.stringify(d));
+  }, [ID.tenant]);
+  await login(page, 'kiraci@ornek.com');
+  await page.goto(url('/uygulama'));
+  await expect(page.getByText('A Blok No 1').first()).toBeVisible();
+  await expect(page.getByText('Mülküne bağlan')).toHaveCount(0);
+  await expect(page.getByText('₺1.500').first()).toBeVisible();
+  await page.goto(url('/uygulama/odemeler'));
+  await expect(page.getByRole('heading', { name: 'Ödemeler' }).or(page.getByText('Ödemeler', { exact: true })).first()).toBeVisible();
+  await expect(page.getByText('Mülküne bağlan')).toHaveCount(0);
+  await page.goto(url('/uygulama/talepler'));
+  await page.getByLabel('Başlık').fill('Asansör çalışmıyor');
+  await page.getByRole('button', { name: 'Talebi gönder' }).click();
+  await expect(page.getByText('Talebin yönetime iletildi.')).toBeVisible();
+  await page.goto(url('/uygulama/mesajlar'));
+  await expect(page).toHaveURL(/\/uygulama\/talepler$/);                                  // mesajlaşma yok; yönetime talep
+  await page.goto(url('/uygulama/belgeler'));
+  await expect(page.getByText('2027 işletme projesi')).toBeVisible();
+  await page.getByLabel('Belgenin adı').fill('Kira sözleşmem');
+  const pick = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Dosya seç' }).click();
+  await (await pick).setFiles(PNG);
+  await page.getByRole('button', { name: 'Gönder', exact: true }).click();
+  await expect(page.getByText('Belgen yönetime gönderildi.')).toBeVisible();
+  let d = await db(page);
+  expect(d.tables.site_documents.find((x) => x.title === 'Kira sözleşmem')).toMatchObject({ audience: 'yonetim', unit_id: 'u1', org_id: 'o1' });
+
+  // Yönetim: sakinden geleni görür, tek daireye belge paylaşır.
+  await login(page, 'ev@ornek.com');
+  await page.goto(url('/uygulama/site/belgeler'));
+  await expect(page.getByText('Sakinlerden gelenler')).toBeVisible();
+  await expect(page.getByText('Kira sözleşmem')).toBeVisible();
+  await page.getByRole('tab', { name: 'Bir daire' }).or(page.getByRole('button', { name: 'Bir daire' })).first().click();
+  await page.getByLabel('Daire', { exact: true }).fill('A Blok');
+  await page.getByRole('checkbox', { name: 'A Blok No 1' }).click();
+  await page.getByLabel('Belgenin adı').fill('Sayaç tutanağı');
+  const pick2 = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Dosya seç' }).click();
+  await (await pick2).setFiles(PNG);
+  await page.getByRole('button', { name: 'Paylaş', exact: true }).click();
+  await expect.poll(async () => (await db(page)).tables.site_documents.find((x) => x.title === 'Sayaç tutanağı')).toMatchObject({ audience: 'daire', unit_id: 'u1' });
 });

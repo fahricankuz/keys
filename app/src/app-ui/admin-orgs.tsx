@@ -32,6 +32,7 @@ function OrgForm({ org, draft, done }: { org?: any; draft?: OrgDraft | null; don
   const [tax, setTax] = useState<string>(init.billing?.tax_no || '');
   const [mail, setMail] = useState<string>(init.billing?.email || draft?.email || '');
   const [note, setNote] = useState<string>(init.note || draft?.note || '');
+  const [fxCur, setFxCur] = useState<string>(init.report_currency === 'EUR' ? 'EUR' : 'USD');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const pickSector = (s: string) => { setSector(s); if (!org) setMods(sectorModules(s)); };
@@ -41,7 +42,7 @@ function OrgForm({ org, draft, done }: { org?: any; draft?: OrgDraft | null; don
     setBusy(true);
     try {
       const id = await adminSaveOrg({ id: org?.id, name, sector, modules: mods, units: units.replace(/\D/g, '') || null, contract_until: until || null,
-        billing: { title, tax_no: tax, email: mail }, note, lead_id: org ? undefined : draft?.lead_id });
+        billing: { title, tax_no: tax, email: mail }, note, lead_id: org ? undefined : draft?.lead_id, report_currency: fxCur });
       done(id);
     } catch (e) { setErr(humanError(e)); }
     setBusy(false);
@@ -62,6 +63,16 @@ function OrgForm({ org, draft, done }: { org?: any; draft?: OrgDraft | null; don
             onPress={() => setMods((x) => (x.includes(m.key) ? x.filter((y) => y !== m.key) : [...x, m.key]))} />
         ))}
       </View>
+      {mods.includes('yatirimci') ? (
+        <View style={{ gap: 6 }}>
+          <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{t('Yatırımcı raporu para birimi')}</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }} accessibilityRole="radiogroup">
+            <Pill label={t('Dolar ($)')} on={fxCur === 'USD'} onPress={() => setFxCur('USD')} />
+            <Pill label={t('Avro (€)')} on={fxCur === 'EUR'} onPress={() => setFxCur('EUR')} />
+          </View>
+          <Muted>{t('Rapordaki tutarlar bu para biriminde, her işlem kendi gününün TCMB döviz satış kuruyla gösterilir.')}</Muted>
+        </View>
+      ) : null}
       <Row gap={10} wrap align="flex-end">
         <View style={{ flexGrow: 1, flexBasis: 160 }}><Field label={t('Birim sayısı (sözleşme)')} value={units} onChangeText={(x) => setUnits(x.replace(/\D/g, ''))} keyboardType="number-pad" placeholder={t('ör. 240')} /></View>
         <View style={{ flexGrow: 1, flexBasis: 160 }}><Field label={t('Sözleşme bitişi (YYYY-AA-GG)')} value={until} onChangeText={setUntil} maxLength={10} placeholder="2027-12-31" /></View>

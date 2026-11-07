@@ -56,6 +56,7 @@ export const MODULES = () => [
   { key: 'doluluk', label: t('Doluluk raporu'), ready: true },
   { key: 'onay_akisi', label: t('Onay akışı'), ready: false },
   { key: 'rapor', label: t('Aylık ve yıllık rapor'), ready: true },
+  { key: 'yatirimci', label: t('Yatırımcı raporu'), ready: true },
   { key: 'api', label: t('API ve dışa aktarma'), ready: false }
 ];
 
@@ -65,7 +66,7 @@ export function sectorModules(sector){
     site: ['aidat', 'gider_dagitim', 'duyuru', 'rapor'],
     avm: ['kira', 'ortak_gider', 'ciro_kira', 'endeksleme', 'doluluk', 'duyuru', 'rapor'],
     depo: ['kira', 'ortak_gider', 'endeksleme', 'doluluk', 'duyuru', 'rapor'],
-    gyo: ['kira', 'ortak_gider', 'endeksleme', 'doluluk', 'duyuru', 'rapor']
+    gyo: ['kira', 'ortak_gider', 'endeksleme', 'doluluk', 'duyuru', 'rapor', 'yatirimci']
   })[sector] || ['kira', 'rapor'];
 }
 
@@ -82,7 +83,7 @@ export function sectorSections(org){
   const list = [
     { key: 'ozet', label: t('Özet'), icon: 'grid' },
     { key: 'birimler', label: T.units, icon: 'home' },
-    { key: 'tahakkuk', label: site ? t('Aidat ve tahakkuk') : t('Kira ve tahakkuk'), icon: 'card' }
+    { key: 'tahakkuk', label: site ? t('Aidat') : t('Kira'), icon: 'card' }
   ];
   if (!site && hasModule(org, 'ciro_kira')) list.push({ key: 'ciro', label: t('Ciro'), icon: 'chart' });
   if (!site && hasModule(org, 'endeksleme')) list.push({ key: 'artis', label: t('Kira artışları'), icon: 'calendar' });
@@ -91,7 +92,9 @@ export function sectorSections(org){
   if (hasModule(org, 'duyuru')) list.push({ key: 'duyurular', label: t('Duyurular'), icon: 'bell' });
   if (site && hasModule(org, 'duyuru')) list.push({ key: 'genelkurul', label: t('Genel kurul'), icon: 'calendar' });
   list.push({ key: 'talepler', label: t('Talepler'), icon: 'wrench' });
+  list.push({ key: 'belgeler', label: t('Belgeler'), icon: 'doc' });
   if (hasModule(org, 'rapor') && can('reports.view')) list.push({ key: 'rapor', label: t('Rapor'), icon: 'chart' });
+  if (!site && hasModule(org, 'yatirimci') && can('reports.view')) list.push({ key: 'yatirimci', label: t('Yatırımcı raporu'), icon: 'chart' });
   return list;
 }
 

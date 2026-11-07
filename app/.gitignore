@@ -5,3 +5,4 @@ dist/
 .claude/
 dist-fake/
 dist-fake.lock/
+google-services.json

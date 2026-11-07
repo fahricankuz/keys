@@ -1,4 +1,5 @@
-import { Redirect, Slot } from 'expo-router';
+import { useEffect } from 'react';
+import { Redirect, Slot, useRouter } from 'expo-router';
 import { View } from 'react-native';
 import { useAuth } from '../../auth/auth';
 import AppShell from '../../app-ui/AppShell';
@@ -6,11 +7,16 @@ import JoinCode from '../../app-ui/JoinCode';
 import { useStore } from '../../app-ui/hooks';
 import { FullLoader } from '../../ui/Loader';
 import { myOrgs } from '../../domain/org';
+import { registerDevice, listenNotificationTaps } from '../../domain/native-push';
 
 /** Kapı: uygulama yalnızca oturumla açılır. Yöneticiler /admin'e, bağlanmamış kiracılar ve ekip üyeleri kod ekranına gider. */
 export default function Gate() {
   const { user, ready, live } = useAuth();
   const { S } = useStore();
+  const router = useRouter();
+  // Telefon uygulaması: oturum açılınca bildirim izni ve cihaz kaydı; bildirime dokununca ilgili ekran (web'de işlem yapmaz).
+  useEffect(() => { if (live && user && !user.admin) registerDevice(); }, [live, user?.id]);
+  useEffect(() => listenNotificationTaps((p: string) => router.push(p as any)), []);
   if (!ready) return <FullLoader />;
   if (!user) return <Redirect href="/giris" />;
   if (user.admin) return <Redirect href="/admin" />;

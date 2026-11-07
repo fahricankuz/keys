@@ -5279,3 +5279,390 @@ returns table (org_id uuid, user_id uuid, email text, name text, lang text) lang
   where o.status = 'active' and exists (select 1 from public.site_units su where su.org_id = o.id)
     and coalesce((p.settings ->> 'siteReport')::boolean, true)
 $$;
+
+-- ===== migration: 20261106175619_otomatik_aidat_varsayilan.sql =====
+-- Otomatik aidat varsayılan: aylık aidat kira gibi her ay kendiliğinden yazılır.
+-- 1. Mevcut sitelerde açılır (aidat günü, yani son ödeme, ayın 10'u). Kapalı olanlar gelecek aydan başlar ki bu ayın ortasında
+--    beklenmedik borç yazılmasın; zaten açık olanlara dokunulmaz.
+-- 2. Yeni site (ya da sektörü siteye çevrilen kurum) açık başlar, bu aydan itibaren.
+-- Yönetici Aidat ekranından kapatabilir. Yalnız ayar satırları ve bir tetikleyici; eski kodla uyumlu, yeniden çalıştırılabilir
+-- (bir kez açılıp sonra yönetici tarafından kapatılan site, migration yeniden çalışınca yeniden açılmaz: auto_default işareti).
+
+alter table public.site_auto add column if not exists auto_default boolean not null default false;
+
+insert into public.site_auto (org_id, enabled, run_day, due_day, start_month, auto_default)
+select o.id, true, 1, 10, to_char((date_trunc('month', now() at time zone 'Europe/Istanbul') + interval '1 month')::date, 'YYYY-MM'), true
+  from public.organizations o
+ where o.sector = 'site'
+on conflict (org_id) do nothing;
+
+update public.site_auto s
+   set enabled = true, run_day = 1,
+       start_month = to_char((date_trunc('month', now() at time zone 'Europe/Istanbul') + interval '1 month')::date, 'YYYY-MM'),
+       auto_default = true, updated_at = now()
+ where not s.enabled and not s.auto_default
+   and exists (select 1 from public.organizations o where o.id = s.org_id and o.sector = 'site');
+
+/** Yeni site ya da sektörü siteye çevrilen kurum: otomatik aidat açık başlar (bu aydan, son ödeme ayın 10'u). */
+create or replace function public.site_auto_default()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.sector = 'site' and (tg_op = 'INSERT' or old.sector is distinct from 'site') then
+    insert into public.site_auto (org_id, enabled, run_day, due_day, start_month, auto_default)
+    values (new.id, true, 1, 10, to_char((now() at time zone 'Europe/Istanbul')::date, 'YYYY-MM'), true)
+    on conflict (org_id) do nothing;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.site_auto_default() from public, anon, authenticated;
+drop trigger if exists site_auto_default on public.organizations;
+create trigger site_auto_default after insert or update of sector on public.organizations
+  for each row execute function public.site_auto_default();
+
+-- ===== migration: 20261106175935_site_belgeleri.sql =====
+-- Site belgeleri: yönetim bütün siteye (işletme projesi, karar defteri, sigorta poliçesi…) ya da tek daireye belge yükler;
+-- sakin (malik, kiracı ya da bağlı mülkün kiracısı) yönetime belge gönderir. Dosya site klasöründe (site-<kurum>/…).
+-- audience: 'herkes' (sitenin bütün sakinleri), 'daire' (yalnız o dairenin sakinleri), 'yonetim' (sakinden yönetime).
+-- site_folder_ok artık bağlı mülkün kiracısını da tanır (site_links): dekont ve belge dosyalarını o da yükleyip açar.
+-- Yeni tablo ve işlev gövdesi; eski kodla uyumlu, yeniden çalıştırılabilir.
+
+create table if not exists public.site_documents (
+  id          uuid primary key default gen_random_uuid(),
+  org_id      uuid not null references public.organizations(id) on delete cascade,
+  unit_id     uuid references public.site_units(id) on delete cascade,
+  audience    text not null default 'herkes' check (audience in ('herkes','daire','yonetim')),
+  title       text not null check (length(btrim(title)) between 2 and 160),
+  name        text not null default '' check (length(name) <= 200),
+  path        text not null check (path ~ '^site-[0-9a-f-]{36}/'),
+  uploaded_by uuid references public.profiles(id) on delete set null default auth.uid(),
+  created_at  timestamptz not null default now(),
+  check ((audience = 'herkes' and unit_id is null) or (audience in ('daire','yonetim') and unit_id is not null))
+);
+create index if not exists site_documents_org on public.site_documents (org_id, created_at desc);
+
+alter table public.site_documents enable row level security;
+drop policy if exists not_banned on public.site_documents;
+create policy not_banned on public.site_documents as restrictive for all to authenticated using (not public.is_banned()) with check (not public.is_banned());
+
+/** Oturumdaki kişi bu sitenin (ya da bu dairenin) sakini mi? Bağlı mülkün kiracısı dahil. */
+create or replace function public.site_linked(oid uuid, unit uuid default null)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.site_links(auth.uid()) l where l.org_id = oid and (unit is null or l.unit_id = unit))
+$$;
+grant execute on function public.site_linked(uuid, uuid) to authenticated;
+
+drop policy if exists sd_read on public.site_documents;
+create policy sd_read on public.site_documents for select to authenticated
+  using (public.is_org_member(org_id) or public.is_admin() or uploaded_by = auth.uid()
+         or (audience = 'herkes' and public.site_linked(org_id))
+         or (audience = 'daire' and public.site_linked(org_id, unit_id)));
+drop policy if exists sd_insert on public.site_documents;
+create policy sd_insert on public.site_documents for insert to authenticated
+  with check (uploaded_by = auth.uid()
+    and position('site-' || org_id::text || '/' in path) = 1
+    and (unit_id is null or exists (select 1 from public.site_units u where u.id = unit_id and u.org_id = site_documents.org_id))
+    and ((audience in ('herkes','daire') and public.org_can(org_id, 'documents.manage'))
+         or (audience = 'yonetim' and public.site_linked(org_id, unit_id))));
+drop policy if exists sd_delete on public.site_documents;
+create policy sd_delete on public.site_documents for delete to authenticated
+  using (public.org_can(org_id, 'documents.manage') or uploaded_by = auth.uid());
+
+/** Site klasörü: kurum üyesi ya da sitenin sakini (bağlı mülkün kiracısı dahil). */
+create or replace function public.site_folder_ok(folder text)
+returns boolean language plpgsql stable security definer set search_path = public as $$
+declare oid uuid;
+begin
+  if folder is null or folder !~ '^site-[0-9a-f-]{36}$' then return false; end if;
+  oid := substr(folder, 6)::uuid;
+  return public.is_org_member(oid) or public.is_site_resident(oid) or public.site_linked(oid);
+end $$;
+grant execute on function public.site_folder_ok(text) to authenticated;
+
+/** Bildirim: siteye belge (sakinlere), daireye belge (dairenin sakinlerine), sakinden belge (belge yetkisi olan yönetime). */
+create or replace function public.on_site_document()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.audience = 'yonetim' then
+    insert into public.notifications (user_id, title, body, url)
+    select u, public.unit_label(new.unit_id) || ': yeni belge', new.title, '/uygulama/site/belgeler'
+    from public.org_people(new.org_id, 'documents.manage') u where u is distinct from auth.uid();
+  else
+    insert into public.notifications (user_id, title, body, url)
+    select distinct l.uid, 'Yeni belge', new.title, '/uygulama/belgeler'
+    from (select r.user_id uid, r.unit_id, r.org_id from public.site_residents r where r.user_id is not null
+          union
+          select m.user_id, u.id, u.org_id from public.properties p join public.site_units u on u.id = p.site_unit_id
+            join public.memberships m on m.property_id = p.id and m.role = 'tenant') l
+    where l.org_id = new.org_id and (new.audience = 'herkes' or l.unit_id = new.unit_id) and l.uid is distinct from auth.uid();
+  end if;
+  return new;
+end $$;
+revoke execute on function public.on_site_document() from public, anon, authenticated;
+drop trigger if exists on_site_document on public.site_documents;
+create trigger on_site_document after insert on public.site_documents for each row execute function public.on_site_document();
+
+-- ===== migration: 20261106201417_kur_altyapisi.sql =====
+-- Kur altyapısı: TCMB'nin her iş günü açıkladığı dolar ve avro kurları (döviz alış ve döviz satış).
+-- Raporlar satış kurunu kullanır (raporda dip notla belirtilir); alış da saklanır ki gerekirse yöntem değiştirilebilsin.
+-- Yazma yalnız sunucudan (tufe-sync fonksiyonu, service_role); okuma oturum açmış herkese açık (kamuya açık veri).
+-- Hafta sonu ve resmî tatil: o gün kur yoktur, son iş gününün kuru kullanılır (public.fx_rate).
+-- tufe-sync her gün çalışır: kur her gün gelir, TÜFE ayda bir değişir (aynı oranı yeniden yazmak zararsızdır).
+-- Yeni tablo, yeni işlev ve zamanlama değişikliği; eski kodla uyumlu, yeniden çalıştırılabilir.
+
+create table if not exists public.fx_rates (
+  day        date not null,
+  currency   text not null check (currency in ('USD','EUR')),
+  buy        numeric(12,4) check (buy is null or buy > 0),
+  sell       numeric(12,4) not null check (sell > 0),
+  source     text not null default 'evds' check (source in ('evds','manual')),
+  updated_at timestamptz not null default now(),
+  primary key (currency, day)
+);
+alter table public.fx_rates enable row level security;
+drop policy if exists fx_read on public.fx_rates;
+create policy fx_read on public.fx_rates for select to authenticated using (true);
+grant select on public.fx_rates to authenticated;
+revoke insert, update, delete on public.fx_rates from anon, authenticated;
+
+/** Bir günün satış kuru (1 birim döviz kaç TL): o gün yoksa (hafta sonu, tatil) o günden önceki son iş günü. TRY → 1.
+    Kur hiç yoksa null döner; çağıran "kur bekleniyor" der. */
+create or replace function public.fx_rate(cur text, d date)
+returns numeric language sql stable set search_path = public as $$
+  select case when cur = 'TRY' then 1::numeric
+              else (select r.sell from public.fx_rates r where r.currency = cur and r.day <= d order by r.day desc limit 1) end
+$$;
+grant execute on function public.fx_rate(text, date) to authenticated;
+
+-- tufe-sync zamanlaması (Supabase → Integrations → Cron'da "tufe-sync-aylik"): ayın 3–6'sından her güne.
+-- TCMB kurları 15:30'da (12:30 UTC) açıklar; 13:00 UTC'de o günün kuru gelmiş olur. TÜFE de aynı çağrıda güncellenir.
+-- İş yoksa (pg_cron yok ya da zamanlama kurulmamış) hiçbir şey yapmaz; komut ve gizli başlık değişmez.
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    perform cron.alter_job(jobid, schedule := '0 13 * * *') from cron.job where jobname = 'tufe-sync-aylik';
+  end if;
+end $$;
+
+-- ===== migration: 20261106204331_rapor_dolar_karsiligi.sql =====
+-- Rapor e-postasına dolar karşılıkları: site_report artık "usd" (istenen, tahsil edilen, gider, kur farkı, dönem sonu kuru)
+-- ve "fx_diff_try" (dövizli sözleşmelerde TL kur farkı) da döndürür. Kurallar uygulamadaki fx-report.js ile aynı:
+--   istenen → son ödeme günü (due_on; yoksa ayın son günü), tahsilat → ödeme günü (paid_on; yoksa son ödeme günü),
+--   gider → harcama günü; hafta sonu ve tatilde son iş günü (fx_rate). Dövizli sözleşmede sözleşmedeki döviz tutarı esas alınır,
+--   tahsil edilen TL'nin ödeme günündeki karşılığıyla fark "kur farkı"dır. Kuru olmayan işlem toplama katılmaz (missing sayılır).
+-- Var olan alanlar değişmez (eski e-posta şablonu çalışmaya devam eder); yeni işlev ve işlev gövdesi, yeniden çalıştırılabilir.
+
+/** Dönemin seçilen para birimindeki özeti (site_report içinden çağrılır; doğrudan çağrılamaz). */
+create or replace function public.site_report_fx(oid uuid, m0 text, m1 text, d0 date, d1 date, cur text)
+returns jsonb language sql stable set search_path = public as $$
+  with c as (
+    select x.*, coalesce(x.due_on, (to_date(x.month, 'YYYY-MM') + interval '1 month' - interval '1 day')::date) as due,
+           case when x.status = 'paid' then x.amount when x.status = 'partial' then x.paid_amount else 0 end as paid,
+           (x.currency <> 'TRY' and x.orig_amount is not null and x.amount > 0) as is_fx
+    from public.site_charges x where x.org_id = oid and x.month between m0 and m1
+  ), r as (
+    select c.*, coalesce(c.paid_on, c.due) as pd,
+           case when c.amount > 0 then least(1, c.paid / c.amount) else 0 end as share,
+           public.fx_rate(cur, c.due) as r_due, public.fx_rate(cur, coalesce(c.paid_on, c.due)) as r_pd,
+           case when c.is_fx then public.fx_rate(c.currency, c.due) else 1 end as c_due,
+           case when c.is_fx then public.fx_rate(c.currency, coalesce(c.paid_on, c.due)) else 1 end as c_pd
+    from c
+  ), v as (
+    select r.*,
+      case when cur = 'TRY' then r.amount when r.is_fx then r.orig_amount * r.c_due / r.r_due else r.amount / r.r_due end as charged,
+      case when cur = 'TRY' then r.paid when r.paid = 0 then 0 when r.is_fx then r.orig_amount * r.share * r.c_pd / r.r_pd else r.paid / r.r_pd end as collected,
+      case when not r.is_fx or r.paid = 0 then 0 else (r.paid - r.orig_amount * r.share * r.c_pd) / r.r_pd end as diff,
+      (r.r_due is null or r.c_due is null or (r.paid > 0 and (r.r_pd is null or r.c_pd is null))) as missing
+    from r
+  ), e as (
+    select x.amount / public.fx_rate(cur, x.spent_on) as total
+    from public.site_expenses x where x.org_id = oid and x.spent_on >= d0 and x.spent_on < d1
+  )
+  select jsonb_build_object(
+    'currency', cur,
+    'charged', coalesce((select round(sum(charged), 2) from v where not missing), 0),
+    'collected', coalesce((select round(sum(collected), 2) from v where not missing), 0),
+    'fx_diff', coalesce((select round(sum(diff), 2) from v where not missing), 0),
+    'spent', coalesce((select round(sum(total), 2) from e where total is not null), 0),
+    'missing', exists (select 1 from v where missing) or exists (select 1 from e where total is null),
+    'rate', public.fx_rate(cur, least(d1 - 1, current_date)),
+    'rate_day', (select max(day) from public.fx_rates where currency = cur and day <= least(d1 - 1, current_date)))
+$$;
+revoke execute on function public.site_report_fx(uuid, text, text, date, date, text) from public, anon, authenticated;
+
+/** Dönem raporu (period: month | year; ref: dönemden bir gün): tahakkuk ve tahsilat (türe göre), giderler (kaleme göre),
+    bütçe karşılaştırması, borçlular, talepler; dolar karşılıkları (usd) ve TL kur farkı. Yönetimde "Raporlar" yetkisi olan ve report edge fonksiyonu (service_role) çağırır. */
+create or replace function public.site_report(oid uuid, period text, ref date)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare
+  d0 date := case when period = 'year' then date_trunc('year', ref)::date else date_trunc('month', ref)::date end;
+  d1 date := case when period = 'year' then (date_trunc('year', ref) + interval '1 year')::date else (date_trunc('month', ref) + interval '1 month')::date end;
+  m0 text := to_char(d0, 'YYYY-MM');
+  m1 text := to_char(d1 - 1, 'YYYY-MM');
+  yr int := extract(year from d0)::int;
+begin
+  if auth.uid() is not null and not public.org_can(oid, 'reports.view') and not public.is_admin() then
+    raise exception 'Rapor yetkin yok' using errcode = '42501';
+  end if;
+  return jsonb_build_object(
+    'org', (select name from public.organizations where id = oid),
+    'sector', (select sector from public.organizations where id = oid),
+    'period', period, 'from', d0, 'to', d1 - 1,
+    'units', (select count(*) from public.site_units where org_id = oid),
+    'charges', (select coalesce(jsonb_agg(x order by x.kind), '[]'::jsonb) from (
+        select kind, sum(amount) as charged,
+               sum(case when status = 'paid' then amount when status in ('partial') then paid_amount else 0 end) as collected
+        from public.site_charges where org_id = oid and month between m0 and m1 group by kind) x),
+    'expenses', (select coalesce(jsonb_agg(x order by x.total desc), '[]'::jsonb) from (
+        select cat, sum(amount) as total from public.site_expenses where org_id = oid and spent_on >= d0 and spent_on < d1 group by cat) x),
+    'budget', (select case when b.org_id is null then null else jsonb_build_object('year', b.year, 'approved_on', b.approved_on,
+                 'items', b.items, 'total', (select coalesce(sum((i ->> 'amount')::numeric), 0) from jsonb_array_elements(b.items) i)) end
+               from (select 1) one left join public.site_budgets b on b.org_id = oid and b.year = yr),
+    'debtors', (select coalesce(jsonb_agg(x order by x.unpaid desc), '[]'::jsonb) from (
+        select public.unit_label(unit_id) as unit, sum(amount - case when status = 'partial' then paid_amount else 0 end) as unpaid
+        from public.site_charges where org_id = oid and status <> 'paid' and month <= m1
+          and (date_trunc('month', to_date(month, 'YYYY-MM')) + interval '1 month')::date <= least(d1, current_date)
+        group by unit_id order by 2 desc limit 20) x),
+    'requests', jsonb_build_object(
+        'opened', (select count(*) from public.site_requests where org_id = oid and created_at >= d0 and created_at < d1),
+        'open', (select count(*) from public.site_requests where org_id = oid and status < 3)),
+    -- Dolar karşılıkları (rapor_dolar_karsiligi): her işlem kendi gününün TCMB satış kuruyla; TL kur farkı bilgi satırı.
+    'usd', public.site_report_fx(oid, m0, m1, d0, d1, 'USD'),
+    'fx_diff_try', (public.site_report_fx(oid, m0, m1, d0, d1, 'TRY') ->> 'fx_diff')::numeric);
+end $$;
+grant execute on function public.site_report(uuid, text, date) to authenticated;
+
+-- ===== migration: 20261106205202_yatirimci_raporu.sql =====
+-- Yatırımcı raporu (GYO; AVM ve depoda anahtar yöneticisi açar).
+-- 1. Gider türü: "ortak" (ortak alan gideri, kiracıya yansır) ya da "isletme" (işletme gideri). Eski giderler işletme sayılır.
+-- 2. Kurumun rapor para birimi (USD | EUR): yatırımcı raporu bu para biriminde hazırlanır; anahtar yöneticisi seçer.
+-- 3. "yatirimci" modülü: GYO'da varsayılan açık (mevcut GYO kurumlarına bir kez eklenir); AVM ve depoda yönetici panelinden açılır.
+-- 4. Dönem başına yönetimin notu (boşsa raporda bölüm görünmez): "Raporlar" yetkisi olan okur ve yazar.
+-- 5. "Mailime gönder": raporun özeti ve bağlantısı oturumdaki kişinin kendi e-postasına (mail_outbox, investor_report).
+--    Kişi başına saatte 10 gönderim; özet verisi 8 KB ile sınırlı.
+-- Yeni sütunlar varsayılanlı, işlev gövdeleri eski alanları korur: eski kodla uyumlu, yeniden çalıştırılabilir.
+
+alter table public.site_expenses add column if not exists kind text not null default 'isletme';
+alter table public.site_expenses drop constraint if exists site_expenses_kind_check;
+alter table public.site_expenses add constraint site_expenses_kind_check check (kind in ('isletme','ortak'));
+
+alter table public.organizations add column if not exists report_currency text not null default 'USD';
+alter table public.organizations drop constraint if exists organizations_report_currency_check;
+alter table public.organizations add constraint organizations_report_currency_check check (report_currency in ('USD','EUR'));
+
+create or replace function public.org_module_list()
+returns text[] language sql immutable as $$
+  select array['kira','aidat','gider_dagitim','duyuru','ciro_kira','ortak_gider','endeksleme','doluluk','onay_akisi','rapor','api','yatirimci']
+$$;
+create or replace function public.sector_modules(sec text)
+returns text[] language sql immutable as $$
+  select case sec
+    when 'site'   then array['aidat','gider_dagitim','duyuru','rapor']
+    when 'avm'    then array['kira','ortak_gider','ciro_kira','endeksleme','doluluk','duyuru','rapor']
+    when 'depo'   then array['kira','ortak_gider','endeksleme','doluluk','duyuru','rapor']
+    when 'gyo'    then array['kira','ortak_gider','endeksleme','doluluk','duyuru','rapor','yatirimci']
+    else array['kira','rapor'] end
+$$;
+do $$
+begin
+  if not exists (select 1 from public.schema_migrations where id = '2026-11-yatirimci-modulu') then
+    update public.organizations set modules = array_append(modules, 'yatirimci'), updated_at = now()
+     where sector = 'gyo' and not ('yatirimci' = any(modules));
+    insert into public.schema_migrations (id) values ('2026-11-yatirimci-modulu');
+  end if;
+end $$;
+
+create or replace function public.admin_org_save(p jsonb)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  oid uuid := nullif(p ->> 'id', '')::uuid;
+  sec text := coalesce(p ->> 'sector', '');
+  mods text[];
+  lead uuid := nullif(p ->> 'lead_id', '')::uuid;
+begin
+  if not public.is_admin() then raise exception 'Yönetici yetkisi gerekli' using errcode = '42501'; end if;
+  if sec not in ('site','avm','gyo','depo','emlak','family','diger') then raise exception 'Sektör seç' using errcode = '22023'; end if;
+  if length(btrim(coalesce(p ->> 'name', ''))) < 2 then raise exception 'Kurum adını yaz' using errcode = '22023'; end if;
+  mods := case when p ? 'modules' then array(select distinct x from jsonb_array_elements_text(p -> 'modules') x order by 1)
+               else public.sector_modules(sec) end;
+  if exists (select 1 from unnest(mods) x where x <> all(public.org_module_list())) then
+    raise exception 'Geçersiz modül' using errcode = '22023';
+  end if;
+  if coalesce(p ->> 'report_currency', 'USD') not in ('USD','EUR') then raise exception 'Rapor para birimi dolar ya da avro olmalı' using errcode = '22023'; end if;
+  if oid is null then
+    insert into public.organizations (name, sector, modules, status, units, contract_until, billing, note, lead_id, report_currency)
+    values (btrim(p ->> 'name'), sec, mods, coalesce(nullif(p ->> 'status', ''), 'active'), nullif(p ->> 'units', '')::int,
+            nullif(p ->> 'contract_until', '')::date, coalesce(p -> 'billing', '{}'::jsonb), coalesce(p ->> 'note', ''), lead,
+            coalesce(nullif(p ->> 'report_currency', ''), 'USD'))
+    returning id into oid;
+    perform public.org_seed_roles(oid, sec);
+    if lead is not null then update public.support_requests set status = 'done' where id = lead; end if;
+    perform public.audit('org.create', oid::text, jsonb_build_object('name', p ->> 'name', 'sector', sec));
+  else
+    update public.organizations set name = btrim(p ->> 'name'), sector = sec, modules = mods,
+      status = coalesce(nullif(p ->> 'status', ''), status), units = nullif(p ->> 'units', '')::int,
+      contract_until = nullif(p ->> 'contract_until', '')::date, billing = coalesce(p -> 'billing', billing),
+      note = coalesce(p ->> 'note', note), report_currency = coalesce(nullif(p ->> 'report_currency', ''), report_currency), updated_at = now()
+    where id = oid;
+    if not found then raise exception 'Kurum bulunamadı' using errcode = 'P0002'; end if;
+    perform public.audit('org.update', oid::text, jsonb_build_object('name', p ->> 'name', 'sector', sec, 'status', p ->> 'status'));
+  end if;
+  return oid;
+end $$;
+grant execute on function public.admin_org_save(jsonb) to authenticated;
+
+create or replace function public.my_orgs()
+returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', o.id, 'name', o.name, 'sector', o.sector, 'modules', to_jsonb(o.modules), 'status', o.status, 'units', o.units, 'report_currency', o.report_currency,
+    'master', m.is_master, 'role', case when r.id is null then null else jsonb_build_object('id', r.id, 'name', r.name) end,
+    'perms', to_jsonb(case when m.is_master then public.org_perm_list() else coalesce(r.perms, '{}') end)
+  ) order by o.name), '[]'::jsonb)
+  from public.org_members m join public.organizations o on o.id = m.org_id left join public.org_roles r on r.id = m.role_id
+  where m.user_id = auth.uid()
+$$;
+grant execute on function public.my_orgs() to authenticated;
+
+create table if not exists public.site_investor_notes (
+  org_id     uuid not null references public.organizations(id) on delete cascade,
+  period     text not null check (period ~ '^\d{4}(-Q[1-4])?$'),
+  note       text not null default '' check (length(note) <= 2000),
+  updated_by uuid references public.profiles(id) on delete set null default auth.uid(),
+  updated_at timestamptz not null default now(),
+  primary key (org_id, period)
+);
+alter table public.site_investor_notes enable row level security;
+drop policy if exists not_banned on public.site_investor_notes;
+create policy not_banned on public.site_investor_notes as restrictive for all to authenticated using (not public.is_banned()) with check (not public.is_banned());
+drop policy if exists sin_all on public.site_investor_notes;
+create policy sin_all on public.site_investor_notes for all to authenticated
+  using (public.org_can(org_id, 'reports.view') or public.is_admin())
+  with check (public.org_can(org_id, 'reports.view'));
+grant select, insert, update, delete on public.site_investor_notes to authenticated;
+
+alter table public.mail_outbox drop constraint if exists mail_outbox_kind_check;
+alter table public.mail_outbox add constraint mail_outbox_kind_check
+  check (kind in ('account_deleted', 'plan_choice', 'org_master_invite', 'investor_report'));
+
+/** "Mailime gönder": yatırımcı raporunun özeti ve bağlantısı oturumdaki kişinin e-postasına. summary: ekranda hesaplanan özet. */
+create or replace function public.investor_report_mail(oid uuid, period text, summary jsonb)
+returns void language plpgsql security definer set search_path = public as $$
+declare mail text; oname text; lng text;
+begin
+  if auth.uid() is null or not public.org_can(oid, 'reports.view') then raise exception 'Rapor yetkin yok' using errcode = '42501'; end if;
+  select name into oname from public.organizations where id = oid and 'yatirimci' = any(modules);
+  if not found then raise exception 'Yatırımcı raporu bu kurumda kapalı' using errcode = '42501'; end if;
+  if period !~ '^\d{4}(-Q[1-4])?$' then raise exception 'Dönem geçersiz' using errcode = '22023'; end if;
+  if summary is null or jsonb_typeof(summary) <> 'object' or length(summary::text) > 8000 then raise exception 'Özet geçersiz' using errcode = '22023'; end if;
+  if (select count(*) from public.mail_outbox where kind = 'investor_report' and data ->> 'uid' = auth.uid()::text
+        and created_at > now() - interval '1 hour') >= 10 then
+    raise exception 'Saatte en çok 10 rapor gönderebilirsin' using errcode = '54000';
+  end if;
+  select email into mail from auth.users where id = auth.uid();
+  if mail is null then raise exception 'E-posta adresin yok' using errcode = '22023'; end if;
+  select coalesce(nullif(lang, ''), 'tr') into lng from public.profiles where id = auth.uid();
+  insert into public.mail_outbox (kind, to_email, lang, data)
+  values ('investor_report', mail, case when lng = 'en' then 'en' else 'tr' end,
+          summary || jsonb_build_object('org', oname, 'oid', oid, 'period', period, 'uid', auth.uid()));
+end $$;
+revoke execute on function public.investor_report_mail(uuid, text, jsonb) from public, anon;
+grant execute on function public.investor_report_mail(uuid, text, jsonb) to authenticated;

@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { View } from 'react-native';
+import { Platform, ScrollView, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { S, ui } from '../domain/state';
 import { P, openReqs, newReqs, unreadMessages } from '../domain/logic';
@@ -7,9 +7,9 @@ import { can, canAny, isTeam, memberRole, roleLabel } from '../domain/team';
 import { t } from '../domain/i18n';
 import { toApp } from '../domain/nav';
 import { myOrgs, sectorSections } from '../domain/org';
-import { mySiteUnits } from '../domain/site';
+import { mySiteUnits, siteResidentOnly } from '../domain/site';
 import { PORTFOLIO_SECTORS, currentPortfolioOrg, residentTitle, sectionPath } from './site';
-import { PressScale, Text } from '../ui/kit';
+import { PanelUI, PressScale, Text } from '../ui/kit';
 import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
 import { Icon } from './blocks';
 import { Wordmark } from '../ui/Wordmark';
@@ -52,6 +52,16 @@ function sectorItems(org: any): { tabs: Item[]; extra: Item[]; side?: Item[] } {
 function items(): { tabs: Item[]; extra: Item[]; side?: Item[] } {
   const org = currentPortfolioOrg();
   if (org) return sectorItems(org);
+  // Yalnız site / AVM / depo sakini: sekmeler site ekranlarıdır (mesajlaşma yok; yönetime yazacağı her şey talep).
+  if (siteResidentOnly()) return {
+    tabs: [
+      { label: t('Ana sayfa'), icon: 'home', path: '/uygulama' },
+      { label: t('Ödemeler'), icon: 'card', path: '/uygulama/odemeler' },
+      { label: t('Talepler'), icon: 'wrench', path: '/uygulama/talepler' },
+      { label: t('Belgeler'), icon: 'doc', path: '/uygulama/belgeler' }
+    ],
+    extra: orgItem().filter((x) => x.path !== '/uygulama/sitem')
+  };
   if (ui.role === 'tenant') {
     const home = P(S.myHome);
     const n = home ? openReqs(home).length : 0;
@@ -100,7 +110,7 @@ function TabBar({ list }: { list: Item[] }) {
               <Icon name={it.icon} size={22} color={on ? c.accent : c.muted} />
               {it.badge ? <View style={{ position: 'absolute', top: -5, right: -10, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}><Text v="small" color={c.accentInk} style={{ fontSize: 10, lineHeight: 13, fontFamily: fonts.bodyXBold }}>{it.badge}</Text></View> : null}
             </View>
-            <Text v="small" color={on ? c.accentText : c.muted} style={{ fontSize: 11, lineHeight: 14, fontFamily: on ? fonts.bodyXBold : fonts.bodyBold }}>{it.label}</Text>
+            <Text v="small" numberOfLines={1} color={on ? c.accentText : c.muted} style={{ fontSize: 11, lineHeight: 14, fontFamily: on ? fonts.bodyXBold : fonts.bodyBold }}>{it.label}</Text>
           </PressScale>
         );
       })}
@@ -114,9 +124,12 @@ function SideNav({ list }: { list: Item[] }) {
   const { user } = useAuth();
   const active = useActive();
   return (
-    <View style={{ width: 272, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 32, margin: 14, padding: 22, gap: 6 }}>
+    // Ekran yüksekliğine sabit: menü uzarsa kendi içinde kayar, alttaki hesap kartı her zaman görünür.
+    <View style={[{ width: 272, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 32, margin: 14, padding: 22, gap: 6 },
+      Platform.OS === 'web' ? ({ position: 'sticky', top: 14, height: 'calc(100vh - 28px)', alignSelf: 'flex-start' } as any) : { alignSelf: 'stretch' }]}>
       <PressScale onPress={() => router.push('/' as any)} accessibilityRole="link" accessibilityLabel={t('Ana sayfa')} style={{ marginBottom: 18, alignSelf: 'flex-start' }}><Wordmark size={30} /></PressScale>
       <RoleSwitcher />
+      <ScrollView style={{ flex: 1, marginHorizontal: -6 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 6, paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
       {list.map((it) => {
         const on = active(it.path);
         return (
@@ -128,7 +141,7 @@ function SideNav({ list }: { list: Item[] }) {
           </PressScale>
         );
       })}
-      <View style={{ flex: 1 }} />
+      </ScrollView>
       {/* Hesap kartı: ad, rol ve ayarlar (kiracı, mülk sahibi ve ekip üyesi için aynı). */}
       <PressScale onPress={() => router.push('/uygulama/ayarlar' as any)} accessibilityRole="link" accessibilityLabel={t('Ayarlar')} accessibilityState={{ selected: active(SETTINGS) }} scaleTo={0.98}
         style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 20, backgroundColor: active(SETTINGS) ? c.accentSoft : c.tile }}>
@@ -152,6 +165,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const c = useColors();
   const { tabs, extra, side } = items();
   return (
+    <PanelUI.Provider value={true}>
     <OverlayProvider renderSheet={renderSheet}>
       <View style={{ flex: 1, flexDirection: 'row', backgroundColor: c.bg }}>
         {desktop && <SideNav list={[...(side || [...tabs, ...extra]), { label: t('Ayarlar'), icon: 'gear', path: SETTINGS }]} />}
@@ -163,5 +177,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
       </View>
       <OpenSplash />
     </OverlayProvider>
+    </PanelUI.Provider>
   );
 }

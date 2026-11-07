@@ -44,7 +44,7 @@ export function orgSteps(d, modules = []){
     { key: 'invite', label: t('Davetleri gönder'), done: people.length > 0 && pct(invited, people.length) >= 0.8,
       progress: people.length ? pct(invited, people.length) : 0, act: { section: 'birimler' } },
     site && modules.includes('aidat') ? { key: 'auto', label: t('Otomatik aidatı aç'), done: !!(d.auto && d.auto.enabled), act: { section: 'tahakkuk' } } : null,
-    !site ? { key: 'charge', label: t('İlk kira tahakkukunu yap'), done: (d.charges || []).length > 0, act: { section: 'tahakkuk' } } : null,
+    !site ? { key: 'charge', label: t('İlk kirayı oluştur'), done: (d.charges || []).length > 0, act: { section: 'tahakkuk' } } : null,
     modules.includes('duyuru') ? { key: 'note', label: t('İlk duyuruyu yap'), done: (d.notes || []).length > 0, act: { section: 'duyurular' } } : null
   ];
   return /** @type {any[]} */ (steps.filter(Boolean));

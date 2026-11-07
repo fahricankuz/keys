@@ -17,6 +17,9 @@ import { Pill } from './org';
 import { MoneyField } from './forms';
 import { SetupChecklist } from './checklist';
 import { orgSteps } from '../domain/checklist';
+import { amountIn, chargeIn } from '../domain/fx-report';
+import { fmtMoney } from '../domain/money';
+import { CurrencySwitch, FxNote, RevenueChart, useFx, useReportCurrency } from './fx-ui';
 
 const thisMonth = () => mkey(new Date());
 const day = (v?: string) => (v ? fmtFull(parse(String(v).slice(0, 10))) : '—');
@@ -31,7 +34,7 @@ function Kpi({ label, value, sub }: { label: string; value: string; sub?: string
   return (
     <Card style={{ flexGrow: 1, flexBasis: 140, minWidth: 140 }} gap={2}>
       <Label>{label}</Label>
-      <Text v="h3" numberOfLines={1} style={{ fontFamily: fonts.displayBold, fontSize: value.length > 9 ? 18 : undefined }}>{value}</Text>
+      <Text v="h3" style={{ fontFamily: fonts.displayBold, fontSize: value.length > 13 ? 15 : value.length > 9 ? 18 : undefined, fontVariant: ['tabular-nums'] }}>{value}</Text>
       {sub ? <Muted>{sub}</Muted> : null}
     </Card>
   );
@@ -72,12 +75,22 @@ export function Overview({ d, org, can, reload, go, ChargeRow }: {
   const commercial = isCommercial(sector);
   const T = terms(sector);
   const m = thisMonth();
+  // Para birimi (₺ / $ / €): her işlem kendi gününün kuruyla (fx-report.js). Kur 13 ay öncesinden okunur (12 aylık grafik).
+  const [pc, setPc] = useReportCurrency();
+  const fxFrom = useMemo(() => { const x = new Date(); x.setDate(1); x.setMonth(x.getMonth() - 13); return mkey(x) + '-01'; }, []);
+  const { table } = useFx(fxFrom);
+  const M = (n: any) => fmtMoney(n, pc);
+  const inPc = (x: any) => chargeIn(x, pc, table);
+  const todayIso = new Date().toISOString().slice(0, 10);
   const unitBy: Record<string, any> = Object.fromEntries(d.units.map((u: any) => [u.id, u]));
   const cur = d.charges.filter((x: any) => x.month === m);
-  const total = cur.reduce((a: number, x: any) => a + Number(x.amount), 0);
-  const got = cur.reduce((a: number, x: any) => a + (x.status === 'paid' ? Number(x.amount) : x.status === 'partial' ? Number(x.paid_amount) || 0 : 0), 0);
+  const vals = cur.map((x: any) => inPc(x));
+  const total = vals.reduce((a: number, v: any) => a + v.charged, 0);
+  const got = vals.reduce((a: number, v: any) => a + v.collected, 0);
+  const fxDiff = vals.reduce((a: number, v: any) => a + v.diff, 0);
+  const fxMissing = vals.some((v: any) => v.missing);
   const byKind: Record<string, number> = {};
-  cur.forEach((x: any) => { byKind[x.kind] = (byKind[x.kind] || 0) + Number(x.amount); });
+  cur.forEach((x: any, i: number) => { byKind[x.kind] = (byKind[x.kind] || 0) + vals[i].charged; });
   const fxUsed = cur.some((x: any) => x.currency && x.currency !== 'TRY');
   const late = d.charges.filter((x: any) => overdue(x));
   const lateUnits = new Set(late.map((x: any) => x.unit_id));
@@ -104,30 +117,31 @@ export function Overview({ d, org, can, reload, go, ChargeRow }: {
   late.forEach((x: any) => {
     const k = x.unit_id;
     debt[k] = debt[k] || { left: 0, fee: 0, n: 0, days: 0, kinds: new Set(), fx: '' };
-    debt[k].left += unpaidOf(x); debt[k].fee += commercial ? 0 : lateFee(x); debt[k].n += 1;
+    debt[k].left += inPc(x).unpaid; debt[k].fee += commercial ? 0 : (amountIn(lateFee(x), todayIso, pc, table) || 0); debt[k].n += 1;
     debt[k].days = Math.max(debt[k].days, daysLate(x)); debt[k].kinds.add(kindLabel(x.kind, x.title));
     if (x.currency && x.currency !== 'TRY' && x.orig_amount) debt[k].fx = money(x.orig_amount, x.currency);
   });
   const debtors = Object.entries(debt).sort((a, b) => b[1].left - a[1].left);
   const debtTotal = debtors.reduce((a, [, v]) => a + v.left, 0);
 
-  const heroLabel = commercial ? t('{month} kira tahakkuku', { month: monthYear(m) }) : t('{month} aidatı', { month: monthYear(m) });
+  const heroLabel = commercial ? t('{month} kiraları', { month: monthYear(m) }) : t('{month} aidatı', { month: monthYear(m) });
   const parts = commercial
-    ? [byKind.kira ? t('Sabit kira') + ' ' + tl(byKind.kira) : '', byKind.ciro ? t('ciro farkı') + ' ' + tl(byKind.ciro) : '',
-       byKind.ortak_gider ? t('ortak gider') + ' ' + tl(byKind.ortak_gider) : '', fxUsed ? t('dövizli sözleşmeler kurla') : ''].filter(Boolean).join(' · ')
-    : t('{n} daire', { n: d.units.length }) + (byKind.aidat && total !== byKind.aidat ? ' · ' + t('aidat') + ' ' + tl(byKind.aidat) : '');
+    ? [byKind.kira ? t('Sabit kira') + ' ' + M(byKind.kira) : '', byKind.ciro ? t('ciro farkı') + ' ' + M(byKind.ciro) : '',
+       byKind.ortak_gider ? t('ortak gider') + ' ' + M(byKind.ortak_gider) : '', fxUsed ? t('dövizli sözleşmeler kurla') : '',
+       Math.round(fxDiff) ? t('kur farkı') + ' ' + M(fxDiff) : ''].filter(Boolean).join(' · ')
+    : t('{n} daire', { n: d.units.length }) + (byKind.aidat && total !== byKind.aidat ? ' · ' + t('aidat') + ' ' + M(byKind.aidat) : '');
   const rate = total ? got / total : 0;
 
   const hero = (
     <View style={{ backgroundColor: c.hero, borderRadius: radius.lg, padding: 22, flexDirection: 'row', flexWrap: 'wrap', gap: 24, alignItems: 'flex-end' }}>
       <View style={{ flexGrow: 1, flexBasis: 280, gap: 4 }}>
         <Text v="small" color={c.heroMuted} style={{ fontFamily: fonts.bodyBold, letterSpacing: 0.6, textTransform: 'uppercase', fontSize: 11 }}>{heroLabel}</Text>
-        <Text v="h1" color={c.heroInk} style={{ fontFamily: fonts.siteBold, fontSize: 36, lineHeight: 40 }}>{tl(total)}</Text>
+        <Text v="h1" color={c.heroInk} style={{ fontFamily: fonts.siteBold, fontSize: 36, lineHeight: 40 }}>{M(total)}</Text>
         {parts ? <Text v="small" color={c.heroMuted}>{parts}</Text> : null}
       </View>
       <View style={{ flexGrow: 1, flexBasis: 220, gap: 4 }}>
         <Text v="small" color={c.heroMuted} style={{ fontFamily: fonts.bodyBold, letterSpacing: 0.6, textTransform: 'uppercase', fontSize: 11 }}>{t('Tahsil edilen')}</Text>
-        <Text v="h2" color={c.heroInk} style={{ fontFamily: fonts.siteBold }}>{tl(got)}</Text>
+        <Text v="h2" color={c.heroInk} style={{ fontFamily: fonts.siteBold }}>{M(got)}</Text>
         <View style={{ height: 10, borderRadius: 6, backgroundColor: 'rgba(250,245,240,0.15)', overflow: 'hidden', maxWidth: 280 }}>
           <View style={{ width: `${Math.round(Math.min(1, rate) * 100)}%`, height: '100%', backgroundColor: c.lemon }} />
         </View>
@@ -143,23 +157,23 @@ export function Overview({ d, org, can, reload, go, ChargeRow }: {
     if (sector === 'avm' && hasModule(org, 'ciro_kira')) kpis.push([t('Ciro bildirimi bekleyen'), String(d.turnovers.filter((x: any) => x.status === 'reported').length), t('Onayınla ciro farkı tahakkuk edilir')]);
     else if (sector === 'gyo') {
       const since = (() => { const x = new Date(); x.setMonth(x.getMonth() - 11); return mkey(x); })();
-      kpis.push([t('Son 12 ay kira'), tl(d.charges.filter((x: any) => x.kind === 'kira' && x.month >= since).reduce((a: number, x: any) => a + Number(x.amount), 0)), t('Tahakkuk')]);
+      kpis.push([t('Son 12 ay kira'), M(d.charges.filter((x: any) => x.kind === 'kira' && x.month >= since).reduce((a: number, x: any) => a + inPc(x).charged, 0)), t('Tahakkuk')]);
     } else kpis.push([t('Boş alan'), Math.round(occ.area - occ.occArea).toLocaleString('tr-TR') + ' m²', t('{n} birim boş', { n: occ.vacant.length })]);
     kpis.push([t('90 günde biten sözleşme'), String(occ.expiring.length), occ.expiring[0] ? unitLabel(occ.expiring[0]) + ' · ' + day(occ.expiring[0].lease_end) : t('Yenileme görüşmesi yok')]);
   } else {
-    kpis.push([commercial ? t('Geciken birim') : t('Borçlu daire'), String(debtors.length), debtors.length ? t('Toplam {t}', { t: tl(debtTotal) }) : t('Gecikmiş borç yok')]);
+    kpis.push([commercial ? t('Geciken birim') : t('Borçlu daire'), String(debtors.length), debtors.length ? t('Toplam {t}', { t: M(debtTotal) }) : t('Gecikmiş borç yok')]);
     kpis.push([t('Onay bekleyen dekont'), String(waiting.length), '']);
-    const spent = d.expenses.filter((x: any) => String(x.spent_on).slice(0, 7) === m).reduce((a: number, x: any) => a + Number(x.amount), 0);
-    kpis.push([t('Bu ay gider'), tl(spent), '']);
+    const spent = d.expenses.filter((x: any) => String(x.spent_on).slice(0, 7) === m).reduce((a: number, x: any) => a + (amountIn(x.amount, x.spent_on, pc, table) || 0), 0);
+    kpis.push([t('Bu ay gider'), M(spent), '']);
     kpis.push([t('Açık talep'), String(openReq.length), openReq.find((x: any) => x.cat === 'ariza') ? t('Arıza var') : '']);
   }
 
   const debtCard = (
-    <Section title={commercial ? t('Geciken kiralar') : t('Borçlular')} link={t('Tahakkuk')} onLink={() => go('tahakkuk')}>
+    <Section title={commercial ? t('Geciken kiralar') : t('Borçlular')} link={commercial ? t('Kira') : t('Aidat')} onLink={() => go('tahakkuk')}>
       {debtors.length ? debtors.slice(0, 6).map(([uid, v], i) => (
         <Line key={uid} first={!i} title={unitBy[uid] ? unitLabel(unitBy[uid]) : '—'}
-          sub={[[...v.kinds].join(' + '), v.fx, t('{n} gün', { n: v.days }), !commercial && v.fee ? t('Gecikme tazminatı') + ' ' + tl(v.fee) : ''].filter(Boolean).join(' · ')}
-          right={<Text v="small" color={v.days > 30 ? c.badInk : c.ink} style={{ fontFamily: fonts.bodyXBold }}>{tl(v.left)}</Text>} />
+          sub={[[...v.kinds].join(' + '), v.fx, t('{n} gün', { n: v.days }), !commercial && v.fee ? t('Gecikme tazminatı') + ' ' + M(v.fee) : ''].filter(Boolean).join(' · ')}
+          right={<Text v="small" color={v.days > 30 ? c.badInk : c.ink} style={{ fontFamily: fonts.bodyXBold }}>{M(v.left)}</Text>} />
       )) : <Empty>{t('Gecikmiş borç yok.')}</Empty>}
       {!commercial && debtors.length ? <Muted>{t('Gecikme tazminatı (KMK md. 20, aylık %5) bilgi amaçlı gösterilir.')}</Muted> : null}
     </Section>
@@ -184,13 +198,13 @@ export function Overview({ d, org, can, reload, go, ChargeRow }: {
     const y = new Date().getFullYear();
     const b = (d.budgets || []).find((x: any) => Number(x.year) === y);
     if (!b) return null;
-    const plan = (b.items || []).reduce((a: number, x: any) => a + (Number(x.amount) || 0), 0);
-    const spent = d.expenses.filter((x: any) => String(x.spent_on).startsWith(String(y))).reduce((a: number, x: any) => a + Number(x.amount), 0);
+    const plan = amountIn((b.items || []).reduce((a: number, x: any) => a + (Number(x.amount) || 0), 0), todayIso, pc, table);
+    const spent = d.expenses.filter((x: any) => String(x.spent_on).startsWith(String(y))).reduce((a: number, x: any) => a + (amountIn(x.amount, x.spent_on, pc, table) || 0), 0);
     const monthsDone = new Date().getMonth() + 1;
     return (
       <Section title={t('İşletme projesi {y}', { y })} link={t('Bütçe')} onLink={() => go('butce')}>
-        <Line first title={t('Yıllık bütçe')} sub={b.approved_on ? t('Kurul onayı {d}', { d: day(b.approved_on) }) : ''} right={tl(plan)} />
-        <Line title={t('Harcanan ({n} ay)', { n: monthsDone })} sub={t('Plan: {p}', { p: tl((plan * monthsDone) / 12) })} right={tl(spent)} />
+        <Line first title={t('Yıllık bütçe')} sub={b.approved_on ? t('Kurul onayı {d}', { d: day(b.approved_on) }) : ''} right={M(plan)} />
+        <Line title={t('Harcanan ({n} ay)', { n: monthsDone })} sub={t('Plan: {p}', { p: plan == null ? '—' : M((plan * monthsDone) / 12) })} right={M(spent)} />
       </Section>
     );
   })();
@@ -250,11 +264,11 @@ export function Overview({ d, org, can, reload, go, ChargeRow }: {
       const g = groups[u.block || t('Varlık belirtilmedi')] = groups[u.block || t('Varlık belirtilmedi')] || { n: 0, full: 0, rent: 0 };
       g.n++; if (occ && !occ.vacant.some((x: any) => x.id === u.id)) g.full++;
     });
-    cur.forEach((x: any) => { const u = unitBy[x.unit_id]; if (u && x.kind === 'kira') groups[u.block || t('Varlık belirtilmedi')].rent += Number(x.amount); });
+    cur.forEach((x: any) => { const u = unitBy[x.unit_id]; if (u && x.kind === 'kira') groups[u.block || t('Varlık belirtilmedi')].rent += inPc(x).charged; });
     return (
       <Section title={t('Varlıklara göre')} link={T.units} onLink={() => go('birimler')}>
         {Object.entries(groups).sort((a, b) => b[1].rent - a[1].rent).map(([name, g], i) => (
-          <Line key={name} first={!i} title={name} sub={t('{n} birim', { n: g.n }) + (occ ? ' · ' + t('doluluk {p}', { p: pct(g.n ? g.full / g.n : 0) }) : '')} right={tl(g.rent)} />
+          <Line key={name} first={!i} title={name} sub={t('{n} birim', { n: g.n }) + (occ ? ' · ' + t('doluluk {p}', { p: pct(g.n ? g.full / g.n : 0) }) : '')} right={M(g.rent)} />
         ))}
         <Muted>{t('Varlık, birimin “Varlık / bina” alanından gelir.')}</Muted>
       </Section>
@@ -263,7 +277,7 @@ export function Overview({ d, org, can, reload, go, ChargeRow }: {
 
   const roadmap = sector === 'gyo' ? (
     <View style={{ borderWidth: 1.5, borderStyle: 'dashed', borderColor: c.line, borderRadius: radius.md, padding: 12 }}>
-      <Muted>{t('Yol planında: onay akışı (artış ve tahakkuk için çift imza), değerleme, yatırımcı raporu ve API.')}</Muted>
+      <Muted>{t('Yol planında: onay akışı (artış ve tahakkuk için çift imza), değerleme ve API.')}</Muted>
     </View>
   ) : null;
 
@@ -276,8 +290,11 @@ export function Overview({ d, org, can, reload, go, ChargeRow }: {
   return (
     <Stack>
       {can('units.manage') ? <SetupChecklist steps={orgSteps(d, org.modules || [])} hideKey={'setupHidden_' + org.id} onAct={(a: any) => go(a.section)} /> : null}
+      <CurrencySwitch value={pc} onChange={setPc} />
       {hero}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>{kpis.map(([a, b, s]) => <Kpi key={a} label={a} value={b} sub={s} />)}</View>
+      <RevenueChart charges={d.charges} endMonth={m} cur={pc} table={table} />
+      {pc !== 'TRY' || Math.round(fxDiff) || fxMissing ? <FxNote cur={pc} missing={fxMissing} /> : null}
       <View style={{ flexDirection: desktop ? 'row' : 'column', gap: 14, alignItems: 'flex-start' }}>
         <View style={{ flex: desktop ? 1.25 : undefined, width: desktop ? undefined : '100%', gap: 14 }}>{left.filter(Boolean)}</View>
         <View style={{ flex: desktop ? 1 : undefined, width: desktop ? undefined : '100%', gap: 14 }}>{right.filter(Boolean)}</View>

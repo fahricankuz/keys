@@ -15,6 +15,12 @@ export type Row = {
   updated_at: string;
 };
 
+/** Google Play aboneliği RevenueCat'te "abonelik:temel-plan" olarak gelir ("tek_3:aylik"); sunucu "tek_3_aylik" biçimini tanır. */
+export function normalizeProduct(id: unknown): string | null {
+  if (typeof id !== 'string' || !id) return null;
+  return /^(tek|bes)_[1-9]:(aylik|yillik)$/.test(id) ? id.replace(':', '_') : id;
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Uygulama RevenueCat'e Supabase kullanıcı kimliğiyle bağlanır; anonim kimlikler atlanır. */
@@ -52,7 +58,7 @@ export function rowFromSubscriber(userId: string, subscriber: any, entitlement =
   const expires: string | null = ent.grace_period_expires_date || ent.expires_date || null;
   const active = expires === null ? true : Date.parse(expires) > now;
   return Object.assign(base, {
-    product_id: ent.product_identifier || null,
+    product_id: normalizeProduct(ent.product_identifier),
     store: sub.store || (expires === null ? 'promotional' : null),
     period_type: sub.period_type || null,
     expires_at: expires,

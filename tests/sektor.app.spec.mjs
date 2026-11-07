@@ -41,8 +41,8 @@ async function login(page, data) {
 test('site: girişte kurum paneli; aidat dilinde menü; sihirbazla daireler (m² zorunlu); Mülklerim kendi mülküne gider', async ({ page }) => {
   await login(page, withOrg('site', ['aidat', 'gider_dagitim', 'duyuru', 'rapor'], { units: 6 }));
   await expect(page).toHaveURL(/\/uygulama\/site$/);
-  for (const n of ['Özet', 'Daireler', 'Aidat ve tahakkuk', 'Giderler', 'İşletme projesi', 'Duyurular', 'Talepler', 'Rapor', 'Mülklerim', 'Kurum']) await expect(nav(page, n)).toBeVisible();
-  await expect(nav(page, 'Kira ve tahakkuk')).toHaveCount(0);
+  for (const n of ['Özet', 'Daireler', 'Aidat', 'Giderler', 'İşletme projesi', 'Duyurular', 'Talepler', 'Rapor', 'Mülklerim', 'Kurum']) await expect(nav(page, n)).toBeVisible();
+  await expect(nav(page, 'Kira')).toHaveCount(0);
   await expect(page.getByText('Sözleşmende 6 daire var, oluşturalım.').first()).toBeVisible();
 
   await page.getByRole('button', { name: 'Kuruluma başla' }).click();
@@ -94,15 +94,15 @@ test('AVM: kira tahakkuku ve tahsilatı en üstte; ciro ve kira artışları mod
   };
   await login(page, withOrg('avm', ['kira', 'ortak_gider', 'endeksleme', 'doluluk', 'rapor'], { tables }));
   await expect(page).toHaveURL(/\/uygulama\/site$/);
-  await expect(page.getByText(/kira tahakkuku$/i).first()).toBeVisible();
+  await expect(page.getByText(/kiraları$/i).first()).toBeVisible();
   await expect(page.getByText('₺118.000').first()).toBeVisible();              // 68.000 + 50.000
   await expect(page.getByText('₺50.000').first()).toBeVisible();               // tahsil edilen
   await expect(page.getByText('Geciken kiralar')).toBeVisible();
   await expect(page.getByText(/\$2\.000/).first()).toBeVisible();               // dövizli sözleşmenin asıl tutarı
   await expect(page.getByText('Doluluk haritası')).toBeVisible();
-  for (const n of ['Mağazalar', 'Kira ve tahakkuk', 'Kira artışları']) await expect(nav(page, n)).toBeVisible();
+  for (const n of ['Mağazalar', 'Kira', 'Kira artışları']) await expect(nav(page, n)).toBeVisible();
   await expect(nav(page, 'Ciro')).toHaveCount(0);                                 // ciro modülü kapalı
-  await expect(nav(page, 'Aidat ve tahakkuk')).toHaveCount(0);
+  await expect(nav(page, 'Aidat')).toHaveCount(0);
 });
 
 test('GYO: varlıklara göre kırılım, yol planı kutusu ve "Varlık / bina" alanı; m² olmadan birim eklenmez', async ({ page }) => {

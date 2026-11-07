@@ -25,6 +25,7 @@ import { useSheet } from './overlays';
 import { LegalList } from './legal';
 import { MailReportCard } from './report-mail';
 import { JoinBanner } from './JoinCode';
+import { siteResidentOnly } from '../domain/site';
 import { SiteTeaser } from './site';
 import { SetupChecklist } from './checklist';
 import { CertificateCard } from './certificate';
@@ -53,7 +54,9 @@ export function Page({ title, sub, back, children, fill }: { title: string; sub?
         <Row align="flex-start" style={{ flex: 1 }}>
           {back ? <IconBtn name="back" label={t('Geri')} onPress={() => go(back)} /> : null}
           <View style={{ flex: 1, gap: 2 }}>
-            <Text v="h1" numberOfLines={fill ? 1 : undefined} style={fill && compact ? { fontSize: 26, lineHeight: 30, letterSpacing: -0.8 } : { fontSize: 36, lineHeight: 38, letterSpacing: -1.2 }}>{title}</Text>
+            {/* Telefonda uzun başlık (ör. site adı) küçülür ve en çok iki satır olur; sağdaki düğmelere yer kalır. */}
+            <Text v="h1" numberOfLines={fill ? 1 : compact ? 2 : undefined} style={fill && compact ? { fontSize: 26, lineHeight: 30, letterSpacing: -0.8 }
+              : compact && title.length > 10 ? { fontSize: 28, lineHeight: 31, letterSpacing: -0.9 } : { fontSize: 36, lineHeight: 38, letterSpacing: -1.2 }}>{title}</Text>
             {sub ? <Muted>{sub}</Muted> : null}
           </View>
         </Row>
@@ -64,7 +67,7 @@ export function Page({ title, sub, back, children, fill }: { title: string; sub?
         </Row>
       </Row>
       <Animated.View entering={FadeIn.duration(280)} style={fill ? { flex: 1, minHeight: 0, gap: 12, marginTop: 12 } : { gap: 16, marginTop: 18 }}>
-        {ui.role === 'tenant' && !S.myHome ? <JoinBanner /> : null}
+        {ui.role === 'tenant' && !S.myHome && !siteResidentOnly() ? <JoinBanner /> : null}
         {children}
       </Animated.View>
     </Shell>

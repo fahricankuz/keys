@@ -108,11 +108,11 @@ export function Mid({ children }: { children: ReactNode }) {
   return <Fit v="h2" base={32} color={c.ink}>{children}</Fit>;
 }
 
-export function Note({ children, warn }: { children: ReactNode; warn?: boolean }) {
+export function Note({ children, warn, ok }: { children: ReactNode; warn?: boolean; ok?: boolean }) {
   const c = useColors();
   return (
-    <View style={{ backgroundColor: warn ? c.warnBg : c.accentSoft, borderRadius: radius.md, padding: 14 }}>
-      <Text v="small" color={warn ? c.warnInk : c.ink}>{children}</Text>
+    <View style={{ backgroundColor: warn ? c.warnBg : ok ? c.okBg : c.accentSoft, borderRadius: radius.md, padding: 14 }}>
+      <Text v="small" color={warn ? c.warnInk : ok ? c.okInk : c.ink}>{children}</Text>
     </View>
   );
 }

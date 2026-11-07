@@ -78,7 +78,7 @@ export function SitePersonSheet({ oid, org, unit, commercial, person, manage, re
       <Muted>{[label, p.role === 'malik' ? t('Malik') : t('Kiracı'), p.phone, p.email].filter(Boolean).join(' · ')}</Muted>
       {st === 'linked' ? <Note>{t('Hesabı bağlı; aidat, duyuru ve taleplerini anahtar’dan izliyor.')}</Note> : (
         <>
-          {mailed === true ? <Note>{t('Davet e-postası {email} adresine gönderildi.', { email: p.email })}</Note>
+          {mailed === true ? <Note ok>{t('Davet e-postası {email} adresine gönderildi.', { email: p.email })}</Note>
             : mailed === false ? <Note warn>{t('Davet e-postası şu an gönderilemedi. WhatsApp ya da bağlantıyla gönderebilirsin.')}</Note>
             : !p.email ? <Muted>{t('E-posta girilmedi; daveti WhatsApp ya da bağlantıyla gönder.')}</Muted> : null}
           <View style={{ backgroundColor: c.surface, borderRadius: radius.md, borderWidth: 1, borderColor: c.line, padding: 16, alignItems: 'center', gap: 4 }}>
@@ -86,15 +86,16 @@ export function SitePersonSheet({ oid, org, unit, commercial, person, manage, re
             <Text v="h2" selectable style={{ letterSpacing: 4 }}>{p.code}</Text>
           </View>
           <PressScale onPress={() => { openWa(inviteWa(p, org, label, commercial)); if (!p.invited_at) markInvited(p.id).then(reload); }} accessibilityRole="button" scaleTo={0.98}
-            style={{ minHeight: 52, borderRadius: radius.pill, backgroundColor: WA_GREEN, alignItems: 'center', justifyContent: 'center' }}>
+            style={{ minHeight: 44, borderRadius: radius.pill, backgroundColor: WA_GREEN, alignItems: 'center', justifyContent: 'center' }}>
             <Text v="small" color="#fff" style={{ fontFamily: fonts.bodyXBold, fontSize: 15 }}>{t('WhatsApp ile gönder')}</Text>
           </PressScale>
-          <Row>
-            <Button kind="ghost" title={t('Bağlantıyı kopyala')} style={{ flex: 1 }} onPress={async () => {
+          {/* Dar ekranda alt alta: düğme yazısı ikinci satıra geçmez. */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+            <Button kind="ghost" title={t('Bağlantıyı kopyala')} style={{ flexGrow: 1, flexBasis: 200 }} onPress={async () => {
               try { await Clipboard.setStringAsync(link); host.notify({ title: t('Kopyalandı'), body: t('Davet bağlantısı panoya alındı.'), icon: 'doc' }); } catch {}
             }} />
-            {p.email ? <Button kind="ghost" title={t('E-postayı yeniden gönder')} style={{ flex: 1 }} onPress={async () => { setMailed(await sendSiteInvite(p)); reload(); }} /> : null}
-          </Row>
+            {p.email ? <Button kind="ghost" title={t('E-postayı tekrar gönder')} style={{ flexGrow: 1, flexBasis: 200 }} onPress={async () => { setMailed(await sendSiteInvite(p)); reload(); }} /> : null}
+          </View>
           <View style={{ backgroundColor: c.surface2, borderRadius: radius.md, padding: 12 }}><Text v="small" muted selectable>{text}</Text></View>
         </>
       )}
