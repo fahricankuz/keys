@@ -11,7 +11,7 @@ import {
   KINDS, MODES, kindLabel, unitLabel, distribute, unpaidOf, lateFee, loadSiteAdmin, saveUnit, deleteUnit, parseUnits, importUnits,
   saveResident, deleteResident, createCharges, deleteCharge, decideCharge, markPaid, addExpense, deleteExpense, announce, deleteAnnouncement,
   answerRequest, mySiteUnits, loadMySite, payCharge, openSiteRequest, loadUnitCharges, budgetTotal, budgetAidat, saveBudget,
-  applyBudgetAidat, loadBudgets, siteReport, unitPays, payerText, isCommercial, overdue, occupancy, ciroDiff, reportTurnover, loadTurnovers, decideTurnover,
+  applyBudgetAidat, loadBudgets, siteReport, unitPays, payerText, cashbook, saveCash, SITE_EXPENSE_CATS, isCommercial, overdue, occupancy, ciroDiff, reportTurnover, loadTurnovers, decideTurnover,
   dueIncreases, applyIncrease, rentCharge, nextAuto, saveAuto, cardReady, cardTotal, uploadSiteDoc, deleteSiteDoc, loadSiteDocs
 } from '../domain/site';
 import { loadRates } from '../domain/cpi';
@@ -280,8 +280,59 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
   );
 }
 
+/** Kasa (aidat havuzu): devreden + tahsil edilen aidat − giderler = kalan. Açılış bakiyesini tahakkuk ya da gider yetkisi olan girer. */
+function CashCard({ d, oid, can, reload, from, to, title }: { d: any; oid: string; can: (p: string) => boolean; reload: () => void; from: string; to: string; title: string }) {
+  const c = useColors();
+  const k = cashbook(d, from, to);
+  const [edit, setEdit] = useState(false);
+  const [amount, setAmount] = useState(String(d.cash?.opening ?? ''));
+  const [on, setOn] = useState(String(d.cash?.opening_on || today()));
+  const [err, setErr] = useState<string | null>(null);
+  const may = can('charges.manage') || can('expenses.manage');
+  const cell = (label: string, v: number, bold?: boolean) => (
+    <View style={{ flex: 1, minWidth: 120, gap: 2 }}>
+      <Muted>{label}</Muted>
+      <Text v={bold ? 'h3' : 'body'} color={bold && v < 0 ? c.badInk : c.ink} style={{ fontFamily: bold ? fonts.displayBold : fonts.bodyXBold, fontVariant: ['tabular-nums'] }}>{tl(v)}</Text>
+    </View>
+  );
+  return (
+    <Card gap={10}>
+      <Row between wrap>
+        <H2>{title}</H2>
+        {may && !edit ? <Button kind="quiet" title={d.cash ? t('Açılış bakiyesini değiştir') : t('Açılış bakiyesi gir')} onPress={() => setEdit(true)} /> : null}
+      </Row>
+      <Row wrap>
+        {cell(t('Devreden'), k.carry)}
+        {cell(t('Tahsil edilen'), k.income)}
+        {cell(t('Giderler'), k.spent)}
+        {cell(t('Kasada kalan'), k.left, true)}
+      </Row>
+      <Muted>{d.cash ? t('Açılış: {v} ({d}). Tahsilat: aidat ve site toplamaları; giderler kasadan ödenir.', { v: tl(k.opening), d: day(k.openingOn) })
+        : t('Açılış bakiyesi girilmedi; kasa sıfırdan başlar. Sitenin anahtar’a geçtiği gün kasadaki tutarı gir.')}</Muted>
+      {edit ? (
+        <Stack gap={8}>
+          <Row gap={10} wrap align="flex-end">
+            <View style={{ flexGrow: 1, flexBasis: 140 }}><MoneyField label={t('Açılış bakiyesi (₺)')} value={amount} onChange={setAmount} /></View>
+            <View style={{ flexGrow: 1, flexBasis: 160 }}><Field label={t('Açılış günü (YYYY-AA-GG)')} value={on} onChangeText={setOn} maxLength={10} /></View>
+          </Row>
+          <Err e={err} />
+          <Row wrap>
+            <Button title={t('Kaydet')} onPress={async () => {
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(on)) { setErr(t('Tarihleri YYYY-AA-GG biçiminde yaz.')); return; }
+              setErr(null);
+              try { await saveCash(oid, String(amount).replace(',', '.'), on); setEdit(false); reload(); } catch (e) { setErr(humanError(e)); }
+            }} />
+            <Button kind="quiet" title={t('Vazgeç')} onPress={() => setEdit(false)} />
+          </Row>
+        </Stack>
+      ) : null}
+    </Card>
+  );
+}
+
 function Expenses({ d, oid, can, reload, onDistribute }: { d: any; oid: string; can: (p: string) => boolean; reload: () => void; onDistribute?: (e: any) => void }) {
   const [e, setE] = useState<any>({ cat: '', amount: '', spent_on: today(), note: '', kind: 'isletme' });
+  const [files, setFiles] = useState<Picked[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const act = async (fn: () => Promise<any>) => { setErr(null); try { await fn(); reload(); } catch (x) { setErr(humanError(x)); } };
   const m = thisMonth();
@@ -289,25 +340,42 @@ function Expenses({ d, oid, can, reload, onDistribute }: { d: any; oid: string; 
   const typed = isCommercial(d.sector);
   const kindName = (k: string) => (k === 'ortak' ? t('Ortak gider') : t('İşletme gideri'));
   const monthTotal = d.expenses.filter((x: any) => String(x.spent_on).startsWith(m)).reduce((a: number, x: any) => a + Number(x.amount), 0);
+  // Sitede giderler kasadan (aidat havuzundan) ödenir; dairelere ayrıca yazmak istisnadır ("Ek toplama yap", onayla).
+  const extraCollect = async (x: any) => {
+    if (!onDistribute) return;
+    if (typed) { onDistribute(x); return; }
+    if (await host.ask({ title: t('Ek toplama yapılsın mı?'), body: t('Bu gider kasadan değil, dairelerden ayrıca toplanır: tutar dairelere ek ödeme olarak yazılır. Kasada yeterli para varsa genelde gerekmez; dış cephe boyası gibi büyük, tek seferlik harcamalar içindir.'), ok: t('Ek toplama yap') })) onDistribute(x);
+  };
   return (
     <Stack>
+      {!typed ? <CashCard d={d} oid={oid} can={can} reload={reload} from={m + '-01'} to={m + '-31'} title={t('{month} kasası', { month: monthYear(m) })} /> : null}
       {can('expenses.manage') ? (
         <Card gap={10}>
           <H2>{t('Gider ekle')}</H2>
           <Row gap={10} wrap align="flex-end">
-            <View style={{ flexGrow: 2, flexBasis: 200 }}><Field label={t('Kalem')} value={e.cat} onChangeText={(v) => setE({ ...e, cat: v })} maxLength={60} placeholder={t('ör. Asansör bakımı')} /></View>
+            {typed ? <View style={{ flexGrow: 2, flexBasis: 200 }}><Field label={t('Kalem')} value={e.cat} onChangeText={(v) => setE({ ...e, cat: v })} maxLength={60} placeholder={t('ör. Asansör bakımı')} /></View> : null}
             <View style={{ flexGrow: 1, flexBasis: 120 }}><MoneyField label={t('Tutar (₺)')} value={e.amount} onChange={(v) => setE({ ...e, amount: v })} /></View>
             <View style={{ flexGrow: 1, flexBasis: 140 }}><Field label={t('Tarih (YYYY-AA-GG)')} value={e.spent_on} onChangeText={(v) => setE({ ...e, spent_on: v })} maxLength={10} /></View>
           </Row>
+          {!typed ? (
+            <View style={{ gap: 4 }}>
+              <Label>{t('Kategori')}</Label>
+              <Seg wrap value={e.cat} onChange={(v: any) => setE({ ...e, cat: v })} options={SITE_EXPENSE_CATS().map((k) => [k, k] as [string, string])} />
+            </View>
+          ) : null}
           {typed ? (
             <View style={{ gap: 4 }}>
               <Label>{t('Gider türü')}</Label>
               <Seg value={e.kind} onChange={(v: any) => setE({ ...e, kind: v })} options={[['isletme', t('İşletme gideri')], ['ortak', t('Ortak gider (kiracıya yansır)')]]} wrap />
             </View>
           ) : null}
-          <Field label={t('Not (isteğe bağlı)')} value={e.note} onChangeText={(v) => setE({ ...e, note: v })} maxLength={500} />
+          <Field label={!typed && e.cat === t('Diğer') ? t('Açıklama') : t('Not (isteğe bağlı)')} value={e.note} onChangeText={(v) => setE({ ...e, note: v })} maxLength={500} />
+          <FileField label={t('Fatura ya da fiş (isteğe bağlı)')} files={files} setFiles={setFiles} camera max={1} />
           <Button title={t('Gideri ekle')} style={{ alignSelf: 'flex-start' }} disabled={!e.cat.trim() || !e.amount}
-            onPress={() => act(async () => { await addExpense(oid, { ...e, kind: typed ? e.kind : 'isletme', amount: e.amount.replace(',', '.') }); setE({ cat: '', amount: '', spent_on: today(), note: '', kind: e.kind }); })} />
+            onPress={() => act(async () => {
+              await addExpense(oid, { ...e, kind: typed ? e.kind : 'isletme', amount: e.amount.replace(',', '.'), file: files[0] || null });
+              setE({ cat: '', amount: '', spent_on: today(), note: '', kind: e.kind }); setFiles([]);
+            })} />
           <Err e={err} />
         </Card>
       ) : null}
@@ -316,11 +384,14 @@ function Expenses({ d, oid, can, reload, onDistribute }: { d: any; oid: string; 
         <Card key={x.id} gap={6}>
           <Row between wrap>
             <View style={{ flex: 1, minWidth: 160 }}><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{x.cat}</Text><Muted>{day(x.spent_on)}{typed ? ' · ' + kindName(x.kind) : ''}{x.note ? ' · ' + x.note : ''}</Muted></View>
-            <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{tl(x.amount)}</Text>
+            <Row gap={10}>
+              {x.receipt_path ? <DownloadLink path={x.receipt_path} label={x.receipt_name || t('Fatura')} /> : null}
+              <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{tl(x.amount)}</Text>
+            </Row>
           </Row>
           {can('expenses.manage') ? (
             <Row wrap>
-              {can('charges.manage') && onDistribute ? <Button kind="ghost" title={isCommercial(d.sector) ? t('Birimlere dağıt') : t('Dairelere dağıt')} onPress={() => onDistribute(x)} /> : null}
+              {can('charges.manage') && onDistribute ? <Button kind="ghost" title={typed ? t('Birimlere dağıt') : t('Ek toplama yap')} onPress={() => extraCollect(x)} /> : null}
               <Button kind="quiet" title={t('Sil')} onPress={() => act(() => deleteExpense(x.id))} />
             </Row>
           ) : null}
@@ -415,7 +486,12 @@ function Budget({ d, oid, can, reload }: { d: any; oid: string; can: (p: string)
         <H2>{t('{year} işletme projesi', { year })}</H2>
         {b.items.map((it: any, i: number) => (
           <Row key={i} gap={10} wrap align="flex-end">
-            <View style={{ flexGrow: 2, flexBasis: 200 }}><Field label={t('Gider kalemi')} value={it.cat} editable={edit} onChangeText={(v) => setItem(i, { cat: v })} maxLength={60} placeholder={t('ör. Asansör bakımı')} /></View>
+            <View style={{ flexGrow: 2, flexBasis: 260, gap: 4 }}>
+              <Label>{t('Gider kalemi')}</Label>
+              {edit
+                ? <Seg wrap value={it.cat} onChange={(v: any) => setItem(i, { cat: v })} options={[...SITE_EXPENSE_CATS(), ...(it.cat && !SITE_EXPENSE_CATS().includes(it.cat) ? [it.cat] : [])].map((k) => [k, k] as [string, string])} />
+                : <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{it.cat || '—'}</Text>}
+            </View>
             <View style={{ flexGrow: 1, flexBasis: 130 }}><MoneyField label={t('Yıllık tutar (₺)')} value={String(it.amount ?? '')} editable={edit} onChange={(v) => setItem(i, { amount: v })} /></View>
             <View style={{ minWidth: 110, paddingBottom: 14 }}><Muted>{t('Harcanan')} {tl(spent(it.cat))}</Muted></View>
           </Row>
@@ -509,6 +585,8 @@ function Report({ d, org }: { d: any; org: string }) {
         <Muted>{t('Talepler')}: {t('{n} açıldı', { n: r.requests.opened })} · {t('{n} açık bekliyor', { n: r.requests.open })}</Muted>
         {pc !== 'TRY' || Math.round(r.fxDiff) || r.fxMissing ? <FxNote cur={pc} missing={r.fxMissing} /> : null}
       </Card>
+      {!isCommercial(d.sector) ? <CashCard d={d} oid="" can={() => false} reload={() => {}} from={r.from} to={periodEnd}
+        title={period === 'year' ? t('{year} kasası', { year: ref.slice(0, 4) }) : t('{month} kasası', { month: monthYear(ref.slice(0, 7)) })} /> : null}
       <RevenueChart charges={d.charges} endMonth={endMonth} cur={pc} table={table} />
       {typeof window !== 'undefined' && (window as any).print ? <Button kind="ghost" title={t('Yazdır / PDF')} onPress={() => (window as any).print()} style={{ alignSelf: 'flex-start' }} /> : null}
       <Muted>{t('Bu rapor her ayın 1’inde (yıllığı 1 Ocak’ta) “Raporlar” yetkisi olan yöneticilere e-postayla da gider.')}</Muted>
@@ -667,7 +745,7 @@ export function SiteAdminScreen({ section = 'ozet' }: { section?: string }) {
             onDistribute={(commercial ? hasModule(org, 'ortak_gider') : hasModule(org, 'gider_dagitim')) ? (x: any) => {
               // Sitede gider arsa payına göre özel toplama; ticaride m²'ye göre ortak alan gideri olarak dağıtılır.
               ui.siteSeed = commercial ? { month: String(x.spent_on).slice(0, 7), kind: 'ortak_gider', title: '', mode: 'area', value: x.amount }
-                : { month: String(x.spent_on).slice(0, 7), kind: 'ozel', title: x.cat, mode: 'share', value: x.amount };
+                : { month: String(x.spent_on).slice(0, 7), kind: 'ozel', title: String(x.note || x.cat).slice(0, 120), mode: 'share', value: x.amount };   // başlık: açıklama, yoksa kategori
               go('tahakkuk');
             } : undefined} />}
           {cur.key === 'butce' && <Budget d={d} oid={org.id} can={can} reload={load} />}

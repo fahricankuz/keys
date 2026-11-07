@@ -130,10 +130,41 @@ export function lateFee(c, today = new Date()){
 /* ---- Yönetim ------------------------------------------------------ */
 
 /** Yönetim ekranının tüm verisi (son 13 ayın tahakkukları). */
+/** Site giderlerinin kategorileri (kalem). Eski serbest yazılmış kalemler olduğu gibi kalır. İşletme projesi de bu listeyi kullanır. */
+export const SITE_EXPENSE_CATS = () => [t('Personel'), t('Temizlik'), t('Elektrik ve su (ortak alan)'), t('Asansör'), t('Jeneratör ve bakım'),
+  t('Bahçe'), t('Sigorta'), t('Onarım ve tadilat'), t('Yönetim ve muhasebe'), t('Diğer')];
+/** Kasaya giren tahsilatlar: aidat ve site toplamaları (yakıt, demirbaş, özel toplama). */
+export const COLLECTED_KINDS = ['aidat', 'yakit', 'demirbas', 'ozel'];
+const lastDayOfMonth = (m) => { const [y, mo] = String(m).split('-').map(Number); return m + '-' + String(new Date(y, mo, 0).getDate()).padStart(2, '0'); };
+
+/** Kasa (aidat havuzu), from–to (YYYY-AA-GG, dahil): devreden + tahsilat − gider = kalan. Açılış gününden önceki işlemler sayılmaz.
+    { carry, income, spent, left, opening, openingOn, byCat }. */
+export function cashbook(d, from, to){
+  const opening = Number(d.cash?.opening) || 0, start = d.cash?.opening_on ? String(d.cash.opening_on).slice(0, 10) : '0000-00-00';
+  let carry = opening, income = 0, spent = 0;
+  const byCat = {};
+  (d.collections || []).forEach((x) => {
+    if (x.day < start) return;
+    if (x.day < from) carry += x.amount; else if (x.day <= to) income += x.amount;
+  });
+  (d.expenses || []).forEach((e) => {
+    const day = String(e.spent_on).slice(0, 10), v = Number(e.amount) || 0;
+    if (day < start) return;
+    if (day < from) carry -= v;
+    else if (day <= to){ spent += v; byCat[e.cat] = (byCat[e.cat] || 0) + v; }
+  });
+  return { carry, income, spent, left: carry + income - spent, opening, openingOn: d.cash?.opening_on || null, byCat };
+}
+
+/** Kasanın açılış bakiyesi (sitenin anahtar'a geçtiği gün kasadaki tutar). */
+export async function saveCash(oid, opening, on){
+  must(await (await db()).from('site_cash').upsert({ org_id: oid, opening: Number(opening) || 0, opening_on: on || iso(new Date()), updated_at: new Date().toISOString() }));
+}
+
 export async function loadSiteAdmin(oid){
   const c = await db();
   const since = (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 12); return mkey(d); })();
-  const [units, residents, charges, expenses, notes, requests, budgets, linked, turnovers, rentChanges, orgRow, auto, documents] = await Promise.all([
+  const [units, residents, charges, expenses, notes, requests, budgets, linked, turnovers, rentChanges, orgRow, auto, documents, cash] = await Promise.all([
     c.from('site_units').select('*').eq('org_id', oid),
     c.from('site_residents').select('*').eq('org_id', oid),
     c.from('site_charges').select('*').eq('org_id', oid),
@@ -146,11 +177,16 @@ export async function loadSiteAdmin(oid){
     c.from('site_rent_changes').select('*').eq('org_id', oid),
     c.from('organizations').select('sector').eq('id', oid),
     c.from('site_auto').select('*').eq('org_id', oid),
-    c.from('site_documents').select('*').eq('org_id', oid)
+    c.from('site_documents').select('*').eq('org_id', oid),
+    c.from('site_cash').select('*').eq('org_id', oid)
   ].map((p) => p.then((r) => (r.error ? [] : r.data || []))));
   const sector = (orgRow[0] || {}).sector || 'site';
   return {
     sector, units: units.map((u) => Object.assign(u, { sector })).sort(sortUnits), residents, budgets, linked, auto: auto[0] || null,
+    // Kasa: açılış bakiyesi ve bütün tahsilatlar (12 ayla sınırlı değil; devreden bakiye için).
+    cash: cash[0] || null,
+    collections: charges.filter((x) => COLLECTED_KINDS.includes(x.kind) && (x.status === 'paid' || x.status === 'partial'))
+      .map((x) => ({ day: x.paid_on ? String(x.paid_on).slice(0, 10) : lastDayOfMonth(x.month), amount: x.status === 'paid' ? Number(x.amount) : Number(x.paid_amount) || 0 })),
     documents: documents.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))),
     turnovers: turnovers.sort((a, b) => b.month.localeCompare(a.month)),
     rentChanges: rentChanges.sort((a, b) => String(b.from_date).localeCompare(String(a.from_date))),
@@ -314,8 +350,16 @@ export async function markPaid(ch, amount, method = 'havale'){
 
 export async function addExpense(oid, e){
   // Tür yalnız "ortak" seçilince yazılır (varsayılan işletme gideri; sütun migration yatirimci_raporu ile gelir).
+  // Fatura / fiş eki sitenin klasörüne yüklenir (migration site_kasa); ek yoksa alan hiç gönderilmez.
+  let receipt = {};
+  if (e.file){
+    const stored = await storeFile('site-' + oid, e.file);
+    const path = stored ? storedPath(stored) : null;
+    if (!path) throw new Error(t('Dosya yüklenemedi'));
+    receipt = { receipt_path: path, receipt_name: String(e.file.name || 'fatura').slice(0, 200) };
+  }
   must(await (await db()).from('site_expenses').insert({ org_id: oid, cat: e.cat, amount: Number(e.amount) || 0, spent_on: e.spent_on || iso(new Date()), note: e.note || '',
-    ...(e.kind === 'ortak' ? { kind: 'ortak' } : {}) }));
+    ...(e.kind === 'ortak' ? { kind: 'ortak' } : {}), ...receipt }));
 }
 export async function deleteExpense(id){ must(await (await db()).from('site_expenses').delete().eq('id', id)); }
 export async function announce(oid, title, body){
