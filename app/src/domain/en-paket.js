@@ -845,5 +845,15 @@ export const EN_PAKET = {
   "Rapordaki tutarlar bu para biriminde, her işlem kendi gününün TCMB döviz satış kuruyla gösterilir.": "Report amounts are shown in this currency, each transaction at the CBRT selling rate of its own day.",
   "Gider türü": "Expense type",
   "Ortak gider (kiracıya yansır)": "Service charge (billed to tenants)",
-  "Yol planında: onay akışı (artış ve tahakkuk için çift imza), değerleme ve API.": "On the roadmap: approval flow (two signatures for increases and charges), valuation and API."
+  "Yol planında: onay akışı (artış ve tahakkuk için çift imza), değerleme ve API.": "On the roadmap: approval flow (two signatures for increases and charges), valuation and API.",
+  "Dekont geldiğinde": "When a receipt arrives",
+  "Yeni talep açıldığında": "When a new request is opened",
+  "Aidatı geciken daireler (haftalık özet)": "Flats with late dues (weekly summary)",
+  "Kirası geciken birimler (haftalık özet)": "Units with late rent (weekly summary)",
+  "Kiracı katılmadı · malik öder": "Tenant hasn’t joined · owner pays",
+  "Kiracı yok · malik öder": "No tenant · owner pays",
+  "Malik katılmadı · kiracı öder": "Owner hasn’t joined · tenant pays",
+  "Malik yok · kiracı öder": "No owner · tenant pays",
+  "Kiracı olmadığı için aidatı malik öder": "No tenant, so the owner pays the dues",
+  "Malik olmadığı için aidatı kiracı öder": "No owner, so the tenant pays the dues"
 };
