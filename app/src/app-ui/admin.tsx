@@ -19,6 +19,7 @@ import { Card, Empty, H2, Muted, Row, Seg, Stack, initials } from './blocks';
 import { CpiRates, Growth, Overview, Revenue, SubActions, Support } from './admin-extra';
 import { Costs } from './admin-costs';
 import { AdminShell, PageHead } from './admin-ui';
+import { MailComposer } from './admin-mail';
 import { OrgDraft, Orgs, sectorFromRole } from './admin-orgs';
 import { AddProperty } from './admin-property';
 import OpenSplash from './OpenSplash';
@@ -141,6 +142,7 @@ function HealthRow({ x, onSaved }: { x: any; onSaved: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [sl, tone] = SEV[x.sev] || SEV[1];
+  const [mail, setMail] = useState(false);
   const save = async () => {
     if (!note.trim()) return;
     setBusy(true); setErr(null);
@@ -156,9 +158,10 @@ function HealthRow({ x, onSaved }: { x: any; onSaved: () => void }) {
         </View>
         <Row gap={6} wrap>
           {x.phone ? <Button kind="ghost" title={t('WhatsApp')} onPress={() => Linking.openURL(waLink(x.phone, t('Merhaba {name}, anahtar’dan yazıyorum.', { name: String(x.name || '').split(' ')[0] }))).catch(() => {})} /> : null}
-          {x.email ? <Button kind="ghost" title={t('E-posta')} onPress={() => Linking.openURL('mailto:' + x.email).catch(() => {})} /> : null}
+          {x.email ? <Button kind="ghost" title={t('E-posta')} onPress={() => setMail(!mail)} /> : null}
         </Row>
       </Row>
+      {mail ? <MailComposer target={{ to: x.email, name: x.name, ...(x.kind === 'org' ? { org_id: x.id } : { user_id: x.id }) }} onSent={onSaved} onClose={() => setMail(false)} /> : null}
       <View style={{ gap: 4 }}>{x.reasons.map((r: any) => <Text key={r.code} v="small" color={r.sev === 3 ? c.badInk : c.ink}>• {r.label}</Text>)}</View>
       <Muted>{x.last ? t('Son temas {d}: {note}', { d: day(x.last.created_at), note: x.last.note }) : t('Henüz temas kaydı yok.')}</Muted>
       <Row gap={8} wrap align="flex-end">
@@ -335,6 +338,7 @@ function AccountRow({ u, s, land, homes, open, onToggle, reload }: { u: any; s?:
   const c = useColors();
   const { phone } = useBreakpoint();
   const name = u.name || u.email || '—';
+  const [mail, setMail] = useState(false);
   const role = u.is_admin ? t('Yönetici') : u.role === 'landlord' ? t('Mülk sahibi') : t('Kiracı');
   const tags = statusOf(u, s, homes);
   const counts = u.role === 'landlord'
@@ -395,6 +399,9 @@ function AccountRow({ u, s, land, homes, open, onToggle, reload }: { u: any; s?:
           )}
           <Box title={t('Hesap')}>
             <Muted>{[t('Kayıt') + ' ' + day(u.created_at), u.phone ? t('Telefon') + ' ' + u.phone : ''].filter(Boolean).join(' · ')}</Muted>
+            {u.email && !u.is_admin ? (mail
+              ? <MailComposer target={{ to: u.email, name: u.name, user_id: u.id }} onClose={() => setMail(false)} />
+              : <Button kind="ghost" title={t('E-posta gönder')} onPress={() => setMail(true)} style={{ alignSelf: 'flex-start' }} />) : null}
             <BanBox u={u} reload={reload} />
             <DeleteBox u={u} reload={reload} />
             {!u.banned && !u.is_admin ? <Muted>{t('Kalıcı silme yalnız askıdaki hesapta açılır.')}</Muted> : null}

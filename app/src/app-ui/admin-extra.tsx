@@ -1,7 +1,8 @@
 /* Yönetici paneli: genel bakış göstergeleri, mülk sahibi abonelikleri ve "Bize ulaş" talepleri. */
 import { ReactNode, useEffect, useState } from 'react';
 import { Linking, View } from 'react-native';
-import { extendTrial, humanError, loadCpi, loadKpis, loadSubscriptions, loadSupport, setCpi, setPlan, setSupportStatus } from '../domain/admin';
+import { extendTrial, humanError, loadAdminEmails, loadCpi, loadKpis, loadSubscriptions, loadSupport, setCpi, setPlan, setSupportStatus } from '../domain/admin';
+import { MailComposer } from './admin-mail';
 import { CONFIG } from '../domain/config';
 import { planLabel } from '../domain/plans';
 import { SECTORS, adminOrgs, sectorOf } from '../domain/org';
@@ -370,6 +371,10 @@ export function Support({ onConvert }: { onConvert?: (r: any) => void }) {
   const [f, setF] = useState('open');
   const { data, err, reload } = useLoad<any[]>(() => loadSupport());
   const list = (data || []).filter((r) => f === 'all' || r.status === f);
+  const [mailFor, setMailFor] = useState<string | null>(null);
+  const [mails, setMails] = useState<any[]>([]);
+  const loadMails = () => loadAdminEmails().then(setMails);
+  useEffect(() => { loadMails(); }, []);
   const toggle = async (r: any) => { try { await setSupportStatus(r.id, r.status === 'open' ? 'done' : 'open'); reload(); } catch {} };
   return (
     <Stack>
@@ -393,10 +398,17 @@ export function Support({ onConvert }: { onConvert?: (r: any) => void }) {
           ) : null}
           {r.message ? <Text v="small" selectable>{r.message}</Text> : null}
           <Row wrap>
-            {r.email ? <Button kind="ghost" title={t('E-posta gönder')} onPress={() => Linking.openURL('mailto:' + r.email + '?subject=' + encodeURIComponent(t('anahtar iletişim talebin'))).catch(() => {})} /> : null}
+            {r.email ? <Button kind="ghost" title={t('E-posta gönder')} onPress={() => setMailFor(mailFor === r.id ? null : r.id)} /> : null}
             {r.kind === 'kurumsal' && r.status === 'open' && onConvert ? <Button title={t('Kuruma çevir')} onPress={() => onConvert(r)} /> : null}
             <Button kind={r.status === 'open' ? 'primary' : 'ghost'} title={r.status === 'open' ? t('Kapat') : t('Yeniden aç')} onPress={() => toggle(r)} />
           </Row>
+          {mailFor === r.id ? (
+            <MailComposer target={{ to: r.email, name: r.name, subject: t('anahtar iletişim talebin'), request_id: r.id, user_id: r.user_id || undefined }}
+              onSent={loadMails} onClose={() => setMailFor(null)} />
+          ) : null}
+          {mails.filter((m) => m.request_id === r.id).map((m) => (
+            <Muted key={m.id}>✓ {t('Gönderildi {d}: {s}', { d: day(m.created_at), s: m.subject })}</Muted>
+          ))}
         </Card>
       ))}
     </Stack>

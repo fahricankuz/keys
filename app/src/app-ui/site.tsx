@@ -11,7 +11,7 @@ import {
   KINDS, MODES, kindLabel, unitLabel, distribute, unpaidOf, lateFee, loadSiteAdmin, saveUnit, deleteUnit, parseUnits, importUnits,
   saveResident, deleteResident, createCharges, deleteCharge, decideCharge, markPaid, addExpense, deleteExpense, announce, deleteAnnouncement,
   answerRequest, mySiteUnits, loadMySite, payCharge, openSiteRequest, loadUnitCharges, budgetTotal, budgetAidat, saveBudget,
-  applyBudgetAidat, loadBudgets, siteReport, isCommercial, overdue, occupancy, ciroDiff, reportTurnover, loadTurnovers, decideTurnover,
+  applyBudgetAidat, loadBudgets, siteReport, unitPays, payerText, isCommercial, overdue, occupancy, ciroDiff, reportTurnover, loadTurnovers, decideTurnover,
   dueIncreases, applyIncrease, rentCharge, nextAuto, saveAuto, cardReady, cardTotal, uploadSiteDoc, deleteSiteDoc, loadSiteDocs
 } from '../domain/site';
 import { loadRates } from '../domain/cpi';
@@ -760,7 +760,7 @@ export function SiteUnitCharges({ unitId }: { unitId: string }) {
   const load = useCallback(async () => setList(await loadUnitCharges(unitId)), [unitId]);
   useEffect(() => { load(); }, [load]);
   if (!u) return null;
-  const payer = u.payer === u.role;
+  const payer = unitPays(u);
   const due = (list || []).reduce((a, x) => a + unpaidOf(x), 0);
   return (
     <Stack gap={6}>
@@ -768,7 +768,7 @@ export function SiteUnitCharges({ unitId }: { unitId: string }) {
         <View style={{ flex: 1, gap: 2 }}>
           <Label>{t('Site aidatı')} · {u.org}</Label>
           <Text v="h3">{unitLabel(u)}</Text>
-          <Muted>{u.payer === 'malik' ? t('Aidatı malik öder') : t('Aidatı kiracı öder')}{payer ? '' : ' · ' + t('takip için görünür')}</Muted>
+          <Muted>{payerText(u.payer, u.payer_effective)}{payer ? '' : ' · ' + t('takip için görünür')}</Muted>
         </View>
         <View style={{ alignItems: 'flex-end' }}><Muted>{t('Ödenmemiş')}</Muted><Text v="h3" color={due ? c.badInk : c.okInk}>{tl(due)}</Text></View>
       </Row>
@@ -886,7 +886,7 @@ export function ResidentSiteScreen({ part = 'all' }: { part?: ResidentPart }) {
     <Page title={title} sub={[...new Set(units.map((u: any) => u.org))].join(', ')}>
       {err ? <Note warn>{err}</Note> : null}
       {show('home') || show('pay') ? units.map((u: any) => {
-        const payer = u.payer === u.role;
+        const payer = unitPays(u);
         const all = (d?.charges || []).filter((x: any) => x.unit_id === u.unit_id);
         // Özette yalnız ödenmemişler (en çok 3); Ödemeler'de geçmişin tamamı.
         const mine = part === 'home' ? all.filter(open).slice(0, 3) : all;
@@ -899,7 +899,7 @@ export function ResidentSiteScreen({ part = 'all' }: { part?: ResidentPart }) {
                 <Text v="h3">{unitLabel(u)}</Text>
                 <Muted>{isCommercial(u.sector)
                   ? [t('Kiracı'), u.rent != null ? t('Kira') + ' ' + money(u.rent, u.currency) + ' ' + t('/ ay') : '', u.lease_end ? t('Sözleşme bitişi') + ' ' + day(u.lease_end) : ''].filter(Boolean).join(' · ')
-                  : (u.role === 'malik' ? t('Malik') : t('Kiracı')) + ' · ' + (u.payer === 'malik' ? t('Aidatı malik öder') : t('Aidatı kiracı öder'))}</Muted>
+                  : (u.role === 'malik' ? t('Malik') : t('Kiracı')) + ' · ' + payerText(u.payer, u.payer_effective)}</Muted>
               </View>
               <View style={{ alignItems: 'flex-end' }}><Muted>{t('Ödenmemiş')}</Muted><Text v="h3" color={due ? c.badInk : c.okInk}>{tl(due)}</Text></View>
             </Row>

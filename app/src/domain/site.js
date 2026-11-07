@@ -73,6 +73,28 @@ export function distribute(units, mode, value, fx = {}){
 }
 
 /** Ödenmemiş tutar. */
+/** Aidatı fiilen kim öder (sunucudaki public.site_payer ile aynı kural): dairede seçilen rol; o rolde hesabı bağlı kimse yoksa
+    ve diğer rolde varsa diğer rol. residents: dairenin kayıtları (user_id dolu olan hesabı bağlı), linked: bağlı mülkün kiracıları. */
+export function effectivePayer(u, residents = [], linked = []){
+  const roles = new Set([
+    ...residents.filter((r) => r.unit_id === u.id && r.user_id).map((r) => r.role),
+    ...linked.filter((x) => x.unit_id === u.id).map(() => 'kiraci')
+  ]);
+  const p = u.payer === 'malik' ? 'malik' : 'kiraci';
+  if (roles.has(p) || !roles.size) return p;
+  return p === 'kiraci' ? 'malik' : 'kiraci';
+}
+
+/** Sakinin ekranı: bu dairede aidatı ben mi öderim? (Eski sunucuda "pays" yoksa seçilen role bakılır.) */
+export const unitPays = (u) => (u.pays != null ? !!u.pays : u.payer === u.role);
+
+/** "Aidatı kiracı öder" / "Kiracı olmadığı için aidatı malik öder"… effective: fiilen ödeyen rol. */
+export function payerText(payer, effective){
+  const eff = effective || payer;
+  if (eff !== payer) return eff === 'malik' ? t('Kiracı olmadığı için aidatı malik öder') : t('Malik olmadığı için aidatı kiracı öder');
+  return payer === 'malik' ? t('Aidatı malik öder') : t('Aidatı kiracı öder');
+}
+
 export const unpaidOf = (c) => (c.status === 'paid' ? 0 : Math.max(0, Number(c.amount) - (c.status === 'partial' ? Number(c.paid_amount) || 0 : 0)));
 
 /** Birimin bir aylık kira tahakkuku (TL): döviz kirası girilen kurla çevrilir; KDV'li sözleşmede %20 eklenir,
@@ -312,6 +334,12 @@ export const isSiteCode = (code) => /^S[0-9A-F]{7}$/.test(String(code || '').tri
 export const mySiteUnits = () => live.siteUnits || [];
 /** Yalnız site (ya da AVM/depo) sakini, mülke bağlı kiracı değil: uygulamanın sekmeleri site ekranlarıdır, "Mülküne bağlan" gösterilmez. */
 export const siteResidentOnly = () => ui.role === 'tenant' && !S.myHome && mySiteUnits().length > 0;
+/** Yalnız siteye bağlı kişinin etiketi: dairedeki rolünden ("Malik · A Blok No 1", birden çok dairede "+1"). */
+export function residentRoleLabel(units = mySiteUnits()){
+  if (!units.length) return '';
+  const u = units[0];
+  return (u.role === 'malik' ? t('Malik') : t('Kiracı')) + ' · ' + unitLabel(u) + (units.length > 1 ? ' +' + (units.length - 1) : '');
+}
 export async function refreshSiteUnits(redraw = true){
   try { live.siteUnits = must(await (await db()).rpc('my_site_units')) || []; } catch(e){ logCaught('Site daireleri okunamadı', e); }
   if (redraw) emit();
