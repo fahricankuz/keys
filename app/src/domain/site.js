@@ -540,6 +540,21 @@ export async function loadProjects(oids){
   };
 }
 
+/** Depo yolu video mu? (talep ve yazışma ekleri: mp4, m4v, mov, webm) */
+export const isVideoPath = (p) => /\.(mp4|m4v|mov|webm)$/i.test(String(p || ''));
+
+/** Talep eki olarak fotoğraf ve videoları sitenin klasörüne yükler (en çok 6); depodaki yolları döner. */
+export async function storeMedia(oid, files = []){
+  const out = [];
+  for (const f of files.slice(0, 6)){
+    const stored = await storeFile('site-' + oid, f);
+    const path = stored ? storedPath(stored) : null;
+    if (!path) throw new Error(t(f.isVideo ? 'Video yüklenemedi' : 'Fotoğraf yüklenemedi'));
+    out.push(path);
+  }
+  return out;
+}
+
 /** Fotoğrafları sitenin klasörüne yükler; depodaki yolları döner. */
 async function storePhotos(oid, files = []){
   const out = [];
@@ -594,12 +609,15 @@ export async function loadRequestMessages(requestIds){
   return out;
 }
 /** Talebe mesaj yazar (gönderen ve tarafı sunucu belirler). */
-export async function sendRequestMessage(req, body){
-  must(await (await db()).from('site_request_messages').insert({ request_id: req.id, org_id: req.org_id, user_id: live.user?.id, body: String(body || '').trim() }));
+export async function sendRequestMessage(req, body, files = []){
+  const media = await storeMedia(req.org_id, files);
+  must(await (await db()).from('site_request_messages').insert({ request_id: req.id, org_id: req.org_id, user_id: live.user?.id, body: String(body || '').trim(), media }));
 }
 
-export async function openSiteRequest(oid, unitId, { cat, title, body }){
-  must(await (await db()).from('site_requests').insert({ org_id: oid, unit_id: unitId || null, user_id: live.user?.id, cat, title: String(title).trim(), body: String(body || '').trim() }));
+/** Talep açar; files: fotoğraf ve video ekleri (en çok 6). */
+export async function openSiteRequest(oid, unitId, { cat, title, body, files = [] }){
+  const media = await storeMedia(oid, files);
+  must(await (await db()).from('site_requests').insert({ org_id: oid, unit_id: unitId || null, user_id: live.user?.id, cat, title: String(title).trim(), body: String(body || '').trim(), media }));
 }
 
 /* ---- Mülk ↔ daire bağlantısı -------------------------------------- */

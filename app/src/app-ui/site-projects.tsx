@@ -19,6 +19,7 @@ import { Card, Empty, H2, Label, Muted, Row, Stack, Thumbs } from './blocks';
 import { DateField, FileField, MoneyField, useVals } from './forms';
 import { Picked } from './media';
 import { Pill } from './org';
+import { MediaList, MediaPicker } from './site-media';
 
 const day = (v?: string) => (v ? fmtFull(parse(String(v).slice(0, 10))) : '—');
 const photoSrc = (p: string) => 'sb:' + p;
@@ -276,6 +277,7 @@ export function RequestThread({ req, canWrite, mgmt, who }: { req: any; canWrite
   const c = useColors();
   const [list, setList] = useState<any[] | null>(null);
   const [body, setBody] = useState('');
+  const [files, setFiles] = useState<Picked[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const load = useCallback(async () => { const m: any = await loadRequestMessages([req.id]); setList(m[req.id] || []); }, [req.id]);
@@ -290,15 +292,17 @@ export function RequestThread({ req, canWrite, mgmt, who }: { req: any; canWrite
         <View key={m.id} style={{ alignSelf: mine(m) ? 'flex-end' : 'flex-start', maxWidth: '88%', gap: 2, padding: 10, borderRadius: radius.md,
           backgroundColor: mine(m) ? c.accentSoft : c.surface2 }}>
           <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{side(m)} · <Text v="small" muted>{day(m.created_at)}</Text></Text>
-          <Text v="small">{m.body}</Text>
+          {m.body ? <Text v="small">{m.body}</Text> : null}
+          <MediaList paths={m.media} />
         </View>
       ))}
       {canWrite ? (
         <>
           <Field label={mgmt ? t('Sakine yaz') : t('Yönetime yaz')} value={body} onChangeText={setBody} multiline maxLength={4000} />
-          <Button kind="ghost" title={t('Mesaj gönder')} disabled={!body.trim() || busy} loading={busy} style={{ alignSelf: 'flex-start' }} onPress={async () => {
+          <MediaPicker files={files} setFiles={setFiles} />
+          <Button kind="ghost" title={t('Mesaj gönder')} disabled={(!body.trim() && !files.length) || busy} loading={busy} style={{ alignSelf: 'flex-start' }} onPress={async () => {
             setErr(null); setBusy(true);
-            try { await sendRequestMessage(req, body); setBody(''); await load(); } catch (e) { setErr(humanError(e)); } finally { setBusy(false); }
+            try { await sendRequestMessage(req, body, files); setBody(''); setFiles([]); await load(); } catch (e) { setErr(humanError(e)); } finally { setBusy(false); }
           }} />
         </>
       ) : null}

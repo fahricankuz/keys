@@ -14,7 +14,7 @@ const manipulator = () => import('expo-image-manipulator');
 /** PDF ve diğer sıkıştırılmayan dosyalar için üst sınır (bayt). */
 export const MAX_FILE = 10 * 1024 * 1024;
 
-export type Picked = { name: string; dataUrl: string | null; isImage: boolean; uri?: string; mime?: string; size?: number;
+export type Picked = { name: string; dataUrl: string | null; isImage: boolean; isVideo?: boolean; uri?: string; mime?: string; size?: number;
   /** Listelerdeki küçük önizleme için 320 px kopya (yüklemede ayrıca saklanır; bkz. backend.js → storeFile). */
   thumb?: string | null };
 
@@ -127,6 +127,22 @@ export async function pickDocument(): Promise<Picked | null> {
   if (!isImage && a.size && a.size > MAX_FILE) { host.notify({ title: t('Dosya çok büyük'), body: t('En fazla 10 MB yüklenebilir.'), icon: 'doc' }); return null; }
   const dataUrl = isImage ? await shrinkRobust(a.uri, DOC, (a as any).width, (a as any).height) : null;
   return { name: a.name, dataUrl, isImage, uri: a.uri, mime: a.mimeType || undefined, size: a.size || undefined, thumb: isImage ? await thumbOf(dataUrl) : null };
+}
+
+/** Video için üst sınır (bayt): depo yükleme sınırının altında kalır; sıkıştırılmadan yüklenir. */
+export const MAX_VIDEO = 40 * 1024 * 1024;
+const VIDEO_MIME: Record<string, string> = { mp4: 'video/mp4', m4v: 'video/x-m4v', mov: 'video/quicktime', webm: 'video/webm' };
+
+/** Talep ve yazışma eki: bir video (mp4, mov, webm; en çok 40 MB). Büyük dosya seçilir seçilmez bildirilir. */
+export async function pickVideo(): Promise<Picked | null> {
+  const r = await DocumentPicker.getDocumentAsync({ type: ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'], copyToCacheDirectory: true });
+  if (r.canceled || !r.assets?.length) return null;
+  const a = r.assets[0];
+  const ext = (a.name.match(/\.([a-z0-9]{2,4})$/i) || [])[1]?.toLowerCase() || '';
+  const mime = (a.mimeType && a.mimeType.startsWith('video/') ? a.mimeType : VIDEO_MIME[ext]) || '';
+  if (!mime) { host.notify({ title: t('Video seçilemedi'), body: t('mp4, mov ya da webm biçiminde bir video seç.'), icon: 'doc' }); return null; }
+  if (a.size && a.size > MAX_VIDEO) { host.notify({ title: t('Video çok büyük'), body: t('En fazla 40 MB yüklenebilir. Daha kısa bir video çek.'), icon: 'doc' }); return null; }
+  return { name: a.name, dataUrl: null, isImage: false, isVideo: true, uri: a.uri, mime, size: a.size || undefined, thumb: null };
 }
 
 /** JSON içe aktarma için metin dosyası. */
