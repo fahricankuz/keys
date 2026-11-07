@@ -27,7 +27,7 @@ jobs:
       - name: APK (hata ayıklama)
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon -PevimVersionCode=${{ github.run_number }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: evim-android-debug
           path: android/app/build/outputs/apk/debug/*.apk
