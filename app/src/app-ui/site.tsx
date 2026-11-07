@@ -36,6 +36,7 @@ import { CurrencySwitch, FxNote, RevenueChart, useFx, useReportCurrency } from '
 import { fmtMoney } from '../domain/money';
 import { amountIn } from '../domain/fx-report';
 import { InvestorReport } from './investor';
+import { RequestThread, ResidentProjects, SiteProjects } from './site-projects';
 
 // Tarihler yerel saatle (Türkiye UTC+3; ISO dönüşümü gece yarısından sonra bir önceki güne/aya kayardı).
 const thisMonth = () => mkey(new Date());
@@ -49,7 +50,7 @@ const CURS: [string, string][] = [['TRY', '₺ TL'], ['USD', '$ USD'], ['EUR', '
 /** Bu ekranın açıldığı kurum türleri: site yönetimi ve ticari portföy (AVM, depo, GYO). */
 export const PORTFOLIO_SECTORS = ['site', 'avm', 'depo', 'gyo'];
 /** Kurum paneli bölümlerinin adresleri (/uygulama/site/<bölüm>); menü org.js → sectorSections. */
-export const SECTION_KEYS = ['ozet', 'birimler', 'tahakkuk', 'ciro', 'artis', 'giderler', 'butce', 'duyurular', 'genelkurul', 'belgeler', 'talepler', 'rapor', 'yatirimci'];
+export const SECTION_KEYS = ['ozet', 'birimler', 'tahakkuk', 'ciro', 'artis', 'giderler', 'butce', 'duyurular', 'genelkurul', 'projeler', 'belgeler', 'talepler', 'rapor', 'yatirimci'];
 export const sectionPath = (k: string) => (k === 'ozet' ? '/uygulama/site' : '/uygulama/site/' + k);
 /** Kişinin yönettiği sektör kurumu (birden çoksa seçili olan). */
 export function currentPortfolioOrg() {
@@ -73,6 +74,7 @@ function ChargeRow({ x, unit, can, reload, row, first }: { x: any; unit: any; ca
   const [why, setWhy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [opened, setOpened] = useState(!row || x.status === 'review');
+  const [askDel, setAskDel] = useState(false);
   const act = async (fn: () => Promise<any>) => { setErr(null); try { await fn(); reload(); } catch (e) { setErr(humanError(e)); } };
   const open = async () => { const u = await fileUrl('sb:' + x.receipt_path); if (u && typeof window !== 'undefined') window.open(u, '_blank'); };
   const head = unit ? unitLabel(unit) + ' · ' + kindLabel(x.kind, x.title) : kindLabel(x.kind, x.title);
@@ -84,7 +86,11 @@ function ChargeRow({ x, unit, can, reload, row, first }: { x: any; unit: any; ca
     can('payments.approve') && x.status === 'review' ? <Button key="a" title={t('Onayla')} onPress={() => act(() => decideCharge(x, true))} /> : null,
     can('payments.approve') && x.status === 'review' ? <Button key="r" kind="ghost" title={t('Reddet')} onPress={() => setWhy(why == null ? '' : null)} /> : null,
     can('payments.approve') && ['open', 'partial', 'rejected'].includes(x.status) ? <Button key="p" kind="ghost" title={t('Ödendi işaretle')} onPress={() => act(() => markPaid(x, x.amount))} /> : null,
-    can('charges.manage') && x.status === 'open' ? <Text key="s" v="small" color={c.badInk} accessibilityRole="button" style={{ textDecorationLine: 'underline', paddingHorizontal: 6 }} onPress={() => act(() => deleteCharge(x.id))}>{t('Sil')}</Text> : null
+    can('charges.manage') && x.status === 'open' ? (askDel
+      ? <Row key="s" gap={8} wrap><Muted>{t('Bu ödeme kaydı silinsin mi?')}</Muted>
+          <Text v="small" color={c.badInk} accessibilityRole="button" style={{ textDecorationLine: 'underline', fontFamily: fonts.bodyXBold, paddingHorizontal: 6 }} onPress={() => { setAskDel(false); act(() => deleteCharge(x.id)); }}>{t('Evet, sil')}</Text>
+          <Text v="small" accessibilityRole="button" style={{ textDecorationLine: 'underline', paddingHorizontal: 6 }} onPress={() => setAskDel(false)}>{t('Vazgeç')}</Text></Row>
+      : <Text key="s" v="small" color={c.badInk} accessibilityRole="button" style={{ textDecorationLine: 'underline', paddingHorizontal: 6 }} onPress={() => setAskDel(true)}>{t('Sil')}</Text>) : null
   ].filter(Boolean);
   const body = (
     <>
@@ -199,7 +205,9 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
   const [kind, setKind] = useState(seed?.kind || (commercial ? 'kira' : !autoOn && (d.modules || []).includes('aidat') ? 'aidat' : 'ozel'));
   const [extra, setExtra] = useState(!!seed);
   const [title, setTitle] = useState(seed?.title || '');
-  const [mode, setMode] = useState(seed?.mode || (commercial ? 'rent' : 'unit'));
+  // Ek ödemede (yakıt, demirbaş, özel toplama) varsayılan "her daireye aynı tutar"; "dairenin aidatı" yalnız aidat yazarken.
+  const [mode, setMode] = useState(seed?.mode || (commercial ? 'rent' : kind === 'aidat' ? 'unit' : 'fixed'));
+  const [confirm, setConfirm] = useState(false);
   const [value, setValue] = useState(seed?.value ? String(seed.value) : '');
   const [fx, setFx] = useState<Record<string, string>>({ USD: '', EUR: '' });
   const [err, setErr] = useState<string | null>(null);
@@ -222,15 +230,19 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
   const unitOrder: Record<string, number> = Object.fromEntries(d.units.map((u: any, i: number) => [u.id, i]));
   const shownList = list.filter((x: any) => filter === 'all' || (filter === 'wait' ? x.status === 'review' : filter === 'paid' ? x.status === 'paid' : ['open', 'partial', 'rejected'].includes(x.status)))
     .sort((a: any, b: any) => rank(a) - rank(b) || (unitOrder[a.unit_id] ?? 0) - (unitOrder[b.unit_id] ?? 0));
-  const valid = /^\d{4}-(0[1-9]|1[0-2])$/.test(month) && (kind !== 'ozel' || title.trim()) && plan.length > 0 && !fxMissing;
+  // Tutar boşken (₺0) gönderilemez: her daireye düşen tutar sıfırdan büyük olmalı (sunucu da reddeder, migration site_tahakkuk_koruma).
+  const valid = /^\d{4}-(0[1-9]|1[0-2])$/.test(month) && (kind !== 'ozel' || title.trim()) && plan.length > 0 && sum > 0 && plan.every((x) => x.amount > 0) && !fxMissing;
+  const [busy, setBusy] = useState(false);
   const submit = async () => {
-    setErr(null); setMsg(null);
+    setErr(null); setMsg(null); setBusy(true);
     try {
       const n = await createCharges(oid, { month, kind, title: title.trim(), mode, value: Number(String(value).replace(',', '.')) || 0, units: d.units, existing: d.charges, fx: fxNum });
       setMsg(n ? (commercial ? t('{n} birime eklendi.', { n }) : t('{n} daireye eklendi.', { n }))
         : commercial ? t('Bu ay ve tür için tüm birimlerde zaten var.') : t('Bu ay ve tür için tüm dairelerde zaten var.'));
+      // Aynı ödeme ikinci kez istenmesin: tutar ve başlık temizlenir.
+      if (n) { setValue(''); setTitle(''); }
       setView(month); reload();
-    } catch (e) { setErr(humanError(e)); }
+    } catch (e) { setErr(humanError(e)); } finally { setBusy(false); setConfirm(false); }
   };
   // Seçili ayın tahsilatı ödeme yoluna göre: kartla (sanal POS) ve dekont / havale / elden.
   const got = (x: any) => (x.status === 'paid' ? Number(x.amount) : x.status === 'partial' ? Number(x.paid_amount) || 0 : 0);
@@ -254,7 +266,8 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
             <View style={{ flexGrow: 1, flexBasis: 140 }}><Field label={t('Ay (YYYY-AA)')} value={month} onChangeText={setMonth} maxLength={7} /></View>
             {kind === 'ozel' ? <View style={{ flexGrow: 2, flexBasis: 200 }}><Field label={t('Başlık')} value={title} onChangeText={setTitle} maxLength={120} placeholder={t('ör. Çatı onarımı')} /></View> : null}
           </Row>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{KINDS(d.sector).filter((k) => (k.key !== 'aidat' || ((d.modules || []).includes('aidat') && !autoOn)) && (k.key !== 'ortak_gider' || (d.modules || []).includes('ortak_gider'))).map((k) => <Pill key={k.key} label={k.label} on={kind === k.key} onPress={() => { setKind(k.key); if (commercial) setMode(k.key === 'kira' ? 'rent' : k.key === 'ortak_gider' ? 'unit' : 'area'); }} />)}</View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{KINDS(d.sector).filter((k) => (k.key !== 'aidat' || ((d.modules || []).includes('aidat') && !autoOn)) && (k.key !== 'ortak_gider' || (d.modules || []).includes('ortak_gider'))).map((k) => <Pill key={k.key} label={k.label} on={kind === k.key} onPress={() => { setKind(k.key); if (commercial) setMode(k.key === 'kira' ? 'rent' : k.key === 'ortak_gider' ? 'unit' : 'area');
+            else if (k.key === 'aidat') setMode('unit'); else if (mode === 'unit') setMode('fixed'); setConfirm(false); }} />)}</View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{MODES(d.sector).map((k) => <Pill key={k.key} label={k.label} on={mode === k.key} onPress={() => setMode(k.key)} />)}</View>
           {mode !== 'unit' && mode !== 'rent' ? <MoneyField label={mode === 'fixed' ? (commercial ? t('Birim başına tutar (₺)') : t('Daire başına tutar (₺)')) : t('Dağıtılacak toplam (₺)')} value={value} onChange={(v) => setValue(v)} /> : null}
           {curs.length ? (
@@ -263,10 +276,20 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
             </Row>
           ) : null}
           {mode === 'rent' ? <Muted>{t('Döviz kirası girilen kurla TL’ye çevrilir; KDV’li sözleşmede %20 eklenir, stopajlı sözleşmede kiracının keseceği %20 düşülür. Vade, sözleşmedeki ödeme günüdür.')}</Muted> : null}
-          <Muted>{fxMissing ? t('Döviz kirası olan birimler için kuru yaz.') : plan.length ? t('{n} {word} toplam {sum}', { n: plan.length, word, sum: tl(sum) })
+          <Muted>{fxMissing ? t('Döviz kirası olan birimler için kuru yaz.') : plan.length && sum > 0 ? t('{n} {word} toplam {sum}', { n: plan.length, word, sum: tl(sum) })
             : mode === 'unit' ? (commercial ? t('Birimlerde ortak gider avansı tanımlı değil.') : t('Dairelerde aylık aidat tanımlı değil.'))
             : mode === 'rent' ? t('Birimlerde kira tanımlı değil.') : t('Tutar yaz.')}</Muted>
-          <Button title={commercial ? t('Oluştur') : t('Ödemeyi iste')} disabled={!valid} onPress={submit} style={{ alignSelf: 'flex-start' }} />
+          {confirm && valid ? (
+            <Note>{commercial
+              ? t('{n} birime toplam {sum} yazılacak. Onaylıyor musun?', { n: plan.length, sum: tl(sum) })
+              : t('{n} daireye toplam {sum} yazılacak ve sakinlere bildirim gidecek. Onaylıyor musun?', { n: plan.length, sum: tl(sum) })}</Note>
+          ) : null}
+          {confirm && valid ? (
+            <Row wrap gap={8}>
+              <Button title={t('Onayla ve gönder')} loading={busy} disabled={busy} onPress={submit} />
+              <Button kind="quiet" title={t('Vazgeç')} onPress={() => setConfirm(false)} />
+            </Row>
+          ) : <Button title={commercial ? t('Oluştur') : t('Ödemeyi iste')} disabled={!valid} onPress={() => { setMsg(null); setConfirm(true); }} style={{ alignSelf: 'flex-start' }} />}
           <Err e={err} />
           {msg ? <Text v="small" color={c.okInk}>{msg}</Text> : null}
         </Card>
@@ -560,16 +583,18 @@ function Notes({ d, oid, can, reload }: { d: any; oid: string; can: (p: string) 
   );
 }
 
-function RequestCard({ x, unit, can, reload }: { x: any; unit: any; can: (p: string) => boolean; reload: () => void }) {
+function RequestCard({ x, unit, who, can, reload }: { x: any; unit: any; who?: string; can: (p: string) => boolean; reload: () => void }) {
+  const c = useColors();
   const [st, setSt] = useState<number>(x.status);
   const [reply, setReply] = useState<string>(x.reply || '');
   const [err, setErr] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
   const dirty = st !== x.status || reply !== (x.reply || '');
   return (
     <Card gap={8}>
       <Row between wrap>
         <View style={{ flex: 1, minWidth: 160 }}>
-          <Label accent>{t(REQ_CAT[x.cat] || x.cat)}{unit ? ' · ' + unitLabel(unit) : ''}</Label>
+          <Label accent>{t(REQ_CAT[x.cat] || x.cat)}{unit ? ' · ' + unitLabel(unit) : ''}{who ? ' · ' + who : ''}</Label>
           <Text v="body" style={{ fontFamily: fonts.bodyXBold }}>{x.title}</Text>
         </View>
         <Muted>{day(x.created_at)}</Muted>
@@ -577,12 +602,14 @@ function RequestCard({ x, unit, can, reload }: { x: any; unit: any; can: (p: str
       {x.body ? <Text v="small">{x.body}</Text> : null}
       {can('requests.manage') ? (
         <>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{REQ().map((l, i) => <Pill key={l} label={l} on={st === i} onPress={() => setSt(i)} />)}</View>
-          <Field label={t('Yanıt')} value={reply} onChangeText={setReply} multiline maxLength={4000} />
-          <Button title={t('Kaydet')} disabled={!dirty} style={{ alignSelf: 'flex-start' }} onPress={async () => { setErr(null); try { await answerRequest(x.id, st, reply); reload(); } catch (e) { setErr(humanError(e)); } }} />
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{REQ().map((l, i) => <Pill key={l} label={l} on={st === i} onPress={() => { setSt(i); setSaved(false); }} />)}</View>
+          <Field label={t('Kısa yanıt (talep kartında görünür)')} value={reply} onChangeText={(v) => { setReply(v); setSaved(false); }} multiline maxLength={4000} />
+          <Button title={t('Kaydet')} disabled={!dirty} style={{ alignSelf: 'flex-start' }} onPress={async () => { setErr(null); try { await answerRequest(x.id, st, reply); setSaved(true); reload(); } catch (e) { setErr(humanError(e)); } }} />
+          {saved && !dirty ? <Text v="small" color={c.okInk}>{t('Kaydedildi; sakine bildirim gitti.')}</Text> : null}
           <Err e={err} />
         </>
       ) : <Chip label={REQ()[x.status]} />}
+      <RequestThread req={x} canWrite={can('requests.manage')} mgmt who={who || (unit ? unitLabel(unit) : undefined)} />
     </Card>
   );
 }
@@ -884,8 +911,9 @@ export function SiteAdminScreen({ section = 'ozet' }: { section?: string }) {
           {cur.key === 'yatirimci' && <InvestorReport d={d} org={org} />}
           {cur.key === 'duyurular' && <Notes d={d} oid={org.id} can={can} reload={load} />}
           {cur.key === 'genelkurul' && <Meetings d={d} org={org} can={can} />}
+          {cur.key === 'projeler' && <SiteProjects oid={org.id} can={can} />}
           {cur.key === 'belgeler' && <SiteDocs d={d} oid={org.id} can={can} reload={load} />}
-          {cur.key === 'talepler' && (d.requests.length ? d.requests.map((x: any) => <RequestCard key={x.id} x={x} unit={unitBy[x.unit_id]} can={can} reload={load} />) : <Empty>{t('Talep yok.')}</Empty>)}
+          {cur.key === 'talepler' && (d.requests.length ? d.requests.map((x: any) => <RequestCard key={x.id} x={x} unit={unitBy[x.unit_id]} who={(d.residents.find((r: any) => r.user_id && r.user_id === x.user_id) || {}).name} can={can} reload={load} />) : <Empty>{t('Talep yok.')}</Empty>)}
         </>
       )}
     </Page>
@@ -1136,6 +1164,7 @@ export function ResidentSiteScreen({ part = 'all' }: { part?: ResidentPart }) {
         </Stack>
       ) : null}
 
+      {show('home') ? <ResidentProjects units={units} /> : null}
       {show('home') ? <ResidentMeetings /> : null}
       {show('home') ? <ResidentBudget units={units} /> : null}
       {show('home') ? <ResidentCash units={units} /> : null}
@@ -1158,9 +1187,12 @@ export function ResidentSiteScreen({ part = 'all' }: { part?: ResidentPart }) {
             {msg ? <Text v="small" color={c.okInk}>{msg}</Text> : null}
           </Card>
           {(d?.requests || []).map((x: any) => (
-            <Card key={x.id} gap={4}>
+            <Card key={x.id} gap={8}>
               <Row between wrap><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{x.title}</Text><Chip tone={x.status === 3 ? 'ok' : 'warn'} label={REQ()[x.status]} /></Row>
+              {x.body ? <Muted>{x.body}</Muted> : null}
               {x.reply ? <Muted>{t('Yönetimin yanıtı')}: {x.reply}</Muted> : null}
+              {/* Talebin sahibi yönetimle yazışır; çözülmüş talebe yazınca talep yeniden açılır. */}
+              <RequestThread req={x} canWrite mgmt={false} />
             </Card>
           ))}
         </Stack>
