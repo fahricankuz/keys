@@ -954,5 +954,9 @@ export const EN_PAKET = {
   "Süresi geçti": "Expired",
   "Süresi yaklaşıyor": "Expiring soon",
   "Önümüzdeki 60 günde biten teminat mektubu yok.": "No bank guarantees end in the next 60 days.",
-  "Banka blokesi": "Bank hold"
+  "Banka blokesi": "Bank hold",
+  "SMS (aidat hatırlatmaları)": "SMS (dues reminders)",
+  "SMS": "SMS",
+  "Tutarlar TL’dir; dövizli sözleşmelerde tahakkuk anında TL’ye çevrilmiş tutar kullanılır.": "Amounts are in TRY; foreign-currency leases use the amount converted to TRY when billed.",
+  "Tutarlar kayıtlı TL değerleridir. Kur farkı: dövizli sözleşmelerde tahsil edilen TL ile sözleşme tutarının ödeme günündeki TCMB döviz satış kuru karşılığı arasındaki fark.": "Amounts are the recorded TRY values. FX difference: for foreign-currency leases, the gap between the TRY collected and the contract amount at the CBRT selling rate on the payment day."
 };

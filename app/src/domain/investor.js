@@ -75,10 +75,11 @@ function yearlyRent(u, cur, table, day){
 
 /**
  * Raporun bütün verisi. d: loadSiteAdmin; org: { name, sector, report_currency }; key: dönem; table: kur tablosu (fx.js);
+ * cur: raporun para birimi (TRY | USD | EUR; verilmezse kurumun varsayılanı, o da yoksa USD). TRY'de tutarlar kayıtlı TL'dir;
  * note: yönetimin notu (boşsa bölüm görünmez).
  */
-export function investorReport({ d, org, key, table, note = '', today = new Date() }){
-  const cur = org.report_currency === 'EUR' ? 'EUR' : 'USD';
+export function investorReport({ d, org, key, table, note = '', today = new Date(), cur: wanted = '' }){
+  const cur = ['TRY', 'USD', 'EUR'].includes(wanted) ? wanted : (org.report_currency === 'EUR' ? 'EUR' : 'USD');
   const range = periodRange(key);
   const todayIso = isoDay(today);
   const asOf = range.to < todayIso ? range.to : todayIso;
@@ -161,7 +162,7 @@ export function investorReport({ d, org, key, table, note = '', today = new Date
 
   const endMonth = range.months[range.months.length - 1];
   const chart = monthlyRevenue(d.charges, endMonth, cur, table);
-  const rate = rateOn(table, cur, asOf);
+  const rate = cur === 'TRY' ? null : rateOn(table, cur, asOf);
   return {
     org: org.name, sector: org.sector, cur, range, asOf, note: String(note || '').trim(),
     kpi: { revenue: now.revenue, margin: now.margin, occupancy: area ? occArea / area : null, wale, waleArea },

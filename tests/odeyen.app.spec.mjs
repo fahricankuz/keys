@@ -76,3 +76,22 @@ test('yönetim: daire listesinde "kiracı yok / katılmadı" uyarısı; bildirim
   await page.getByText('Dekont geldiğinde').click();
   await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem('__fakedb')).tables.profiles.find((p) => p.settings && 'siteReceipt' in p.settings)?.settings.siteReceipt), { timeout: 8000 }).toBe(false);
 });
+
+test('mülkü olmayan site yöneticisi: bildirimlerde Kira ve portföy rapor e-postası yok, Site yönetimi var', async ({ page }) => {
+  await page.addInitScript(([L]) => {
+    const d = JSON.parse(localStorage.getItem('__fakedb') || 'null');
+    if (!d || d.__noProps) return;
+    const own = d.tables.properties.filter((p) => p.owner_id === L).map((p) => p.id);
+    d.tables.properties = d.tables.properties.filter((p) => !own.includes(p.id));
+    d.tables.memberships = d.tables.memberships.filter((m) => !own.includes(m.property_id));
+    d.__noProps = true;
+    localStorage.setItem('__fakedb', JSON.stringify(d));
+  }, [ID.landlord]);
+  await login(page, 'ev@ornek.com');
+  await expect(page).toHaveURL(/\/uygulama\/site$/);
+  await page.goto(url('/uygulama/ayarlar'));
+  await openNotifTab(page);
+  await expect(page.getByText('Dekont geldiğinde')).toBeVisible();
+  await expect(page.getByText('Kira günü yaklaşırken')).toHaveCount(0);
+  await expect(page.getByText('Rapor e-postası', { exact: true })).toHaveCount(0);
+});
