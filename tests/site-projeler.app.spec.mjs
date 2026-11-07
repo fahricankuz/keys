@@ -70,6 +70,8 @@ test('yönetim projeyi açar ve aşama aşama (teklif, yapım, tamamlandı) foto
   let chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Fotoğraf seç' }).click();
   await (await chooser).setFiles(PNG);
+  // Fotoğraf hazırlanınca (küçültme bitince) seçim düğmesi "Değiştir" olur; ondan önce gönderilirse fotoğrafsız gider.
+  await expect(page.getByRole('button', { name: 'Değiştir' })).toBeVisible();
   await page.getByRole('button', { name: 'Aşamayı ilerlet ve paylaş' }).click();
   await expect(page.getByText('Üç firmadan teklif alındı.')).toBeVisible();
   // Aşama 3: yapıma başlandı, %40.
@@ -84,13 +86,14 @@ test('yönetim projeyi açar ve aşama aşama (teklif, yapım, tamamlandı) foto
   let d = await db(page);
   expect(d.tables.site_projects[0]).toMatchObject({ title: 'Dış cephe boyası', status: 'yapim', progress: 40, budget: 450000 });
   expect(d.tables.site_project_updates.map((u) => u.status).sort()).toEqual(['teklif', 'yapim']);
-  expect(d.tables.site_project_updates.find((u) => u.status === 'teklif').photos[0]).toMatch(/^site-o1\//);
+  expect(d.tables.site_project_updates.find((u) => u.status === 'teklif').photos).toEqual([expect.stringMatching(/^site-o1\//)]);
   // Aşama 4: tamamlandı (fotoğrafla); yüzde 100 olur, proje "Tamamlanan" süzgecine geçer.
   await page.getByRole('button', { name: 'Sonraki aşama: Tamamlandı' }).click();
   await page.getByLabel('Ne yapıldı?').fill('Cephe tamamlandı, iskele söküldü.');
   chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Fotoğraf seç' }).click();
   await (await chooser).setFiles(PNG);
+  await expect(page.getByRole('button', { name: 'Değiştir' })).toBeVisible();
   await page.getByRole('button', { name: 'Aşamayı ilerlet ve paylaş' }).click();
   await expect(page.getByText('Bu filtrede proje yok.')).toBeVisible();
   await page.getByRole('checkbox', { name: 'Tamamlanan' }).click();
