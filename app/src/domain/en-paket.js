@@ -856,5 +856,15 @@ export const EN_PAKET = {
   "Gmail’de aç": "Open in Gmail",
   "Adresi kopyala": "Copy address",
   "anahtar’ın e-posta adresinden gider; yanıtlar info@anahtar.io adresine gelir.": "Sent from anahtar’s e-mail address; replies go to info@anahtar.io.",
-  "Gönderildi {d}: {s}": "Sent {d}: {s}"
+  "Gönderildi {d}: {s}": "Sent {d}: {s}",
+  "Dekont geldiğinde": "When a receipt arrives",
+  "Yeni talep açıldığında": "When a new request is opened",
+  "Aidatı geciken daireler (haftalık özet)": "Flats with late dues (weekly summary)",
+  "Kirası geciken birimler (haftalık özet)": "Units with late rent (weekly summary)",
+  "Kiracı katılmadı · malik öder": "Tenant hasn’t joined · owner pays",
+  "Kiracı yok · malik öder": "No tenant · owner pays",
+  "Malik katılmadı · kiracı öder": "Owner hasn’t joined · tenant pays",
+  "Malik yok · kiracı öder": "No owner · tenant pays",
+  "Kiracı olmadığı için aidatı malik öder": "No tenant, so the owner pays the dues",
+  "Malik olmadığı için aidatı kiracı öder": "No owner, so the tenant pays the dues"
 };
