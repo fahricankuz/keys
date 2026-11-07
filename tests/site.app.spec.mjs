@@ -150,10 +150,14 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await page.getByRole('button', { name: 'Kaydet' }).click();
   await expect.poll(async () => (await db(page)).tables.site_requests[0].status).toBe(3);
   await page.getByRole('link', { name: 'Giderler', exact: true }).first().click();
-  await page.getByLabel('Kalem').fill('Çatı onarımı');
+  // Sitede gider kategoriyle girilir; dairelere yazmak istisnadır ("Ek toplama yap", onayla).
+  await page.getByRole('button', { name: 'Onarım ve tadilat', exact: true }).click();
   await page.getByLabel('Tutar (₺)').fill('3000');
+  await page.getByLabel('Not (isteğe bağlı)').fill('Çatı onarımı');
   await page.getByRole('button', { name: 'Gideri ekle' }).click();
-  await page.getByRole('button', { name: 'Dairelere dağıt' }).click();
+  await page.getByRole('button', { name: 'Ek toplama yap' }).click();
+  await expect(page.getByText('Ek toplama yapılsın mı?')).toBeVisible();          // onay penceresi
+  await page.getByRole('button', { name: 'Ek toplama yap' }).last().click();
   await expect(page.getByLabel('Başlık')).toHaveValue('Çatı onarımı');
   await expect(page.getByText('2 daireye toplam ₺3.000')).toBeVisible();
   await page.getByRole('button', { name: 'Ödemeyi iste' }).click();
@@ -208,10 +212,10 @@ test('ev sahibi mülkünü site dairesine bağlar; kiracı kira ile aidatı ayn�
   await page.getByRole('button', { name: /^A Blok No 1 · / }).click();
   await expect(page.getByText('Ev sahibi üzerinden')).toBeVisible();              // kiracı ev sahibinin anahtar hesabı üzerinden bağlı
   await page.getByRole('link', { name: 'İşletme projesi', exact: true }).first().click();
-  await page.getByLabel('Gider kalemi').fill('Asansör bakımı');
+  await page.getByRole('button', { name: 'Asansör', exact: true }).first().click();       // kalem gider kategorilerinden seçilir
   await page.getByLabel('Yıllık tutar (₺)').fill('48000');
   await page.getByRole('button', { name: 'Kalem ekle' }).click();
-  await page.getByLabel('Gider kalemi').last().fill('Temizlik');
+  await page.getByRole('button', { name: 'Temizlik', exact: true }).last().click();
   await page.getByLabel('Yıllık tutar (₺)').last().fill('72000');
   await expect(page.getByText('₺10.000 / ay')).toBeVisible();          // 120.000 / 12, tek daire
   await page.getByRole('button', { name: 'Kaydet' }).click();

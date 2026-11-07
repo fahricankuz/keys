@@ -7,7 +7,7 @@ const KEY = '__fakedb';
 const TABLES = ['profiles','properties','property_shared','memberships','invites','payments','rent_history',
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
-                'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes','site_documents','site_investor_notes','mail_outbox',
+                'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes','site_documents','site_investor_notes','mail_outbox','site_cash','site_recurring_expenses',
                 'fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_costs','admin_emails'];
 
 function load(){
@@ -25,7 +25,7 @@ const KEYS = {
   profiles:['id'], properties:['id'], property_shared:['property_id'], memberships:['property_id','user_id'],
   invites:['code'], payments:['property_id','month','kind'], rent_history:['id'], requests:['id'], messages:['id'],
   documents:['id'], expenses:['id'], notifications:['id'], push_subscriptions:['endpoint'], subscriptions:['user_id'], device_tokens:['token'],
-  site_meeting_replies:['meeting_id','unit_id'], site_votes:['poll_id','unit_id'], site_investor_notes:['org_id','period'],
+  site_meeting_replies:['meeting_id','unit_id'], site_votes:['poll_id','unit_id'], site_investor_notes:['org_id','period'], site_cash:['org_id'],
   site_budgets:['org_id','year'], site_auto:['org_id'], site_turnovers:['unit_id','month'], legal_notes:['request_id'], user_blocks:['user_id','blocked'],
   admins:['user_id'], reviews:['kind','property_id','ref_id'], bans:['user_id'], admin_audit:['id']
 };
@@ -634,6 +634,27 @@ export function createClient(url, key, opts){
         if (args.unit && !T.site_residents.some(r => r.unit_id === args.unit && r.user_id === me && r.role === 'malik')) return { data:null, error:{ message:'Bu dairenin maliki olarak kayıtlı değilsin', code:'42501' } };
         p.site_unit_id = args.unit || null; persist(db);
         return { data:null, error:null };
+      }
+      if (name === 'site_cash_summary'){
+        // schema.sql (migration duzenli_gider_seffaflik): yönetim her zaman; sakin yalnız yönetim paylaştıysa.
+        const T = db.tables, oid = args.oid, m = args.m;
+        const c = (T.site_cash || []).find(x => x.org_id === oid);
+        const staff = (T.org_members || []).some(x => x.org_id === oid && x.user_id === me);
+        const resident = siteLinks(db, me).some(x => x.org_id === oid);
+        if (!staff && !(resident && c && c.share_summary)) return { data:null, error:{ message:'Kasa özeti paylaşılmıyor', code:'42501' } };
+        const start = c && c.opening_on ? String(c.opening_on).slice(0, 10) : '0000-00-00', d0 = m + '-01';
+        const next = (() => { const [y, mo] = m.split('-').map(Number); return new Date(Date.UTC(y, mo, 1)).toISOString().slice(0, 10); })();
+        const last = (mm) => { const [y, mo] = mm.split('-').map(Number); return new Date(Date.UTC(y, mo, 0)).toISOString().slice(0, 10); };
+        const col = (T.site_charges || []).filter(x => x.org_id === oid && ['aidat','yakit','demirbas','ozel'].includes(x.kind) && ['paid','partial'].includes(x.status))
+          .map(x => ({ day: x.paid_on ? String(x.paid_on).slice(0, 10) : last(x.month), v: x.status === 'paid' ? Number(x.amount) : Number(x.paid_amount) || 0 }));
+        const ex = (T.site_expenses || []).filter(x => x.org_id === oid).map(x => ({ day: String(x.spent_on).slice(0, 10), v: Number(x.amount), cat: x.cat, x }));
+        const sum = (l, f) => l.filter(f).reduce((a, x) => a + x.v, 0);
+        const carry = (Number(c?.opening) || 0) + sum(col, x => x.day >= start && x.day < d0) - sum(ex, x => x.day >= start && x.day < d0);
+        const inM = x => x.day >= start && x.day >= d0 && x.day < next;
+        const income = sum(col, inM), spent = sum(ex, inM);
+        const byCat = Object.entries(ex.filter(inM).reduce((a, x) => { a[x.cat] = (a[x.cat] || 0) + x.v; return a; }, {})).map(([cat, total]) => ({ cat, total })).sort((a, b) => b.total - a.total);
+        const receipts = staff || (c && c.share_receipts) ? ex.filter(x => inM(x) && x.x.receipt_path).map(x => ({ cat:x.cat, amount:x.v, day:x.day, name:x.x.receipt_name, path:x.x.receipt_path })) : null;
+        return { data:{ month:m, carry, income, spent, left: carry + income - spent, byCat, receipts }, error:null };
       }
       if (name === 'site_linked_tenants'){
         const T = db.tables;
