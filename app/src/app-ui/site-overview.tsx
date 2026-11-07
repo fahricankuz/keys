@@ -7,7 +7,7 @@ import { View } from 'react-native';
 import { t } from '../domain/i18n';
 import { humanError } from '../domain/backend';
 import { hasModule, terms } from '../domain/org';
-import { dueIncreases, importUnits, isCommercial, kindLabel, lateFee, occupancy, overdue, unitLabel, unitPlan, unpaidOf } from '../domain/site';
+import { depositKindLabel, depositTotals, dueIncreases, expiringGuarantees, importUnits, isCommercial, kindLabel, lateFee, occupancy, overdue, unitLabel, unitPlan, unpaidOf } from '../domain/site';
 import { loadRates } from '../domain/cpi';
 import { tl, monthYear, fmtFull, parse, mkey } from '../domain/util';
 import { Button, Chip, Field, PressScale, Text } from '../ui/kit';
@@ -249,6 +249,20 @@ export function Overview({ d, org, can, reload, go, ChargeRow }: {
     </Section>
   ) : null;
 
+  // Depozito: iade edilmemiş toplam (para birimine göre) ve 60 gün içinde biten ya da süresi geçmiş teminat mektupları.
+  const deposits = commercial ? depositTotals(d.units) : {};
+  const depositText = Object.entries(deposits).map(([k, v]) => money(v, k)).join(' + ');
+  const guarantees = commercial ? expiringGuarantees(d.units) : [];
+  const depositCard = commercial && (depositText || guarantees.length) ? (
+    <Section title={t('Depozito')} link={T.units} onLink={() => go('birimler')}>
+      <Line first title={t('Toplam depozito')} sub={t('{n} birim · iade edilmemiş', { n: d.units.filter((u: any) => Number(u.deposit_amount) > 0 && !u.deposit_returned_on).length })} right={depositText || '—'} />
+      {guarantees.length ? guarantees.slice(0, 5).map((g: any) => (
+        <Line key={g.unit.id} title={unitLabel(g.unit) + ' · ' + depositKindLabel('teminat')} sub={[g.unit.deposit_bank, t('Bitiş {d}', { d: day(g.until) })].filter(Boolean).join(' · ')}
+          right={<Chip tone={g.late ? 'bad' : 'warn'} label={g.late ? t('Süresi geçti') : t('Süresi yaklaşıyor')} />} />
+      )) : <Muted>{t('Önümüzdeki 60 günde biten teminat mektubu yok.')}</Muted>}
+    </Section>
+  ) : null;
+
   const contractsCard = occ && sector === 'depo' ? (
     <Section title={t('Biten sözleşmeler')} link={T.units} onLink={() => go('birimler')}>
       {occ.expiring.length ? occ.expiring.slice(0, 4).map((u: any, i: number) => (
@@ -283,9 +297,9 @@ export function Overview({ d, org, can, reload, go, ChargeRow }: {
 
   const left = commercial ? [debtCard, waitingCard, sector === 'gyo' ? assetsCard : ciroCard] : [debtCard, waitingCard, requestsCard];
   const right = sector === 'site' ? [budget, notesCard]
-    : sector === 'avm' ? [occMap, incCard]
-    : sector === 'depo' ? [incCard, contractsCard, occMap]
-    : [incCard, occMap, roadmap];
+    : sector === 'avm' ? [occMap, depositCard, incCard]
+    : sector === 'depo' ? [incCard, depositCard, contractsCard, occMap]
+    : [incCard, depositCard, occMap, roadmap];
 
   return (
     <Stack>

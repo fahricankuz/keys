@@ -19,6 +19,7 @@ import { host } from './host.js';
 import { toApp } from './nav.js';
 import { iso, t0, parse, fmtFull, monthYear, tl, daysTo, uid, percent } from './util.js';
 import { formatAddress } from './address.js';
+import { openInspectReport } from './inspect-html.js';
 
 const go = path => host.go(toApp(path));
 const notify = (n, log) => {
@@ -60,6 +61,15 @@ function pushMsg(p, m){ p.msgs.push(Object.assign({ id: uid('m') }, m)); }
 function sysMsg(p, text, req){ pushMsg(p, Object.assign({ from:'system', text, at:Date.now() }, req ? { req } : {})); }
 function logReq(r, text){ (r.log = r.log || []).push({ at:Date.now(), text }); }
 function reqOf(p, id){ return p.requests.find(r => r.id === id); }
+/** Giriş tutanağı iki tarafın onayıyla kilitlenir; kilitliyken hiçbir alanı değişmez (sunucu da aynı kuralı uygular: guard_shared). */
+const inspectLocked = p => !!(p.inspect && p.inspect.tenantOk && p.inspect.landlordOk);
+function lockedNote(){ notify({ title:t('Tutanak kilitli'), body:t('İki taraf onayladığı için tutanak değiştirilemez.'), icon:'doc' }, false); }
+/** Tutanak içeriği değişince onaylar sıfırlanır (onay, onaylanan içeriğe aittir); onay zamanı da silinir. */
+function resetInspectApprovals(p){
+  const i = p.inspect;
+  i.tenantOk = false; i.landlordOk = false;
+  delete i.tenantAt; delete i.tenantBy; delete i.landlordAt; delete i.landlordBy; delete i.lockedAt; delete i.hash;
+}
 function resetMoveOutApprovals(p){
   if (!p.moveOut) return;
   p.moveOut.tenantOk = false;
@@ -307,25 +317,62 @@ export const A = {
   },
   removeRoom: async d => {
     const p = P(d.pid);
+    if (inspectLocked(p)) return lockedNote();
     const room = p.inspect.rooms[Number(d.i)];
     if (!room) return;
     if (!await ask({ title:room.n+' silinsin mi?', body:t('Odanın notu ve fotoğrafları silinir; tutanak onayları sıfırlanır.'), ok:t('Sil'), danger:true })) return;
     p.inspect.rooms.splice(Number(d.i), 1);
-    p.inspect.tenantOk = false; p.inspect.landlordOk = false;
+    resetInspectApprovals(p);
     save();
   },
-  removeShot: d => { P(d.pid).inspect.rooms[Number(d.i)].shots.splice(Number(d.j), 1); save(); },
-  setRoomNote: d => { P(d.pid).inspect.rooms[Number(d.i)].note = d.v; save(); },
+  removeShot: d => {
+    const p = P(d.pid);
+    if (inspectLocked(p)) return lockedNote();
+    const room = p.inspect.rooms[Number(d.i)];
+    room.shots.splice(Number(d.j), 1);
+    if (room.caps) room.caps.splice(Number(d.j), 1);          // açıklama fotoğrafla birlikte gider; kalanlar eşleşmeyi korur
+    resetInspectApprovals(p);
+    save();
+  },
+  setRoomNote: d => {
+    const p = P(d.pid);
+    if (inspectLocked(p)) return lockedNote();
+    p.inspect.rooms[Number(d.i)].note = d.v;
+    if (p.inspect.tenantOk || p.inspect.landlordOk) resetInspectApprovals(p);
+    save();
+  },
+  /** Fotoğrafın kendi açıklaması (rooms[i].caps[j], shots[j] ile aynı sırada). */
+  setShotCap: d => {
+    const p = P(d.pid);
+    if (inspectLocked(p)) return lockedNote();
+    const room = p.inspect.rooms[Number(d.i)];
+    room.caps = room.caps || [];
+    while (room.caps.length < (room.shots || []).length) room.caps.push('');
+    room.caps[Number(d.j)] = String(d.v || '').slice(0, 300);
+    if (p.inspect.tenantOk || p.inspect.landlordOk) resetInspectApprovals(p);
+    save();
+  },
   addRoomPhotos: async d => {
     const p = P(d.pid), room = p.inspect.rooms[Number(d.i)];
+    if (inspectLocked(p)) return lockedNote();
     room.shots = room.shots || [];
-    (await keepAll(p.id, d.files, 6)).forEach(v => room.shots.push(v));
-    p.inspect.tenantOk = false; p.inspect.landlordOk = false;
+    room.caps = room.caps || [];
+    while (room.caps.length < room.shots.length) room.caps.push('');
+    (await keepAll(p.id, d.files, 6)).forEach(v => { room.shots.push(v); room.caps.push(''); });
+    resetInspectApprovals(p);
     if (!save()) notify({ title:t('Yer kalmadı'), body:t('Depolama doldu; fotoğraflar kaydedilemedi.'), icon:'cam' }, false);
   },
   approveInspect: d => {
     const p = P(d.pid);
-    if (ui.role === 'tenant') p.inspect.tenantOk = true; else p.inspect.landlordOk = true;
+    if (inspectLocked(p)) return;
+    const side = ui.role === 'tenant' ? 'tenant' : 'landlord';
+    p.inspect[side + 'Ok'] = true;
+    // Gerçek hesapta onay zamanı ve adı sunucuda yazılır (guard_shared); yerelde (demo) burada.
+    if (!LIVE){
+      p.inspect[side + 'At'] = new Date().toISOString();
+      p.inspect[side + 'By'] = side === 'tenant' ? ((p.tenants && p.tenants[0] && p.tenants[0].name) || '') : ((p.landlord && p.landlord.name) || '');
+      if (p.inspect.tenantOk && p.inspect.landlordOk) p.inspect.lockedAt = new Date().toISOString();
+    }
     sysMsg(p, t('Giriş tutanağı {who} tarafından onaylandı', { who: ui.role === 'tenant' ? t('kiracı') : t('mülk sahibi') }));
     save();
     notify({
@@ -335,10 +382,25 @@ export const A = {
     });
   },
   nudgeInspect: () => notify({ title:t('Hatırlatma gönderildi'), body:t('Karşı tarafa tutanağı onaylaması için bildirim gitti.'), icon:'doc' }),
-  exportInspect: d => {
+  /** Giriş tutanağı: web'de A4 belge ("PDF olarak kaydet"), telefonda metin dökümü. */
+  exportInspect: async d => {
     const p = P(d.pid);
+    if (Platform.OS === 'web' && typeof window !== 'undefined'){
+      try {
+        const ok = await openInspectReport(async () => {
+          const rooms = p.inspect.rooms || [];
+          const urls = await Promise.all(rooms.map(r => Promise.all((r.shots || []).map(v => backend.fileUrl(v).catch(() => null)))));
+          const who = list => ({ name:(list || []).map(x => x.name).filter(Boolean).join(', '), phone:(list && list[0] && list[0].phone) || '' });
+          return { name:p.name, addr:p.addr, type:p.type, area:p.area, landlord:p.landlord || {}, tenant:who(p.tenants),
+                   inspect:p.inspect, urls, docs:p.docs || [], generated:new Date() };
+        }, { print:true });
+        if (!ok) notify({ title:t('Yeni sekme açılamadı'), body:t('Tarayıcının açılır pencere engelini kaldırıp yeniden dene.'), icon:'doc' }, false);
+      } catch (e){ failed(t('Tutanak hazırlanamadı'), e); }
+      return;
+    }
     const body = p.name+' · '+p.addr+('\n'+t('Giriş tutanağı ·')+' ')+fmtFull(new Date())+'\n\n' +
-      p.inspect.rooms.map(r => '- '+r.n+': '+t('{n} fotoğraf', { n:(r.photos||0)+(r.shots||[]).length })+(r.note ? ' · '+r.note : '')).join('\n') +
+      p.inspect.rooms.map(r => '- '+r.n+': '+t('{n} fotoğraf', { n:(r.photos||0)+(r.shots||[]).length })+(r.note ? ' · '+r.note : '') +
+        (r.caps || []).map((c, j) => c ? '\n    '+(j + 1)+'. '+c : '').join('')).join('\n') +
       ('\n\n'+t('Kiracı onayı:')+' ')+(p.inspect.tenantOk ? t('var') : t('yok'))+('\n'+t('Mülk sahibi onayı:')+' ')+(p.inspect.landlordOk ? t('var') : t('yok'));
     openText(t('Tutanak dökümü'), body);
   },
@@ -676,9 +738,9 @@ export async function submit(type, v){
   if (type === 'room'){
     const n = String(fd.get('n') || '').trim();
     if (!n) return false;
-    p.inspect.rooms.push({ n, photos:0, shots:[], note:'' });
-    p.inspect.tenantOk = false;
-    p.inspect.landlordOk = false;
+    if (inspectLocked(p)){ lockedNote(); return false; }
+    p.inspect.rooms.push({ n, photos:0, shots:[], caps:[], note:'' });
+    resetInspectApprovals(p);
     save();
     return true;
   }

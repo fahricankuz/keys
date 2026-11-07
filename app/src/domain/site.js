@@ -227,10 +227,45 @@ export async function saveUnit(oid, u){
     share: Number(u.share) || null, aidat: numOrNull(u.aidat), payer: u.payer === 'malik' ? 'malik' : 'kiraci', note: u.note || '',
     rent: numOrNull(u.rent), currency: ['USD', 'EUR'].includes(u.currency) ? u.currency : 'TRY', turnover_rate: numOrNull(u.turnover_rate),
     lease_start: u.lease_start || null, lease_end: u.lease_end || null, index_kind: ['sabit', 'yok'].includes(u.index_kind) ? u.index_kind : 'tufe',
-    index_rate: numOrNull(u.index_rate), vat: !!u.vat, stopaj: !u.vat && !!u.stopaj, due_day: numOrNull(u.due_day) };
+    index_rate: numOrNull(u.index_rate), vat: !!u.vat, stopaj: !u.vat && !!u.stopaj, due_day: numOrNull(u.due_day), ...depositRow(u) };
   if (u.id) return must(await c.from('site_units').update(row).eq('id', u.id));
   return must(await c.from('site_units').insert(row).select().single());
 }
+/** Depozito alanları (migration depozito_otomatik_kira): yalnız depozito girilmişse ya da önceden varsa yazılır; böylece
+    migration'dan önce yayınlanan sürüm eski veritabanında sözleşme kaydederken hata vermez. */
+export function depositRow(u){
+  const any = u.deposit_amount != null && u.deposit_amount !== '' || u.deposit_returned_on || u.deposit_until;
+  if (!any) return {};
+  const d = (v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? String(v) : null);
+  return {
+    deposit_amount: numOrNull(u.deposit_amount), deposit_currency: ['USD', 'EUR'].includes(u.deposit_currency) ? u.deposit_currency : 'TRY',
+    deposit_kind: ['teminat', 'bloke'].includes(u.deposit_kind) ? u.deposit_kind : 'nakit', deposit_on: d(u.deposit_on),
+    deposit_bank: String(u.deposit_bank || '').trim().slice(0, 120), deposit_until: u.deposit_kind === 'teminat' ? d(u.deposit_until) : null,
+    deposit_returned_on: d(u.deposit_returned_on), deposit_returned: numOrNull(u.deposit_returned),
+    deposit_cut_reason: String(u.deposit_cut_reason || '').trim().slice(0, 300)
+  };
+}
+
+export const depositKindLabel = (k) => (k === 'teminat' ? t('Teminat mektubu') : k === 'bloke' ? t('Banka blokesi') : t('Nakit'));
+
+/** Depozitosu olan ve iade edilmemiş birimlerin para birimine göre toplamı: { TRY: n, USD: n, EUR: n }. */
+export function depositTotals(units){
+  const out = {};
+  units.filter((u) => Number(u.deposit_amount) > 0 && !u.deposit_returned_on).forEach((u) => {
+    const k = u.deposit_currency || 'TRY';
+    out[k] = (out[k] || 0) + Number(u.deposit_amount);
+  });
+  return out;
+}
+
+/** Süresi yaklaşan (ya da geçmiş) teminat mektupları: bitişi `days` gün içinde olanlar, tarih sırasıyla. */
+export function expiringGuarantees(units, today = new Date(), days = 60){
+  const from = iso(today), to = iso(new Date(today.getFullYear(), today.getMonth(), today.getDate() + days));
+  return units.filter((u) => u.deposit_kind === 'teminat' && u.deposit_until && !u.deposit_returned_on && u.deposit_until <= to)
+    .map((u) => ({ unit: u, until: u.deposit_until, late: u.deposit_until < from }))
+    .sort((a, b) => a.until.localeCompare(b.until));
+}
+
 export async function deleteUnit(id){ must(await (await db()).from('site_units').delete().eq('id', id)); }
 
 /**

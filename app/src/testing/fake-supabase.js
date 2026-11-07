@@ -231,6 +231,28 @@ class Query {
       }
     } else if (this.op === 'update'){
       out = list.filter(pass);
+      if (this.t === 'property_shared' && actor && this.values.inspect){
+        // guard_shared (tutanak_kilidi): iki onaydan sonra tutanak değişmez; onay zamanı/adı sunucuda yazılır; kilitte lockedAt + hash.
+        for (const r of out){
+          const old = r.inspect || {}, ins = JSON.parse(JSON.stringify(this.values.inspect));
+          const both = x => !!(x.tenantOk && x.landlordOk);
+          if (both(old) && JSON.stringify(old) !== JSON.stringify(ins))
+            return { data:null, error:{ message:'Giriş tutanağı iki tarafın onayıyla kilitlendi; değiştirilemez', code:'42501' } };
+          if (!both(old)){
+            const m = db.tables.memberships.find(x => x.property_id === r.property_id && x.user_id === actor);
+            const me = m && m.role === 'tenant' ? 'tenant' : 'landlord';
+            for (const side of ['tenant','landlord']){
+              delete ins[side + 'At']; delete ins[side + 'By'];
+              if (!ins[side + 'Ok']) continue;
+              if (old[side + 'Ok']){ if (old[side + 'At']) ins[side + 'At'] = old[side + 'At']; if (old[side + 'By']) ins[side + 'By'] = old[side + 'By']; }
+              else if (side === me){ ins[side + 'At'] = now(); ins[side + 'By'] = (m && m.display_name) || ''; }
+            }
+            delete ins.lockedAt; delete ins.hash;
+            if (both(ins)){ ins.lockedAt = now(); ins.hash = 'f'.repeat(64); }
+            this.values = Object.assign({}, this.values, { inspect: ins });
+          }
+        }
+      }
       if (this.t === 'reviews'){
         if (!isAdmin(db, actor)) return { data:null, error:{ message:'Denetim kararını yalnızca yönetici verebilir', code:'42501' } };
         if (this.values.status === 'rejected' && !String(this.values.note || '').trim()) return { data:null, error:{ message:'Red için gerekçe yazılmalı', code:'22023' } };
@@ -601,7 +623,9 @@ export function createClient(url, key, opts){
           const payer = u.payer || 'kiraci', eff = roles.has(payer) || !roles.size ? payer : (payer === 'kiraci' ? 'malik' : 'kiraci');
           return { unit_id:u.id, org_id:o.id, org:o.name, sector:o.sector, block:u.block || '', no:u.no, area:u.area ?? null, aidat:u.aidat ?? null, payer, role:by[id],
                    payer_effective:eff, pays: eff === by[id],
-                   rent:u.rent ?? null, currency:u.currency || 'TRY', turnover_rate:u.turnover_rate ?? null, lease_start:u.lease_start || null, lease_end:u.lease_end || null, property_id: prop ? prop.id : null };
+                   rent:u.rent ?? null, currency:u.currency || 'TRY', turnover_rate:u.turnover_rate ?? null, lease_start:u.lease_start || null, lease_end:u.lease_end || null, property_id: prop ? prop.id : null,
+                   deposit: u.deposit_amount == null ? null : { amount:u.deposit_amount, currency:u.deposit_currency || 'TRY', kind:u.deposit_kind || 'nakit', on:u.deposit_on || null,
+                     bank:u.deposit_bank || '', until:u.deposit_until || null, returned_on:u.deposit_returned_on || null, returned:u.deposit_returned ?? null, cut_reason:u.deposit_cut_reason || '' } };
         }), error:null };
       }
       if (name === 'link_site_unit'){
