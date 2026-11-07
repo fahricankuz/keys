@@ -11,7 +11,7 @@ import {
   KINDS, MODES, kindLabel, unitLabel, distribute, unpaidOf, lateFee, loadSiteAdmin, saveUnit, deleteUnit, parseUnits, importUnits,
   saveResident, deleteResident, createCharges, deleteCharge, decideCharge, markPaid, addExpense, deleteExpense, announce, deleteAnnouncement,
   answerRequest, mySiteUnits, loadMySite, payCharge, openSiteRequest, loadUnitCharges, budgetTotal, budgetAidat, saveBudget,
-  applyBudgetAidat, loadBudgets, siteReport, unitPays, payerText, cashbook, saveCash, SITE_EXPENSE_CATS, isCommercial, overdue, occupancy, ciroDiff, reportTurnover, loadTurnovers, decideTurnover,
+  applyBudgetAidat, loadBudgets, siteReport, unitPays, payerText, cashbook, saveCash, SITE_EXPENSE_CATS, saveRecurring, setRecurringActive, deleteRecurring, setCashSharing, loadCashSummary, isCommercial, overdue, occupancy, ciroDiff, reportTurnover, loadTurnovers, decideTurnover,
   dueIncreases, applyIncrease, rentCharge, nextAuto, saveAuto, cardReady, cardTotal, uploadSiteDoc, deleteSiteDoc, loadSiteDocs
 } from '../domain/site';
 import { loadRates } from '../domain/cpi';
@@ -309,6 +309,19 @@ function CashCard({ d, oid, can, reload, from, to, title }: { d: any; oid: strin
       </Row>
       <Muted>{d.cash ? t('Açılış: {v} ({d}). Tahsilat: aidat ve site toplamaları; giderler kasadan ödenir.', { v: tl(k.opening), d: day(k.openingOn) })
         : t('Açılış bakiyesi girilmedi; kasa sıfırdan başlar. Sitenin anahtar’a geçtiği gün kasadaki tutarı gir.')}</Muted>
+      {may && oid ? (
+        <View style={{ gap: 6 }}>
+          <Label>{t('Sakinlere şeffaflık')}</Label>
+          <Row gap={6} wrap>
+            <Pill label={t('Sakinler kasa ve gider özetini görsün')} on={!!d.cash?.share_summary}
+              onPress={() => setCashSharing(oid, d.cash, { share_summary: !d.cash?.share_summary, ...(d.cash?.share_summary ? { share_receipts: false } : {}) }).then(reload).catch((e) => setErr(humanError(e)))} />
+            {d.cash?.share_summary ? <Pill label={t('Faturaları da görsün')} on={!!d.cash?.share_receipts}
+              onPress={() => setCashSharing(oid, d.cash, { share_receipts: !d.cash?.share_receipts }).then(reload).catch((e) => setErr(humanError(e)))} /> : null}
+          </Row>
+          <Muted>{d.cash?.share_summary ? t('Sakinler Sitem ekranında aylık kasa özetini ve kategori toplamlarını görür.') : t('Kapalı: sakinler kasa ve gider bilgisi görmez.')}</Muted>
+        </View>
+      ) : null}
+      {!edit ? <Err e={err} /> : null}
       {edit ? (
         <Stack gap={8}>
           <Row gap={10} wrap align="flex-end">
@@ -326,6 +339,112 @@ function CashCard({ d, oid, can, reload, from, to, title }: { d: any; oid: strin
           </Row>
         </Stack>
       ) : null}
+    </Card>
+  );
+}
+
+/** Düzenli giderler (ör. personel maaşı): her ay seçilen günde kendiliğinden kayda düşer (sunucu: site_recurring_run). */
+/** Sakinin ekranı: yönetim paylaştıysa sitenin aylık kasa özeti ve kategori toplamları (faturalar ayrıca açılırsa). */
+function ResidentCash({ units }: { units: any[] }) {
+  const c = useColors();
+  const orgs = [...new Map(units.filter((u: any) => !isCommercial(u.sector)).map((u: any) => [u.org_id, u.org])).entries()];
+  const [month, setMonth] = useState(thisMonth());
+  const [data, setData] = useState<Record<string, any>>({});
+  useEffect(() => {
+    let live = true;
+    Promise.all(orgs.map(([oid]) => loadCashSummary(oid, month).then((x) => [oid, x] as const)))
+      .then((rows) => { if (live) setData(Object.fromEntries(rows)); });
+    return () => { live = false; };
+  }, [month, orgs.map((x) => x[0]).join()]);
+  const shown = orgs.filter(([oid]) => data[oid]);
+  if (!shown.length) return null;
+  return (
+    <Stack gap={8}>
+      <Row between wrap><H2>{t('Site kasası')}</H2><MonthStepper value={month} onChange={setMonth} max={thisMonth()} /></Row>
+      {shown.map(([oid, name]) => {
+        const k = data[oid];
+        return (
+          <Card key={oid} gap={8}>
+            <Label>{name}</Label>
+            <Row wrap>
+              {[[t('Devreden'), k.carry], [t('Tahsil edilen'), k.income], [t('Giderler'), k.spent], [t('Kasada kalan'), k.left]].map(([a, v]: any, i: number) => (
+                <View key={a} style={{ flex: 1, minWidth: 110, gap: 2 }}>
+                  <Muted>{a}</Muted>
+                  <Text v={i === 3 ? 'h3' : 'body'} color={i === 3 && v < 0 ? c.badInk : c.ink} style={{ fontFamily: fonts.bodyXBold, fontVariant: ['tabular-nums'] }}>{tl(v)}</Text>
+                </View>
+              ))}
+            </Row>
+            {k.byCat?.length ? k.byCat.map((x: any) => (
+              <Row key={x.cat} between><Text v="small">{x.cat}</Text><Text v="small" style={{ fontFamily: fonts.bodyBold, fontVariant: ['tabular-nums'] }}>{tl(x.total)}</Text></Row>
+            )) : <Muted>{t('Bu ay gider yok.')}</Muted>}
+            {k.receipts?.length ? (
+              <View style={{ gap: 2 }}>
+                <Label>{t('Faturalar')}</Label>
+                {k.receipts.map((x: any) => (
+                  <Row key={x.path} between><Text v="small">{x.cat} · {day(x.day)} · {tl(x.amount)}</Text><DownloadLink path={x.path} label={x.name || t('Fatura')} /></Row>
+                ))}
+              </View>
+            ) : null}
+            <Muted>{t('Yönetimin paylaştığı özet: aidat tahsilatı ve kasadan ödenen giderler.')}</Muted>
+          </Card>
+        );
+      })}
+    </Stack>
+  );
+}
+
+function RecurringCard({ d, oid, can, reload }: { d: any; oid: string; can: (p: string) => boolean; reload: () => void }) {
+  const c = useColors();
+  const may = can('expenses.manage');
+  const [open, setOpen] = useState(false);
+  const [r, setR] = useState<any>({ cat: '', amount: '', day: '1', note: '', start_month: thisMonth(), end_month: '' });
+  const [err, setErr] = useState<string | null>(null);
+  const act = async (fn: () => Promise<any>) => { setErr(null); try { await fn(); reload(); } catch (x) { setErr(humanError(x)); } };
+  const list = d.recurring || [];
+  if (!may && !list.length) return null;
+  return (
+    <Card gap={8}>
+      <Row between wrap>
+        <H2>{t('Düzenli giderler')}</H2>
+        {may && !open ? <Button kind="ghost" title={t('Düzenli gider ekle')} onPress={() => setOpen(true)} /> : null}
+      </Row>
+      <Muted>{t('Her ay seçilen günde kendiliğinden gider olarak yazılır; tek seferlik giderleri aşağıdan elle gir.')}</Muted>
+      {list.map((x: any, i: number) => (
+        <Row key={x.id} between wrap style={{ paddingVertical: 8, borderTopWidth: i ? 1 : 0, borderColor: c.line }}>
+          <View style={{ flex: 1, minWidth: 180 }}>
+            <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{x.cat}{x.note ? ' · ' + x.note : ''}</Text>
+            <Muted>{[t('Her ayın {d}’i', { d: x.day }), t('{m} başlangıç', { m: monthYear(x.start_month) }), x.end_month ? t('{m} bitiş', { m: monthYear(x.end_month) }) : '', x.active ? '' : t('Durduruldu')].filter(Boolean).join(' · ')}</Muted>
+          </View>
+          <Row gap={6}>
+            <Text v="small" style={{ fontFamily: fonts.bodyXBold, fontVariant: ['tabular-nums'] }}>{tl(x.amount)}</Text>
+            {may ? <Button kind="quiet" title={x.active ? t('Durdur') : t('Sürdür')} onPress={() => act(() => setRecurringActive(x.id, !x.active))} /> : null}
+            {may ? <Button kind="quiet" title={t('Sil')} onPress={() => act(() => deleteRecurring(x.id))} /> : null}
+          </Row>
+        </Row>
+      ))}
+      {open ? (
+        <Stack gap={8}>
+          <View style={{ gap: 4 }}><Label>{t('Kategori')}</Label>
+            <Seg wrap value={r.cat} onChange={(v: any) => setR({ ...r, cat: v })} options={SITE_EXPENSE_CATS().map((k) => [k, k] as [string, string])} /></View>
+          <Row gap={10} wrap align="flex-end">
+            <View style={{ flexGrow: 1, flexBasis: 130 }}><MoneyField label={t('Aylık tutar (₺)')} value={r.amount} onChange={(v) => setR({ ...r, amount: v })} /></View>
+            <View style={{ flexGrow: 1, flexBasis: 110 }}><MoneyField label={t('Ayın günü (1–28)')} value={r.day} decimals={0} onChange={(v) => setR({ ...r, day: v.slice(0, 2) })} /></View>
+            <View style={{ flexGrow: 1, flexBasis: 140 }}><Field label={t('Başlangıç (YYYY-AA)')} value={r.start_month} onChangeText={(v) => setR({ ...r, start_month: v })} maxLength={7} /></View>
+            <View style={{ flexGrow: 1, flexBasis: 140 }}><Field label={t('Bitiş (isteğe bağlı, YYYY-AA)')} value={r.end_month} onChangeText={(v) => setR({ ...r, end_month: v })} maxLength={7} /></View>
+          </Row>
+          <Field label={t('Açıklama (isteğe bağlı)')} value={r.note} onChangeText={(v) => setR({ ...r, note: v })} maxLength={500} placeholder={t('ör. Kapıcı maaşı')} />
+          <Row wrap>
+            <Button title={t('Kaydet')} disabled={!r.cat || !r.amount || !(Number(r.day) >= 1 && Number(r.day) <= 28)}
+              onPress={() => act(async () => {
+                if (!/^\d{4}-\d{2}$/.test(r.start_month) || (r.end_month && !/^\d{4}-\d{2}$/.test(r.end_month))) throw new Error(t('Ayları YYYY-AA biçiminde yaz.'));
+                await saveRecurring(oid, { ...r, amount: String(r.amount).replace(',', '.') });
+                setOpen(false); setR({ cat: '', amount: '', day: '1', note: '', start_month: thisMonth(), end_month: '' });
+              })} />
+            <Button kind="quiet" title={t('Vazgeç')} onPress={() => setOpen(false)} />
+          </Row>
+        </Stack>
+      ) : null}
+      <Err e={err} />
     </Card>
   );
 }
@@ -349,6 +468,7 @@ function Expenses({ d, oid, can, reload, onDistribute }: { d: any; oid: string; 
   return (
     <Stack>
       {!typed ? <CashCard d={d} oid={oid} can={can} reload={reload} from={m + '-01'} to={m + '-31'} title={t('{month} kasası', { month: monthYear(m) })} /> : null}
+      {!typed ? <RecurringCard d={d} oid={oid} can={can} reload={reload} /> : null}
       {can('expenses.manage') ? (
         <Card gap={10}>
           <H2>{t('Gider ekle')}</H2>
@@ -1003,6 +1123,7 @@ export function ResidentSiteScreen({ part = 'all' }: { part?: ResidentPart }) {
 
       {show('home') ? <ResidentMeetings /> : null}
       {show('home') ? <ResidentBudget units={units} /> : null}
+      {show('home') ? <ResidentCash units={units} /> : null}
 
       {show('req') ? (
         <Stack gap={8}>

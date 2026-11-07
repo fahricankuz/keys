@@ -156,6 +156,27 @@ export function cashbook(d, from, to){
   return { carry, income, spent, left: carry + income - spent, opening, openingOn: d.cash?.opening_on || null, byCat };
 }
 
+/** Düzenli gider (migration duzenli_gider_seffaflik): her ay `day` günü kayda düşer. r: { cat, amount, day, note, start_month, end_month }. */
+export async function saveRecurring(oid, r){
+  must(await (await db()).from('site_recurring_expenses').insert({ org_id: oid, cat: r.cat, amount: Number(r.amount) || 0,
+    day: Math.min(28, Math.max(1, Number(r.day) || 1)), note: r.note || '', start_month: r.start_month || mkey(new Date()), end_month: r.end_month || null, active: true }));
+}
+export async function setRecurringActive(id, active){ must(await (await db()).from('site_recurring_expenses').update({ active: !!active }).eq('id', id)); }
+export async function deleteRecurring(id){ must(await (await db()).from('site_recurring_expenses').delete().eq('id', id)); }
+
+/** Sakinlere kasa özeti ve fatura paylaşımı (yönetim açar; varsayılan kapalı). Açılış bakiyesine dokunmaz. */
+export async function setCashSharing(oid, cash, flags){
+  const c = await db();
+  if (cash) must(await c.from('site_cash').update(flags).eq('org_id', oid));
+  else must(await c.from('site_cash').insert({ org_id: oid, opening: 0, opening_on: iso(new Date()), ...flags }));
+}
+
+/** Ayın kasa özeti (sunucu): yönetim her zaman, sakin yalnız yönetim paylaştıysa; paylaşılmıyorsa null. */
+export async function loadCashSummary(oid, month){
+  const r = await (await db()).rpc('site_cash_summary', { oid, m: month });
+  return r.error ? null : r.data;
+}
+
 /** Kasanın açılış bakiyesi (sitenin anahtar'a geçtiği gün kasadaki tutar). */
 export async function saveCash(oid, opening, on){
   must(await (await db()).from('site_cash').upsert({ org_id: oid, opening: Number(opening) || 0, opening_on: on || iso(new Date()), updated_at: new Date().toISOString() }));
@@ -164,7 +185,7 @@ export async function saveCash(oid, opening, on){
 export async function loadSiteAdmin(oid){
   const c = await db();
   const since = (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 12); return mkey(d); })();
-  const [units, residents, charges, expenses, notes, requests, budgets, linked, turnovers, rentChanges, orgRow, auto, documents, cash] = await Promise.all([
+  const [units, residents, charges, expenses, notes, requests, budgets, linked, turnovers, rentChanges, orgRow, auto, documents, cash, recurring] = await Promise.all([
     c.from('site_units').select('*').eq('org_id', oid),
     c.from('site_residents').select('*').eq('org_id', oid),
     c.from('site_charges').select('*').eq('org_id', oid),
@@ -178,13 +199,15 @@ export async function loadSiteAdmin(oid){
     c.from('organizations').select('sector').eq('id', oid),
     c.from('site_auto').select('*').eq('org_id', oid),
     c.from('site_documents').select('*').eq('org_id', oid),
-    c.from('site_cash').select('*').eq('org_id', oid)
+    c.from('site_cash').select('*').eq('org_id', oid),
+    c.from('site_recurring_expenses').select('*').eq('org_id', oid)
   ].map((p) => p.then((r) => (r.error ? [] : r.data || []))));
   const sector = (orgRow[0] || {}).sector || 'site';
   return {
     sector, units: units.map((u) => Object.assign(u, { sector })).sort(sortUnits), residents, budgets, linked, auto: auto[0] || null,
     // Kasa: açılış bakiyesi ve bütün tahsilatlar (12 ayla sınırlı değil; devreden bakiye için).
     cash: cash[0] || null,
+    recurring: recurring.sort((a, b) => Number(b.active) - Number(a.active) || String(a.cat).localeCompare(String(b.cat))),
     collections: charges.filter((x) => COLLECTED_KINDS.includes(x.kind) && (x.status === 'paid' || x.status === 'partial'))
       .map((x) => ({ day: x.paid_on ? String(x.paid_on).slice(0, 10) : lastDayOfMonth(x.month), amount: x.status === 'paid' ? Number(x.amount) : Number(x.paid_amount) || 0 })),
     documents: documents.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))),
