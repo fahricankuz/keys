@@ -1,6 +1,6 @@
-// Site projeleri (migration site_projeleri): yönetim (master ya da "Site projeleri" yetkili rol) proje ve fotoğraflı güncelleme
-// ekler; güncelleme projenin durumunu ve yüzdesini taşır; sitenin sakinleri görür ve bildirim alır, değiştiremez; başka site
-// ve yabancı göremez. Gerçek Postgres'te (PGlite) sınanır.
+// Site projeleri (migration site_projeleri): yönetim (master ya da "Site projeleri" yetkili rol) projeyi açar ve aşama aşama
+// (açıldı → teklif → yapım → tamamlandı) fotoğraflı güncellemeyle ilerletir; her aşamada sakinlere aşamanın adıyla bildirim gider;
+// sakin ve yetkisiz yönetici ilerletemez; başka site ve yabancı göremez. Gerçek Postgres'te (PGlite) sınanır.
 import { test, expect } from '@playwright/test';
 import { newDb, tryCall, ID } from './db-helpers.mjs';
 
@@ -49,28 +49,44 @@ test('proje: yetkili rol ekler, sakinlere bildirim gider; yetkisiz yönetici ve 
   expect(await q(`select user_id, title from public.notifications where title like 'Yeni site projesi%'`)).toEqual([{ user_id: ID.L, title: 'Yeni site projesi: Dış cephe boyası' }]);
 });
 
-test('güncelleme: fotoğraflar site klasöründe olmalı; durum ve yüzde projeye taşınır, "tamam" yüzdeyi 100 yapar', async () => {
+test('aşamalar: açıldı → teklif → yapım → tamamlandı; her aşamada fotoğraf ve aşamanın adıyla bildirim; düzenleme aşamayı değiştirmez', async () => {
   await as(P);
+  expect((await q(`select status from public.site_projects where id = $1`, [pid]))[0].status).toBe('acildi');
   expect(await tryCall(db, `insert into public.site_project_updates (project_id, org_id, body, photos) values ($1, $2, 'Yanlış klasör', $3)`, [pid, org, ['site-00000000-0000-0000-0000-000000000000/a.webp']]))
     .toMatch(/row-level security/);
   expect(await tryCall(db, `insert into public.site_project_updates (project_id, org_id) values ($1, $2)`, [pid, org])).toMatch(/check constraint/);
-  await q(`insert into public.site_project_updates (project_id, org_id, body, status, progress, photos) values ($1, $2, 'İskele kuruldu', 'devam', 30, $3)`, [pid, org, [folder + 'iskele.webp', folder + 'iskele2.webp']]);
-  expect(await q(`select status, progress from public.site_projects where id = $1`, [pid])).toEqual([{ status: 'devam', progress: 30 }]);
-  await q(`insert into public.site_project_updates (project_id, org_id, body, status) values ($1, $2, 'Bitti', 'tamam')`, [pid, org]);
+  // Düzenleme formundan aşama atlanamaz: doğrudan güncelleme aşamayı değiştirmez (bildirimsiz aşama olmasın).
+  await q(`update public.site_projects set status = 'tamam', body = 'A ve B blok, çatı dahil' where id = $1`, [pid]);
+  expect(await q(`select status, body from public.site_projects where id = $1`, [pid])).toEqual([{ status: 'acildi', body: 'A ve B blok, çatı dahil' }]);
+  await as(null); await q(`delete from public.notifications`);
+  await as(P);
+  await q(`insert into public.site_project_updates (project_id, org_id, body, status, photos) values ($1, $2, 'Üç firmadan teklif alındı', 'teklif', $3)`, [pid, org, [folder + 'teklif1.webp', folder + 'teklif2.webp']]);
+  await q(`insert into public.site_project_updates (project_id, org_id, status, progress, photos) values ($1, $2, 'yapim', 30, $3)`, [pid, org, [folder + 'iskele.webp']]);
+  expect(await q(`select status, progress from public.site_projects where id = $1`, [pid])).toEqual([{ status: 'yapim', progress: 30 }]);
+  await q(`insert into public.site_project_updates (project_id, org_id, body, progress) values ($1, $2, 'A blok bitti', 60)`, [pid, org]);   // aşama aynı
+  await q(`insert into public.site_project_updates (project_id, org_id, body, status, photos) values ($1, $2, 'Cephe tamamlandı', 'tamam', $3)`, [pid, org, [folder + 'bitti.webp']]);
   expect(await q(`select status, progress from public.site_projects where id = $1`, [pid])).toEqual([{ status: 'tamam', progress: 100 }]);
   await as(null);
-  expect((await q(`select count(*)::int n from public.notifications where user_id = $1 and title = 'Proje güncellendi: Dış cephe boyası'`, [ID.L]))[0].n).toBe(2);
+  expect(await q(`select title, body from public.notifications where user_id = $1 order by id`, [ID.L])).toEqual([
+    { title: 'Dış cephe boyası: Teklif alındı', body: 'Üç firmadan teklif alındı' },
+    { title: 'Dış cephe boyası: Yapıma başlandı', body: '1 yeni fotoğraf eklendi' },
+    { title: 'Proje güncellendi: Dış cephe boyası', body: 'A blok bitti' },
+    { title: 'Dış cephe boyası: Tamamlandı', body: 'Cephe tamamlandı' }
+  ]);
+  expect(await q(`select user_id from public.notifications where user_id in ($1, $2)`, [P, M])).toEqual([]);   // yazan ve yönetim değil, sakinler
 });
 
 test('okuma: sitenin sakini ve yönetim görür; yabancı görmez; sakin değiştiremez ve silemez', async () => {
   await as(ID.L);
   expect((await q(`select title from public.site_projects`)).map((r) => r.title)).toEqual(['Dış cephe boyası']);
-  expect((await q(`select count(*)::int n from public.site_project_updates`))[0].n).toBe(2);
+  expect((await q(`select count(*)::int n from public.site_project_updates`))[0].n).toBe(4);
   await q(`update public.site_projects set progress = 5 where id = $1`, [pid]);   // RLS: hiçbir satır değişmez
   await q(`delete from public.site_project_updates`);
+  expect(await tryCall(db, `insert into public.site_project_updates (project_id, org_id, body, status) values ($1, $2, 'Sakin', 'tamam')`, [pid, org])).toMatch(/row-level security/);
   await as(Y);
   expect((await q(`select progress from public.site_projects where id = $1`, [pid]))[0].progress).toBe(100);
-  expect((await q(`select count(*)::int n from public.site_project_updates`))[0].n).toBe(2);
+  expect((await q(`select count(*)::int n from public.site_project_updates`))[0].n).toBe(4);
+  expect(await tryCall(db, `insert into public.site_project_updates (project_id, org_id, body, status) values ($1, $2, 'Yetkisiz', 'tamam')`, [pid, org])).toMatch(/row-level security/);
   await as(ID.X);
   expect(await q(`select id from public.site_projects`)).toEqual([]);
   expect(await q(`select id from public.site_project_updates`)).toEqual([]);

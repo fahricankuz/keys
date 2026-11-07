@@ -16,7 +16,7 @@ test('site projeleri ve talep yazışması ekranlarındaki her metnin İngilizce
     for (const m of src(f).matchAll(/\bt\('((?:[^'\\]|\\.)*)'/g)) keys.push(m[1].replace(/\\'/g, "'"));
   }
   // domain/site.js içindeki proje durumları ve hata metni.
-  for (const k of ['Planlandı', 'Başladı', 'Devam ediyor', 'Askıda', 'Tamamlandı', 'Fotoğraf yüklenemedi', 'Projeler', 'Site projeleri',
+  for (const k of ['Proje açıldı', 'Teklif alındı', 'Yapıma başlandı', 'Askıda', 'Tamamlandı', 'Fotoğraf yüklenemedi', 'Projeler', 'Site projeleri',
     'Onayla ve gönder', 'Bu ödeme kaydı silinsin mi?', '{n} daireye toplam {sum} yazılacak ve sakinlere bildirim gidecek. Onaylıyor musun?']) keys.push(k);
   expect(keys.length).toBeGreaterThan(40);
   expect(keys.filter((k) => !(k in all))).toEqual([]);

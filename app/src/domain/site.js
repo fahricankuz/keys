@@ -500,17 +500,27 @@ export async function loadSiteDocs(oids){
   return (r.error ? [] : r.data || []).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
 }
 
-/* ---- Site projeleri (migration site_projeleri) ------------------- */
+/* ---- Site projeleri (migration site_projeleri) -------------------
+   Proje açılır, aşama aşama ilerler (teklif → yapım → tamamlandı); her aşamada fotoğraf ve sakinlere bildirim. */
 
-/** Proje durumları (sırası ilerleme sırasıdır; "askıda" yan durum). */
+/** Proje aşamaları (sırası ilerleme sırasıdır; "askıda" yan durum). Aşama yalnız güncelleme kaydıyla ilerler (sunucu kuralı). */
 export const PROJECT_STATUS = () => [
-  { key: 'plan', label: t('Planlandı') },
-  { key: 'basladi', label: t('Başladı') },
-  { key: 'devam', label: t('Devam ediyor') },
-  { key: 'askida', label: t('Askıda') },
-  { key: 'tamam', label: t('Tamamlandı') }
+  { key: 'acildi', label: t('Proje açıldı') },
+  { key: 'teklif', label: t('Teklif alındı') },
+  { key: 'yapim', label: t('Yapıma başlandı') },
+  { key: 'tamam', label: t('Tamamlandı') },
+  { key: 'askida', label: t('Askıda') }
 ];
+/** Ana aşamalar (adım çizgisi). */
+export const PROJECT_STAGES = ['acildi', 'teklif', 'yapim', 'tamam'];
 export const projectStatusLabel = (k) => (PROJECT_STATUS().find((s) => s.key === k) || PROJECT_STATUS()[0]).label;
+/** Sonraki aşama (askıdaki proje yapıma döner; tamamlanmışın sonrası yok). */
+export function nextStage(k){
+  if (k === 'tamam') return null;
+  if (k === 'askida') return 'yapim';
+  const i = PROJECT_STAGES.indexOf(k);
+  return PROJECT_STAGES[Math.max(0, i) + 1] || null;
+}
 /** Bütçenin harcanan kısmı (yüzde, 0–100+; bütçe yoksa null). */
 export const projectSpentPct = (p) => (Number(p?.budget) > 0 && p?.spent != null ? Math.round((Number(p.spent) / Number(p.budget)) * 100) : null);
 
@@ -549,7 +559,8 @@ async function storePhotos(oid, files = []){
 export async function saveProject(oid, p, cover = null){
   const [coverPath] = cover ? await storePhotos(oid, [cover]) : [];
   const num = (v) => (v === '' || v == null ? null : Number(String(v).replace(',', '.')));
-  const row = { org_id: oid, title: String(p.title || '').trim(), body: String(p.body || '').trim(), status: p.status || 'plan',
+  // Aşama burada yazılmaz: yeni proje "Proje açıldı"da başlar, sonra yalnız güncellemeyle ilerler (bildirimli kayıt).
+  const row = { org_id: oid, title: String(p.title || '').trim(), body: String(p.body || '').trim(),
     progress: Math.max(0, Math.min(100, Math.round(Number(p.progress) || 0))), budget: num(p.budget), spent: num(p.spent),
     start_on: p.start_on || null, end_on: p.end_on || null, ...(coverPath ? { cover: coverPath } : {}) };
   const c = await db();

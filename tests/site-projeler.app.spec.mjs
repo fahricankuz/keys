@@ -50,8 +50,8 @@ async function login(page, email) {
   await page.getByRole('button', { name: 'Giriş yap' }).click();
 }
 
-test('yönetim proje ve fotoğraflı güncelleme ekler; sakin süreci görür; talepte iki yönlü yazışma', async ({ page }) => {
-  // 1. Yönetim: proje ekler, ilerleme güncellemesi (fotoğraflı) paylaşır.
+test('yönetim projeyi açar ve aşama aşama (teklif, yapım, tamamlandı) fotoğraflarla ilerletir; sakin süreci görür; talepte yazışma', async ({ page }) => {
+  // 1. Yönetim: projeyi açar, aşama aşama ilerletir.
   await login(page, 'ev@ornek.com');
   await expect(page).toHaveURL(/\/uygulama\/site$/);
   await page.goto(url('/uygulama/site/projeler'));
@@ -60,22 +60,43 @@ test('yönetim proje ve fotoğraflı güncelleme ekler; sakin süreci görür; t
   await page.getByLabel('Proje adı').fill('Dış cephe boyası');
   await page.getByLabel('Açıklama').fill('A ve B blok cephesi yenilenecek.');
   await page.getByLabel('Bütçe (₺, isteğe bağlı)').fill('450000');
-  await page.getByRole('button', { name: 'Projeyi ekle' }).click();
+  await page.getByRole('button', { name: 'Projeyi aç' }).click();
   await expect(page.getByText('Dış cephe boyası')).toBeVisible();
-  await expect(page.getByText('Planlandı')).toBeVisible();
-  await page.getByRole('button', { name: 'Güncelleme ekle' }).click();
-  await page.getByLabel('Ne yapıldı?').fill('İskele kuruldu.');
-  await page.getByRole('checkbox', { name: 'Devam ediyor' }).click();
-  await page.getByLabel('Yeni ilerleme (%)').fill('40');
-  const chooser = page.waitForEvent('filechooser');
+  await expect(page.getByText('Proje açıldı').first()).toBeVisible();
+  // Aşama 2: teklif alındı (teklif fotoğrafıyla); sakinlere aşamanın adıyla bildirim gider.
+  await page.getByRole('button', { name: 'Sonraki aşama: Teklif alındı' }).click();
+  await expect(page.getByText('Sakinlere "Dış cephe boyası: Teklif alındı" bildirimi gider.')).toBeVisible();
+  await page.getByLabel('Ne yapıldı?').fill('Üç firmadan teklif alındı.');
+  let chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Fotoğraf seç' }).click();
   await (await chooser).setFiles(PNG);
-  await page.getByRole('button', { name: 'Paylaş' }).click();
+  await page.getByRole('button', { name: 'Aşamayı ilerlet ve paylaş' }).click();
+  await expect(page.getByText('Üç firmadan teklif alındı.')).toBeVisible();
+  // Aşama 3: yapıma başlandı, %40.
+  await page.getByRole('button', { name: 'Sonraki aşama: Yapıma başlandı' }).click();
+  await page.getByLabel('Ne yapıldı?').fill('İskele kuruldu.');
+  await page.getByLabel('Yeni ilerleme (%, isteğe bağlı)').fill('40');
+  await page.getByRole('button', { name: 'Aşamayı ilerlet ve paylaş' }).click();
   await expect(page.getByText('İskele kuruldu.')).toBeVisible();
   await expect(page.getByText('%40').first()).toBeVisible();
+  // Düzenleme aşamayı değiştirmez (aşama alanı yok); sonraki aşama düğmesi tamamlamaya götürür.
+  await expect(page.getByRole('button', { name: 'Sonraki aşama: Tamamlandı' })).toBeVisible();
   let d = await db(page);
-  expect(d.tables.site_projects[0]).toMatchObject({ title: 'Dış cephe boyası', status: 'devam', progress: 40, budget: 450000 });
-  expect(d.tables.site_project_updates[0].photos[0]).toMatch(/^site-o1\//);
+  expect(d.tables.site_projects[0]).toMatchObject({ title: 'Dış cephe boyası', status: 'yapim', progress: 40, budget: 450000 });
+  expect(d.tables.site_project_updates.map((u) => u.status).sort()).toEqual(['teklif', 'yapim']);
+  expect(d.tables.site_project_updates.find((u) => u.status === 'teklif').photos[0]).toMatch(/^site-o1\//);
+  // Aşama 4: tamamlandı (fotoğrafla); yüzde 100 olur, proje "Tamamlanan" süzgecine geçer.
+  await page.getByRole('button', { name: 'Sonraki aşama: Tamamlandı' }).click();
+  await page.getByLabel('Ne yapıldı?').fill('Cephe tamamlandı, iskele söküldü.');
+  chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Fotoğraf seç' }).click();
+  await (await chooser).setFiles(PNG);
+  await page.getByRole('button', { name: 'Aşamayı ilerlet ve paylaş' }).click();
+  await expect(page.getByText('Bu filtrede proje yok.')).toBeVisible();
+  await page.getByRole('checkbox', { name: 'Tamamlanan' }).click();
+  await expect(page.getByText('Cephe tamamlandı, iskele söküldü.')).toBeVisible();
+  d = await db(page);
+  expect(d.tables.site_projects[0]).toMatchObject({ status: 'tamam', progress: 100 });
 
   // 2. Yönetim talebe yazar (talep kartında sakinin adı görünür).
   await page.goto(url('/uygulama/site/talepler'));
@@ -92,8 +113,10 @@ test('yönetim proje ve fotoğraflı güncelleme ekler; sakin süreci görür; t
   await page.goto(url('/uygulama/sitem'));
   await expect(page.getByText('Site projeleri')).toBeVisible();
   await expect(page.getByText('Dış cephe boyası')).toBeVisible();
-  await expect(page.getByText('İskele kuruldu.')).toBeVisible();
+  await expect(page.getByText('Cephe tamamlandı, iskele söküldü.')).toBeVisible();
+  await expect(page.getByText('Üç firmadan teklif alındı.')).toBeVisible();                  // son üç güncelleme görünür
   await expect(page.getByRole('button', { name: 'Güncelleme ekle' })).toHaveCount(0);       // sakin yalnız izler
+  await expect(page.getByRole('button', { name: /Sonraki aşama/ })).toHaveCount(0);
   await expect(page.getByText('Teknik ekip yarın gelecek.')).toBeVisible();
   await page.getByLabel('Yönetime yaz').fill('Hâlâ çalışmıyor.');
   await page.getByRole('button', { name: 'Mesaj gönder', exact: true }).click();

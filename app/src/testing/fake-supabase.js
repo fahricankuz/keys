@@ -47,7 +47,8 @@ function defaults(table, row, db){
   if (table === 'site_documents'){ r.audience = r.audience || 'herkes'; r.unit_id = r.unit_id || null; r.uploaded_by = r.uploaded_by || db.session?.user.id || null; }
   if (table === 'site_polls'){ r.weighted = !!r.weighted; r.voters = r.voters || 'malik'; }
   // Site projeleri ve talep yazışması (migration site_projeleri, site_talep_yazisma).
-  if (table === 'site_projects'){ r.status = r.status || 'plan'; r.progress = r.progress ?? 0; r.updated_at = now(); r.created_by = r.created_by || db.session?.user.id || null; }
+  // guard_site_project_insert: yeni proje her zaman "Proje açıldı" aşamasında başlar.
+  if (table === 'site_projects'){ r.status = 'acildi'; r.progress = r.progress ?? 0; r.updated_at = now(); r.created_by = r.created_by || db.session?.user.id || null; }
   if (table === 'site_project_updates'){ r.photos = r.photos || []; r.status = r.status ?? null; r.progress = r.progress ?? null; }
   if (table === 'site_request_messages'){
     // guard_site_request_message: gönderen oturumdaki kişi; talebin sahibi değilse yönetim.
@@ -302,6 +303,8 @@ class Query {
         persist(db);
         return { data: this.one ? out[0] || null : out, error: null };
       }
+      // guard_site_project: doğrudan düzenleme projenin aşamasını değiştirmez (aşama yalnız güncelleme kaydıyla ilerler).
+      if (this.t === 'site_projects' && 'status' in this.values){ const { status, ...rest } = this.values; this.values = rest; }
       out.forEach(r => {
         const before = JSON.parse(JSON.stringify(r));
         Object.assign(r, this.values);
