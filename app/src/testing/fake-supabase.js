@@ -8,7 +8,7 @@ const TABLES = ['profiles','properties','property_shared','memberships','invites
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
                 'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes','site_documents','site_investor_notes','mail_outbox',
-                'fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_emails'];
+                'fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_costs','admin_emails'];
 
 function load(){
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d){ TABLES.forEach(t => d.tables[t] = d.tables[t] || []); d.tables.payments.forEach(r => { r.kind = r.kind || 'kira'; }); return d; } } catch(e){}
@@ -134,7 +134,7 @@ function visible(db, table, row, actor){
   if (table === 'legal_requests') return row.user_id === actor;
   // schema.sql 26. bölüm: engellenen kişinin mesajları görünmez (sistem mesajları hariç).
   if (table === 'messages') return row.from_role === 'system' || !row.by_user || !(db.tables.user_blocks || []).some(b => b.user_id === actor && b.blocked === row.by_user);
-  if (table === 'legal_notes' || table === 'client_errors' || table === 'function_logs' || table === 'customer_contacts' || table === 'admin_emails' || table === 'mail_outbox') return false;
+  if (table === 'legal_notes' || table === 'client_errors' || table === 'function_logs' || table === 'customer_contacts' || table === 'admin_costs' || table === 'admin_emails' || table === 'mail_outbox') return false;
   if (table === 'content_reports') return row.reporter === actor;
   if (table === 'rent_certificates') return row.tenant_id === actor;
   if (table === 'user_blocks') return row.user_id === actor;
@@ -383,6 +383,28 @@ export function createClient(url, key, opts){
         db.tables.messages.push({ id:uuid(), property_id:inv.property_id, from_role:'system', by_user:null, body:prof.name + ' eve katıldı', at:now() });
         persist(db);
         return { data:inv.property_id, error:null };
+      }
+      if (name === 'admin_cost_save' || name === 'admin_cost_delete'){
+        // schema.sql (migration panel_gelir_gider): yalnız yönetici; her işlem İşlem kaydı'na.
+        if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
+        const T = db.tables;
+        if (name === 'admin_cost_delete'){
+          const x = T.admin_costs.find(r => r.id === args.cid);
+          if (!x) return { data:null, error:{ message:'Gider bulunamadı', code:'P0002' } };
+          T.admin_costs = T.admin_costs.filter(r => r.id !== args.cid);
+          T.admin_audit.push({ id:T.admin_audit.length + 1, admin_id:me, action:'cost.delete', target:x.id, detail:{ title:x.title }, at:now() });
+          persist(db); return { data:null, error:null };
+        }
+        const p = args.p || {};
+        if (!String(p.title || '').trim()) return { data:null, error:{ message:'Başlık yaz.', code:'22023' } };
+        if (!(Number(p.amount) > 0)) return { data:null, error:{ message:'Tutar sıfırdan büyük olmalı.', code:'22023' } };
+        const row = { title:String(p.title).trim(), category:p.category || 'diger', amount:Number(p.amount), currency:p.currency || 'TRY', vat_included:p.vat_included !== false,
+          vat_rate:p.vat_rate === '' || p.vat_rate == null ? 20 : Number(p.vat_rate), recurrence:p.recurrence || 'once', start_on:p.start_on || now().slice(0, 10), end_on:p.end_on || null, note:p.note || '', updated_at:now() };
+        let id = p.id;
+        const x = id && T.admin_costs.find(r => r.id === id);
+        if (x) Object.assign(x, row); else { id = uuid(); T.admin_costs.push({ id, ...row, created_by:me, created_at:now() }); }
+        T.admin_audit.push({ id:T.admin_audit.length + 1, admin_id:me, action:x ? 'cost.update' : 'cost.create', target:id, detail:{ title:row.title, amount:row.amount, currency:row.currency }, at:now() });
+        persist(db); return { data:id, error:null };
       }
       if (name === 'admin_send_email'){
         // schema.sql (migration panel_eposta): yalnız yönetici; kuyruğa admin_message, kayıt ve gerekirse "Son temas" notu.
@@ -784,6 +806,9 @@ export function createClient(url, key, opts){
         const month = new Date().toISOString().slice(0, 7), prev = new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 7);
         const sum = m => T.payments.filter(x => (x.kind || 'kira') === 'kira' && ['approved','partial'].includes(x.status) && x.month === m).reduce((a, x) => a + Number(x.amount || 0), 0);
         const paying = owners.filter(o => accessOf(db, o.id).subscribed).length;
+        const sumK = (k, m) => T.payments.filter(x => (x.kind || 'kira') === k && ['approved','partial'].includes(x.status) && x.month === m).reduce((a, x) => a + Number(x.amount || 0), 0);
+        const coll = (kinds, m) => (T.site_charges || []).filter(x => kinds.includes(x.kind) && x.month === m && ['paid','partial'].includes(x.status))
+          .reduce((a, x) => a + Number(x.status === 'paid' ? x.amount : x.paid_amount || 0), 0);
         const series = Array.from({ length: d }, (_, i) => {
           const dd = new Date(t0 - (d - 1 - i) * day).toISOString().slice(0, 10);
           const on = p => String(p.created_at || '').slice(0, 10) === dd;
@@ -806,7 +831,20 @@ export function createClient(url, key, opts){
           invites: { created: T.invites.length, accepted: T.invites.filter(i => i.accepted_by).length },
           requests: { open: T.requests.filter(r => r.status < 3).length, done: T.requests.filter(r => r.status === 3).length, period: T.requests.length },
           punctuality: { onTime: 0, late: 0 },
-          series
+          series,
+          // migration panel_gelir_gider: kurum kirası, aidat hacmi, tahmini gelir tabanı, kurum özeti.
+          orgRent: { month: coll(['kira','ciro'], month), prevMonth: coll(['kira','ciro'], prev) },
+          aidat: { month: sumK('aidat', month), prevMonth: sumK('aidat', prev), siteMonth: coll(['aidat','yakit','demirbas','ozel'], month), sitePrev: coll(['aidat','yakit','demirbas','ozel'], prev) },
+          revenueBase: Object.values(owners.reduce((acc, o) => {
+            const a = accessOf(db, o.id); if (!a.subscribed) return acc;
+            const sb = T.subscriptions.find(x => x.user_id === o.id) || {};
+            const yearly = /(yillik|yearly|annual)/i.test(sb.product_id || ''), k = a.plan + ':' + yearly;
+            const units = Math.max(1, Number(sb.units) || Number((/_(\d+)_(aylik|yillik)/.exec(sb.product_id || '') || [])[1]) || 1);
+            acc[k] = acc[k] || { plan:a.plan, yearly, owners:0, units:0 }; acc[k].owners++; acc[k].units += units; return acc;
+          }, {})),
+          orgs: { total: (T.organizations || []).length, active: (T.organizations || []).filter(o => o.status === 'active').length,
+                  bySector: (T.organizations || []).reduce((a, o) => { a[o.sector] = (a[o.sector] || 0) + 1; return a; }, {}),
+                  units: (T.site_units || []).length, contracted: (T.organizations || []).reduce((a, o) => a + (Number(o.units) || 0), 0), ending: 0 }
         }, error:null };
       }
       if (name === 'my_access') return { data: accessOf(db, me), error:null };
