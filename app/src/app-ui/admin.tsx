@@ -16,7 +16,8 @@ import { Wordmark } from '../ui/Wordmark';
 import { Loader } from '../ui/Loader';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 import { Card, Empty, H2, Muted, Row, Seg, Stack, initials } from './blocks';
-import { CpiRates, Overview, SubActions, Support } from './admin-extra';
+import { CpiRates, Growth, Overview, Revenue, SubActions, Support } from './admin-extra';
+import { Costs } from './admin-costs';
 import { AdminShell, PageHead } from './admin-ui';
 import { OrgDraft, Orgs, sectorFromRole } from './admin-orgs';
 import { AddProperty } from './admin-property';
@@ -64,6 +65,9 @@ export default function AdminPanel() {
   // Bölümler: yan menü sırası, simge ve başlık / açıklama.
   const SECTIONS: [string, string, string, string][] = [
     ['kpi', t('Genel bakış'), 'grid', ''],
+    ['growth', t('Büyüme'), 'chart', t('Yeni kayıt eğrisi, deneme → ödeyen dönüşümü, aktivasyon hunisi, kullanım, kurumlar ve yönetilen mülk.')],
+    ['revenue', t('Gelir'), 'card', t('Paket fiyatlarından tahmini aylık ve yıllık gelir, pakete göre dağılım, kurum sözleşmeleri ve net (gelir − gider).')],
+    ['costs', t('Gider'), 'doc', t('Altyapı, mağaza komisyonu, sanal POS, vergi, pazarlama ve hizmet giderleri. Dövizli giderler o günün TCMB kuruyla TL’ye çevrilir.')],
     ['accounts', t('Hesaplar'), 'key', t('Herkes tek listede: mülk sahibinin paketi ve denemesi, mülkleri ve kiracıları, kiracının hangi mülke bağlı olduğu, askı ve silme. Bir satıra dokun, ayrıntısı açılsın.')],
     ['health', t('Müşteri sağlığı'), 'flag', t('İlgilenilmezse kaybedilebilecek müşteriler: nedeni, iletişim bilgisi ve son temas. Haftalık arama listesi.')],
     ['orgs', t('Kurumlar'), 'office', t('Kurumsal müşteriler: sektör ve modüller, sözleşme, master yönetici, yöneticiler ve roller.')],
@@ -85,9 +89,12 @@ export default function AdminPanel() {
       {err ? <Card><Text v="small" color={c.badInk}>{err}</Text></Card> : null}
       {!data && !err ? <View style={{ alignItems: 'center', paddingVertical: 40 }}><Loader size={96} /></View> : null}
       {data ? (
-        tab === 'kpi' ? <Overview ops={{ pending: data.stats.pending, banned: data.stats.banned }} /> : (
+        tab === 'kpi' ? <Overview ops={{ pending: data.stats.pending, banned: data.stats.banned }} go={setTab} /> : (
           <Stack>
             <PageHead label={t('Yönetici')} title={cur[1]} sub={cur[3]} />
+            {tab === 'growth' && <Growth />}
+            {tab === 'revenue' && <Revenue />}
+            {tab === 'costs' && <Costs />}
             {tab === 'accounts' && <Accounts d={data} reload={load} />}
             {tab === 'health' && <Health d={data} />}
             {tab === 'orgs' && <Orgs draft={orgDraft} clearDraft={() => setOrgDraft(null)} />}

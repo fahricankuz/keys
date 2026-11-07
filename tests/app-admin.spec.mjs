@@ -439,11 +439,16 @@ test('yönetici mesajdaki göndereni oradan yasaklayabilir; Hesaplar bağlantıs
   await expect.poll(async () => (await db(page)).tables.bans.map((b) => b.reason)).toEqual(['Spam']);
 });
 
-test('yönetici genel bakışı: üyelik, gelir, kullanım göstergeleri ve aktivasyon hunisi', async ({ page }) => {
+test('yönetici genel bakışı özet; Büyüme ve Gelir sayfalarında üyelik, gelir, kullanım göstergeleri ve aktivasyon hunisi', async ({ page }) => {
   await tenantUploads(page);
   await login(page, 'admin@ornek.com');
   await expect(page).toHaveURL(/\/admin$/);
-  for (const label of ['Üye', 'Ödeyen mülk sahibi', 'Aylık gelir (tahmini)', 'Haftalık etkin kullanıcı', 'Davet kabul oranı (30 gün)', 'Yıllık gelir (ARR, tahmini)', 'Aktivasyon hunisi', 'Günlük yeni kayıt'])
+  for (const label of ['Üye', 'Aylık gelir (tahmini)', 'Bu ay onaylı kira hacmi', 'Bu ay gider'])
+    await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Gelir' }).first().click();
+  await expect(page.getByText('Yıllık gelir (ARR, tahmini)', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Büyüme' }).first().click();
+  for (const label of ['Üye', 'Deneme → ödeyen', 'Haftalık etkin kullanıcı', 'Davet kabul oranı (30 gün)', 'Aktivasyon hunisi', 'Günlük yeni kayıt'])
     await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
   // Örnek veride tek mülk sahibi: mülkü ve bağlı kiracısı var.
   await expect(page.getByText(/^1\. Kayıt olan mülk sahibi$/)).toBeVisible();
