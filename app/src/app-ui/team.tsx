@@ -5,6 +5,7 @@ import { S, ui, emit } from '../domain/state';
 import { P } from '../domain/logic';
 import { t } from '../domain/i18n';
 import { LIVE } from '../domain/config';
+import { hasFeature, planLabel } from '../domain/billing';
 import { activityFeed, createTeamInvite, deleteInvite, humanError, inviteLink, teamInvites, teamList, teamRemove, teamSet } from '../domain/backend';
 import { TEAM_ROLES, roleBlurb, roleLabel } from '../domain/team';
 import { describe } from '../domain/activity';
@@ -35,13 +36,21 @@ export function TeamScreen() {
   const [err, setErr] = useState<string | null>(null);
   const tick = ui.teamTick || 0;
   useEffect(() => {
-    if (!LIVE) return;
+    if (!LIVE || !hasFeature('team')) return;
     let gone = false;
     Promise.all([teamList(), teamInvites(), activityFeed(limit)])
       .then(([m, i, f]) => { if (!gone) { setMembers(m); setInvites(i); setFeed(f); setErr(null); } })
       .catch((e) => !gone && setErr(humanError(e)));
     return () => { gone = true; };
   }, [tick, limit]);
+
+  // Ekip üyeleri yalnız Profesyonel ve Kurumsal paketlerde (ve denemede) var; Başlangıç'ta yalnızca bunun bilgisi ve paket önerisi gösterilir.
+  if (!hasFeature('team')) return (
+    <Page title={t('Ekip')} sub={t('Emlakçı, muhasebeci ve personel')} back="/mulk-sahibi">
+      <Note>{t('Ekip üyeleri (emlakçı, muhasebeci, personel) {a} ve {b} paketlerinde var.', { a: planLabel('bes'), b: planLabel('kurumsal') })}</Note>
+      <Button block title={t('Paketleri gör')} onPress={() => open('abonelik')} />
+    </Page>
+  );
 
   if (!LIVE) return (
     <Page title={t('Ekip')} sub={t('Emlakçı, muhasebeci ve personel')} back="/mulk-sahibi">

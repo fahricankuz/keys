@@ -171,8 +171,9 @@ export function Seg({ options, value, onChange, scroll, wrap }: { options: [stri
       </PressScale>
     );
   });
-  // Telefonda yatay kaydırılır (son sekme tam görünsün diye sağda pay).
-  if (scroll && (phone || many)) return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>{items}</ScrollView>;
+  // Telefonda yatay kaydırılır (son sekme tam görünsün diye sağda pay). wrap verilmişse geniş ekranda kaydırma yerine alt satıra geçer
+  // (masaüstünde çubuksuz yatay şerit fareyle kaydırılamaz, son sekmeler kesik kalırdı).
+  if (scroll && (phone || (many && !wrap))) return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>{items}</ScrollView>;
   if (track) return <View style={{ flexDirection: 'row', gap: 2, padding: 4, borderRadius: radius.pill, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, minWidth: 'max-content' as any }}>{items}</View>;
   if (wrap) return <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{items}</View>;
   return <View style={{ flexDirection: 'row', gap: 8 }}>{items}</View>;
