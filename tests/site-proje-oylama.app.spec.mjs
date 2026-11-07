@@ -93,6 +93,7 @@ test('oylama, onay, teklif, aşama ve fatura: yönetimden sakine uçtan uca', as
   await page.getByLabel('Tutar (₺)').fill('96400');
   const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'Dosya seç', exact: true }).click()]);
   await fc.setFiles(PNG);
+  await expect(page.getByText('dekont.png')).toBeVisible();                                           // dosya hazırlanınca kaydedilir
   await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
   await expect(page.getByText('Toplam ₺96.400')).toBeVisible();
   d = await db(page);
