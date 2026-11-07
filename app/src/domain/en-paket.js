@@ -529,6 +529,8 @@ export const EN_PAKET = {
   "Merhaba {name}, anahtar’dan yazıyorum.": "Hi {name}, this is anahtar.",
   "Son temas {d}: {note}": "Last contact {d}: {note}",
   "Henüz temas kaydı yok.": "No contact logged yet.",
+  "Temas notu kaydedildi: {note}": "Contact note saved: {note}",
+  "Temas notu kaydedilemedi: {err}": "Contact note could not be saved: {err}",
   "Temas notu": "Contact note",
   "Ör. aradım, Excel aktarımında yardım istedi": "e.g. called; asked for help with the Excel import",
   "Deneme bitiyor": "Trial ending",

@@ -18,3 +18,15 @@ test('yönetici temas notu yazar ve okur; mülk sahibi ve kiracı göremez, yaza
     expect(await tryCall(db, `insert into public.customer_contacts (user_id, note) values ($1, 'x')`, [who])).toMatch(/row-level security/);
   }
 });
+
+test('kurum için temas notu: uygulamanın gönderdiği biçimde (user_id boş, org_id dolu) kaydolur; ikinci not geçmişe eklenir', async () => {
+  await as(null);
+  const [{ id: oid }] = await q(`insert into public.organizations (name, sector) values ('Atakum Sitesi', 'site') returning id`);
+  await as(ID.A);
+  // admin.js addContact: { user_id: null, org_id, note } gönderir.
+  await q(`insert into public.customer_contacts (user_id, org_id, note) values (null, $1, 'Sakin daveti için aradım')`, [oid]);
+  await q(`insert into public.customer_contacts (user_id, org_id, note) values (null, $1, 'Ertesi gün 40 sakin katıldı')`, [oid]);
+  const rows = await q(`select note, created_by from public.customer_contacts where org_id = $1 order by created_at, note`, [oid]);
+  expect(rows).toHaveLength(2);
+  expect(rows.every((r) => r.created_by === ID.A)).toBe(true);
+});

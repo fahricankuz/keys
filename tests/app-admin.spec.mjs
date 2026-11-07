@@ -537,7 +537,14 @@ test('müşteri sağlığı: mülk eklemeyen hesap listede; temas notu kaydedili
   await page.getByLabel('Temas notu').first().fill('Aradım, hafta sonu mülk ekleyecek.');
   await page.getByRole('button', { name: 'Kaydet', exact: true }).first().click();
   await expect(page.getByText(/Son temas .*: Aradım, hafta sonu mülk ekleyecek\./)).toBeVisible();
+  await expect(page.getByText('Temas notu kaydedildi: Aradım, hafta sonu mülk ekleyecek.')).toBeVisible();     // onay görünür (satır listede yer değiştirse de)
   expect((await db(page)).tables.customer_contacts.map((x) => [x.user_id, x.note])).toEqual([['u-bos', 'Aradım, hafta sonu mülk ekleyecek.']]);
+  // İkinci not: geçmiş listelenir, en yeni "Son temas" olur.
+  await page.getByLabel('Temas notu').first().fill('Ertesi gün tekrar aradım, mülkü ekledi.');
+  await page.getByRole('button', { name: 'Kaydet', exact: true }).first().click();
+  await expect(page.getByText('Temas notu kaydedildi: Ertesi gün tekrar aradım, mülkü ekledi.')).toBeVisible();
+  await expect(page.getByText(/Son temas .*: Ertesi gün tekrar aradım/)).toBeVisible();
+  await expect(page.getByText(/^\d.*: Aradım, hafta sonu mülk ekleyecek\.$/)).toBeVisible();
 });
 
 test('kira geçmişi belgesi: kiracı oluşturur; doğrulama sayfası oturumsuz açılır; yanlış kod doğrulanmaz', async ({ page }) => {
