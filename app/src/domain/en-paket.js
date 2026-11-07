@@ -845,5 +845,16 @@ export const EN_PAKET = {
   "Rapordaki tutarlar bu para biriminde, her işlem kendi gününün TCMB döviz satış kuruyla gösterilir.": "Report amounts are shown in this currency, each transaction at the CBRT selling rate of its own day.",
   "Gider türü": "Expense type",
   "Ortak gider (kiracıya yansır)": "Service charge (billed to tenants)",
-  "Yol planında: onay akışı (artış ve tahakkuk için çift imza), değerleme ve API.": "On the roadmap: approval flow (two signatures for increases and charges), valuation and API."
+  "Yol planında: onay akışı (artış ve tahakkuk için çift imza), değerleme ve API.": "On the roadmap: approval flow (two signatures for increases and charges), valuation and API.",
+  "Merhaba {name},": "Hi {name},",
+  "anahtar ekibi": "The anahtar team",
+  "E-posta gönderildi. Yanıtlar info@anahtar.io adresine gelir.": "E-mail sent. Replies go to info@anahtar.io.",
+  "Adres panoya alındı.": "Address copied to the clipboard.",
+  "Kopyalanamadı.": "Could not copy.",
+  "E-posta penceresi": "E-mail window",
+  "Alıcı": "To",
+  "Gmail’de aç": "Open in Gmail",
+  "Adresi kopyala": "Copy address",
+  "anahtar’ın e-posta adresinden gider; yanıtlar info@anahtar.io adresine gelir.": "Sent from anahtar’s e-mail address; replies go to info@anahtar.io.",
+  "Gönderildi {d}: {s}": "Sent {d}: {s}"
 };

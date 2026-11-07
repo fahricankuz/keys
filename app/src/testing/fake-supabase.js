@@ -8,7 +8,7 @@ const TABLES = ['profiles','properties','property_shared','memberships','invites
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
                 'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes','site_documents','site_investor_notes','mail_outbox',
-                'fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates'];
+                'fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_emails'];
 
 function load(){
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d){ TABLES.forEach(t => d.tables[t] = d.tables[t] || []); d.tables.payments.forEach(r => { r.kind = r.kind || 'kira'; }); return d; } } catch(e){}
@@ -134,7 +134,7 @@ function visible(db, table, row, actor){
   if (table === 'legal_requests') return row.user_id === actor;
   // schema.sql 26. bölüm: engellenen kişinin mesajları görünmez (sistem mesajları hariç).
   if (table === 'messages') return row.from_role === 'system' || !row.by_user || !(db.tables.user_blocks || []).some(b => b.user_id === actor && b.blocked === row.by_user);
-  if (table === 'legal_notes' || table === 'client_errors' || table === 'function_logs' || table === 'customer_contacts') return false;
+  if (table === 'legal_notes' || table === 'client_errors' || table === 'function_logs' || table === 'customer_contacts' || table === 'admin_emails' || table === 'mail_outbox') return false;
   if (table === 'content_reports') return row.reporter === actor;
   if (table === 'rent_certificates') return row.tenant_id === actor;
   if (table === 'user_blocks') return row.user_id === actor;
@@ -383,6 +383,19 @@ export function createClient(url, key, opts){
         db.tables.messages.push({ id:uuid(), property_id:inv.property_id, from_role:'system', by_user:null, body:prof.name + ' eve katıldı', at:now() });
         persist(db);
         return { data:inv.property_id, error:null };
+      }
+      if (name === 'admin_send_email'){
+        // schema.sql (migration panel_eposta): yalnız yönetici; kuyruğa admin_message, kayıt ve gerekirse "Son temas" notu.
+        if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
+        const p = args.p || {}, to = String(p.to || '').trim().toLowerCase();
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return { data:null, error:{ message:'Geçerli bir e-posta adresi yaz.', code:'22023' } };
+        if (!String(p.subject || '').trim() || !String(p.body || '').trim()) return { data:null, error:{ message:'Konu ve mesaj yaz.', code:'22023' } };
+        const id = uuid();
+        db.tables.mail_outbox.push({ id:db.tables.mail_outbox.length + 1, kind:'admin_message', to_email:to, data:{ subject:p.subject, body:p.body }, created_at:now() });
+        db.tables.admin_emails.push({ id, to_email:to, subject:p.subject, body:p.body, request_id:p.request_id || null, user_id:p.user_id || null, org_id:p.org_id || null, sent_by:me, created_at:now() });
+        if (p.user_id || p.org_id) db.tables.customer_contacts.push({ id:uuid(), user_id:p.user_id || null, org_id:p.org_id || null, note:'E-posta gönderildi: ' + p.subject, created_by:me, created_at:now() });
+        persist(db);
+        return { data:id, error:null };
       }
       if (name === 'admin_set_cpi'){
         if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };

@@ -1,5 +1,5 @@
 // anahtar — gönderim kuyruğundaki e-postaların (mail_outbox) HTML'i: hesap silindi, ekibe paket seçimi, kurum yöneticisi daveti,
-// yatırımcı raporu özeti ("Mailime gönder").
+// yatırımcı raporu özeti ("Mailime gönder"), yönetici panelinden yazılan ileti (admin_message).
 // Saf işlev (Deno ve Node'da çalışır; testler önizleme üretir). E-posta istemcileri için: tablo düzeni, satır içi stil, sistem yazı tipi.
 // Müşteriye giden iletiler kırmızı bantta kırmızı zeminli logoyla (anahtar-logo-mail-kirmizi.png) gelir; karanlık modda da bozulmaz.
 
@@ -20,7 +20,7 @@ function layout(o: Layout): string {
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:${C.kart};border:1px solid ${C.kil};border-radius:24px;overflow:hidden">
 <tr><td bgcolor="${C.tugla}" style="background:${C.tugla};padding:22px 28px"><img src="${LOGO}" width="168" height="31" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none">
 <div style="font:800 24px/1.25 ${FONT};color:${C.kirec};margin-top:12px">${esc(o.title)}</div></td></tr>
-<tr><td style="padding:24px 28px 8px">${o.lead.map((p, i) => `<div style="font:400 16px/1.6 ${FONT};color:${i === 0 ? C.baca : C.kahve};margin-top:${i ? 8 : 0}px">${esc(p)}</div>`).join('')}</td></tr>
+<tr><td style="padding:24px 28px 8px">${o.lead.map((p, i) => `<div style="font:400 16px/1.6 ${FONT};color:${i === 0 ? C.baca : C.kahve};margin-top:${i ? 8 : 0}px;white-space:pre-line">${esc(p)}</div>`).join('')}</td></tr>
 ${rows.length ? `<tr><td style="padding:8px 28px 0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font:400 15px/1.5 ${FONT}">${rows.map(([k, v]) =>
     `<tr><td style="padding:5px 0;color:${C.kahve};width:38%;vertical-align:top">${esc(k)}</td><td style="padding:5px 0;color:${C.baca};font-weight:600">${esc(v)}</td></tr>`).join('')}</table></td></tr>` : ''}
 ${o.button ? `<tr><td style="padding:18px 28px 6px"><a href="${esc(o.button.url)}" style="display:inline-block;background:${C.tugla};color:#ffffff;text-decoration:none;font:700 15px ${FONT};padding:13px 26px;border-radius:999px">${esc(o.button.label)}</a></td></tr>` : ''}
@@ -91,6 +91,15 @@ export function renderOutbox(row: OutboxRow, appUrl?: string, contact = 'info@an
           button: { label: 'Daveti kabul et', url }, note: `Bu e-postayı beklemiyorsan görmezden gelebilir ya da ${contact} adresine yazabilirsin.` };
     return { subject, html: layout(L), text: plain(L) };
   }
+  if (row.kind === 'admin_message') {
+    // Yönetici panelinde yazılan ileti: konu ve paragraflar olduğu gibi (layout kaçışlar); yanıt adresi info@anahtar.io.
+    const paras = String(d.body ?? '').replace(/\r\n/g, '\n').split(/\n{2,}/).map((x) => x.trim()).filter(Boolean);
+    subject = String(d.subject ?? '').replace(/[\r\n]+/g, ' ').trim() || 'anahtar';
+    L = { lang: 'tr', foot, title: subject, lead: paras.length ? paras : [''],
+          note: `Bu e-postayı yanıtlayarak bize yazabilirsin (${contact}).` };
+    return { subject, html: layout(L), text: plain(L) };
+  }
+
   if (row.kind === 'investor_report') {
     // Özet değerleri uygulamada biçimlenir (para birimi ve yüzde); burada yalnız gösterilir (layout kaçışlar).
     const period = /^\d{4}(-Q[1-4])?$/.test(String(d.period ?? '')) ? String(d.period) : '';
