@@ -178,10 +178,16 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
     ? t('Ekip üyesi') + (S.order.length && new Set(S.order.map((id: string) => memberRole(id))).size === 1 ? ' · ' + roleLabel(memberRole(S.order[0])) : '')
     : ui.role === 'landlord' ? t('Mülk sahibi') : siteResidentOnly() ? residentRoleLabel() : t('Kiracı');
   // Bildirim grupları: kira (mülkü olan ya da bir mülke kiracı olarak bağlı), site aidatı (sakin), site yönetimi (yönetici).
-  const rentUser = ui.role === 'landlord' || isTeam() || !!(S as any).myHome || S.order.length > 0;
+  // Kira grubu: mülkü olan, bir mülke bağlı ya da ekipte olan kişi; hiç mülkü ve kurumu olmayan yeni mülk sahibi de (mülk ekleyecek).
+  // Kurum yöneticisi mülk sahibi hesabıyla açılır; kiralık mülkü yoksa kira bildirimleri ona anlamsız.
+  const rentUser = S.order.length > 0 || !!(S as any).myHome || isTeam() || (ui.role === 'landlord' && !myOrgs().length);
   const manages = myOrgs().filter((o: any) => PORTFOLIO_SECTORS.includes(o.sector));
   const mgr = (perm: string) => manages.some((o: any) => o.master || (o.perms || []).includes(perm));
   const siteOrg = manages.some((o: any) => o.sector === 'site');
+  // SMS satırı: kişinin alabileceği hatırlatmalar.
+  const smsLabel = rentUser && mySiteUnits().length ? t('SMS (kira, aidat, sözleşme ve sigorta hatırlatmaları)')
+    : rentUser ? t('SMS (kira, sözleşme ve sigorta hatırlatmaları)')
+    : mySiteUnits().length ? t('SMS (aidat hatırlatmaları)') : t('SMS');
   const link = (title: string, url: string) => <LI key={title} title={title} onPress={() => Linking.openURL(url).catch(() => {})} right={<Muted>›</Muted>} />;
   return (
     <Stack>
@@ -269,17 +275,17 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
             <DevicePush />
             <OnOff label={t('E-posta')} k="email" />
             {hasFeature('sms')
-              ? <OnOff label={t('SMS (kira, aidat, sözleşme ve sigorta hatırlatmaları)')} k="sms" />
+              ? <OnOff label={smsLabel} k="sms" />
               : (
                 <PressScale onPress={() => { if (NATIVE) open('magaza-satin-al', { plan: 'bes' }); else { host.closeSheet(); host.go('/satin-al?plan=bes'); } }} accessibilityRole="link" accessibilityLabel={t('SMS hatırlatmaları Profesyonel paketinde. Profesyonel’e geç.')} scaleTo={0.99}
                   style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 6 }}>
-                  <Text v="small" muted style={{ flex: 1, fontFamily: fonts.bodyBold }}>{t('SMS (kira, aidat, sözleşme ve sigorta hatırlatmaları)')}</Text>
+                  <Text v="small" muted style={{ flex: 1, fontFamily: fonts.bodyBold }}>{smsLabel}</Text>
                   <Chip tone="accent" label={t('Profesyonel’e özel')} />
                 </PressScale>
               )}
           </Card>
           {!user?.phone ? <Muted>{t('SMS için Hesap sekmesinden telefon numaranı ekle.')}</Muted> : null}
-          {owner ? (
+          {owner && rentUser ? (
             <>
               <Label>{t('Rapor e-postası')}</Label>
               <Card gap={4}><MailReportSettings /></Card>

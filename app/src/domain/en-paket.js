@@ -925,5 +925,9 @@ export const EN_PAKET = {
   "Malik katılmadı · kiracı öder": "Owner hasn’t joined · tenant pays",
   "Malik yok · kiracı öder": "No owner · tenant pays",
   "Kiracı olmadığı için aidatı malik öder": "No tenant, so the owner pays the dues",
-  "Malik olmadığı için aidatı kiracı öder": "No owner, so the tenant pays the dues"
+  "Malik olmadığı için aidatı kiracı öder": "No owner, so the tenant pays the dues",
+  "SMS (aidat hatırlatmaları)": "SMS (dues reminders)",
+  "SMS": "SMS",
+  "Tutarlar TL’dir; dövizli sözleşmelerde tahakkuk anında TL’ye çevrilmiş tutar kullanılır.": "Amounts are in TRY; foreign-currency leases use the amount converted to TRY when billed.",
+  "Tutarlar kayıtlı TL değerleridir. Kur farkı: dövizli sözleşmelerde tahsil edilen TL ile sözleşme tutarının ödeme günündeki TCMB döviz satış kuru karşılığı arasındaki fark.": "Amounts are the recorded TRY values. FX difference: for foreign-currency leases, the gap between the TRY collected and the contract amount at the CBRT selling rate on the payment day."
 };
