@@ -5,7 +5,7 @@ import { serveDist, seed, PW, ensureDist } from './app-helpers.mjs';
 import { watchErrors } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
-const PORT = 8251;
+const PORT = 8261;
 let server;
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(async () => { test.setTimeout(300_000); await ensureDist(DIST); server = await serveDist(DIST, PORT); });
