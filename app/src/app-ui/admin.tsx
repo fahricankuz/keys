@@ -143,10 +143,14 @@ function HealthRow({ x, onSaved }: { x: any; onSaved: () => void }) {
   const [err, setErr] = useState<string | null>(null);
   const [sl, tone] = SEV[x.sev] || SEV[1];
   const [mail, setMail] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
   const save = async () => {
     if (!note.trim()) return;
-    setBusy(true); setErr(null);
-    try { await addContact(x.kind === 'org' ? { org_id: x.id, note } : { user_id: x.id, note }); setNote(''); onSaved(); } catch (e) { setErr(humanError(e)); }
+    setBusy(true); setErr(null); setDone(null);
+    try {
+      await addContact(x.kind === 'org' ? { org_id: x.id, note } : { user_id: x.id, note });
+      setNote(''); setDone(note.trim()); onSaved();
+    } catch (e) { setErr(humanError(e)); }
     setBusy(false);
   };
   return (
@@ -163,12 +167,14 @@ function HealthRow({ x, onSaved }: { x: any; onSaved: () => void }) {
       </Row>
       {mail ? <MailComposer target={{ to: x.email, name: x.name, ...(x.kind === 'org' ? { org_id: x.id } : { user_id: x.id }) }} onSent={onSaved} onClose={() => setMail(false)} /> : null}
       <View style={{ gap: 4 }}>{x.reasons.map((r: any) => <Text key={r.code} v="small" color={r.sev === 3 ? c.badInk : c.ink}>• {r.label}</Text>)}</View>
-      <Muted>{x.last ? t('Son temas {d}: {note}', { d: day(x.last.created_at), note: x.last.note }) : t('Henüz temas kaydı yok.')}</Muted>
+      {x.notes && x.notes.length ? x.notes.map((n: any, i: number) => <Muted key={n.id || i}>{i === 0 ? t('Son temas {d}: {note}', { d: day(n.created_at), note: n.note }) : day(n.created_at) + ': ' + n.note}</Muted>)
+        : <Muted>{t('Henüz temas kaydı yok.')}</Muted>}
       <Row gap={8} wrap align="flex-end">
         <View style={{ flexGrow: 1, flexBasis: 240 }}><Field label={t('Temas notu')} value={note} onChangeText={setNote} placeholder={t('Ör. aradım, Excel aktarımında yardım istedi')} maxLength={1000} /></View>
         <Button title={t('Kaydet')} disabled={!note.trim()} loading={busy} onPress={save} style={{ minHeight: 52 }} />
       </Row>
-      {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
+      {done ? <Text v="small" color={c.okInk}>{t('Temas notu kaydedildi: {note}', { note: done })}</Text> : null}
+      {err ? <Text v="small" color={c.badInk}>{t('Temas notu kaydedilemedi: {err}', { err })}</Text> : null}
     </Card>
   );
 }

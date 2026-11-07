@@ -546,7 +546,7 @@ function dataUrlParts(u){
   return { mime, bytes: base64ToBytes(body) };
 }
 
-const extOf = type => ({ 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'application/pdf':'pdf' }[type] || 'bin');
+const extOf = type => ({ 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'application/pdf':'pdf', 'video/mp4':'mp4', 'video/x-m4v':'m4v', 'video/quicktime':'mov', 'video/webm':'webm' }[type] || 'bin');
 
 async function upload(pid, bytes, mime, at){
   const path = at || pid + '/' + uid('') + '.' + extOf(mime);
@@ -575,8 +575,9 @@ export async function storeFile(pid, file){
       return SB + path;
     }
     if (file.uri){
-      if (file.size && file.size > 10 * 1024 * 1024){
-        host.notify({ title:t('Dosya çok büyük'), body:t('En fazla 10 MB yüklenebilir.'), icon:'doc' });
+      const video = /^video\//.test(file.mime || '');
+      if (file.size && file.size > (video ? 40 : 10) * 1024 * 1024){
+        host.notify({ title:t(video ? 'Video çok büyük' : 'Dosya çok büyük'), body:t(video ? 'En fazla 40 MB yüklenebilir. Daha kısa bir video çek.' : 'En fazla 10 MB yüklenebilir.'), icon:'doc' });
         return null;
       }
       const res = await fetch(file.uri);

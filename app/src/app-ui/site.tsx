@@ -37,6 +37,7 @@ import { fmtMoney } from '../domain/money';
 import { amountIn } from '../domain/fx-report';
 import { InvestorReport } from './investor';
 import { RequestThread, ResidentProjects, SiteProjects } from './site-projects';
+import { MediaList, MediaPicker } from './site-media';
 
 // Tarihler yerel saatle (Türkiye UTC+3; ISO dönüşümü gece yarısından sonra bir önceki güne/aya kayardı).
 const thisMonth = () => mkey(new Date());
@@ -600,6 +601,7 @@ function RequestCard({ x, unit, who, can, reload }: { x: any; unit: any; who?: s
         <Muted>{day(x.created_at)}</Muted>
       </Row>
       {x.body ? <Text v="small">{x.body}</Text> : null}
+      <MediaList paths={x.media} />
       {can('requests.manage') ? (
         <>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{REQ().map((l, i) => <Pill key={l} label={l} on={st === i} onPress={() => { setSt(i); setSaved(false); }} />)}</View>
@@ -1111,6 +1113,7 @@ export function ResidentSiteScreen({ part = 'all' }: { part?: ResidentPart }) {
   const [d, setD] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
   const [req, setReq] = useState<any>({ cat: 'ariza', title: '', body: '', unit: '' });
+  const [reqFiles, setReqFiles] = useState<Picked[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const c = useColors();
   const load = useCallback(async () => { try { setD(await loadMySite()); setErr(null); } catch (e) { setErr(humanError(e)); } }, [units.length]);
@@ -1180,9 +1183,10 @@ export function ResidentSiteScreen({ part = 'all' }: { part?: ResidentPart }) {
             {req.cat === 'aidat' ? <Muted>{t('Aidatı sen ödemiyorsan (ör. sözleşmeye göre malik ödüyorsa) buradan yönetime bildir; yönetim dairenin ödeyenini değiştirir.')}</Muted> : null}
             <Field label={t('Başlık')} value={req.title} onChangeText={(v) => setReq({ ...req, title: v })} maxLength={120} />
             <Field label={t('Açıklama')} value={req.body} onChangeText={(v) => setReq({ ...req, body: v })} multiline maxLength={4000} />
+            <MediaPicker files={reqFiles} setFiles={setReqFiles} />
             <Button title={t('Talebi gönder')} style={{ alignSelf: 'flex-start' }} disabled={req.title.trim().length < 2} onPress={async () => {
               setErr(null); setMsg(null);
-              try { await openSiteRequest(target.org_id, target.unit_id, req); setReq({ ...req, title: '', body: '' }); setMsg(t('Talebin yönetime iletildi.')); load(); } catch (e) { setErr(humanError(e)); }
+              try { await openSiteRequest(target.org_id, target.unit_id, { ...req, files: reqFiles }); setReq({ ...req, title: '', body: '' }); setReqFiles([]); setMsg(t('Talebin yönetime iletildi.')); load(); } catch (e) { setErr(humanError(e)); }
             }} />
             {msg ? <Text v="small" color={c.okInk}>{msg}</Text> : null}
           </Card>
@@ -1190,6 +1194,7 @@ export function ResidentSiteScreen({ part = 'all' }: { part?: ResidentPart }) {
             <Card key={x.id} gap={8}>
               <Row between wrap><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{x.title}</Text><Chip tone={x.status === 3 ? 'ok' : 'warn'} label={REQ()[x.status]} /></Row>
               {x.body ? <Muted>{x.body}</Muted> : null}
+              <MediaList paths={x.media} />
               {x.reply ? <Muted>{t('Yönetimin yanıtı')}: {x.reply}</Muted> : null}
               {/* Talebin sahibi yönetimle yazışır; çözülmüş talebe yazınca talep yeniden açılır. */}
               <RequestThread req={x} canWrite mgmt={false} />

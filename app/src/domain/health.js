@@ -15,7 +15,8 @@ export function healthList(o){
   const now = o.now ?? Date.now();
   const subBy = Object.fromEntries((o.subs || []).map((s) => [s.id, s]));
   const userBy = Object.fromEntries((o.users || []).map((u) => [u.id, u]));
-  const lastContact = (key, id) => (o.contacts || []).filter((c) => c[key] === id).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0] || null;
+  const contactsOf = (key, id) => (o.contacts || []).filter((c) => c[key] === id).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  const lastContact = (key, id) => contactsOf(key, id)[0] || null;
   const out = [];
 
   for (const l of o.landlords || []){
@@ -41,7 +42,7 @@ export function healthList(o){
       if (!recent) reasons.push({ code: 'nopay', sev: 1, label: t('30 gündür onaylanan ödeme yok') });
     }
     if (reasons.length) out.push({ kind: 'user', id: l.id, name: u.name || u.email, email: u.email, phone: u.phone || '',
-      sub: s.subscribed ? 'paying' : s.in_trial ? 'trial' : 'none', reasons, sev: Math.max(...reasons.map((r) => r.sev)), last: lastContact('user_id', l.id) });
+      sub: s.subscribed ? 'paying' : s.in_trial ? 'trial' : 'none', reasons, sev: Math.max(...reasons.map((r) => r.sev)), last: lastContact('user_id', l.id), notes: contactsOf('user_id', l.id).slice(0, 5) });
   }
 
   for (const org of o.orgs || []){
@@ -55,7 +56,7 @@ export function healthList(o){
       reasons.push({ code: 'orginvite', sev: 2, label: t('Sakin ve kiracıların yalnız %{p}’i katıldı', { p: Math.round((st.linked / st.people) * 100) }) });
     else if (st.units && !st.people && age >= 7) reasons.push({ code: 'nopeople', sev: 2, label: t('Kişi eklenmedi') });
     if (reasons.length) out.push({ kind: 'org', id: org.id, name: org.name, email: org.master?.email || '', phone: '', sector: org.sector,
-      reasons, sev: Math.max(...reasons.map((r) => r.sev)), last: lastContact('org_id', org.id) });
+      reasons, sev: Math.max(...reasons.map((r) => r.sev)), last: lastContact('org_id', org.id), notes: contactsOf('org_id', org.id).slice(0, 5) });
   }
   return out.sort((a, b) => b.sev - a.sev || String(a.last?.created_at || '').localeCompare(String(b.last?.created_at || '')) || String(a.name).localeCompare(String(b.name), 'tr'));
 }
