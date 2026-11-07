@@ -11,6 +11,8 @@ permissions:
 
 jobs:
   test:
+    # Görünen ad zorunlu kontroldür (ana dal koruması): PR'da atlanan yayın işiyle ("test") karışmasın diye ayrı.
+    name: Testler (tam set)
     runs-on: ubuntu-24.04   # ubuntu-latest (26.04) Playwright 1.49 bağımlılıklarını kuramıyor
     # Testler ~11 dk; GitHub yavaşladığında (paket deposu, kuyruk) iş kesilmesin diye pay.
     timeout-minutes: 30
