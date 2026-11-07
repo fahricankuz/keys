@@ -9,7 +9,7 @@ import { View } from 'react-native';
 import { t } from '../domain/i18n';
 import { humanError } from '../domain/backend';
 import {
-  PROJECT_STATUS, PROJECT_STAGES, projectStatusLabel, projectSpentPct, nextStage, loadProjects, saveProject, deleteProject,
+  PROJECT_STATUS, projectSteps, projectStepAt, projectStatusLabel, projectSpentPct, nextStage, loadProjects, saveProject, deleteProject,
   addProjectUpdate, deleteProjectUpdate, loadRequestMessages, sendRequestMessage, isCommercial
 } from '../domain/site';
 import { tl, fmtFull, parse } from '../domain/util';
@@ -20,10 +20,11 @@ import { DateField, FileField, MoneyField, useVals } from './forms';
 import { Picked } from './media';
 import { Pill } from './org';
 import { MediaList, MediaPicker } from './site-media';
+import { CostsBlock, OpenVoteForm, VoteBlock } from './site-project-extras';
 
 const day = (v?: string) => (v ? fmtFull(parse(String(v).slice(0, 10))) : '—');
 const photoSrc = (p: string) => 'sb:' + p;
-const toneOf = (s: string) => (s === 'tamam' ? 'ok' : s === 'askida' ? 'warn' : 'accent') as 'ok' | 'warn' | 'accent';
+const toneOf = (s: string) => (s === 'tamam' || s === 'onay' ? 'ok' : s === 'askida' || s === 'oylama' ? 'warn' : s === 'red' ? 'bad' : 'accent') as 'ok' | 'warn' | 'accent' | 'bad';
 /** Aşamaya göre güncelleme formundaki örnek metin. */
 const HINT = (s: string | null) => ({
   teklif: t('ör. Üç firmadan teklif alındı; en uygunu Örnek Yapı, ₺420.000'),
@@ -51,26 +52,29 @@ function Progress({ value }: { value: number }) {
   );
 }
 
-/** Aşama çizgisi: Proje açıldı → Teklif alındı → Yapıma başlandı → Tamamlandı; geçilenler ve bulunulan aşama işaretli. */
-function StageBar({ status }: { status: string }) {
+/** Aşama çizgisi: Proje açıldı → (Oylama → Onay) → Teklif alındı → Yapıma başlandı → Tamamlandı; oylamaya sunulmayan projede oylama adımları yoktur. */
+function StageBar({ p }: { p: any }) {
   const c = useColors();
-  // Askıdaki proje yapım aşamasında durmuş sayılır.
-  const at = PROJECT_STAGES.indexOf(status === 'askida' ? 'yapim' : status);
+  const steps = projectSteps(p);
+  const status = p.status;
+  // Askıdaki proje yapımda, reddedilen oylamada durmuş sayılır.
+  const at = projectStepAt(p);
+  const bad = status === 'red';
   return (
     <View accessibilityLabel={t('Aşama: {s}', { s: projectStatusLabel(status) })} style={{ gap: 6 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        {PROJECT_STAGES.map((k, i) => (
-          <View key={k} style={{ flex: i < PROJECT_STAGES.length - 1 ? 1 : 0, flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: i <= at ? (status === 'tamam' ? c.okInk : c.accent) : c.surface2,
+        {steps.map((k, i) => (
+          <View key={k} style={{ flex: i < steps.length - 1 ? 1 : 0, flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: i <= at ? (bad && i === at ? c.badInk : status === 'tamam' ? c.okInk : c.accent) : c.surface2,
               borderWidth: i === at ? 3 : 0, borderColor: c.accentSoft }} />
-            {i < PROJECT_STAGES.length - 1 ? <View style={{ flex: 1, height: 2, backgroundColor: i < at ? c.accent : c.line }} /> : null}
+            {i < steps.length - 1 ? <View style={{ flex: 1, height: 2, backgroundColor: i < at ? c.accent : c.line }} /> : null}
           </View>
         ))}
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        {PROJECT_STAGES.map((k, i) => (
-          <Text key={k} v="small" style={{ flex: 1, textAlign: i === 0 ? 'left' : i === PROJECT_STAGES.length - 1 ? 'right' : 'center', fontFamily: i === at ? fonts.bodyXBold : fonts.body }}
-            color={i <= at ? undefined : c.muted}>{projectStatusLabel(k)}</Text>
+        {steps.map((k, i) => (
+          <Text key={k} v="small" style={{ flex: 1, textAlign: i === 0 ? 'left' : i === steps.length - 1 ? 'right' : 'center', fontFamily: i === at ? fonts.bodyXBold : fonts.body, fontSize: steps.length > 4 ? 11 : undefined }}
+            color={i <= at ? undefined : c.muted}>{k === 'onay' ? t('Onaylandı') : projectStatusLabel(k)}</Text>
         ))}
       </View>
     </View>
@@ -145,7 +149,7 @@ function UpdateForm({ oid, p, stage, done }: { oid: string; p: any; stage: strin
       <Text v="body" style={{ fontFamily: fonts.bodyXBold }}>{changes ? t('Aşamayı ilerlet: {s}', { s: projectStatusLabel(status) }) : t('Güncelleme ekle')}</Text>
       <Label>{t('Aşama')}</Label>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-        {PROJECT_STATUS().filter((s) => s.key !== 'acildi').map((s) => <Pill key={s.key} label={s.label} on={status === s.key} onPress={() => setStatus(status === s.key ? null : s.key)} />)}
+        {PROJECT_STATUS().filter((s) => ['teklif', 'yapim', 'tamam', 'askida'].includes(s.key)).map((s) => <Pill key={s.key} label={s.label} on={status === s.key} onPress={() => setStatus(status === s.key ? null : s.key)} />)}
       </View>
       <Field label={t('Ne yapıldı?')} value={body} onChangeText={setBody} multiline maxLength={4000} placeholder={HINT(status)} />
       <FileField label={status === 'teklif' ? t('Teklif belgeleri ya da fotoğraflar (en çok 12)') : t('Fotoğraflar (en çok 12)')} files={photos} setFiles={setPhotos} kind="photos" max={12} camera />
@@ -165,9 +169,9 @@ function UpdateForm({ oid, p, stage, done }: { oid: string; p: any; stage: strin
 }
 
 /** Proje kartı: aşama çizgisi, kapak, ilerleme, bütçe, tarihler, açıklama ve güncellemeler (yeniden eskiye). */
-function ProjectCard({ p, updates, oid, manage, reload }: { p: any; updates: any[]; oid?: string; manage?: boolean; reload?: () => void }) {
+function ProjectCard({ p, updates, oid, manage, reload, costs = [], info, votes = [] }: { p: any; updates: any[]; oid?: string; manage?: boolean; reload?: () => void; costs?: any[]; info?: any; votes?: any[] }) {
   const c = useColors();
-  const [mode, setMode] = useState<'view' | 'edit' | 'update'>('view');
+  const [mode, setMode] = useState<'view' | 'edit' | 'update' | 'vote'>('view');
   const [stage, setStage] = useState<string | null>(null);
   const [all, setAll] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -184,7 +188,7 @@ function ProjectCard({ p, updates, oid, manage, reload }: { p: any; updates: any
         </View>
         <Chip tone={toneOf(p.status)} label={projectStatusLabel(p.status)} />
       </Row>
-      <StageBar status={p.status} />
+      <StageBar p={p} />
       {p.cover ? <Thumbs srcs={[photoSrc(p.cover)]} size={160} /> : null}
       {p.status === 'yapim' || p.status === 'askida' || Number(p.progress) > 0 ? <Progress value={p.progress} /> : null}
       {Number(p.budget) > 0 ? (
@@ -194,6 +198,8 @@ function ProjectCard({ p, updates, oid, manage, reload }: { p: any; updates: any
         </Row>
       ) : p.spent != null ? <Muted>{t('Harcanan {v}', { v: tl(p.spent) })}</Muted> : null}
       {p.body ? <Text v="small">{p.body}</Text> : null}
+      {p.poll_id ? <VoteBlock p={p} info={info} myVotes={votes} manage={!!manage} reload={() => reload && reload()} /> : null}
+      <CostsBlock oid={oid || p.org_id} p={p} costs={costs} manage={!!manage} reload={() => reload && reload()} />
       {updates.length ? (
         <View style={{ gap: 10, borderLeftWidth: 2, borderColor: c.line, paddingLeft: 12 }}>
           {shown.map((u: any) => (
@@ -212,9 +218,11 @@ function ProjectCard({ p, updates, oid, manage, reload }: { p: any; updates: any
         </View>
       ) : <Muted>{t('Henüz güncelleme yok.')}</Muted>}
       {manage && oid ? (
-        mode === 'update' ? <UpdateForm oid={oid} p={p} stage={stage} done={(ok) => { setMode('view'); if (ok && reload) reload(); }} /> : (
+        mode === 'vote' ? <OpenVoteForm p={p} done={(ok) => { setMode('view'); if (ok && reload) reload(); }} />
+        : mode === 'update' ? <UpdateForm oid={oid} p={p} stage={stage} done={(ok) => { setMode('view'); if (ok && reload) reload(); }} /> : (
           <Row wrap gap={8}>
             {next ? <Button title={t('Sonraki aşama: {s}', { s: projectStatusLabel(next) })} onPress={() => { setStage(next); setMode('update'); }} /> : null}
+            {['acildi', 'teklif', 'red'].includes(p.status) ? <Button kind="ghost" title={t('Oylamaya sun')} onPress={() => setMode('vote')} /> : null}
             <Button kind="ghost" title={t('Güncelleme ekle')} onPress={() => { setStage(null); setMode('update'); }} />
             <Button kind="ghost" title={t('Düzenle')} onPress={() => setMode('edit')} />
             <ConfirmDelete label={t('Projeyi sil')} question={t('Proje ve bütün güncellemeleri silinsin mi?')} onConfirm={async () => { setErr(null); try { await deleteProject(p.id); reload && reload(); } catch (e) { setErr(humanError(e)); } }} />
@@ -245,7 +253,7 @@ export function SiteProjects({ oid, can }: { oid: string; can: (p: string) => bo
           {[['open', t('Süren')], ['done', t('Tamamlanan')], ['all', t('Tümü')]].map(([k, l]) => <Pill key={k} label={l} on={filter === k} onPress={() => setFilter(k)} />)}
         </View>
       ) : null}
-      {!d ? null : list.length ? list.map((p: any) => <ProjectCard key={p.id + ':' + p.updated_at} p={p} updates={d.updates.filter((u: any) => u.project_id === p.id)} oid={oid} manage={manage} reload={load} />)
+      {!d ? null : list.length ? list.map((p: any) => <ProjectCard key={p.id + ':' + p.updated_at} p={p} updates={d.updates.filter((u: any) => u.project_id === p.id)} costs={d.costs.filter((x: any) => x.project_id === p.id)} info={d.polls[p.poll_id]} votes={d.votes} oid={oid} manage={manage} reload={load} />)
         : <Empty>{d.projects.length ? t('Bu filtrede proje yok.') : manage ? t('Henüz proje yok. İlk projeyi ekleyerek sakinlerle paylaşabilirsin.') : t('Henüz proje yok.')}</Empty>}
     </Stack>
   );
@@ -256,7 +264,8 @@ export function ResidentProjects({ units }: { units: any[] }) {
   const ids = [...new Set(units.filter((u: any) => !isCommercial(u.sector)).map((u: any) => u.org_id))] as string[];
   const key = ids.join();
   const [d, setD] = useState<any>(null);
-  useEffect(() => { loadProjects(ids).then(setD).catch(() => setD(null)); }, [key]);
+  const load = useCallback(() => { loadProjects(ids).then(setD).catch(() => setD(null)); }, [key]);
+  useEffect(() => { load(); }, [load]);
   if (!d?.projects?.length) return null;
   const many = ids.length > 1;
   return (
@@ -265,7 +274,7 @@ export function ResidentProjects({ units }: { units: any[] }) {
       {d.projects.map((p: any) => (
         <View key={p.id} style={{ gap: 4 }}>
           {many ? <Label>{units.find((u: any) => u.org_id === p.org_id)?.org}</Label> : null}
-          <ProjectCard p={p} updates={d.updates.filter((u: any) => u.project_id === p.id)} />
+          <ProjectCard p={p} updates={d.updates.filter((u: any) => u.project_id === p.id)} costs={d.costs.filter((x: any) => x.project_id === p.id)} info={d.polls[p.poll_id]} votes={d.votes} reload={load} />
         </View>
       ))}
     </Stack>

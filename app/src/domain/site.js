@@ -503,42 +503,94 @@ export async function loadSiteDocs(oids){
 /* ---- Site projeleri (migration site_projeleri) -------------------
    Proje açılır, aşama aşama ilerler (teklif → yapım → tamamlandı); her aşamada fotoğraf ve sakinlere bildirim. */
 
-/** Proje aşamaları (sırası ilerleme sırasıdır; "askıda" yan durum). Aşama yalnız güncelleme kaydıyla ilerler (sunucu kuralı). */
+/** Proje aşamaları (sırası ilerleme sırasıdır; "askıda" yan durum). Aşama yalnız güncelleme kaydıyla ilerler (sunucu kuralı).
+    Oylama isteğe bağlıdır: Oylamada → Onaylandı / Reddedildi (migration site_proje_oylama_maliyet). */
 export const PROJECT_STATUS = () => [
   { key: 'acildi', label: t('Proje açıldı') },
+  { key: 'oylama', label: t('Oylamada') },
+  { key: 'onay', label: t('Sakinler onayladı') },
+  { key: 'red', label: t('Sakinler reddetti') },
   { key: 'teklif', label: t('Teklif alındı') },
   { key: 'yapim', label: t('Yapıma başlandı') },
   { key: 'tamam', label: t('Tamamlandı') },
   { key: 'askida', label: t('Askıda') }
 ];
-/** Ana aşamalar (adım çizgisi). */
+/** Ana aşamalar (adım çizgisi). Oylamaya sunulmuş projede oylama adımları da görünür (projectSteps). */
 export const PROJECT_STAGES = ['acildi', 'teklif', 'yapim', 'tamam'];
+export const projectSteps = (p) => (p && p.poll_id ? ['acildi', 'oylama', 'onay', 'teklif', 'yapim', 'tamam'] : PROJECT_STAGES);
+/** Adım çizgisindeki yeri: oylamada olan "oylama"da, reddedilen de orada durur; askıdaki yapımda. */
+export const projectStepAt = (p) => projectSteps(p).indexOf(p.status === 'askida' ? 'yapim' : p.status === 'red' ? 'oylama' : p.status);
 export const projectStatusLabel = (k) => (PROJECT_STATUS().find((s) => s.key === k) || PROJECT_STATUS()[0]).label;
-/** Sonraki aşama (askıdaki proje yapıma döner; tamamlanmışın sonrası yok). */
+/** Sonraki aşama (askıdaki proje yapıma döner; oylama süren ya da reddedilen proje ilerletilmez; tamamlanmışın sonrası yok). */
 export function nextStage(k){
-  if (k === 'tamam') return null;
+  if (k === 'tamam' || k === 'oylama' || k === 'red') return null;
   if (k === 'askida') return 'yapim';
+  if (k === 'onay') return 'teklif';
   const i = PROJECT_STAGES.indexOf(k);
   return PROJECT_STAGES[Math.max(0, i) + 1] || null;
 }
 /** Bütçenin harcanan kısmı (yüzde, 0–100+; bütçe yoksa null). */
 export const projectSpentPct = (p) => (Number(p?.budget) > 0 && p?.spent != null ? Math.round((Number(p.spent) / Number(p.budget)) * 100) : null);
 
-/** Sitelerin projeleri ve güncellemeleri (RLS süzer). Tablo henüz yoksa (migration öncesi) boş döner. */
+/** Oylamaya sunulan projenin yoklama sorusu bu metinle başlar (genel yoklama listelerinde ayrı gösterilmez). */
+export const PROJECT_POLL_PREFIX = 'Proje yapılsın mı: ';
+export const isProjectPoll = (q) => String(q?.question || '').startsWith(PROJECT_POLL_PREFIX);
+
+/** Sitelerin projeleri, güncellemeleri, teklif/faturaları ve oylamaları (RLS süzer). Süresi dolan oylamaların sonucu önce uygulanır.
+    Tablo henüz yoksa (migration öncesi) boş döner. polls: yoklama kimliği → { poll, results }; votes: kendi oylarım. */
 export async function loadProjects(oids){
-  if (!oids.length) return { projects: [], updates: [] };
+  if (!oids.length) return { projects: [], updates: [], costs: [], polls: {}, votes: [] };
   const c = await db();
-  const [projects, updates] = await Promise.all([
+  await Promise.all(oids.map((oid) => Promise.resolve(c.rpc('site_project_vote_sync', { oid })).then(() => null, () => null)));
+  const [projects, updates, costs] = await Promise.all([
     c.from('site_projects').select('*').in('org_id', oids),
-    c.from('site_project_updates').select('*').in('org_id', oids)
+    c.from('site_project_updates').select('*').in('org_id', oids),
+    c.from('site_project_costs').select('*').in('org_id', oids)
   ].map((p) => p.then((r) => (r.error ? [] : r.data || []))));
+  const pollIds = projects.map((p) => p.poll_id).filter(Boolean);
+  const polls = {};
+  let votes = [];
+  if (pollIds.length){
+    const [pl, vs] = await Promise.all([c.from('site_polls').select('*').in('id', pollIds), c.from('site_votes').select('*').in('poll_id', pollIds)]
+      .map((p) => p.then((r) => (r.error ? [] : r.data || []))));
+    await Promise.all(pl.map(async (x) => { const r = await c.rpc('site_poll_results', { pid: x.id }); polls[x.id] = { poll: x, results: r.error ? null : r.data }; }));
+    votes = vs.filter((v) => v.user_id === live.user?.id);
+  }
   // Sürenler önce (askıda ve tamamlananlar sonda), sonra en son güncellenen.
   const rank = (p) => (p.status === 'tamam' ? 2 : p.status === 'askida' ? 1 : 0);
   return {
     projects: projects.sort((a, b) => rank(a) - rank(b) || String(b.updated_at).localeCompare(String(a.updated_at))),
-    updates: updates.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+    updates: updates.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))),
+    costs: costs.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))),
+    polls, votes
   };
 }
+
+/** Projeyi oylamaya sunar: days gün, pct kabul eşiği (50–100, tüm arsa payına göre), voters: 'malik' | 'herkes'. */
+export async function openProjectVote(pid, { days = 5, pct = 50, voters = 'malik' } = {}){
+  must(await (await db()).rpc('site_project_vote_open', { pid, days, pct, voters }));
+}
+/** Oylamayı süresi dolmadan bitirir ve sonucu uygular. */
+export async function closeProjectVote(pid){ must(await (await db()).rpc('site_project_vote_close', { pid })); }
+
+/** Dosyayı (fatura ya da teklif belgesi: PDF ya da görsel) sitenin klasörüne yükler; depodaki yolu döner. */
+async function storeDoc(oid, f){
+  const stored = await storeFile('site-' + oid, f);
+  const path = stored ? storedPath(stored) : null;
+  if (!path) throw new Error(t('Dosya yüklenemedi'));
+  return path;
+}
+/** Teklif (kind 'teklif'; chosen: seçilen) ya da fatura (kind 'fatura') ekler. Fatura gider defterine de yazılır ve harcananı günceller. */
+export async function addProjectCost(oid, projectId, { kind, vendor, amount, spent_on = '', note = '', file = /** @type {any} */ (null), chosen = false }){
+  const path = file ? await storeDoc(oid, file) : null;
+  must(await (await db()).from('site_project_costs').insert({
+    project_id: projectId, org_id: oid, kind, vendor: String(vendor || '').trim(), amount: Number(String(amount).replace(',', '.')),
+    ...(kind === 'fatura' && spent_on ? { spent_on } : {}), note: String(note || '').trim(), file: path, file_name: file?.name || '',
+    chosen: kind === 'teklif' && !!chosen, created_by: live.user?.id
+  }));
+}
+export async function chooseProjectQuote(id){ must(await (await db()).from('site_project_costs').update({ chosen: true }).eq('id', id)); }
+export async function deleteProjectCost(id){ must(await (await db()).from('site_project_costs').delete().eq('id', id)); }
 
 /** Depo yolu video mu? (talep ve yazışma ekleri: mp4, m4v, mov, webm) */
 export const isVideoPath = (p) => /\.(mp4|m4v|mov|webm)$/i.test(String(p || ''));

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { TextInput, View } from 'react-native';
 import { t } from '../domain/i18n';
 import { humanError } from '../domain/backend';
-import { unitLabel, mySiteUnits, isCommercial } from '../domain/site';
+import { unitLabel, mySiteUnits, isCommercial, isProjectPoll } from '../domain/site';
 import {
   ANSWERS, loadMeetings, loadMyMeetings, saveMeeting, finishMeeting, cancelMeeting, replyMeeting, createPoll, closePoll, deletePoll,
   vote, pollRows, isOpenPoll, openMeetingPack
@@ -139,7 +139,7 @@ export function Meetings({ d, org, can }: { d: any; org: any; can: (p: string) =
         </Card>
       ) : null}
 
-      {x.polls.length ? x.polls.map((q: any) => (
+      {x.polls.filter((q: any) => !isProjectPoll(q)).length ? x.polls.filter((q: any) => !isProjectPoll(q)).map((q: any) => (
         <Card key={q.id} gap={8}>
           <Row between wrap><H2>{q.question}</H2><Chip tone={isOpenPoll(q) ? 'warn' : 'ok'} label={isOpenPoll(q) ? t('Açık') : t('Bitti')} /></Row>
           <Muted>{(q.voters === 'herkes' ? t('Malik ve kiracılar') : t('Yalnız malikler')) + ' · ' + t('Bitiş') + ' ' + when(q.ends_at)}</Muted>
@@ -162,7 +162,8 @@ export function ResidentMeetings() {
   const [proxy, setProxy] = useState<Record<string, string>>({});
   const load = useCallback(async () => { try { setX(await loadMyMeetings()); } catch (e) { setErr(humanError(e)); } }, [units.length]);
   useEffect(() => { load(); }, [load]);
-  if (!units.length || !x || (!x.meetings.length && !x.polls.length)) return null;
+  const polls = x ? x.polls.filter((q: any) => !isProjectPoll(q)) : [];          // proje oylamaları Projeler bölümünde
+  if (!units.length || !x || (!x.meetings.length && !polls.length)) return null;
   const run = async (f: () => Promise<any>) => { setErr(null); try { await f(); await load(); } catch (e) { setErr(humanError(e)); } };
   const A: Record<string, string> = ANSWERS();
   return (
@@ -199,7 +200,7 @@ export function ResidentMeetings() {
           </Card>
         );
       })}
-      {x.polls.map((q: any) => {
+      {polls.map((q: any) => {
         const mine = units.filter((u: any) => u.org_id === q.org_id && (q.voters === 'herkes' || u.role === 'malik'));
         const open = isOpenPoll(q);
         return (

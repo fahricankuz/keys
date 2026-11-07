@@ -8,7 +8,7 @@ const TABLES = ['profiles','properties','property_shared','memberships','invites
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
                 'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes','site_documents','site_investor_notes','mail_outbox','site_cash','site_recurring_expenses',
-                'site_projects','site_project_updates','site_request_messages',
+                'site_projects','site_project_updates','site_request_messages','site_project_costs',
                 'fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_costs','admin_emails'];
 
 function load(){
@@ -50,6 +50,8 @@ function defaults(table, row, db){
   // guard_site_project_insert: yeni proje her zaman "Proje açıldı" aşamasında başlar.
   if (table === 'site_projects'){ r.status = 'acildi'; r.progress = r.progress ?? 0; r.updated_at = now(); r.created_by = r.created_by || db.session?.user.id || null; }
   if (table === 'site_project_updates'){ r.photos = r.photos || []; r.status = r.status ?? null; r.progress = r.progress ?? null; }
+  if (table === 'site_projects'){ r.poll_id = r.poll_id ?? null; r.approve_pct = r.approve_pct ?? 50; }
+  if (table === 'site_project_costs'){ r.chosen = !!r.chosen; r.file = r.file || null; r.file_name = r.file_name || ''; r.note = r.note || ''; r.spent_on = r.spent_on || now().slice(0, 10); r.created_by = r.created_by || db.session?.user.id || null; }
   if (table === 'site_request_messages'){
     // guard_site_request_message: gönderen oturumdaki kişi; talebin sahibi değilse yönetim.
     const req = db.tables.site_requests.find(x => x.id === r.request_id) || {};
@@ -82,6 +84,18 @@ function afterInsert(table, row, db){
   if (table === 'site_project_updates'){
     const p = db.tables.site_projects.find(x => x.id === row.project_id);
     if (p){ if (row.status) p.status = row.status; p.progress = row.status === 'tamam' ? 100 : (row.progress ?? p.progress); p.updated_at = now(); }
+  }
+  // on_site_project_cost (migration site_proje_oylama_maliyet): seçili teklif tekil; fatura gider defterine yazılır, harcanan faturaların toplamı olur.
+  if (table === 'site_project_costs'){
+    const T = db.tables, p = T.site_projects.find(x => x.id === row.project_id) || {};
+    if (row.kind === 'teklif' && row.chosen) T.site_project_costs.forEach(c => { if (c.id !== row.id && c.project_id === row.project_id && c.kind === 'teklif') c.chosen = false; });
+    if (row.kind === 'fatura'){
+      T.site_expenses.push({ id:uuid(), org_id:row.org_id, cat:'Onarım ve tadilat', amount:row.amount, spent_on:row.spent_on, note:('Proje: ' + p.title + ' · ' + row.vendor).slice(0, 500),
+        receipt_path:row.file, receipt_name:row.file_name, project_cost_id:row.id, kind:'isletme', created_at:now() });
+      p.spent = T.site_project_costs.filter(c => c.project_id === row.project_id && c.kind === 'fatura').reduce((a, c) => a + Number(c.amount), 0);
+    }
+    const tr = n => Math.round(n).toLocaleString('tr-TR');
+    T.site_project_updates.push({ id:uuid(), project_id:row.project_id, org_id:row.org_id, body:(row.kind === 'teklif' ? 'Teklif eklendi: ' : 'Fatura eklendi: ') + row.vendor + ' · ₺' + tr(row.amount), status:null, progress:null, photos:[], created_by:row.created_by, created_at:now() });
   }
   // on_site_request_message: talebin sahibi çözülmüş talebe yazınca talep yeniden "İşlemde".
   if (table === 'site_request_messages' && !row.from_mgmt){
@@ -149,7 +163,7 @@ function visible(db, table, row, actor){
     if (table === 'site_documents') return row.uploaded_by === actor || (row.audience === 'herkes' && mine.some(r => r.org_id === row.org_id))
       || (row.audience === 'daire' && mine.some(r => r.unit_id === row.unit_id));
     if (table === 'site_requests') return row.user_id === actor;
-    if (table === 'site_projects' || table === 'site_project_updates') return mine.some(r => r.org_id === row.org_id);
+    if (table === 'site_projects' || table === 'site_project_updates' || table === 'site_project_costs') return mine.some(r => r.org_id === row.org_id);
     if (table === 'site_request_messages') return db.tables.site_requests.some(q => q.id === row.request_id && q.user_id === actor);
     return false;
   }
@@ -314,6 +328,14 @@ class Query {
     } else if (this.op === 'delete'){
       out = list.filter(pass);
       db.tables[this.t] = list.filter(r => !pass(r));
+      if (this.t === 'site_project_costs'){        // fatura silinince gider kaydı gider, harcanan yeniden hesaplanır
+        out.forEach(c => {
+          db.tables.site_expenses = db.tables.site_expenses.filter(e => e.project_cost_id !== c.id);
+          const left = db.tables.site_project_costs.filter(x => x.project_id === c.project_id && x.kind === 'fatura');
+          const p = db.tables.site_projects.find(x => x.id === c.project_id);
+          if (c.kind === 'fatura' && p && left.length) p.spent = left.reduce((a, x) => a + Number(x.amount), 0);
+        });
+      }
     }
     persist(db);
     if (this.one){
@@ -733,6 +755,44 @@ export function createClient(url, key, opts){
         }
         persist(db);
         return { data:null, error:null };
+      }
+      if (name === 'site_project_vote_open' || name === 'site_project_vote_close' || name === 'site_project_vote_sync'){
+        // site_proje_oylama_maliyet: oylamaya sun / erken bitir / süresi dolanları uygula.
+        const T = db.tables, mgr = (oid) => (T.org_members || []).some(m => m.org_id === oid && m.user_id === me && m.is_master);
+        const post = (p, status, body) => { T.site_project_updates.push({ id:uuid(), project_id:p.id, org_id:p.org_id, body, status, progress:null, photos:[], created_by:p.created_by, created_at:now() }); p.status = status; p.updated_at = now(); };
+        const closeVote = (p) => {
+          if (p.status !== 'oylama' || !p.poll_id) return false;
+          const units = T.site_units.filter(u => u.org_id === p.org_id), sh = id => Number((units.find(u => u.id === id) || {}).share) || 0;
+          const votes = T.site_votes.filter(v => v.poll_id === p.poll_id), total = units.reduce((a, u) => a + (Number(u.share) || 0), 0);
+          const yes = votes.filter(v => v.choice === 0).reduce((a, v) => a + sh(v.unit_id), 0), no = votes.filter(v => v.choice === 1).reduce((a, v) => a + sh(v.unit_id), 0);
+          const ok = total > 0 && (p.approve_pct === 50 ? yes * 100 > 50 * total : yes * 100 >= p.approve_pct * total);
+          const r1 = x => Math.round(x * 10) / 10;
+          post(p, ok ? 'onay' : 'red', 'Oylama sonuçlandı: ' + (ok ? 'proje onaylandı' : 'proje onaylanmadı') + '. Kabul %' + r1(yes * 100 / total) + ', ret %' + r1(no * 100 / total) + ' (arsa payına göre); ' + votes.length + ' / ' + units.length + ' daire katıldı.');
+          return true;
+        };
+        if (name === 'site_project_vote_open'){
+          const p = T.site_projects.find(x => x.id === args.pid);
+          if (!p) return { data:null, error:{ message:'Proje bulunamadı', code:'P0002' } };
+          if (!mgr(p.org_id)) return { data:null, error:{ message:'Yetkin yok', code:'42501' } };
+          if (!['acildi','teklif','red'].includes(p.status)) return { data:null, error:{ message:'Proje bu aşamada oylamaya sunulamaz', code:'22023' } };
+          const poll = { id:uuid(), org_id:p.org_id, meeting_id:null, question:('Proje yapılsın mı: ' + p.title).slice(0, 300), options:['Kabul','Ret'], weighted:true, voters:args.voters || 'malik',
+            ends_at:new Date(Date.now() + (args.days || 5) * 864e5).toISOString(), created_by:me, created_at:now() };
+          T.site_polls.push(poll); p.poll_id = poll.id; p.approve_pct = args.pct || 50;
+          post(p, 'oylama', 'Oylamaya sunuldu: kabul için tüm arsa payının ' + (p.approve_pct === 50 ? '%50\'sinden fazlası' : '%' + p.approve_pct + ' ve üzeri') + ' gerekir; süre ' + (args.days || 5) + ' gün.');
+          persist(db); return { data:poll.id, error:null };
+        }
+        if (name === 'site_project_vote_close'){
+          const p = T.site_projects.find(x => x.id === args.pid);
+          if (!p) return { data:null, error:{ message:'Proje bulunamadı', code:'P0002' } };
+          if (!mgr(p.org_id)) return { data:null, error:{ message:'Yetkin yok', code:'42501' } };
+          closeVote(p); persist(db); return { data:null, error:null };
+        }
+        let n = 0;
+        T.site_projects.filter(p => p.org_id === args.oid && p.status === 'oylama').forEach(p => {
+          const poll = T.site_polls.find(x => x.id === p.poll_id);
+          if (poll && Date.parse(poll.ends_at) <= Date.now() && closeVote(p)) n++;
+        });
+        persist(db); return { data:n, error:null };
       }
       if (name === 'site_poll_results'){
         const T = db.tables, p = T.site_polls.find(x => x.id === args.pid);
