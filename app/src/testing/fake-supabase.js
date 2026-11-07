@@ -601,7 +601,9 @@ export function createClient(url, key, opts){
           const payer = u.payer || 'kiraci', eff = roles.has(payer) || !roles.size ? payer : (payer === 'kiraci' ? 'malik' : 'kiraci');
           return { unit_id:u.id, org_id:o.id, org:o.name, sector:o.sector, block:u.block || '', no:u.no, area:u.area ?? null, aidat:u.aidat ?? null, payer, role:by[id],
                    payer_effective:eff, pays: eff === by[id],
-                   rent:u.rent ?? null, currency:u.currency || 'TRY', turnover_rate:u.turnover_rate ?? null, lease_start:u.lease_start || null, lease_end:u.lease_end || null, property_id: prop ? prop.id : null };
+                   rent:u.rent ?? null, currency:u.currency || 'TRY', turnover_rate:u.turnover_rate ?? null, lease_start:u.lease_start || null, lease_end:u.lease_end || null, property_id: prop ? prop.id : null,
+                   deposit: u.deposit_amount == null ? null : { amount:u.deposit_amount, currency:u.deposit_currency || 'TRY', kind:u.deposit_kind || 'nakit', on:u.deposit_on || null,
+                     bank:u.deposit_bank || '', until:u.deposit_until || null, returned_on:u.deposit_returned_on || null, returned:u.deposit_returned ?? null, cut_reason:u.deposit_cut_reason || '' } };
         }), error:null };
       }
       if (name === 'link_site_unit'){

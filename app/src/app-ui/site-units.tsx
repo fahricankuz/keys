@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { TextInput, View } from 'react-native';
 import { t } from '../domain/i18n';
 import { humanError } from '../domain/backend';
-import { saveUnit, deleteUnit, unitLabel, isCommercial, inviteState, effectivePayer, payerText } from '../domain/site';
+import { saveUnit, deleteUnit, unitLabel, isCommercial, inviteState, effectivePayer, payerText, depositKindLabel } from '../domain/site';
 import { templateCsv, templateXlsx, readTable } from '../domain/importer';
 import { unitColumns, validateUnits, importUnitItems } from '../domain/unit-import';
 import { pickTable } from './media';
@@ -58,7 +58,11 @@ function FlatForm({ u, oid, done }: { u: any; oid: string; done: () => void }) {
 function LeaseForm({ u, oid, done }: { u: any; oid: string; done: () => void }) {
   const str = (v: any) => (v == null ? '' : String(v));
   const [f, setF] = useState<any>({ rent: str(u.rent), currency: u.currency || 'TRY', turnover_rate: str(u.turnover_rate), lease_start: str(u.lease_start), lease_end: str(u.lease_end),
-    index_kind: u.index_kind || 'tufe', index_rate: str(u.index_rate), vat: !!u.vat, stopaj: !!u.stopaj, due_day: str(u.due_day), aidat: str(u.aidat), area: str(u.area) });
+    index_kind: u.index_kind || 'tufe', index_rate: str(u.index_rate), vat: !!u.vat, stopaj: !!u.stopaj, due_day: str(u.due_day), aidat: str(u.aidat), area: str(u.area),
+    deposit_amount: str(u.deposit_amount), deposit_currency: u.deposit_currency || 'TRY', deposit_kind: u.deposit_kind || 'nakit', deposit_on: str(u.deposit_on),
+    deposit_bank: str(u.deposit_bank), deposit_until: str(u.deposit_until), deposit_returned_on: str(u.deposit_returned_on), deposit_returned: str(u.deposit_returned),
+    deposit_cut_reason: str(u.deposit_cut_reason) });
+  const [dep, setDep] = useState(u.deposit_amount != null);
   const [err, setErr] = useState<string | null>(null);
   const num = (k: string) => (v: string) => setF({ ...f, [k]: v.replace(/[^0-9.,]/g, '') });
   const okDate = (v: string) => !v || /^\d{4}-\d{2}-\d{2}$/.test(v);
@@ -89,10 +93,34 @@ function LeaseForm({ u, oid, done }: { u: any; oid: string; done: () => void }) 
         <Pill label={t('KDV eklenir (%20)')} on={f.vat} onPress={() => setF({ ...f, vat: !f.vat, stopaj: false })} />
         <Pill label={t('Kiracı stopaj keser (%20)')} on={f.stopaj} onPress={() => setF({ ...f, stopaj: !f.stopaj, vat: false })} />
       </Row>
+      <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{t('Depozito')}</Text>
+      {!dep ? <Button kind="ghost" title={t('Depozito ekle')} onPress={() => setDep(true)} style={{ alignSelf: 'flex-start' }} /> : (
+        <Stack gap={10}>
+          <Row gap={10} wrap align="flex-end">
+            <View style={{ flexGrow: 1, flexBasis: 130 }}><MoneyField label={t('Depozito tutarı')} value={f.deposit_amount} onChange={num('deposit_amount')} /></View>
+            <View style={{ flexDirection: 'row', gap: 6, paddingBottom: 6 }}>{CURS.map(([k, l]) => <Pill key={k} label={l} on={f.deposit_currency === k} onPress={() => setF({ ...f, deposit_currency: k })} />)}</View>
+          </Row>
+          <Row gap={6} wrap>
+            {(['nakit', 'teminat', 'bloke'] as const).map((k) => <Pill key={k} label={depositKindLabel(k)} on={f.deposit_kind === k} onPress={() => setF({ ...f, deposit_kind: k })} />)}
+          </Row>
+          <Row gap={10} wrap align="flex-end">
+            <View style={{ flexGrow: 1, flexBasis: 160 }}><Field label={t('Alındığı gün (YYYY-AA-GG)')} value={f.deposit_on} onChangeText={(v) => setF({ ...f, deposit_on: v })} maxLength={10} /></View>
+            {f.deposit_kind !== 'nakit' ? <View style={{ flexGrow: 1, flexBasis: 160 }}><Field label={t('Banka')} value={f.deposit_bank} onChangeText={(v) => setF({ ...f, deposit_bank: v })} maxLength={120} /></View> : null}
+            {f.deposit_kind === 'teminat' ? <View style={{ flexGrow: 1, flexBasis: 160 }}><Field label={t('Mektubun bitişi (YYYY-AA-GG)')} value={f.deposit_until} onChangeText={(v) => setF({ ...f, deposit_until: v })} maxLength={10} /></View> : null}
+          </Row>
+          {f.deposit_kind === 'teminat' ? <Muted>{t('Bitişe 30 ve 7 gün kala sana hatırlatma gider.')}</Muted> : null}
+          <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{t('İade (sözleşme bitince)')}</Text>
+          <Row gap={10} wrap align="flex-end">
+            <View style={{ flexGrow: 1, flexBasis: 160 }}><Field label={t('İade günü (YYYY-AA-GG)')} value={f.deposit_returned_on} onChangeText={(v) => setF({ ...f, deposit_returned_on: v })} maxLength={10} /></View>
+            <View style={{ flexGrow: 1, flexBasis: 130 }}><MoneyField label={t('İade edilen tutar')} value={f.deposit_returned} onChange={num('deposit_returned')} /></View>
+          </Row>
+          <Field label={t('Kesinti nedeni (varsa)')} value={f.deposit_cut_reason} onChangeText={(v) => setF({ ...f, deposit_cut_reason: v })} maxLength={300} placeholder={t('ör. boya ve temizlik')} />
+        </Stack>
+      )}
       <Err e={err} />
       <Row wrap>
         <Button title={t('Sözleşmeyi kaydet')} disabled={!(Number(String(f.area).replace(',', '.')) > 0)} onPress={async () => {
-          if (!okDate(f.lease_start) || !okDate(f.lease_end)) { setErr(t('Tarihleri YYYY-AA-GG biçiminde yaz.')); return; }
+          if (![f.lease_start, f.lease_end, f.deposit_on, f.deposit_until, f.deposit_returned_on].every(okDate)) { setErr(t('Tarihleri YYYY-AA-GG biçiminde yaz.')); return; }
           setErr(null);
           try { await saveUnit(oid, { ...u, ...f }); done(); } catch (e) { setErr(humanError(e)); }
         }} />
@@ -144,7 +172,10 @@ function UnitRow({ u, d, oid, org, can, reload, first }: { u: any; d: any; oid: 
   const label = unitLabel(u);
   const sheet = (person?: any) => host.openSheet('site-kisi', { oid, org, unit: u, commercial, person, manage: can('residents.manage'), reload });
   const sub = (commercial
-    ? [u.area ? u.area + ' m²' : '', u.lease_end ? t('Bitiş') + ' ' + day(u.lease_end) : '', u.turnover_rate ? t('Ciro %{n}', { n: u.turnover_rate }) : '']
+    ? [u.area ? u.area + ' m²' : '', u.lease_end ? t('Bitiş') + ' ' + day(u.lease_end) : '', u.turnover_rate ? t('Ciro %{n}', { n: u.turnover_rate }) : '',
+       Number(u.deposit_amount) > 0 ? t('Depozito') + ' ' + money(u.deposit_amount, u.deposit_currency) + ' (' + depositKindLabel(u.deposit_kind)
+         + (u.deposit_kind === 'teminat' && u.deposit_until ? ', ' + t('bitiş {d}', { d: day(u.deposit_until) }) : '') + ')'
+         + (u.deposit_returned_on ? ' · ' + t('iade edildi') : '') : '']
     : [u.area ? u.area + ' m²' : '', u.share ? t('Arsa payı') + ' ' + u.share : '']).filter(Boolean).join(' · ');
   // Seçilen rolde hesabı bağlı kimse yoksa aidatı diğer rol öder (sunucudaki site_payer ile aynı); listede uyarı.
   const eff = effectivePayer(u, d.residents, d.linked || []);
