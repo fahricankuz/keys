@@ -568,6 +568,7 @@ export const EN_EXTRA = {
   'Ev sahibinden mülkü anahtar’a ekleyip sana davet kodu göndermesini iste. Davet bağlantısına tıklarsan kod kendiliğinden girilir.': 'Ask your landlord to add the property to anahtar and send you an invite code. If you open the invite link, the code is filled in for you.',
   'Ev sahibime WhatsApp ile yaz': 'Message my landlord on WhatsApp',
   'Değiştir': 'Change',
+  'Ekip üyeleri (emlakçı, muhasebeci, personel) {a} ve {b} paketlerinde var.': 'Team members (agent, accountant, staff) are included in the {a} and {b} plans.',
   'Toplu içe aktarma {a} ve {b} paketlerinde var.': 'Bulk import is included in the {a} and {b} plans.',
   'Paketleri gör': 'See plans',
   'Rapor ve vergi tahmini': 'Report and tax estimate',
