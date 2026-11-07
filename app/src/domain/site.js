@@ -500,6 +500,104 @@ export async function loadSiteDocs(oids){
   return (r.error ? [] : r.data || []).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
 }
 
+/* ---- Site projeleri (migration site_projeleri) -------------------
+   Proje açılır, aşama aşama ilerler (teklif → yapım → tamamlandı); her aşamada fotoğraf ve sakinlere bildirim. */
+
+/** Proje aşamaları (sırası ilerleme sırasıdır; "askıda" yan durum). Aşama yalnız güncelleme kaydıyla ilerler (sunucu kuralı). */
+export const PROJECT_STATUS = () => [
+  { key: 'acildi', label: t('Proje açıldı') },
+  { key: 'teklif', label: t('Teklif alındı') },
+  { key: 'yapim', label: t('Yapıma başlandı') },
+  { key: 'tamam', label: t('Tamamlandı') },
+  { key: 'askida', label: t('Askıda') }
+];
+/** Ana aşamalar (adım çizgisi). */
+export const PROJECT_STAGES = ['acildi', 'teklif', 'yapim', 'tamam'];
+export const projectStatusLabel = (k) => (PROJECT_STATUS().find((s) => s.key === k) || PROJECT_STATUS()[0]).label;
+/** Sonraki aşama (askıdaki proje yapıma döner; tamamlanmışın sonrası yok). */
+export function nextStage(k){
+  if (k === 'tamam') return null;
+  if (k === 'askida') return 'yapim';
+  const i = PROJECT_STAGES.indexOf(k);
+  return PROJECT_STAGES[Math.max(0, i) + 1] || null;
+}
+/** Bütçenin harcanan kısmı (yüzde, 0–100+; bütçe yoksa null). */
+export const projectSpentPct = (p) => (Number(p?.budget) > 0 && p?.spent != null ? Math.round((Number(p.spent) / Number(p.budget)) * 100) : null);
+
+/** Sitelerin projeleri ve güncellemeleri (RLS süzer). Tablo henüz yoksa (migration öncesi) boş döner. */
+export async function loadProjects(oids){
+  if (!oids.length) return { projects: [], updates: [] };
+  const c = await db();
+  const [projects, updates] = await Promise.all([
+    c.from('site_projects').select('*').in('org_id', oids),
+    c.from('site_project_updates').select('*').in('org_id', oids)
+  ].map((p) => p.then((r) => (r.error ? [] : r.data || []))));
+  // Sürenler önce (askıda ve tamamlananlar sonda), sonra en son güncellenen.
+  const rank = (p) => (p.status === 'tamam' ? 2 : p.status === 'askida' ? 1 : 0);
+  return {
+    projects: projects.sort((a, b) => rank(a) - rank(b) || String(b.updated_at).localeCompare(String(a.updated_at))),
+    updates: updates.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+  };
+}
+
+/** Fotoğrafları sitenin klasörüne yükler; depodaki yolları döner. */
+async function storePhotos(oid, files = []){
+  const out = [];
+  for (const f of files){
+    const stored = await storeFile('site-' + oid, f);
+    const path = stored ? storedPath(stored) : null;
+    if (!path) throw new Error(t('Fotoğraf yüklenemedi'));
+    out.push(path);
+  }
+  return out;
+}
+
+/**
+ * Proje ekler ya da düzenler. cover: yeni kapak fotoğrafı (seçildiyse).
+ * @param {string} oid @param {any} p @param {any} [cover]
+ */
+export async function saveProject(oid, p, cover = null){
+  const [coverPath] = cover ? await storePhotos(oid, [cover]) : [];
+  const num = (v) => (v === '' || v == null ? null : Number(String(v).replace(',', '.')));
+  // Aşama burada yazılmaz: yeni proje "Proje açıldı"da başlar, sonra yalnız güncellemeyle ilerler (bildirimli kayıt).
+  const row = { org_id: oid, title: String(p.title || '').trim(), body: String(p.body || '').trim(),
+    progress: Math.max(0, Math.min(100, Math.round(Number(p.progress) || 0))), budget: num(p.budget), spent: num(p.spent),
+    start_on: p.start_on || null, end_on: p.end_on || null, ...(coverPath ? { cover: coverPath } : {}) };
+  const c = await db();
+  if (p.id) must(await c.from('site_projects').update(row).eq('id', p.id));
+  else must(await c.from('site_projects').insert(row));
+}
+export async function deleteProject(id){ must(await (await db()).from('site_projects').delete().eq('id', id)); }
+
+/**
+ * İlerleme güncellemesi: not, yeni durum ve yüzde (verildiyse), fotoğraflar. Sunucu projenin durumunu ve yüzdesini taşır.
+ * @param {string} oid @param {string} projectId
+ * @param {{ body?: string, status?: string | null, progress?: string | number | null, photos?: any[] }} u
+ */
+export async function addProjectUpdate(oid, projectId, { body = '', status = null, progress = null, photos = [] }){
+  const paths = await storePhotos(oid, photos);
+  must(await (await db()).from('site_project_updates').insert({ project_id: projectId, org_id: oid, body: String(body || '').trim(),
+    status: status || null, progress: progress === '' || progress == null ? null : Math.max(0, Math.min(100, Math.round(Number(progress)))),
+    photos: paths, created_by: live.user?.id }));
+}
+export async function deleteProjectUpdate(id){ must(await (await db()).from('site_project_updates').delete().eq('id', id)); }
+
+/* ---- Talep yazışması (migration site_talep_yazisma) -------------- */
+
+/** Taleplerin yazışmaları (eskiden yeniye), talep kimliğine göre. Tablo henüz yoksa boş döner. */
+export async function loadRequestMessages(requestIds){
+  if (!requestIds.length) return {};
+  const r = await (await db()).from('site_request_messages').select('*').in('request_id', requestIds);
+  const out = {};
+  (r.error ? [] : r.data || []).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+    .forEach((m) => { (out[m.request_id] = out[m.request_id] || []).push(m); });
+  return out;
+}
+/** Talebe mesaj yazar (gönderen ve tarafı sunucu belirler). */
+export async function sendRequestMessage(req, body){
+  must(await (await db()).from('site_request_messages').insert({ request_id: req.id, org_id: req.org_id, user_id: live.user?.id, body: String(body || '').trim() }));
+}
+
 export async function openSiteRequest(oid, unitId, { cat, title, body }){
   must(await (await db()).from('site_requests').insert({ org_id: oid, unit_id: unitId || null, user_id: live.user?.id, cat, title: String(title).trim(), body: String(body || '').trim() }));
 }

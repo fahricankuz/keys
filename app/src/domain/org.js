@@ -38,10 +38,11 @@ export const PERMS = () => [
   { key: 'charges.manage', label: t('Tahakkuk'), desc: t('Aidat ve kira tahakkuku girer, düzeltir.') },
   { key: 'payments.approve', label: t('Dekont onayı'), desc: t('Yüklenen dekontları onaylar ya da reddeder.') },
   { key: 'expenses.manage', label: t('Giderler'), desc: t('Ortak giderleri ve faturaları girer.') },
-  { key: 'requests.manage', label: t('Talepler'), desc: t('Arıza ve talepleri yanıtlar, durumunu değiştirir.') },
+  { key: 'requests.manage', label: t('Talepler'), desc: t('Arıza ve talepleri yanıtlar, talep üzerinden sakinlerle yazışır, durumunu değiştirir.') },
   { key: 'announce', label: t('Duyurular'), desc: t('Sakinlere ve kiracılara duyuru gönderir.') },
   { key: 'documents.manage', label: t('Belgeler'), desc: t('Belge ve sözleşme yükler, siler.') },
-  { key: 'reports.view', label: t('Raporlar'), desc: t('Tahsilat ve gider raporlarını görür.') }
+  { key: 'reports.view', label: t('Raporlar'), desc: t('Tahsilat ve gider raporlarını görür.') },
+  { key: 'projects.manage', label: t('Site projeleri'), desc: t('Proje ekler, ilerlemeyi ve fotoğrafları sakinlerle paylaşır.') }
 ];
 
 /** Modül kataloğu. ready: bugün üründe çalışıyor; diğerleri yol planında (kuruma şimdiden atanabilir). */
@@ -91,6 +92,7 @@ export function sectorSections(org){
   if (site && hasModule(org, 'gider_dagitim') && (can('charges.manage') || can('reports.view'))) list.push({ key: 'butce', label: t('İşletme projesi'), icon: 'safe' });
   if (hasModule(org, 'duyuru')) list.push({ key: 'duyurular', label: t('Duyurular'), icon: 'bell' });
   if (site && hasModule(org, 'duyuru')) list.push({ key: 'genelkurul', label: t('Genel kurul'), icon: 'calendar' });
+  if (site) list.push({ key: 'projeler', label: t('Projeler'), icon: 'wrench' });
   list.push({ key: 'talepler', label: t('Talepler'), icon: 'wrench' });
   list.push({ key: 'belgeler', label: t('Belgeler'), icon: 'doc' });
   if (hasModule(org, 'rapor') && can('reports.view')) list.push({ key: 'rapor', label: t('Rapor'), icon: 'chart' });

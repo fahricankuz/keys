@@ -8,6 +8,7 @@ const TABLES = ['profiles','properties','property_shared','memberships','invites
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
                 'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes','site_documents','site_investor_notes','mail_outbox','site_cash','site_recurring_expenses',
+                'site_projects','site_project_updates','site_request_messages',
                 'fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_costs','admin_emails'];
 
 function load(){
@@ -45,6 +46,15 @@ function defaults(table, row, db){
   if (table === 'site_meetings'){ r.status = r.status || 'cagrildi'; r.minutes = r.minutes || ''; r.agenda = r.agenda || []; r.kind = r.kind || 'olagan'; r.place = r.place || ''; }
   if (table === 'site_documents'){ r.audience = r.audience || 'herkes'; r.unit_id = r.unit_id || null; r.uploaded_by = r.uploaded_by || db.session?.user.id || null; }
   if (table === 'site_polls'){ r.weighted = !!r.weighted; r.voters = r.voters || 'malik'; }
+  // Site projeleri ve talep yazışması (migration site_projeleri, site_talep_yazisma).
+  // guard_site_project_insert: yeni proje her zaman "Proje açıldı" aşamasında başlar.
+  if (table === 'site_projects'){ r.status = 'acildi'; r.progress = r.progress ?? 0; r.updated_at = now(); r.created_by = r.created_by || db.session?.user.id || null; }
+  if (table === 'site_project_updates'){ r.photos = r.photos || []; r.status = r.status ?? null; r.progress = r.progress ?? null; }
+  if (table === 'site_request_messages'){
+    // guard_site_request_message: gönderen oturumdaki kişi; talebin sahibi değilse yönetim.
+    const req = db.tables.site_requests.find(x => x.id === r.request_id) || {};
+    r.user_id = db.session?.user.id || null; r.from_mgmt = req.user_id !== r.user_id;
+  }
   if (table === 'invites'){ r.code = r.code || Math.random().toString(36).slice(2, 10).toUpperCase(); r.created_at = now(); r.accepted_by = null; }
   if (table === 'messages'){ r.at = r.at || now(); if (r.by_user === undefined) r.by_user = db.session?.user.id || null; }
   if (table === 'legal_requests'){
@@ -67,6 +77,16 @@ function afterInsert(table, row, db){
     db.tables.property_shared.push({ property_id:row.id, inspect:{ tenantOk:false, landlordOk:false, rooms:[] }, move_out:null, renewal:null });
     if (!db.tables.rent_history.some(h => h.id === row.id + ':' + row.start_date))
       db.tables.rent_history.push({ id:row.id + ':' + row.start_date, property_id:row.id, from_date:row.start_date, amount:row.rent, note:'Sözleşme başlangıcı' });
+  }
+  // on_site_project_update: güncelleme projenin durumunu ve yüzdesini taşır ("tamam" yüzdeyi 100 yapar).
+  if (table === 'site_project_updates'){
+    const p = db.tables.site_projects.find(x => x.id === row.project_id);
+    if (p){ if (row.status) p.status = row.status; p.progress = row.status === 'tamam' ? 100 : (row.progress ?? p.progress); p.updated_at = now(); }
+  }
+  // on_site_request_message: talebin sahibi çözülmüş talebe yazınca talep yeniden "İşlemde".
+  if (table === 'site_request_messages' && !row.from_mgmt){
+    const q = db.tables.site_requests.find(x => x.id === row.request_id);
+    if (q && q.status === 3) q.status = 2;
   }
 }
 
@@ -129,6 +149,8 @@ function visible(db, table, row, actor){
     if (table === 'site_documents') return row.uploaded_by === actor || (row.audience === 'herkes' && mine.some(r => r.org_id === row.org_id))
       || (row.audience === 'daire' && mine.some(r => r.unit_id === row.unit_id));
     if (table === 'site_requests') return row.user_id === actor;
+    if (table === 'site_projects' || table === 'site_project_updates') return mine.some(r => r.org_id === row.org_id);
+    if (table === 'site_request_messages') return db.tables.site_requests.some(q => q.id === row.request_id && q.user_id === actor);
     return false;
   }
   if (table === 'legal_requests') return row.user_id === actor;
@@ -217,6 +239,9 @@ class Query {
       if (this.rng) out = out.slice(this.rng[0], this.rng[1] + 1);
       if (this.lim) out = out.slice(0, this.lim);
     } else if (this.op === 'insert' || this.op === 'upsert'){
+      // guard_site_charge_insert (migration site_tahakkuk_koruma): sıfır ya da eksi tutarlı tahakkuk yazılmaz; toplu yazım bütünüyle reddedilir.
+      if (this.t === 'site_charges' && this.op === 'insert' && this.rows.some(r => !(Number(r.amount) > 0)))
+        return { data:null, error:{ message:'Tutar sıfırdan büyük olmalı', code:'22023' } };
       out = [];
       for (const raw of this.rows){
         const existing = this.op === 'upsert' ? list.find(r => matchKey(this.t, r, raw)) : null;
@@ -278,6 +303,8 @@ class Query {
         persist(db);
         return { data: this.one ? out[0] || null : out, error: null };
       }
+      // guard_site_project: doğrudan düzenleme projenin aşamasını değiştirmez (aşama yalnız güncelleme kaydıyla ilerler).
+      if (this.t === 'site_projects' && 'status' in this.values){ const { status, ...rest } = this.values; this.values = rest; }
       out.forEach(r => {
         const before = JSON.parse(JSON.stringify(r));
         Object.assign(r, this.values);
