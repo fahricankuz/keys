@@ -7,7 +7,7 @@ import { can, canAny, isTeam, memberRole, roleLabel } from '../domain/team';
 import { t } from '../domain/i18n';
 import { toApp } from '../domain/nav';
 import { myOrgs, sectorSections } from '../domain/org';
-import { mySiteUnits, siteResidentOnly } from '../domain/site';
+import { mySiteUnits, residentRoleLabel, siteResidentOnly } from '../domain/site';
 import { PORTFOLIO_SECTORS, currentPortfolioOrg, residentTitle, sectionPath } from './site';
 import { PanelUI, PressScale, Text } from '../ui/kit';
 import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
@@ -150,7 +150,7 @@ function SideNav({ list }: { list: Item[] }) {
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text v="small" numberOfLines={1} style={{ fontFamily: fonts.bodyXBold }}>{user?.name || user?.email}</Text>
-          <Text v="small" muted numberOfLines={1} style={{ fontSize: 12.5 }}>{isTeam() ? (S.order.length ? roleLabel(memberRole(S.order[0])) : t('Ekip üyesi')) : ui.role === 'landlord' ? t('Mülk sahibi') : t('Kiracı')}</Text>
+          <Text v="small" muted numberOfLines={1} style={{ fontSize: 12.5 }}>{isTeam() ? (S.order.length ? roleLabel(memberRole(S.order[0])) : t('Ekip üyesi')) : ui.role === 'landlord' ? t('Mülk sahibi') : siteResidentOnly() ? residentRoleLabel() : t('Kiracı')}</Text>
         </View>
         <Icon name="gear" size={18} color={active(SETTINGS) ? c.accent : c.muted} />
       </PressScale>

@@ -32,7 +32,7 @@ import { PayButton } from '../ui/motion';
 import { host } from '../domain/host';
 import { MailPreviewSheet, MailReportSettings } from './report-mail';
 import { JoinBanner } from './JoinCode';
-import { siteResidentOnly } from '../domain/site';
+import { residentRoleLabel, siteResidentOnly } from '../domain/site';
 import { StorePurchaseSheet } from './store-purchase';
 import { storeAvailable, restoreStore, manageStore } from '../domain/iap';
 
@@ -176,7 +176,12 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
   const owner = ui.role === 'landlord' && !isTeam();
   const roleText = isTeam()
     ? t('Ekip üyesi') + (S.order.length && new Set(S.order.map((id: string) => memberRole(id))).size === 1 ? ' · ' + roleLabel(memberRole(S.order[0])) : '')
-    : ui.role === 'landlord' ? t('Mülk sahibi') : t('Kiracı');
+    : ui.role === 'landlord' ? t('Mülk sahibi') : siteResidentOnly() ? residentRoleLabel() : t('Kiracı');
+  // Bildirim grupları: kira (mülkü olan ya da bir mülke kiracı olarak bağlı), site aidatı (sakin), site yönetimi (yönetici).
+  const rentUser = ui.role === 'landlord' || isTeam() || !!(S as any).myHome || S.order.length > 0;
+  const manages = myOrgs().filter((o: any) => PORTFOLIO_SECTORS.includes(o.sector));
+  const mgr = (perm: string) => manages.some((o: any) => o.master || (o.perms || []).includes(perm));
+  const siteOrg = manages.some((o: any) => o.sector === 'site');
   const link = (title: string, url: string) => <LI key={title} title={title} onPress={() => Linking.openURL(url).catch(() => {})} right={<Muted>›</Muted>} />;
   return (
     <Stack>
@@ -227,15 +232,37 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
       {tab === 'bildirim' ? (
         <Stack>
           <Muted>{t('Hangi durumlarda haber almak istediğini seç.')}</Muted>
-          <Card gap={4}>
-            <OnOff label={t('Kira günü yaklaşırken')} k="remindRent" />
-            <OnOff label={t('Kira gecikince')} k="lateNotice" />
-            <OnOff label={t('Talep güncellemeleri')} k="reqUpdates" />
-            <OnOff label={t('Sözleşme yenileme')} k="remindRenew" />
-            {ui.role === 'landlord' ? <OnOff label={t('DASK ve sigorta bitişi')} k="remindIns" /> : null}
-            <OnOff label={t('Tahliye tarihi')} k="remindEvict" />
-            {mySiteUnits().length ? <OnOff label={t('Site aidatı hatırlatmaları')} k="remindAidat" /> : null}
-          </Card>
+          {rentUser ? (
+            <>
+              <Label>{t('Kira')}</Label>
+              <Card gap={4}>
+                <OnOff label={t('Kira günü yaklaşırken')} k="remindRent" />
+                <OnOff label={t('Kira gecikince')} k="lateNotice" />
+                <OnOff label={t('Talep güncellemeleri')} k="reqUpdates" />
+                <OnOff label={t('Sözleşme yenileme')} k="remindRenew" />
+                {ui.role === 'landlord' ? <OnOff label={t('DASK ve sigorta bitişi')} k="remindIns" /> : null}
+                <OnOff label={t('Tahliye tarihi')} k="remindEvict" />
+              </Card>
+            </>
+          ) : null}
+          {mySiteUnits().length ? (
+            <>
+              <Label>{t('Site aidatı')}</Label>
+              <Card gap={4}><OnOff label={t('Site aidatı hatırlatmaları')} k="remindAidat" /></Card>
+            </>
+          ) : null}
+          {manages.length ? (
+            <>
+              <Label>{siteOrg ? t('Site yönetimi') : t('Portföy yönetimi')}</Label>
+              <Card gap={4}>
+                {mgr('payments.approve') ? <OnOff label={t('Dekont geldiğinde')} k="siteReceipt" /> : null}
+                {mgr('requests.manage') ? <OnOff label={t('Yeni talep açıldığında')} k="siteRequest" /> : null}
+                {mgr('charges.manage') || mgr('payments.approve')
+                  ? <OnOff label={siteOrg ? t('Aidatı geciken daireler (haftalık özet)') : t('Kirası geciken birimler (haftalık özet)')} k="siteLate" /> : null}
+                {mgr('reports.view') ? <OnOff label={t('Yönetim raporu (aylık ve yıllık e-posta)')} k="siteReport" /> : null}
+              </Card>
+            </>
+          ) : null}
           <Label>{t('Nereden haber alayım?')}</Label>
           <Card gap={4}>
             <OnOff label={t('Telefon ve tarayıcı bildirimi')} k="push" />
@@ -252,9 +279,6 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
               )}
           </Card>
           {!user?.phone ? <Muted>{t('SMS için Hesap sekmesinden telefon numaranı ekle.')}</Muted> : null}
-          {myOrgs().some((o: any) => PORTFOLIO_SECTORS.includes(o.sector) && (o.perms || []).includes('reports.view')) ? (
-            <Card gap={4}><OnOff label={t('Yönetim raporu (aylık ve yıllık e-posta)')} k="siteReport" /></Card>
-          ) : null}
           {owner ? (
             <>
               <Label>{t('Rapor e-postası')}</Label>

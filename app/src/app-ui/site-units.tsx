@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { TextInput, View } from 'react-native';
 import { t } from '../domain/i18n';
 import { humanError } from '../domain/backend';
-import { saveUnit, deleteUnit, unitLabel, isCommercial, inviteState } from '../domain/site';
+import { saveUnit, deleteUnit, unitLabel, isCommercial, inviteState, effectivePayer, payerText } from '../domain/site';
 import { templateCsv, templateXlsx, readTable } from '../domain/importer';
 import { unitColumns, validateUnits, importUnitItems } from '../domain/unit-import';
 import { pickTable } from './media';
@@ -146,12 +146,18 @@ function UnitRow({ u, d, oid, org, can, reload, first }: { u: any; d: any; oid: 
   const sub = (commercial
     ? [u.area ? u.area + ' m²' : '', u.lease_end ? t('Bitiş') + ' ' + day(u.lease_end) : '', u.turnover_rate ? t('Ciro %{n}', { n: u.turnover_rate }) : '']
     : [u.area ? u.area + ' m²' : '', u.share ? t('Arsa payı') + ' ' + u.share : '']).filter(Boolean).join(' · ');
+  // Seçilen rolde hesabı bağlı kimse yoksa aidatı diğer rol öder (sunucudaki site_payer ile aynı); listede uyarı.
+  const eff = effectivePayer(u, d.residents, d.linked || []);
+  const shifted = !commercial && eff !== (u.payer === 'malik' ? 'malik' : 'kiraci');
+  const hasRecord = people.some((p: any) => p.role === u.payer) || (u.payer !== 'malik' && linked.length > 0);
+  const shiftLabel = eff === 'malik' ? (hasRecord ? t('Kiracı katılmadı · malik öder') : t('Kiracı yok · malik öder'))
+    : (hasRecord ? t('Malik katılmadı · kiracı öder') : t('Malik yok · kiracı öder'));
   const pay = commercial
     ? (u.rent != null ? money(u.rent, u.currency) : '—')
     : (u.aidat != null ? tl(u.aidat) : '—');
   const paySub = commercial
     ? [u.vat ? t('KDV hariç') : u.stopaj ? t('Stopaj') : '', u.aidat != null ? t('Ortak gider') + ' ' + tl(u.aidat) : ''].filter(Boolean).join(' · ')
-    : (u.payer === 'malik' ? t('Malik öder') : t('Kiracı öder'));
+    : payerText(u.payer === 'malik' ? 'malik' : 'kiraci', eff);
   // Davet durumu: herkes bağlıysa yeşil, davet bekleyen varsa sarı, davet edilmemiş varsa gri; kimse yoksa yok.
   const states = people.map((p: any) => inviteState(p));
   const dot = !all.length ? null : states.includes('none') ? c.muted : states.includes('invited') ? c.warnBg : c.okInk;
@@ -165,6 +171,7 @@ function UnitRow({ u, d, oid, org, can, reload, first }: { u: any; d: any; oid: 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: phone ? undefined : 1, minWidth: 0 }}>
             <Text v="body" numberOfLines={1} style={{ fontFamily: fonts.bodyXBold, flexShrink: 1 }}>{label}</Text>
             {!(Number(u.area) > 0) ? <Chip tone="warn" label={t('m² eksik')} /> : null}
+            {shifted ? <Chip tone="warn" label={shiftLabel} /> : null}
             {phone ? <View style={{ flex: 1 }} /> : null}
             {phone ? <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{pay}</Text> : null}
           </View>

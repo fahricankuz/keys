@@ -560,7 +560,12 @@ export function createClient(url, key, opts){
         return { data: Object.keys(by).map(id => {
           const u = T.site_units.find(x => x.id === id) || {}, o = (T.organizations || []).find(x => x.id === u.org_id) || {};
           const prop = T.properties.find(p => p.site_unit_id === id && (p.owner_id === me || T.memberships.some(m => m.property_id === p.id && m.user_id === me)));
-          return { unit_id:u.id, org_id:o.id, org:o.name, sector:o.sector, block:u.block || '', no:u.no, area:u.area ?? null, aidat:u.aidat ?? null, payer:u.payer || 'kiraci', role:by[id],
+          // Sunucudaki site_payer: seçilen rolde hesabı bağlı kimse yoksa (diğerinde varsa) diğer rol öder.
+          const roles = new Set([...T.site_residents.filter(r => r.unit_id === id && r.user_id).map(r => r.role),
+            ...T.properties.filter(p => p.site_unit_id === id && T.memberships.some(m => m.property_id === p.id && m.role === 'tenant')).map(() => 'kiraci')]);
+          const payer = u.payer || 'kiraci', eff = roles.has(payer) || !roles.size ? payer : (payer === 'kiraci' ? 'malik' : 'kiraci');
+          return { unit_id:u.id, org_id:o.id, org:o.name, sector:o.sector, block:u.block || '', no:u.no, area:u.area ?? null, aidat:u.aidat ?? null, payer, role:by[id],
+                   payer_effective:eff, pays: eff === by[id],
                    rent:u.rent ?? null, currency:u.currency || 'TRY', turnover_rate:u.turnover_rate ?? null, lease_start:u.lease_start || null, lease_end:u.lease_end || null, property_id: prop ? prop.id : null };
         }), error:null };
       }
