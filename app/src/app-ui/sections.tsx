@@ -615,6 +615,37 @@ function NoteInput({ value, onChange, onCommit, placeholder, label }: { value: s
   );
 }
 
+/** Onay anı: "7 Kasım 2026 14:32" (İstanbul saati). Zaman kaydı yoksa boş. */
+function stampText(v?: string) {
+  const d = v ? new Date(v) : null;
+  if (!d || isNaN(d.getTime())) return '';
+  return d.toLocaleString(locale() === 'en-GB' ? 'en-GB' : 'tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/Istanbul' });
+}
+
+/** Giriş tutanağı fotoğrafları: her fotoğrafın altında kendi açıklaması. Düzenlenebilirse açıklama yazılır, kilitliyse yalnız okunur. */
+function InspectShots({ pid, i, room, edit }: { pid: string; i: number; room: any; edit: boolean }) {
+  const c = useColors();
+  const shots: string[] = room.shots || [];
+  if (!shots.length) return null;
+  return (
+    <View style={{ gap: 10 }}>
+      {shots.map((src, j) => {
+        const cap = (room.caps || [])[j] || '';
+        return (
+          <View key={src} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+            <Thumbs srcs={[src]} onRemove={edit ? () => act('removeShot', { pid, i, j }) : undefined} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              {edit
+                ? <NoteInput label={t('Fotoğraf {n} açıklaması', { n: j + 1 })} value={cap} placeholder={t('Bu fotoğrafın açıklaması')} onChange={(v) => act('setShotCap', { pid, i, j, v })} />
+                : <Text v="small" color={cap ? c.ink : c.muted}>{cap || t('Açıklama yok')}</Text>}
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 export function SecInspect({ p }: { p: any }) {
   const c = useColors();
   const ins = p.inspect;
@@ -622,11 +653,14 @@ export function SecInspect({ p }: { p: any }) {
   const [room, setRoom] = useState('');
   const mineOk = ui.role === 'tenant' ? ins.tenantOk : ins.landlordOk;
   const bothOk = ins.tenantOk && ins.landlordOk;
-  // Tutanağı yalnız kiracı, mülk sahibi ve emlakçı düzenler; diğer ekip üyeleri okur.
-  const edit = can(p.id, 'shared');
+  // Tutanağı yalnız kiracı, mülk sahibi ve emlakçı düzenler; diğer ekip üyeleri okur. İki taraf onaylayınca kimse düzenleyemez (sunucu da engeller).
+  const canEdit = can(p.id, 'shared');
+  const edit = canEdit && !bothOk;
+  const lockAt = stampText(ins.lockedAt || (bothOk ? (ins.tenantAt > ins.landlordAt ? ins.tenantAt : ins.landlordAt) : ''));
   return (
     <Stack>
       <Note>{w.intro}</Note>
+      {bothOk ? <Note ok>{lockAt ? t('Tutanak {at} tarihinde iki tarafın onayıyla kilitlendi; artık değiştirilemez.', { at: lockAt }) : t('Tutanak iki tarafın onayıyla kilitlendi; artık değiştirilemez.')}</Note> : null}
       {ins.rooms.map((r: any, i: number) => {
         const count = (r.photos || 0) + (r.shots || []).length;
         return (
@@ -635,7 +669,7 @@ export function SecInspect({ p }: { p: any }) {
               <Text v="h3">{r.n}</Text>
               <Row gap={6}><Chip tone={count ? (r.note ? 'warn' : 'ok') : 'neutral'} label={count ? t('{n} fotoğraf', { n: count }) : t('Fotoğraf yok')} />{edit ? <IconBtn name="x" size={16} label={r.n + ' ' + w.del} onPress={() => act('removeRoom', { pid: p.id, i })} /> : null}</Row>
             </Row>
-            <Thumbs srcs={r.shots || []} onRemove={edit ? (j) => act('removeShot', { pid: p.id, i, j }) : undefined} />
+            <InspectShots pid={p.id} i={i} room={r} edit={edit} />
             {edit ? <NoteInput label={t('Not')} value={r.note} placeholder={t('Hasar, eksik, sayaç okuması')} onChange={(v) => act('setRoomNote', { pid: p.id, i, v })} /> : r.note ? <Muted>{r.note}</Muted> : null}
             {edit ? <PhotoButtons onPick={(files) => act('addRoomPhotos', { pid: p.id, i, files })} /> : null}
           </Card>
@@ -648,12 +682,12 @@ export function SecInspect({ p }: { p: any }) {
       </Row> : null}
       <Hero>
         <Label onDark>{t('Onay durumu')}</Label>
-        <KV onDark k={t('Kiracı')} v={ins.tenantOk ? t('Onayladı') : t('Bekleniyor')} />
-        <KV onDark k={t('Mülk sahibi')} v={ins.landlordOk ? t('Onayladı') : t('Bekleniyor')} />
-        {bothOk ? <Muted onDark>{t('Tutanak tamamlandı.')}</Muted> : !edit ? null
+        <KV onDark k={t('Kiracı')} v={ins.tenantOk ? t('Onayladı') + (stampText(ins.tenantAt) ? ' · ' + stampText(ins.tenantAt) : '') : t('Bekleniyor')} />
+        <KV onDark k={t('Mülk sahibi')} v={ins.landlordOk ? t('Onayladı') + (stampText(ins.landlordAt) ? ' · ' + stampText(ins.landlordAt) : '') : t('Bekleniyor')} />
+        {bothOk ? <Muted onDark>{t('Tutanak tamamlandı ve kilitlendi.')}</Muted> : !edit ? null
           : mineOk ? <Button kind="primary" block title={t('Karşı tarafa hatırlat')} onPress={() => act('nudgeInspect', { pid: p.id })} />
           : <Button kind="primary" block title={t('Tutanağı onayla')} onPress={() => act('approveInspect', { pid: p.id })} />}
-        <Button kind="onDark" block title={t('Tutanağı dışa aktar')} onPress={() => act('exportInspect', { pid: p.id })} />
+        <Button kind="onDark" block title={Platform.OS === 'web' ? t('Tutanağı indir (PDF)') : t('Tutanağı dışa aktar')} onPress={() => act('exportInspect', { pid: p.id })} />
       </Hero>
     </Stack>
   );
