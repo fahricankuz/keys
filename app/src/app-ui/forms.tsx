@@ -1,4 +1,5 @@
 import { ReactNode, useState } from 'react';
+import { preparing } from '../domain/file-prep';
 import { Platform, TextInput, View } from 'react-native';
 import { t } from '../domain/i18n';
 import { numRaw, numShow } from '../domain/util';
@@ -96,18 +97,21 @@ export function Toggle({ label, on, onChange }: { label: ReactNode; on: boolean;
 /** Dosya alanı: belge/dekont (görsel ya da PDF) ya da fotoğraflar. */
 export function FileField({ label, files, setFiles, kind = 'doc', max = 4, camera }: { label: string; files: Picked[]; setFiles: (f: Picked[]) => void; kind?: 'doc' | 'photos'; max?: number; camera?: boolean }) {
   const c = useColors();
+  // Seçilen dosya hazırlanana kadar (küçültme, okuma) alan "Hazırlanıyor…" der ve formun gönderme düğmesi bekler (domain/file-prep.js).
+  const [busy, setBusy] = useState(false);
+  const run = (task: () => Promise<void>) => { setBusy(true); return preparing(task).finally(() => setBusy(false)); };
   return (
     <View style={{ gap: 8 }}>
       <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{label}</Text>
       <Row wrap>
-        <Button kind="ghost" title={files.length ? t('Değiştir') : kind === 'doc' ? t('Dosya seç') : t('Fotoğraf seç')} icon={<Icon name={kind === 'doc' ? 'doc' : 'cam'} size={16} />}
-          onPress={async () => {
+        <Button kind="ghost" disabled={busy} title={busy ? t('Hazırlanıyor…') : files.length ? t('Değiştir') : kind === 'doc' ? t('Dosya seç') : t('Fotoğraf seç')} icon={<Icon name={kind === 'doc' ? 'doc' : 'cam'} size={16} />}
+          onPress={() => run(async () => {
             if (kind === 'doc') { const f = await pickDocument(); if (f) setFiles([f]); }
             else { const f = await pickImages(max); if (f.length) setFiles(f); }
-          }} />
-        {camera && Platform.OS !== 'web' && <Button kind="ghost" title={t('Kamerayla çek')} icon={<Icon name="cam" size={16} />} onPress={async () => { const f = await takePhoto(); if (f.length) setFiles([...files, ...f].slice(0, max)); }} />}
+          })} />
+        {camera && Platform.OS !== 'web' && <Button kind="ghost" disabled={busy} title={t('Kamerayla çek')} icon={<Icon name="cam" size={16} />} onPress={() => run(async () => { const f = await takePhoto(); if (f.length) setFiles([...files, ...f].slice(0, max)); })} />}
       </Row>
-      {files.length ? <Muted>{files.map((f) => f.name).join(', ')}</Muted> : null}
+      {busy ? <Muted>{t('Dosya hazırlanıyor; bitince gönderebilirsin.')}</Muted> : files.length ? <Muted>{files.map((f) => f.name).join(', ')}</Muted> : null}
     </View>
   );
 }

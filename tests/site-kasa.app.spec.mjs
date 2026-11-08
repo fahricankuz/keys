@@ -55,6 +55,8 @@ test('kasa: devreden 9.500, tahsilat 1.500; kategoriyle ve faturayla gider eklen
   const pick = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: /Dosya seç|Fotoğraf/ }).first().click();
   await (await pick).setFiles(PNG);
+  // Fotoğraf hazırlanana kadar (küçültme) gönderme düğmesi bekler; hazır olunca seçim düğmesi "Değiştir" olur.
+  await expect(page.getByRole('button', { name: 'Değiştir' })).toBeVisible();
   await page.getByRole('button', { name: 'Gideri ekle' }).click();
   await expect(page.getByText('₺8.500').first()).toBeVisible();                   // 11.000 − 2.500
   const x = await page.evaluate(() => JSON.parse(localStorage.getItem('__fakedb')).tables.site_expenses.find((e) => e.cat === 'Asansör'));
