@@ -6,8 +6,7 @@ import { MailComposer } from './admin-mail';
 import { CONFIG } from '../domain/config';
 import { planLabel } from '../domain/plans';
 import { SECTORS, adminOrgs, sectorOf } from '../domain/org';
-import { revenueEstimate } from '../domain/admin-finance';
-import { useCosts } from './admin-costs';
+import { FinanceCard, PeriodSeg, YearChart, delta, periodFinance, prevLabel, useAdminFinance, usePeriod } from './admin-finance-ui';
 import { t, locale } from '../domain/i18n';
 import { tl } from '../domain/util';
 import { Button, Chip, Field, Text } from '../ui/kit';
@@ -18,7 +17,6 @@ import { GroupTitle, Kpi, KpiGrid, PageHead } from './admin-ui';
 
 const day = (v: any) => (v ? new Date(v).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) + '%' : '—');
-const delta = (a: number, b: number) => (b ? (a >= b ? '+' : '−') + Math.abs(Math.round(((a - b) / b) * 100)) + '%' : '');
 
 /** Sunucudan veri yükler; reload() ile yeniden çeker. */
 function useLoad<T>(fn: () => Promise<T>, deps: any[] = []) {
@@ -117,47 +115,21 @@ function Funnel({ f }: { f: any }) {
 
 /** Genel bakış: koyu özet kartı ve Büyüme / Gelir / Kullanım / Operasyon gösterge grupları.
     `ops`: panelin yüklediği özet (denetim bekleyen, askıdaki hesap). */
-/** Kira ve aidat hacmi: bireysel mülkler + kurumlar (admin_kpis; eski sunucuda yalnız bireysel kira). */
-function volumes(k: any) {
-  const n = (x: any) => Number(x) || 0;
-  return {
-    rent: n(k.rent?.month) + n(k.orgRent?.month), rentPrev: n(k.rent?.prevMonth) + n(k.orgRent?.prevMonth),
-    rentOrg: n(k.orgRent?.month),
-    aidat: n(k.aidat?.month) + n(k.aidat?.siteMonth), aidatPrev: n(k.aidat?.prevMonth) + n(k.aidat?.sitePrev),
-    aidatSite: n(k.aidat?.siteMonth), hasAidat: !!k.aidat
-  };
-}
-
-/** Gelir tahmini: paket × dönem × mülk adedi (yeni sunucu); eskisinde paket sayısı × fiyat. */
-function revenueOf(k: any) {
-  if (Array.isArray(k.revenueBase)) return revenueEstimate(k.revenueBase);
-  const plans = k.plans || {};
-  const priced = CONFIG.billing.tiers.filter((x: any) => x.price != null);
-  const mrr = priced.reduce((a: number, x: any) => a + Number(plans[x.id] || 0) * Number(x.price), 0);
-  return { mrr, arr: mrr * 12, rows: [], unpriced: 0 };
-}
-
-const DaysSeg = ({ days, setDays }: { days: string; setDays: (v: string) => void }) => (
-  <View style={{ minWidth: 260 }}><Seg value={days} onChange={setDays} options={[['7', t('7 gün')], ['30', t('30 gün')], ['90', t('90 gün')]]} /></View>
-);
-
-/** Genel bakış: koyu kartta kira ve aidat hacmi; her gruptan en önemli göstergeler. Ayrıntı Büyüme, Gelir ve Gider sayfalarında. */
+/** Genel bakış: dönem (bu ay / bu yıl) için kira ve aidat hacmi, gelir–gider–net kutusu, öne çıkan göstergeler ve yılın aylık grafiği. */
 export function Overview({ ops, go }: { ops?: { pending?: number; banned?: number }; go?: (tab: string) => void }) {
   const c = useColors();
-  const { data: k, err } = useLoad<any>(() => loadKpis(30), []);
-  const month = new Date().toISOString().slice(0, 7);
-  const { sum } = useCosts(month);
-  const head = <PageHead label={t('Yönetici')} title={t('Genel bakış')} sub={t('Kısa özet; ayrıntılar Büyüme, Gelir ve Gider sayfalarında.')} />;
+  const [period, setPeriod] = usePeriod();
+  const { data, err, table } = useAdminFinance();
+  const head = <PageHead label={t('Yönetici')} title={t('Genel bakış')} sub={t('Kısa özet; ayrıntılar Büyüme, Gelir ve Gider sayfalarında.')} right={<PeriodSeg value={period} onChange={setPeriod} />} />;
   if (err) return <Stack>{head}<Text v="small" color={c.badInk}>{err}</Text></Stack>;
-  if (!k) return <Stack>{head}<Spin /></Stack>;
-  const v = volumes(k);
-  const r = revenueOf(k);
-  const o = k.owners;
-  const big = (label: string, value: number, prev: number, sub: string) => (
+  if (!data) return <Stack>{head}<Spin /></Stack>;
+  const k = data.k, o = k.owners;
+  const { cur, prev, vol, volPrev } = periodFinance(data, table, period);
+  const big = (label: string, value: number, before: number, sub: string) => (
     <View style={{ flexGrow: 1, flexBasis: 260, gap: 4 }}>
       <Label onDark>{label}</Label>
       <Text v="num" color={c.heroInk} style={{ fontSize: 40, lineHeight: 46, fontVariant: ['tabular-nums'] }}>{tl(value)}</Text>
-      <Muted onDark>{[delta(value, prev), t('geçen ay: {v}', { v: tl(prev) }), sub].filter(Boolean).join(' · ')}</Muted>
+      <Muted onDark>{[delta(value, before), prevLabel(period) + ': ' + tl(before), sub].filter(Boolean).join(' · ')}</Muted>
     </View>
   );
   return (
@@ -165,21 +137,22 @@ export function Overview({ ops, go }: { ops?: { pending?: number; banned?: numbe
       {head}
       <Hero gap={14}>
         <Row gap={22} wrap align="flex-end">
-          {big(t('Bu ay onaylı kira hacmi'), v.rent, v.rentPrev, v.rentOrg ? t('kurumlar {v}', { v: tl(v.rentOrg) }) : '')}
-          {v.hasAidat ? big(t('Bu ay onaylı aidat hacmi'), v.aidat, v.aidatPrev, v.aidatSite ? t('siteler {v}', { v: tl(v.aidatSite) }) : '') : null}
+          {big(period === 'year' ? t('Bu yıl onaylı kira hacmi') : t('Bu ay onaylı kira hacmi'), vol.rent, volPrev.rent, vol.orgRent ? t('kurumlar {v}', { v: tl(vol.orgRent) }) : '')}
+          {big(period === 'year' ? t('Bu yıl onaylı aidat hacmi') : t('Bu ay onaylı aidat hacmi'), vol.aidat, volPrev.aidat, vol.siteAidat ? t('siteler {v}', { v: tl(vol.siteAidat) }) : '')}
         </Row>
         <Row gap={22} wrap>
-          {[[t('Üye'), String(k.users.total)], [t('Ödeyen'), String(o.paying)], [t('Aylık gelir (tahmini)'), tl(r.mrr)], [t('Yönetilen mülk'), String(k.units.total + Number(k.orgs?.units || 0))]].map(([a, b]) => (
+          {[[t('Üye'), String(k.users.total)], [t('Ödeyen'), String(o.paying)], [t('Aylık gelir (tahmini)'), tl(data.mrr.mrr)], [t('Yönetilen mülk'), String(k.units.total + Number(k.orgs?.units || 0))]].map(([a, b]) => (
             <View key={a} style={{ gap: 2 }}><Muted onDark>{a}</Muted><Text v="h3" color={c.heroInk} style={{ fontFamily: fonts.siteBold }}>{b}</Text></View>
           ))}
         </Row>
       </Hero>
+      <FinanceCard f={cur} prev={prev} period={period} />
       <KpiGrid>
-        <Kpi icon="plus" tone="butter" label={t('Yeni kayıt (30 gün)')} value={String(k.signups.period)} trend={delta(k.signups.period, k.signups.prev) || undefined} sub={t('Dönüşüm: {p}', { p: pct(o.paying, o.total) })} />
-        <Kpi icon="chart" tone="sage" label={t('Aylık gelir (tahmini)')} value={tl(r.mrr)} sub={t('Yıllık {v}', { v: tl(r.arr) })} />
-        <Kpi icon="card" tone="peach" label={t('Bu ay gider')} value={sum ? tl(sum.total) : '—'} sub={sum ? t('Net (gelir − gider): {v}', { v: tl(r.mrr - sum.total) }) : t('Gider sayfasından girilir')} />
+        <Kpi icon="plus" tone="butter" label={period === 'year' ? t('Yeni kayıt (bu yıl)') : t('Yeni kayıt (bu ay)')} value={String(vol.signups)} trend={delta(vol.signups, volPrev.signups) || undefined} sub={t('Dönüşüm: {p}', { p: pct(o.paying, o.total) })} />
+        <Kpi icon="card" tone="sage" label={t('Kartla ödenen (dönem)')} value={tl(vol.card)} sub={t('İşlem ücreti gelire, sanal POS payı gidere')} />
         <Kpi icon="chat" tone="sky" label={t('Açık destek talebi')} value={String(k.supportOpen)} sub={t('Askıdaki hesap: {n}', { n: ops?.banned ?? 0 })} />
       </KpiGrid>
+      <YearChart data={data} table={table} />
       {go ? (
         <Row wrap>
           <Button kind="ghost" title={t('Büyüme')} onPress={() => go('growth')} />
@@ -191,28 +164,33 @@ export function Overview({ ops, go }: { ops?: { pending?: number; banned?: numbe
   );
 }
 
-/** Büyüme: kayıt eğrisi, deneme → ödeyen, aktivasyon hunisi, kullanım, kurumlar ve sektörler, yönetilen mülk ve birim. */
+/** Büyüme: dönemin yeni kayıtları (karşılaştırmalı), deneme → ödeyen, aktivasyon hunisi, kullanım, kurumlar ve sektörler. */
 export function Growth() {
   const c = useColors();
   const { desktop } = useBreakpoint();
+  const [period, setPeriod] = usePeriod();
+  const { data, err, table } = useAdminFinance();
   const [days, setDays] = useState('30');
-  const { data: k, err } = useLoad<any>(() => loadKpis(Number(days)), [days]);
+  const { data: kd } = useLoad<any>(() => loadKpis(Number(days)), [days]);
   if (err) return <Text v="small" color={c.badInk}>{err}</Text>;
-  if (!k) return <Spin />;
-  const o = k.owners;
-  const orgs = k.orgs;
+  if (!data || !kd) return <Spin />;
+  const k = kd, o = k.owners, orgs = k.orgs;
+  const { vol, volPrev } = periodFinance(data, table, period);
   const sectors = orgs ? Object.entries(orgs.bySector || {}).sort((a: any, b: any) => b[1] - a[1]) : [];
   return (
     <Stack gap={16}>
-      <Row between wrap><Muted>{t('Dönem')}</Muted><DaysSeg days={days} setDays={setDays} /></Row>
+      <Row between wrap><PeriodSeg value={period} onChange={setPeriod} /></Row>
       <KpiGrid>
         <Kpi icon="landlord" tone="peach" label={t('Üye')} value={String(k.users.total)} sub={t('{a} mülk sahibi · {b} kiracı · {c} ekip', { a: k.users.landlords, b: k.users.tenants, c: k.users.team })} />
-        <Kpi icon="plus" tone="butter" label={t('Yeni kayıt ({n} gün)', { n: k.days })} value={String(k.signups.period)} trend={delta(k.signups.period, k.signups.prev) || undefined} sub={t('önceki dönem: {n}', { n: k.signups.prev })} />
+        <Kpi icon="plus" tone="butter" label={period === 'year' ? t('Yeni kayıt (bu yıl)') : t('Yeni kayıt (bu ay)')} value={String(vol.signups)} trend={delta(vol.signups, volPrev.signups) || undefined} sub={prevLabel(period) + ': ' + volPrev.signups} />
         <Kpi icon="flag" tone="sky" label={t('Denemede')} value={String(o.trial)} sub={t('{n} tanesi 7 gün içinde bitiyor', { n: o.expiring })} />
         <Kpi icon="check" tone="sage" label={t('Deneme → ödeyen')} value={pct(o.paying, o.total)} sub={t('{a} ödeyen / {b} mülk sahibi', { a: o.paying, b: o.total })} />
       </KpiGrid>
       <View style={{ flexDirection: desktop ? 'row' : 'column', gap: 16, alignItems: 'stretch' }}>
-        <View style={{ flex: 1.3 }}><Signups series={k.series} /></View>
+        <View style={{ flex: 1.3, gap: 8 }}>
+          <Row between wrap><Muted>{t('Günlük yeni kayıt')}</Muted><DaysSeg days={days} setDays={setDays} /></Row>
+          <Signups series={k.series} />
+        </View>
         <View style={{ flex: 1 }}>{k.funnel ? <Funnel f={k.funnel} /> : null}</View>
       </View>
       {k.activeUsers ? (
@@ -247,24 +225,29 @@ export function Growth() {
   );
 }
 
-/** Gelir: tahmini aylık ve yıllık gelir (paket fiyatlarından), pakete göre dağılım, ödeyen başına gelir, kurum sözleşmeleri, net. */
+const DaysSeg = ({ days, setDays }: { days: string; setDays: (v: string) => void }) => (
+  <Seg value={days} onChange={setDays} options={[['7', t('7 gün')], ['30', t('30 gün')], ['90', t('90 gün')]]} />
+);
+
+/** Gelir: dönemin gelir–gider–net kutusu, aylık ve yıllık tahmin, pakete göre dağılım, kurum sözleşmeleri (aylık bedel). */
 export function Revenue() {
   const c = useColors();
-  const { data: k, err } = useLoad<any>(() => loadKpis(30), []);
-  const { data: orgs } = useLoad<any[]>(() => adminOrgs(), []);
-  const month = new Date().toISOString().slice(0, 7);
-  const { sum } = useCosts(month);
+  const [period, setPeriod] = usePeriod();
+  const { data, err, table } = useAdminFinance();
   if (err) return <Text v="small" color={c.badInk}>{err}</Text>;
-  if (!k) return <Spin />;
-  const r = revenueOf(k);
-  const o = k.owners;
-  const contracts = (orgs || []).filter((x: any) => x.status === 'active').sort((a: any, b: any) => String(a.contract_until || '9999').localeCompare(String(b.contract_until || '9999')));
+  if (!data) return <Spin />;
+  const k = data.k, o = k.owners, r = data.mrr;
+  const { cur, prev } = periodFinance(data, table, period);
+  const contracts = (data.orgs || []).filter((x: any) => x.status === 'active').sort((a: any, b: any) => String(a.contract_until || '9999').localeCompare(String(b.contract_until || '9999')));
+  const orgMonthly = contracts.reduce((a: number, x: any) => a + (Number(x.billing?.monthly_fee) || 0), 0);
   return (
     <Stack gap={16}>
+      <Row between wrap><PeriodSeg value={period} onChange={setPeriod} /></Row>
+      <FinanceCard f={cur} prev={prev} period={period} />
       <KpiGrid>
-        <Kpi icon="chart" tone="sage" label={t('Aylık gelir (tahmini)')} value={tl(r.mrr)} sub={t('Paket fiyatı × mülk adedi; yıllık paket ayda 1/12')} />
-        <Kpi icon="chart" tone="butter" label={t('Yıllık gelir (ARR, tahmini)')} value={tl(r.arr)} sub={t('Aylık gelirin 12 katı')} />
-        <Kpi icon="card" tone="sky" label={t('Ödeyen başına aylık gelir')} value={o.paying ? tl(r.mrr / o.paying) : '—'} sub={t('ARPU')} />
+        <Kpi icon="chart" tone="sage" label={t('Aylık üyelik geliri (tahmini)')} value={tl(r.mrr + orgMonthly)} sub={t('Paketler {a} · kurumsal {b}', { a: tl(r.mrr), b: tl(orgMonthly) })} />
+        <Kpi icon="chart" tone="butter" label={t('Yıllık üyelik geliri (ARR, tahmini)')} value={tl((r.mrr + orgMonthly) * 12)} sub={t('Aylık tahminin 12 katı')} />
+        <Kpi icon="card" tone="sky" label={t('Ödeyen başına aylık gelir')} value={o.paying ? tl(r.mrr / o.paying) : '—'} sub={t('ARPU (paketler)')} />
         <Kpi icon="bell" tone="peach" label={t('Ödeme sorunu')} value={String(k.billingIssues)} sub={t('{n} abonelik yenilenmeyecek', { n: k.cancelling })} />
       </KpiGrid>
       {r.rows.length ? (
@@ -279,7 +262,6 @@ export function Revenue() {
               <Text v="small" style={{ fontFamily: fonts.bodyXBold, fontVariant: ['tabular-nums'] }}>{x.monthly == null ? t('Sözleşmeye göre') : tl(x.monthly) + ' ' + t('/ ay')}</Text>
             </Row>
           ))}
-          {r.unpriced ? <Muted>{t('Fiyatı sözleşmeye göre olan {n} abonelik (Kurumsal) tahmine girmez.', { n: r.unpriced })}</Muted> : null}
         </Card>
       ) : <PlanBars plans={k.plans || {}} total={o.paying} />}
       <Card gap={4}>
@@ -288,19 +270,12 @@ export function Revenue() {
           <Row key={x.id} between wrap style={{ paddingVertical: 8, borderTopWidth: i ? 1 : 0, borderColor: c.line }}>
             <View style={{ flex: 1, minWidth: 160 }}>
               <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{x.name}</Text>
-              <Muted>{[sectorOf(x.sector).label, x.units ? t('{n} birim', { n: x.units }) : ''].filter(Boolean).join(' · ')}</Muted>
+              <Muted>{[sectorOf(x.sector).label, x.units ? t('{n} birim', { n: x.units }) : '', x.contract_until ? t('Bitiş {d}', { d: day(x.contract_until) }) : t('Süresiz')].filter(Boolean).join(' · ')}</Muted>
             </View>
-            <Muted>{x.contract_until ? t('Bitiş {d}', { d: day(x.contract_until) }) : t('Süresiz')}</Muted>
+            <Text v="small" style={{ fontFamily: fonts.bodyXBold, fontVariant: ['tabular-nums'] }}>{Number(x.billing?.monthly_fee) > 0 ? tl(x.billing.monthly_fee) + ' ' + t('/ ay') : t('Bedel girilmedi')}</Text>
           </Row>
         )) : <Empty>{t('Etkin kurum yok.')}</Empty>}
-      </Card>
-      <Card gap={6} style={{ borderWidth: 2, borderColor: c.ink }}>
-        <Row between wrap>
-          <H2>{t('Net (gelir − gider), bu ay')}</H2>
-          <Text v="h2" color={sum && r.mrr - sum.total < 0 ? c.badInk : c.ink} style={{ fontVariant: ['tabular-nums'] }}>{sum ? tl(r.mrr - sum.total) : '—'}</Text>
-        </Row>
-        <Muted>{sum ? t('Tahmini gelir {a} − gider {b} (KDV dahil, Gider sayfasından)', { a: tl(r.mrr), b: tl(sum.total) }) : t('Giderler yükleniyor…')}</Muted>
-        <Muted>{t('Gelir paket fiyatlarından tahmindir; mağaza ve sanal POS komisyonları Gider sayfasına elle girilir.')}</Muted>
+        <Muted>{t('Aylık sözleşme bedeli Kurumlar → kurumu düzenle ekranında girilir; yalnız yönetici panelinde görünür.')}</Muted>
       </Card>
     </Stack>
   );
@@ -366,7 +341,7 @@ export function SubActions({ s, reload }: { s: any; reload: () => void }) {
 
 const KIND: Record<string, string> = { kurumsal: 'Kurumsal paket', import: 'Toplu içe aktarma', upgrade: 'Paket yükseltme', genel: 'Genel' };
 
-export function Support({ onConvert }: { onConvert?: (r: any) => void }) {
+export function Support({ onConvert, onCrm }: { onConvert?: (r: any) => void; onCrm?: (r: any) => void }) {
   const c = useColors();
   const [f, setF] = useState('open');
   const { data, err, reload } = useLoad<any[]>(() => loadSupport());
@@ -400,7 +375,8 @@ export function Support({ onConvert }: { onConvert?: (r: any) => void }) {
           <Row wrap>
             {r.email ? <Button kind="ghost" title={t('E-posta gönder')} onPress={() => setMailFor(mailFor === r.id ? null : r.id)} /> : null}
             {r.kind === 'kurumsal' && r.status === 'open' && onConvert ? <Button title={t('Kuruma çevir')} onPress={() => onConvert(r)} /> : null}
-            <Button kind={r.status === 'open' ? 'primary' : 'ghost'} title={r.status === 'open' ? t('Kapat') : t('Yeniden aç')} onPress={() => toggle(r)} />
+            {onCrm ? <Button kind="ghost" title={t('CRM’e ekle')} onPress={() => onCrm(r)} /> : null}
+            <Button kind="ghost" title={r.status === 'open' ? t('Kapat') : t('Yeniden aç')} onPress={() => toggle(r)} />
           </Row>
           {mailFor === r.id ? (
             <MailComposer target={{ to: r.email, name: r.name, subject: t('anahtar iletişim talebin'), request_id: r.id, user_id: r.user_id || undefined }}

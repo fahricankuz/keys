@@ -1,11 +1,11 @@
 import { Grain } from '../ui/Grain';
-import { ReactNode, useState } from 'react';
+import { ReactNode, useContext, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleProp, View, ViewStyle, Image } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { SvgXml } from 'react-native-svg';
 import { I, ic } from '../domain/icons';
 import { ST, statusOf } from '../domain/logic';
-import { Chip, PressScale, Text } from '../ui/kit';
+import { AdminUI, Chip, PressScale, Text } from '../ui/kit';
 import { t, locale } from '../domain/i18n';
 import { LIVE } from '../domain/config';
 import { downloadFile, fileUrl, mediaSrc, reviewOf } from '../domain/backend';
@@ -32,7 +32,9 @@ export function Row({ children, between, gap = 10, wrap, style, align = 'center'
 
 export function Card({ children, onPress, style, gap = 10 }: { children?: ReactNode; onPress?: () => void; style?: StyleProp<ViewStyle>; gap?: number }) {
   const c = useColors();
-  const base: ViewStyle = { backgroundColor: c.surface, borderRadius: radius.lg, padding: 20, borderWidth: 1, borderColor: c.line, gap };
+  const admin = useContext(AdminUI);
+  // Yönetici panelinde kartlar gösterge kutularıyla aynı köşe ve boşlukta (tek tasarım dili).
+  const base: ViewStyle = { backgroundColor: c.surface, borderRadius: admin ? 22 : radius.lg, padding: admin ? 18 : 20, borderWidth: 1, borderColor: c.line, gap };
   if (onPress) return <PressScale onPress={onPress} accessibilityRole="button" scaleTo={0.985} style={[base, style]}>{children}</PressScale>;
   return <View style={[base, style]}>{children}</View>;
 }
@@ -56,6 +58,9 @@ export function Hero({ children, style, gap = 12 }: { children?: ReactNode; styl
 
 export function H2({ children, onDark }: { children: ReactNode; onDark?: boolean }) {
   const c = useColors();
+  const admin = useContext(AdminUI);
+  // Panelde bölüm başlığı ölçülü: sayfa başlığıyla yarışmaz.
+  if (admin) return <Text v="body" color={onDark ? c.heroInk : c.ink} style={{ fontFamily: fonts.siteBold, fontSize: 17, letterSpacing: -0.2 }}>{children}</Text>;
   return <Text v="h3" color={onDark ? c.heroInk : c.ink}>{children}</Text>;
 }
 
@@ -119,6 +124,8 @@ export function Note({ children, warn, ok }: { children: ReactNode; warn?: boole
 
 export function Empty({ children }: { children: ReactNode }) {
   const c = useColors();
+  const admin = useContext(AdminUI);
+  if (admin) return <View style={{ paddingVertical: 14, alignItems: 'flex-start' }}><Text v="small" muted>{children}</Text></View>;
   return (
     <View style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: c.line, borderRadius: radius.lg, padding: 22, alignItems: 'center' }}>
       <Text v="small" muted style={{ textAlign: 'center' }}>{children}</Text>
@@ -154,6 +161,23 @@ export function Items<T>({ data, render }: { data: T[]; render: (x: T, last: boo
 export function Seg({ options, value, onChange, scroll, wrap }: { options: [string, string][]; value: string; onChange: (v: string) => void; scroll?: boolean; wrap?: boolean }) {
   const c = useColors();
   const { phone } = useBreakpoint();
+  const admin = useContext(AdminUI);
+  // Panelde seçim şeridi içerik genişliğinde, tek parça (ekran boyu siyah şerit değil).
+  if (admin && !wrap && !(scroll && phone) && options.length <= 6) {
+    return (
+      <View style={{ flexDirection: 'row', alignSelf: 'flex-start', flexWrap: 'wrap', gap: 2, padding: 4, borderRadius: radius.pill, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line }}>
+        {options.map(([v, l]) => {
+          const on = v === value;
+          return (
+            <PressScale key={v} onPress={() => onChange(v)} accessibilityRole="button" accessibilityState={{ selected: on }} scaleTo={0.96}
+              style={{ paddingHorizontal: 14, minHeight: 34, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? c.ink : 'transparent' }}>
+              <Text v="small" numberOfLines={1} color={on ? c.bg : c.ink} style={{ fontFamily: fonts.bodyBold, fontSize: 13.5 }}>{l}</Text>
+            </PressScale>
+          );
+        })}
+      </View>
+    );
+  }
   // Geniş ekranda çok sekmeli satır tek parça bir şeritte durur: sekmeler eşit paylaşır, satır kırılmaz;
   // sekme ve şerit adından dar olmaz (yan yana iki şerit sıkışınca adlar kesilmez, satır alta geçer).
   // wrap: sekme çoksa (adlar kesilmesin diye) geniş ekranda sekmeler kendi genişliğinde, gerekirse alt satıra geçer.

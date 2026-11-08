@@ -31,6 +31,7 @@ function OrgForm({ org, draft, done }: { org?: any; draft?: OrgDraft | null; don
   const [title, setTitle] = useState<string>(init.billing?.title || '');
   const [tax, setTax] = useState<string>(init.billing?.tax_no || '');
   const [mail, setMail] = useState<string>(init.billing?.email || draft?.email || '');
+  const [fee, setFee] = useState<string>(init.billing?.monthly_fee != null ? String(init.billing.monthly_fee) : '');
   const [note, setNote] = useState<string>(init.note || draft?.note || '');
   const [fxCur, setFxCur] = useState<string>(init.report_currency === 'EUR' ? 'EUR' : 'USD');
   const [err, setErr] = useState<string | null>(null);
@@ -42,7 +43,7 @@ function OrgForm({ org, draft, done }: { org?: any; draft?: OrgDraft | null; don
     setBusy(true);
     try {
       const id = await adminSaveOrg({ id: org?.id, name, sector, modules: mods, units: units.replace(/\D/g, '') || null, contract_until: until || null,
-        billing: { title, tax_no: tax, email: mail }, note, lead_id: org ? undefined : draft?.lead_id, report_currency: fxCur });
+        billing: { title, tax_no: tax, email: mail, monthly_fee: Number(String(fee).replace(',', '.')) || null }, note, lead_id: org ? undefined : draft?.lead_id, report_currency: fxCur });
       done(id);
     } catch (e) { setErr(humanError(e)); }
     setBusy(false);
@@ -80,6 +81,7 @@ function OrgForm({ org, draft, done }: { org?: any; draft?: OrgDraft | null; don
       <Row gap={10} wrap align="flex-end">
         <View style={{ flexGrow: 1, flexBasis: 200 }}><Field label={t('Fatura unvanı')} value={title} onChangeText={setTitle} maxLength={160} /></View>
         <View style={{ flexGrow: 1, flexBasis: 140 }}><Field label={t('Vergi no')} value={tax} onChangeText={setTax} maxLength={20} /></View>
+        <View style={{ flexGrow: 1, flexBasis: 160 }}><Field label={t('Aylık sözleşme bedeli (₺, yalnız panelde)')} value={fee} onChangeText={(x) => setFee(x.replace(/[^\d.,]/g, ''))} keyboardType="decimal-pad" placeholder={t('ör. 12000')} /></View>
         <View style={{ flexGrow: 1, flexBasis: 200 }}><Field label={t('Fatura e-postası')} value={mail} onChangeText={setMail} keyboardType="email-address" autoCapitalize="none" maxLength={200} /></View>
       </Row>
       <Field label={t('Not (yalnızca anahtar ekibi görür)')} value={note} onChangeText={setNote} multiline maxLength={4000} />

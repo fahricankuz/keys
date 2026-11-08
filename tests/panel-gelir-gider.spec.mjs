@@ -69,3 +69,34 @@ test('KDV ayrımı ve aylık toplam: dövizli gider o günün kuruyla TL; kur yo
   const up = M.upcoming(costs, new Date(2026, 10, 7), 30);
   expect(up.map((x) => [x.cost.id, x.day])).toEqual([['b', '2026-11-20'], ['a', '2026-12-03']]);
 });
+
+test('dönem: bu ay ve 1 Ocak’tan bugüne; geçen yılın aynı dönemiyle karşılaştırma', () => {
+  const now = new Date(2026, 10, 8);
+  expect(M.periodMonths('month', now)).toEqual({ cur: ['2026-11'], prev: ['2026-10'] });
+  const y = M.periodMonths('year', now);
+  expect(y.cur.length).toBe(11);
+  expect(y.cur[0]).toBe('2026-01');
+  expect(y.prev[10]).toBe('2025-11');
+  expect(M.periodMonths('month', new Date(2026, 0, 5)).prev).toEqual(['2025-12']);
+});
+
+test('gelir kırılımı: üyelik (kayıtlı tahmin + bu ay canlı + kurumsal bedel), işlem ücreti, hukuki; POS payı gidere', () => {
+  const monthly = [
+    { month: '2026-10', mrr: 1000, card: 10000, legal: 3000 },
+    { month: '2026-11', mrr: 999, card: 20000, legal: 0 },
+    { month: '2026-09', mrr: null, card: 0, legal: 0 }
+  ];
+  const orgs = [{ status: 'active', created_at: '2026-10-15', billing: { monthly_fee: 5000 } }, { status: 'paused', created_at: '2026-01-01', billing: { monthly_fee: 9999 } }];
+  const costs = [{ id: 'a', category: 'altyapi', amount: 1200, currency: 'TRY', vat_included: true, vat_rate: 20, recurrence: 'monthly', start_on: '2026-01-01' }];
+  const f = M.finance({ monthly, months: ['2026-09', '2026-10', '2026-11'], liveMrr: 1500, orgs, costs, table: M.fxTable([]), now: new Date(2026, 10, 8) });
+  const part = (k) => f.incomeParts.find((x) => x.key === k).value;
+  // Üyelik: Eylül kayıtsız (eksik), Ekim kayıtlı 1.000, Kasım canlı 1.500; kurumsal Ekim ve Kasım 5.000'er.
+  expect(part('uyelik')).toBe(1000 + 1500 + 10000);
+  expect(f.missingMonths).toBe(1);
+  expect(part('komisyon')).toBeCloseTo(30000 * 0.025, 6);
+  expect(part('diger')).toBe(3000);
+  expect(f.expenseParts.find((x) => x.key === 'odeme').value).toBeCloseTo(30000 * 0.02, 6);
+  expect(f.expenseParts.find((x) => x.key === 'altyapi').value).toBe(3600);
+  expect(f.net).toBeCloseTo(f.income - f.expense, 6);
+  expect(M.cardSplit(100, { feeRate: 0.03, providerRate: 0.02 })).toEqual({ fee: 3, pos: 2, net: 1 });   // 100 TL: %2 kurum, %1 bizim
+});
