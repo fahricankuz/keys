@@ -3,8 +3,8 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Image, Linking, Platform, Pressable, Share, Text as RNText, TextInput, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { myOrgs } from '../domain/org';
-import { mySiteUnits } from '../domain/site';
-import { PORTFOLIO_SECTORS, residentTitle } from './site';
+import { mySiteUnits, loadSiteAdmin, siteSearch } from '../domain/site';
+import { PORTFOLIO_SECTORS, residentTitle, currentPortfolioOrg, sectionPath } from './site';
 import { useRouter } from 'expo-router';
 import {
   S, ui, setTheme, CATS, COST_OPTS, STEPS, EXPENSE_CATS, DEDUCTION_PRESETS, PROP_TYPES, DEPOSIT_KINDS, TENANT_KINDS, REQ_SUGGEST, isCommercial, docCatsFor
@@ -58,13 +58,17 @@ function SearchSheet({ close }: { close: () => void }) {
   const go = useGo();
   const c = useColors();
   const [q, setQ] = useState('');
-  const results = search(q);
+  // Site/portföy yöneticisi bağlamında kurumun kendi verisi (daire, talep, duyuru) taranır; mülk verisi değil.
+  const org: any = currentPortfolioOrg();
+  const [siteData, setSiteData] = useState<any>(null);
+  useEffect(() => { if (org) loadSiteAdmin(org.id).then(setSiteData).catch(() => {}); }, [org?.id]);
+  const results = org ? siteSearch(siteData, q, sectionPath) : search(q);
   return (
     <Stack>
       <Title>{t('Ara')}</Title>
-      <Field label={t('Talep, belge, mesaj ya da mülk ara')} value={q} onChangeText={setQ} autoFocus />
-      {q.trim().length < 2 ? <Empty>{t('En az iki harf yaz. Talep başlıkları, belge adları, mesajlar ve mülk bilgileri taranır.')}</Empty>
-        : results.length ? <Items data={results as any[]} render={(r: any, last) => <LI key={r.go + r.title} last={last} onPress={() => { close(); go(r.go); }} title={r.title} sub={r.sub} right={<Icon name={r.icon} size={18} color={c.accent} />} />} />
+      <Field label={org ? t('Daire, kişi, talep ya da duyuru ara') : t('Talep, belge, mesaj ya da mülk ara')} value={q} onChangeText={setQ} autoFocus />
+      {q.trim().length < 2 ? <Empty>{org ? t('En az iki harf yaz. Daireler, sakinler, talepler ve duyurular taranır.') : t('En az iki harf yaz. Talep başlıkları, belge adları, mesajlar ve mülk bilgileri taranır.')}</Empty>
+        : results.length ? <Items data={results as any[]} render={(r: any, last, i) => <LI key={r.go + r.title + i} last={last} onPress={() => { close(); go(r.go); }} title={r.title} sub={r.sub} right={<Icon name={r.icon} size={18} color={c.accent} />} />} />
         : <Empty>{t('Sonuç yok.')}</Empty>}
     </Stack>
   );

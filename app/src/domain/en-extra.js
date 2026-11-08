@@ -1705,4 +1705,11 @@ export const EN_EXTRA = {
   'Taslak': 'Draft',
   'Projeler': 'Projects',
   'Yıl': 'Year',
+  'Şu an başka bir rolde görüntülüyorsun. Site yönetimini görmek için yönetici rolüne geç.': 'You are viewing as another role. Switch to the manager role to see the site management.',
+  'Site yöneticisi rolüne geç': 'Switch to the site manager role',
+  'Daire, kişi, talep ya da duyuru ara': 'Search units, people, requests or announcements',
+  'En az iki harf yaz. Daireler, sakinler, talepler ve duyurular taranır.': 'Type at least two letters. Units, residents, requests and announcements are searched.',
+  'm² çok büyük, kontrol et': 'Area looks too large, check it',
+  'Kimse eklenmemiş': 'No one added',
+  'Duyuru': 'Announcement',
 };

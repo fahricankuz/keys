@@ -9,7 +9,7 @@ import { client, live, storeFile, inviteLink } from './backend.js';
 import { waLink } from './wa.js';
 import { storedPath } from './mapping.js';
 import { emit, S, ui } from './state.js';
-import { iso, mkey } from './util.js';
+import { iso, mkey, match } from './util.js';
 import { CONFIG } from './config.js';
 import { amountIn, chargeIn } from './fx-report.js';
 
@@ -48,6 +48,28 @@ export const MODES = (sector) => (isCommercial(sector) ? [
 export const unitLabel = (u) => (isCommercial(u.sector)
   ? (u.block ? u.block + ' · ' : '') + u.no
   : (u.block ? u.block + ' ' + t('Blok') + ' ' : '') + (/^\d/.test(String(u.no)) ? t('No') + ' ' : '') + u.no);
+/** Kurum içi arama (yönetici paneli): daire (blok/no/malik/kiracı), talep, duyuru. d: loadSiteAdmin verisi; go: bölüm adresi. Sonuç ≤ 24. */
+export function siteSearch(d, q, sectionPath){
+  const k = String(q || '').trim();
+  if (!d || k.length < 2) return [];
+  const units = d.units || [], people = d.residents || [];
+  const byId = Object.fromEntries(units.map((u) => [u.id, u]));
+  const out = [];
+  for (const u of units){
+    const who = people.filter((r) => r.unit_id === u.id);
+    const hay = [unitLabel(u), (u.block || '') + ' ' + (u.no || ''), ...who.map((r) => r.name + ' ' + r.phone)].join(' ');
+    if (match(hay, k)) out.push({ icon: 'home', title: unitLabel(u), sub: who.map((r) => r.name).filter(Boolean).join(', ') || t('Kimse eklenmemiş'), go: sectionPath('birimler') });
+  }
+  for (const r of d.requests || []){
+    const u = byId[r.unit_id];
+    if (match([r.title, r.body, r.reply, u ? unitLabel(u) : ''].join(' '), k))
+      out.push({ icon: 'wrench', title: r.title, sub: [u ? unitLabel(u) : '', t(['Açıldı', 'Görüldü', 'İşlemde', 'Çözüldü'][r.status] || 'Açıldı')].filter(Boolean).join(' · '), go: sectionPath('talepler') });
+  }
+  for (const n of d.notes || []){
+    if (match(n.title + ' ' + n.body, k)) out.push({ icon: 'chat', title: n.title, sub: t('Duyuru'), go: sectionPath('duyurular') });
+  }
+  return out.slice(0, 24);
+}
 export const sortUnits = (a, b) => String(a.block).localeCompare(String(b.block), 'tr', { numeric: true }) || String(a.no).localeCompare(String(b.no), 'tr', { numeric: true });
 
 /**
