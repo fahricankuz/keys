@@ -1,7 +1,9 @@
 name: Testler
 
+# Dakika tasarrufu (GitHub Actions kotası): testler yalnız PR'da (ve Hostinger paketi içinde, varsayılan dala giren değişiklikte) çalışır.
+# Eskiden her push hem `push` hem `pull_request` ile iki kez çalışıyor, ayrıca `site` dalına yazılan derleme çıktısında da boşuna testler koşuyordu.
+# (paths-ignore yok: "Testler (tam set)" ana dalda zorunlu kontrol; belge PR'ında da raporlanmalı, yoksa PR birleşmez.)
 on:
-  push:
   pull_request:
   # Hostinger paketi (yayın) bu iş akışını çağırır: testler geçmeden site yayına çıkmaz.
   workflow_call:
