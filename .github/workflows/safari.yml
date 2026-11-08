@@ -4,9 +4,14 @@ name: Safari denemesi
 # Yayını engellemez ve yayını geciktirmez (ayrı iş akışı, continue-on-error); sonuç Actions'ta görünür.
 # Sürekli yeşil görününce hostinger.yml içindeki `needs` listesine alınıp engelleyici yapılabilir.
 
+# Dakika tasarrufu: yalnız PR'da çalışır (eskiden her push'ta da çalışıp aynı değişiklik için iki kez dakika harcıyordu); belge değişikliği çalıştırmaz.
 on:
-  push:
   pull_request:
+    paths-ignore: ['docs/**', '**.md']
+
+concurrency:
+  group: safari-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

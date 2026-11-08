@@ -75,3 +75,57 @@ test('gider: dolar gider o günün kuruyla TL, düzenle ve sil; Gelir’de net; 
   expect(t.admin_costs).toEqual([]);
   expect(t.admin_audit.filter((a) => a.action.startsWith('cost.')).map((a) => a.action)).toEqual(['cost.create', 'cost.update', 'cost.delete']);
 });
+
+test('genel bakış grafiği: tek eksende gelir, gider ve net; ayın üzerine gelince ayrıntı; tablo görünümü; yeni kayıt grafiği ayrı', async ({ page }) => {
+  await page.addInitScript((m) => {
+    const d = JSON.parse(localStorage.getItem('__fakedb'));
+    if (!d.tables.admin_costs?.length) {
+      d.tables.admin_costs = [{ id: 'k1', title: 'Sunucu', category: 'altyapi', amount: 5000, currency: 'TRY', vat_included: true, vat_rate: 20, recurrence: 'once', start_on: m + '-02', end_on: null, note: '', created_at: m + '-02T10:00:00Z' }];
+      localStorage.setItem('__fakedb', JSON.stringify(d));
+    }
+  }, month);
+  await admin(page);
+  const y = new Date().getFullYear();
+  await expect(page.getByText(`${y} aylık gelir, gider ve net`)).toBeVisible();
+  await expect(page.getByText(`${y} aylık yeni kayıt`)).toBeVisible();
+  await expect(page.getByText(/^Yıl toplamı: gelir .* · gider ₺5\.000 · net /)).toBeVisible();
+  const ay = new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric' }).format(new Date());
+  const label = ay.charAt(0).toLocaleUpperCase('tr') + ay.slice(1);
+  await page.getByRole('button', { name: label, exact: true }).first().hover();
+  await expect(page.getByText(label, { exact: true }).first()).toBeVisible();          // ayrıntı kutusu: ay adı, gelir, gider, net
+  await page.getByRole('button', { name: 'Tablo', exact: true }).first().click();
+  await expect(page.getByText('Ay', { exact: true })).toBeVisible();
+  await expect(page.getByText('₺5.000', { exact: true }).first()).toBeVisible();
+});
+
+test('büyüme: ayrılan aboneler (churn, türler, erken uyarı → CRM) ve kohort tablosu', async ({ page }) => {
+  await page.addInitScript(() => {
+    const d = JSON.parse(localStorage.getItem('__fakedb'));
+    if (d.__churn) return;
+    d.__churn = 1;
+    const now = new Date(), m = now.toISOString().slice(0, 7);
+    const back = (days) => new Date(now.getTime() - days * 864e5).toISOString();
+    const L = d.tables.profiles.find((p) => p.role === 'landlord');
+    d.tables.profiles.push({ id: 'p-ayrilan', role: 'landlord', name: 'Ayrılan Kişi', settings: {}, created_at: back(90) });
+    d.tables.profiles.push({ id: 'p-riskli', role: 'landlord', name: 'Riskli Kişi', settings: {}, created_at: back(60) });
+    d.users.push({ id: 'p-riskli', email: 'riskli@ornek.com', password: 'x', meta: {} });
+    d.tables.subscriptions.push({ user_id: 'p-riskli', product_id: 'bes_3_aylik', store: 'app_store', active: true, will_renew: false, billing_issue: false, expires_at: new Date(now.getTime() + 5 * 864e5).toISOString() });
+    d.tables.subscription_events = [
+      { user_id: 'p-ayrilan', kind: 'basladi', product_id: 'bes_3_aylik', at: back(80) },
+      { user_id: 'p-ayrilan', kind: 'odeme_sorunu', product_id: 'bes_3_aylik', at: m + '-01T08:00:00Z' },
+      { user_id: 'p-ayrilan', kind: 'bitti', product_id: 'bes_3_aylik', at: m + '-01T09:00:00Z' }
+    ];
+    d.tables.activity = [{ id: 1, owner_id: L.id, actor: L.id, actor_role: 'landlord', entity: 'property', action: 'create', at: now.toISOString() }];
+    localStorage.setItem('__fakedb', JSON.stringify(d));
+  });
+  await admin(page);
+  await page.getByRole('button', { name: 'Büyüme', exact: true }).first().click();
+  await expect(page.getByText('Ayrılan aboneler', { exact: true })).toBeVisible();
+  await expect(page.getByText('Ayrılan (bu ay)')).toBeVisible();
+  await expect(page.getByText('Ödemesi alınamayan', { exact: true })).toBeVisible();
+  await expect(page.getByText('Riskli Kişi')).toBeVisible();                       // yenileme kapalı → erken uyarı
+  await expect(page.getByText('Kohort analizi')).toBeVisible();
+  await expect(page.getByText(/^Satır: kayıt ayı/)).toBeVisible();
+  await page.getByRole('button', { name: 'CRM’e ekle' }).first().click();
+  await expect(page.getByLabel('Ad soyad')).toHaveValue('Riskli Kişi');
+});

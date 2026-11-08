@@ -9,6 +9,7 @@ name: Hostinger paketi
 # TURNSTILE_SITE_KEY (isteğe bağlı).
 on:
   push:
+    paths-ignore: ['docs/**', '**.md']        # yalnız belge değişikliği siteyi yeniden derlemez (dakika tasarrufu)
   workflow_dispatch:
     inputs:
       testleri_atla:

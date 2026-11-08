@@ -1,21 +1,33 @@
 name: Testler
 
+# Dakika tasarrufu (GitHub Actions kotası): testler yalnız PR'da (ve Hostinger paketi içinde, varsayılan dala giren değişiklikte) çalışır.
+# Eskiden her push hem `push` hem `pull_request` ile iki kez çalışıyor, ayrıca `site` dalına yazılan derleme çıktısında da boşuna testler koşuyordu.
+# (paths-ignore yok: "Testler (tam set)" ana dalda zorunlu kontrol; belge PR'ında da raporlanmalı, yoksa PR birleşmez.)
 on:
-  push:
   pull_request:
   # Hostinger paketi (yayın) bu iş akışını çağırır: testler geçmeden site yayına çıkmaz.
   workflow_call:
+
+# Aynı PR'a yeni gönderim gelince eski test turu iptal edilir (yarım kalan tur dakika yemesin).
+# Yayın (workflow_call) içinden çağrıldığında grup o çalışmaya özeldir; yayın testleri iptal edilmez.
+concurrency:
+  group: testler-${{ github.event_name == 'pull_request' && github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  test:
-    # Görünen ad zorunlu kontroldür (ana dal koruması): PR'da atlanan yayın işiyle ("test") karışmasın diye ayrı.
-    name: Testler (tam set)
+  # Test seti iki paralel parçada çalışır: tek süreçte 700+ test sunucunun belleğini tüketip işi "runner shutdown" ile
+  # kesiyordu (ana dalda üç kez aynı noktada). Her parça yarı sürede biter, yarı bellek kullanır.
+  parca:
+    name: Testler (parça ${{ matrix.parca }}/2)
     runs-on: ubuntu-24.04   # ubuntu-latest (26.04) Playwright 1.49 bağımlılıklarını kuramıyor
-    # Testler ~11 dk; GitHub yavaşladığında (paket deposu, kuyruk) iş kesilmesin diye pay.
-    timeout-minutes: 30
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        parca: [1, 2]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -44,10 +56,23 @@ jobs:
       # Tutanak belgesi testi PDF'in metnini ve sayfa sayısını okur (pdftotext, pdfinfo); küçük paket, yazı tipi içermez.
       - name: PDF araçları (poppler-utils)
         run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends poppler-utils
-      - run: npm test
+      - run: npx playwright test --shard=${{ matrix.parca }}/2
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-raporu
+          name: playwright-raporu-${{ matrix.parca }}
           path: test-results/
           retention-days: 7
+
+  # Görünen ad zorunlu kontroldür (ana dal koruması): iki parça da geçtiyse yeşil. PR'da atlanan yayın işiyle ("test") karışmasın diye ayrı ad.
+  test:
+    name: Testler (tam set)
+    needs: parca
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: İki parça da geçti mi
+        run: |
+          echo "Parçaların sonucu: ${{ needs.parca.result }}"
+          [ "${{ needs.parca.result }}" = "success" ]

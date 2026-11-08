@@ -2,18 +2,18 @@
    (gelir ve gider sütunları, yeni kayıt çizgisi). Hesap: domain/admin-finance.js. */
 import { useEffect, useState } from 'react';
 import { Text as RNText, View } from 'react-native';
-import Svg, { Circle, Line as SvgLine, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import { t } from '../domain/i18n';
 import { loadKpis } from '../domain/admin';
 import { adminOrgs } from '../domain/org';
 import { finance, loadCosts, loadMonthly, periodMonths, revenueEstimate, saveRevenueMonth, volumes } from '../domain/admin-finance';
-import { monthYear, tl } from '../domain/util';
+import { tl } from '../domain/util';
 import { fmtShort } from '../domain/money';
 import { Text } from '../ui/kit';
 import { fonts, useBreakpoint, useColors } from '../ui/theme';
 import { Card, H2, Muted, Row, Seg } from './blocks';
 import { useFx } from './fx-ui';
 import { categoryLabel } from './admin-costs';
+import { MonthChart, type MonthRow } from './admin-charts';
 
 export type Period = 'month' | 'year';
 const KEY = 'adminPeriod';
@@ -105,55 +105,39 @@ export function FinanceCard({ f, prev, period }: { f: any; prev: any; period: Pe
   );
 }
 
-/** Yılın aylık grafiği: gelir ve gider sütunları, yeni kayıt çizgisi (sağ eksen). */
+/** Yılın ayları (Ocak → Aralık); gelecek aylar işaretli. */
+function yearMonths() {
+  const y = new Date().getFullYear(), now = new Date().toISOString().slice(0, 7);
+  return Array.from({ length: 12 }, (_, i) => { const m = y + '-' + String(i + 1).padStart(2, '0'); return { m, future: m > now }; });
+}
+
+/** Yılın aylık gelir, gider ve net grafiği (tek eksen: gelir üstte, gider altta, net çizgi). */
 export function YearChart({ data, table }: { data: any; table: any }) {
-  const c = useColors();
-  const { phone } = useBreakpoint();
   const y = new Date().getFullYear();
-  const months = Array.from({ length: 12 }, (_, i) => y + '-' + String(i + 1).padStart(2, '0'));
-  const now = new Date().toISOString().slice(0, 7);
-  const rows = months.map((m) => {
-    const f = m <= now ? finance({ monthly: data.monthly, months: [m], liveMrr: data.mrr.mrr, orgs: data.orgs, costs: data.costs, table }) : null;
-    const s = (data.monthly.find((x: any) => x.month === m) || {}).signups;
-    return { m, inc: f ? f.income : 0, exp: f ? f.expense : 0, sign: m <= now ? Number(s) || 0 : null };
+  let inc = 0, exp = 0;
+  const rows: MonthRow[] = yearMonths().map(({ m, future }) => {
+    if (future) return { m, up: 0, down: 0, future };
+    const f = finance({ monthly: data.monthly, months: [m], liveMrr: data.mrr.mrr, orgs: data.orgs, costs: data.costs, table });
+    inc += f.income; exp += f.expense;
+    return { m, up: f.income, down: f.expense, note: f.missingMonths ? t('Bu ay için üyelik kaydı yok; üyelik geliri dahil değil.') : undefined };
   });
-  const W = 720, H = 220, L = 52, R = 34, B = 26, T = 12;
-  const max = Math.max(1, ...rows.map((r) => Math.max(r.inc, r.exp)));
-  const smax = Math.max(1, ...rows.map((r) => r.sign || 0));
-  const bw = (W - L - R) / 12;
-  const yv = (v: number) => T + (H - T - B) * (1 - v / max);
-  const ys = (v: number) => T + (H - T - B) * (1 - v / smax);
-  const pts = rows.filter((r) => r.sign != null).map((r, i) => `${L + i * bw + bw / 2},${ys(r.sign as number)}`).join(' ');
   return (
-    <Card gap={8}>
-      <Row between wrap>
-        <H2>{t('{y} aylık gelir, gider ve büyüme', { y })}</H2>
-        <Row gap={12}>
-          {[[c.accent, t('Gelir')], [c.ink, t('Gider')], [c.okInk, t('Yeni kayıt')]].map(([col, l]) => (
-            <Row key={l} gap={6}><View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: col }} /><Muted>{l}</Muted></Row>
-          ))}
-        </Row>
-      </Row>
-      <Svg viewBox={`0 0 ${W} ${H}`} width="100%" height={phone ? 180 : 240} accessibilityLabel={t('Aylık gelir, gider ve yeni kayıt grafiği')}>
-        {[0, 0.5, 1].map((p) => (
-          <SvgLine key={p} x1={L} x2={W - R} y1={T + (H - T - B) * (1 - p)} y2={T + (H - T - B) * (1 - p)} stroke={c.line} strokeWidth={1} />
-        ))}
-        {[0, 0.5, 1].map((p) => (
-          <SvgText fontFamily="Inter, system-ui, sans-serif" key={'l' + p} x={L - 6} y={T + (H - T - B) * (1 - p) + 4} fontSize={10} fill={c.muted} textAnchor="end">{fmtShort(max * p, 'TRY')}</SvgText>
-        ))}
-        <SvgText fontFamily="Inter, system-ui, sans-serif" x={W - R + 6} y={T + 4} fontSize={10} fill={c.okInk}>{smax}</SvgText>
-        {rows.map((r, i) => {
-          const x = L + i * bw;
-          return [
-            <Rect key={'i' + i} x={x + bw * 0.14} y={yv(r.inc)} width={bw * 0.34} height={Math.max(0, H - B - yv(r.inc))} rx={3} fill={c.accent} />,
-            <Rect key={'e' + i} x={x + bw * 0.52} y={yv(r.exp)} width={bw * 0.34} height={Math.max(0, H - B - yv(r.exp))} rx={3} fill={c.ink} />,
-            <SvgText fontFamily="Inter, system-ui, sans-serif" key={'m' + i} x={x + bw / 2} y={H - 8} fontSize={10} fill={c.muted} textAnchor="middle">{monthYear(r.m).split(' ')[0].slice(0, 3)}</SvgText>
-          ];
-        })}
-        {pts ? <Polyline points={pts} fill="none" stroke={c.okInk} strokeWidth={2} /> : null}
-        {rows.filter((r) => r.sign != null).map((r, i) => <Circle key={'c' + i} cx={L + i * bw + bw / 2} cy={ys(r.sign as number)} r={3} fill={c.okInk} />)}
-      </Svg>
-      <Muted>{t('Gelir: üyelik (kaydedilen aylık tahmin), işlem ücreti ve hukuki destek; gider: girilen giderler ve sanal POS payı. Yeni kayıt sağ eksende.')}</Muted>
-    </Card>
+    <MonthChart title={t('{y} aylık gelir, gider ve net', { y })} rows={rows}
+      labels={{ up: t('Gelir'), down: t('Gider'), net: t('Net'), netLong: t('Net (gelir − gider)') }}
+      fmt={(v) => tl(v)} axisFmt={(v) => fmtShort(v, 'TRY')}
+      summary={t('Yıl toplamı: gelir {a} · gider {b} · net {c}', { a: tl(inc), b: tl(exp), c: tl(inc - exp) })} />
   );
+}
+
+/** Yılın aylık yeni kayıt grafiği. */
+export function SignupChart({ data }: { data: any }) {
+  const y = new Date().getFullYear();
+  let n = 0;
+  const rows: MonthRow[] = yearMonths().map(({ m, future }) => {
+    const v = future ? 0 : Number((data.monthly.find((x: any) => x.month === m) || {}).signups) || 0;
+    n += v;
+    return { m, up: v, future };
+  });
+  return <MonthChart title={t('{y} aylık yeni kayıt', { y })} rows={rows} labels={{ up: t('Yeni kayıt') }} fmt={(v) => String(Math.round(v))} height={200} int
+    summary={t('Yıl toplamı: {n} yeni kayıt', { n })} />;
 }
