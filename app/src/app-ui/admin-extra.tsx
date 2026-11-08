@@ -341,7 +341,7 @@ export function SubActions({ s, reload }: { s: any; reload: () => void }) {
 
 const KIND: Record<string, string> = { kurumsal: 'Kurumsal paket', import: 'Toplu içe aktarma', upgrade: 'Paket yükseltme', genel: 'Genel' };
 
-export function Support({ onConvert }: { onConvert?: (r: any) => void }) {
+export function Support({ onConvert, onCrm }: { onConvert?: (r: any) => void; onCrm?: (r: any) => void }) {
   const c = useColors();
   const [f, setF] = useState('open');
   const { data, err, reload } = useLoad<any[]>(() => loadSupport());
@@ -375,6 +375,7 @@ export function Support({ onConvert }: { onConvert?: (r: any) => void }) {
           <Row wrap>
             {r.email ? <Button kind="ghost" title={t('E-posta gönder')} onPress={() => setMailFor(mailFor === r.id ? null : r.id)} /> : null}
             {r.kind === 'kurumsal' && r.status === 'open' && onConvert ? <Button title={t('Kuruma çevir')} onPress={() => onConvert(r)} /> : null}
+            {onCrm ? <Button kind="ghost" title={t('CRM’e ekle')} onPress={() => onCrm(r)} /> : null}
             <Button kind="ghost" title={r.status === 'open' ? t('Kapat') : t('Yeniden aç')} onPress={() => toggle(r)} />
           </Row>
           {mailFor === r.id ? (

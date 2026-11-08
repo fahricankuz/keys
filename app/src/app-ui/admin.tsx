@@ -18,6 +18,7 @@ import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 import { Card, Empty, H2, Muted, Row, Seg, Stack, initials } from './blocks';
 import { CpiRates, Growth, Overview, Revenue, SubActions, Support } from './admin-extra';
 import { Costs } from './admin-costs';
+import { Crm, leadFromRequest } from './admin-crm';
 import { AdminShell, PageHead } from './admin-ui';
 import { MailComposer } from './admin-mail';
 import { OrgDraft, Orgs, sectorFromRole } from './admin-orgs';
@@ -45,6 +46,7 @@ export default function AdminPanel() {
   const c = useColors();
   const { desktop } = useBreakpoint();
   const [tab, setTab] = useState('kpi');
+  const [crmSeed, setCrmSeed] = useState<any>(null);
   const [data, setData] = useState<Data | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -70,6 +72,7 @@ export default function AdminPanel() {
     ['growth', t('Büyüme'), 'chart', t('Yeni kayıt eğrisi, deneme → ödeyen dönüşümü, aktivasyon hunisi, kullanım, kurumlar ve yönetilen mülk.'), t('Özet')],
     ['revenue', t('Gelir'), 'card', t('Paket fiyatlarından tahmini aylık ve yıllık gelir, pakete göre dağılım, kurum sözleşmeleri ve net (gelir − gider).'), t('Özet')],
     ['costs', t('Gider'), 'doc', t('Altyapı, mağaza komisyonu, sanal POS, vergi, pazarlama ve hizmet giderleri. Dövizli giderler o günün TCMB kuruyla TL’ye çevrilir.'), t('Özet')],
+    ['crm', t('CRM'), 'phone', t('İletişime geçtiğin potansiyel aboneler: aşamalar, paket ve mülk adedine göre potansiyel getiri, görüşme notları ve takip hatırlatmaları.'), t('Müşteriler')],
     ['accounts', t('Hesaplar'), 'landlord', t('Herkes tek listede: mülk sahibinin paketi ve denemesi, mülkleri ve kiracıları, kiracının hangi mülke bağlı olduğu, askı ve silme. Bir satıra dokun, ayrıntısı açılsın.'), t('Müşteriler')],
     ['health', t('Müşteri sağlığı'), 'bell', t('İlgilenilmezse kaybedilebilecek müşteriler: nedeni, iletişim bilgisi ve son temas. Haftalık arama listesi.'), t('Müşteriler')],
     ['orgs', t('Kurumlar'), 'office', t('Kurumsal müşteriler: sektör ve modüller, sözleşme, master yönetici, yöneticiler ve roller.'), t('Müşteriler')],
@@ -98,10 +101,11 @@ export default function AdminPanel() {
             {tab === 'growth' && <Growth />}
             {tab === 'revenue' && <Revenue />}
             {tab === 'costs' && <Costs />}
+            {tab === 'crm' && <Crm seed={crmSeed} clearSeed={() => setCrmSeed(null)} />}
             {tab === 'accounts' && <Accounts d={data} reload={load} />}
             {tab === 'health' && <Health d={data} />}
             {tab === 'orgs' && <Orgs draft={orgDraft} clearDraft={() => setOrgDraft(null)} />}
-            {tab === 'support' && <Support onConvert={(r: any) => {
+            {tab === 'support' && <Support onCrm={(r: any) => { setCrmSeed(leadFromRequest(r)); setTab('crm'); }} onConvert={(r: any) => {
               setOrgDraft({ name: r.company || r.name, sector: sectorFromRole(r.details?.role), units: r.units, lead_id: r.id, email: r.email,
                 note: [r.name, r.email, r.phone].filter(Boolean).join(' · ') });
               setTab('orgs');

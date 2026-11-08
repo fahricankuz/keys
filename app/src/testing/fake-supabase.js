@@ -9,7 +9,7 @@ const TABLES = ['profiles','properties','property_shared','memberships','invites
                 'organizations','org_roles','org_members','org_invites',
                 'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes','site_documents','site_investor_notes','mail_outbox','site_cash','site_recurring_expenses',
                 'site_projects','site_project_updates','site_request_messages','site_project_costs',
-                'fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_costs','admin_revenue_months','admin_emails'];
+                'fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_costs','admin_revenue_months','crm_leads','crm_notes','admin_emails'];
 
 function load(){
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d){ TABLES.forEach(t => d.tables[t] = d.tables[t] || []); d.tables.payments.forEach(r => { r.kind = r.kind || 'kira'; }); return d; } } catch(e){}
@@ -37,6 +37,10 @@ function defaults(table, row, db){
   if (table === 'payments'){ r.kind = r.kind || 'kira'; r.method = r.method || 'dekont'; }
   if (table.startsWith('site_')){ r.id = r.id || uuid(); r.created_at = r.created_at || now(); }
   if (table === 'customer_contacts'){ r.id = r.id || uuid(); r.created_at = r.created_at || now(); }
+  // schema.sql (migration crm): kimlik, aşama ve zamanlar; not eklenince kişinin son teması güncellenir (crm_touch).
+  if (table === 'crm_leads'){ r.id = r.id || uuid(); r.stage = r.stage || 'yeni'; r.created_at = r.created_at || now(); r.updated_at = now(); r.units = r.units || 1; }
+  if (table === 'crm_notes'){ r.id = r.id || uuid(); r.created_at = r.created_at || now();
+    const l = (db.tables.crm_leads || []).find(x => x.id === r.lead_id); if (l){ l.last_contact_at = r.created_at; l.updated_at = now(); } }
   if (table === 'site_residents'){ r.code = r.code || 'S' + Math.random().toString(16).slice(2, 9).toUpperCase().padEnd(7, '0'); r.user_id = r.user_id || null; r.lives_here = r.lives_here !== false; }
   if (table === 'site_budgets'){ r.updated_at = now(); }
   if (table === 'site_turnovers'){ r.status = r.status || 'reported'; r.reported_by = r.reported_by || db.session?.user.id || null; }
