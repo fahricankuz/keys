@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useContext, useRef, useState } from 'react';
+import { createContext, ReactNode, useContext, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Platform, Pressable, PressableProps, StyleProp, StyleSheet, Text as RNText, TextInput, TextInputProps, TextStyle, View, ViewStyle
 } from 'react-native';
@@ -6,6 +6,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-na
 import { fonts, radius, useBreakpoint, useColors } from './theme';
 import { Loader } from './Loader';
 import { t } from '../domain/i18n';
+import { filesPreparing, onFilesPreparing } from '../domain/file-prep';
 
 type Variant = 'display' | 'h1' | 'h2' | 'h3' | 'body' | 'small' | 'label' | 'num';
 const SCALE: Record<Variant, TextStyle> = {
@@ -82,7 +83,9 @@ export function Button({ title, onPress, kind = 'primary', block, disabled, load
   const panel = useContext(PanelUI);
   const [hover, setHover] = useState(false);
   const [focus, setFocus] = useState(false);
-  const off = !!(disabled || loading);
+  // Ek hazırlanırken gönderme (birincil / koyu) düğmeleri bekler; bkz. domain/file-prep.js.
+  const prep = useSyncExternalStore(onFilesPreparing, filesPreparing, filesPreparing) && (kind === 'primary' || kind === 'dark');
+  const off = !!(disabled || loading || prep);
   const filled = kind === 'primary' || kind === 'dark' || kind === 'quiet';
   // Üzerine gelince her düğme kırmızıya geçer (birincil biraz koyulaşır) ve hafifçe büyür; basınca küçülür.
   const hot = hover && !off;
@@ -99,8 +102,8 @@ export function Button({ title, onPress, kind = 'primary', block, disabled, load
   return (
     <PressScale
       accessibilityRole="button"
-      accessibilityState={{ disabled: !!(disabled || loading) }}
-      disabled={disabled || loading}
+      accessibilityState={{ disabled: off }}
+      disabled={off}
       onPress={onPress}
       hoverScale={off ? undefined : 1.03}
       scaleTo={0.95}

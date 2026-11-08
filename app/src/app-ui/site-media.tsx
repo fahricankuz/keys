@@ -12,6 +12,7 @@ import { Button, Text } from '../ui/kit';
 import { radius, useColors } from '../ui/theme';
 import { Icon, IconBtn, Muted, Row, Thumbs } from './blocks';
 import { Picked, pickImages, pickVideo, takePhoto } from './media';
+import { preparing } from '../domain/file-prep';
 
 const MAX_FILES = 6, MAX_VIDEOS = 2;
 
@@ -23,11 +24,11 @@ export function MediaPicker({ files, setFiles }: { files: Picked[]; setFiles: (f
     <View style={{ gap: 8 }}>
       <Row wrap>
         <Button kind="ghost" title={t('Fotoğraf ekle')} icon={<Icon name="cam" size={16} />} disabled={room <= 0}
-          onPress={async () => { const f = await pickImages(room); if (f.length) setFiles([...files, ...f].slice(0, MAX_FILES)); }} />
+          onPress={() => preparing(async () => { const f = await pickImages(room); if (f.length) setFiles([...files, ...f].slice(0, MAX_FILES)); })} />
         {Platform.OS !== 'web' ? <Button kind="ghost" title={t('Kamerayla çek')} icon={<Icon name="cam" size={16} />} disabled={room <= 0}
-          onPress={async () => { const f = await takePhoto(); if (f.length) setFiles([...files, ...f].slice(0, MAX_FILES)); }} /> : null}
+          onPress={() => preparing(async () => { const f = await takePhoto(); if (f.length) setFiles([...files, ...f].slice(0, MAX_FILES)); })} /> : null}
         <Button kind="ghost" title={t('Video ekle')} icon={<Icon name="cam" size={16} />} disabled={room <= 0 || videos >= MAX_VIDEOS}
-          onPress={async () => { const f = await pickVideo(); if (f) setFiles([...files, f].slice(0, MAX_FILES)); }} />
+          onPress={() => preparing(async () => { const f = await pickVideo(); if (f) setFiles([...files, f].slice(0, MAX_FILES)); })} />
       </Row>
       {files.length ? (
         <View style={{ gap: 4 }}>
