@@ -1,14 +1,27 @@
 # Bağımlılık ve iş akışı güncellemelerini otomatik PR olarak açar (tedarik zinciri koruması).
+# Dakika tasarrufu: ayda bir ve her klasör için tek toplu PR. Eskiden haftalık, paket başına ayrı PR açılıyordu;
+# ana dal her değiştiğinde bu PR'lar yenilenip tam test seti her biri için yeniden çalışıyordu.
+# Güvenlik açığı güncellemeleri (Dependabot security updates) bu takvimi beklemez, ayrıca gelir.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /
-    schedule: { interval: weekly }
-    open-pull-requests-limit: 5
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 2
+    rebase-strategy: disabled
+    groups:
+      kok-paketler: { patterns: ['*'] }
   - package-ecosystem: npm
     directory: /app
-    schedule: { interval: weekly }
-    open-pull-requests-limit: 5
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 2
+    rebase-strategy: disabled
+    groups:
+      uygulama-paketleri: { patterns: ['*'] }
   - package-ecosystem: github-actions
     directory: /
-    schedule: { interval: weekly }
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 2
+    rebase-strategy: disabled
+    groups:
+      is-akislari: { patterns: ['*'] }

@@ -4,8 +4,12 @@ name: Mobil uygulama (Expo)
 # (expo export: telefonda çalışmayacak web'e özel kod varsa burada kırılır). Mağaza derlemesi EAS ile yapılır:
 # Actions → "Mobil uygulama (Expo)" → Run workflow → profile: production (depo sırrı EXPO_TOKEN gerekir).
 # Ayrıntılar: docs/mobil.md ve docs/magaza.md.
+# Dakika tasarrufu: her dal gönderiminde değil, uygulamaya dokunan PR'da ve ana dala girişte.
 on:
   push:
+    branches: [claude/github-keys-setup-uzvnzm]
+    paths: ['app/**', '.github/workflows/expo-mobile.yml']
+  pull_request:
     paths: ['app/**', '.github/workflows/expo-mobile.yml']
   workflow_dispatch:
     inputs:

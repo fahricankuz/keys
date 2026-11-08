@@ -1,12 +1,17 @@
 name: Güvenlik taraması
 
 # Kod (Semgrep), gizli anahtar (gitleaks) ve bağımlılık (npm audit) taraması.
-# Her gönderimde, her çekme isteğinde ve haftada bir çalışır.
+# Her çekme isteğinde, ana dala girişte ve haftada bir çalışır (dal gönderimi PR'da zaten taranır; iki kez dakika harcamaz).
 on:
   push:
+    branches: [claude/github-keys-setup-uzvnzm]
   pull_request:
   schedule:
     - cron: '17 5 * * 1'
+
+concurrency:
+  group: guvenlik-${{ github.event_name == 'pull_request' && github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
