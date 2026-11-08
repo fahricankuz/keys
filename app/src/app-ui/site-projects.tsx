@@ -9,18 +9,19 @@ import { View } from 'react-native';
 import { t } from '../domain/i18n';
 import { humanError } from '../domain/backend';
 import {
-  PROJECT_STATUS, projectSteps, projectStepAt, projectStatusLabel, projectSpentPct, nextStage, loadProjects, saveProject, deleteProject,
+  PROJECT_STATUS, projectSteps, projectStepAt, projectStatusLabel, projectLabel, projectKind, projectSpentPct, nextStage, applyBudgetAidat, approveWithoutVote, budgetTotal, loadProjects, saveProject, deleteProject,
   addProjectUpdate, deleteProjectUpdate, loadRequestMessages, sendRequestMessage, isCommercial
 } from '../domain/site';
 import { tl, fmtFull, parse } from '../domain/util';
 import { Button, Chip, Field, Text } from '../ui/kit';
 import { fonts, radius, useColors } from '../ui/theme';
-import { Card, Empty, H2, Label, Muted, Row, Stack, Thumbs } from './blocks';
+import { Card, Empty, H2, Hero, Label, Muted, Row, Stack, Thumbs } from './blocks';
 import { DateField, FileField, MoneyField, useVals } from './forms';
 import { Picked } from './media';
 import { Pill } from './org';
 import { MediaList, MediaPicker } from './site-media';
 import { CostsBlock, OpenVoteForm, VoteBlock } from './site-project-extras';
+import { BudgetEditor, KalemCard, PayCard, SupplementForm, methodLabel } from './site-isletme';
 
 const day = (v?: string) => (v ? fmtFull(parse(String(v).slice(0, 10))) : '—');
 const photoSrc = (p: string) => 'sb:' + p;
@@ -36,49 +37,6 @@ const HINT = (s: string | null) => ({
 function Err({ e }: { e: string | null }) {
   const c = useColors();
   return e ? <Text v="small" color={c.badInk}>{e}</Text> : null;
-}
-
-/** İlerleme çubuğu (yüzde metniyle). */
-function Progress({ value }: { value: number }) {
-  const c = useColors();
-  const v = Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
-  return (
-    <View style={{ gap: 4 }} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: v }} accessibilityLabel={t('İlerleme')}>
-      <Row between><Muted>{t('İlerleme')}</Muted><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>%{v}</Text></Row>
-      <View style={{ height: 8, borderRadius: 4, backgroundColor: c.surface2, overflow: 'hidden' }}>
-        <View style={{ width: `${v}%`, height: 8, borderRadius: 4, backgroundColor: v >= 100 ? c.okInk : c.accent }} />
-      </View>
-    </View>
-  );
-}
-
-/** Aşama çizgisi: Proje açıldı → (Oylama → Onay) → Teklif alındı → Yapıma başlandı → Tamamlandı; oylamaya sunulmayan projede oylama adımları yoktur. */
-function StageBar({ p }: { p: any }) {
-  const c = useColors();
-  const steps = projectSteps(p);
-  const status = p.status;
-  // Askıdaki proje yapımda, reddedilen oylamada durmuş sayılır.
-  const at = projectStepAt(p);
-  const bad = status === 'red';
-  return (
-    <View accessibilityLabel={t('Aşama: {s}', { s: projectStatusLabel(status) })} style={{ gap: 6 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        {steps.map((k, i) => (
-          <View key={k} style={{ flex: i < steps.length - 1 ? 1 : 0, flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: i <= at ? (bad && i === at ? c.badInk : status === 'tamam' ? c.okInk : c.accent) : c.surface2,
-              borderWidth: i === at ? 3 : 0, borderColor: c.accentSoft }} />
-            {i < steps.length - 1 ? <View style={{ flex: 1, height: 2, backgroundColor: i < at ? c.accent : c.line }} /> : null}
-          </View>
-        ))}
-      </View>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        {steps.map((k, i) => (
-          <Text key={k} v="small" style={{ flex: 1, textAlign: i === 0 ? 'left' : i === steps.length - 1 ? 'right' : 'center', fontFamily: i === at ? fonts.bodyXBold : fonts.body, fontSize: steps.length > 4 ? 11 : undefined }}
-            color={i <= at ? undefined : c.muted}>{k === 'onay' ? t('Onaylandı') : projectStatusLabel(k)}</Text>
-        ))}
-      </View>
-    </View>
-  );
 }
 
 /** Geri alınamayan işlem için iki adımlı onay: önce "Sil", sonra "Evet, sil". */
@@ -168,98 +126,199 @@ function UpdateForm({ oid, p, stage, done }: { oid: string; p: any; stage: strin
   );
 }
 
-/** Proje kartı: aşama çizgisi, kapak, ilerleme, bütçe, tarihler, açıklama ve güncellemeler (yeniden eskiye). */
-function ProjectCard({ p, updates, oid, manage, reload, costs = [], info, votes = [] }: { p: any; updates: any[]; oid?: string; manage?: boolean; reload?: () => void; costs?: any[]; info?: any; votes?: any[] }) {
+const KIND_LABEL = (p: any) => ({ proje: t('Proje'), isletme: t('İşletme projesi · {y}', { y: p.year }), ek: t('Ek ödenek · {y}', { y: p.year }) } as Record<string, string>)[projectKind(p)];
+const toneOf2 = (p: any) => (['tamam', 'onay'].includes(p.status) ? 'ok' : p.status === 'red' ? 'bad' : ['askida', 'oylama'].includes(p.status) ? 'warn' : p.status === 'acildi' && projectKind(p) !== 'proje' ? 'neutral' : 'accent') as any;
+
+/** Koyu özet kartı: tür, ad, aşama, dört ölçü ve aşama çizgisi (önizleme tasarımı). */
+function ProjectHero({ p, kpis }: { p: any; kpis: [string, string][] }) {
   const c = useColors();
-  const [mode, setMode] = useState<'view' | 'edit' | 'update' | 'vote'>('view');
-  const [stage, setStage] = useState<string | null>(null);
-  const [all, setAll] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const pct = projectSpentPct(p);
-  const next = nextStage(p.status);
-  const shown = all ? updates : updates.slice(0, 3);
-  if (mode === 'edit' && oid) return <ProjectForm oid={oid} p={p} done={(ok) => { setMode('view'); if (ok && reload) reload(); }} />;
+  const steps = projectSteps(p), at = projectStepAt(p), bad = p.status === 'red';
+  return (
+    <Hero gap={14}>
+      <Row between wrap align="flex-start">
+        <View style={{ flex: 1, minWidth: 180, gap: 4 }}>
+          <Label onDark>{KIND_LABEL(p)}</Label>
+          <Text v="h3" color="#fff">{p.title}</Text>
+        </View>
+        <Chip tone={toneOf2(p)} label={projectLabel(p)} />
+      </Row>
+      {p.body ? <Muted onDark>{p.body}</Muted> : null}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+        {kpis.map(([l, v]) => (
+          <View key={l} style={{ flexGrow: 1, flexBasis: 130, gap: 2, padding: 10, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,0.08)' }}>
+            <Label onDark>{l}</Label>
+            <Text v="body" color="#fff" style={{ fontFamily: fonts.bodyXBold, fontSize: 18 }}>{v}</Text>
+          </View>
+        ))}
+      </View>
+      <View accessibilityLabel={t('Aşama: {s}', { s: projectLabel(p) })} style={{ flexDirection: 'row', gap: 6 }}>
+        {steps.map((k, i) => (
+          <View key={k} style={{ flex: 1, gap: 6 }}>
+            <View style={{ height: 5, borderRadius: 3, backgroundColor: i < at ? c.accent : i === at ? (bad ? c.badInk : '#fff') : 'rgba(255,255,255,0.2)' }} />
+            <Text v="small" color={i <= at ? '#fff' : 'rgba(255,255,255,0.55)'} style={{ fontFamily: i === at ? fonts.bodyXBold : fonts.body, fontSize: steps.length > 4 ? 11 : 12 }}>{projectLabel(p, k)}</Text>
+          </View>
+        ))}
+      </View>
+    </Hero>
+  );
+}
+
+/** Proje: bütçe ve harcama çubuğu; dikey çizgi seçilen teklifi gösterir. */
+function SpendCard({ p, chosen }: { p: any; chosen?: any }) {
+  const c = useColors();
+  const budget = Number(p.budget) || 0, spent = Number(p.spent) || 0;
+  if (!(budget > 0)) return null;
+  const pct = Math.min(100, (spent / budget) * 100), tick = chosen ? Math.min(100, (Number(chosen.amount) / budget) * 100) : null;
   return (
     <Card gap={10}>
-      <Row between align="flex-start" wrap>
-        <View style={{ flex: 1, minWidth: 180, gap: 4 }}>
-          <Text v="h3">{p.title}</Text>
-          <Muted>{[p.start_on ? t('Başlangıç') + ' ' + day(p.start_on) : '', p.end_on ? t('Planlanan bitiş') + ' ' + day(p.end_on) : ''].filter(Boolean).join(' · ') || t('Açıldı: {d}', { d: day(p.created_at) })}</Muted>
-        </View>
-        <Chip tone={toneOf(p.status)} label={projectStatusLabel(p.status)} />
+      <H2>{t('Bütçe ve harcama')}</H2>
+      <View style={{ height: 14, borderRadius: 7, backgroundColor: c.surface2, overflow: 'hidden' }} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(pct) }}>
+        <View style={{ width: `${pct}%`, height: 14, backgroundColor: spent > budget ? c.badInk : c.accent }} />
+        {tick != null ? <View style={{ position: 'absolute', left: `${tick}%`, top: 0, bottom: 0, width: 2, backgroundColor: c.ink }} /> : null}
+      </View>
+      <Row wrap gap={16}>
+        {[[t('Harcanan'), tl(spent)], chosen ? [t('Seçilen teklif'), tl(chosen.amount)] : null, [t('Kalan bütçe'), tl(Math.max(0, budget - spent))]].filter(Boolean).map((x: any) => (
+          <View key={x[0]}><Muted>{x[0]}</Muted><Text v="body" style={{ fontFamily: fonts.bodyXBold }}>{x[1]}</Text></View>
+        ))}
       </Row>
-      <StageBar p={p} />
-      {p.cover ? <Thumbs srcs={[photoSrc(p.cover)]} size={160} /> : null}
-      {p.status === 'yapim' || p.status === 'askida' || Number(p.progress) > 0 ? <Progress value={p.progress} /> : null}
-      {Number(p.budget) > 0 ? (
-        <Row between wrap>
-          <Muted>{t('Bütçe')} {tl(p.budget)}</Muted>
-          {p.spent != null ? <Text v="small" style={{ fontFamily: fonts.bodyBold }} color={pct != null && pct > 100 ? c.badInk : undefined}>{t('Harcanan {v}', { v: tl(p.spent) })}{pct != null ? ' · %' + pct : ''}</Text> : null}
-        </Row>
-      ) : p.spent != null ? <Muted>{t('Harcanan {v}', { v: tl(p.spent) })}</Muted> : null}
-      {p.body ? <Text v="small">{p.body}</Text> : null}
-      {p.poll_id ? <VoteBlock p={p} info={info} myVotes={votes} manage={!!manage} reload={() => reload && reload()} /> : null}
-      <CostsBlock oid={oid || p.org_id} p={p} costs={costs} manage={!!manage} reload={() => reload && reload()} />
-      {updates.length ? (
-        <View style={{ gap: 10, borderLeftWidth: 2, borderColor: c.line, paddingLeft: 12 }}>
-          {shown.map((u: any) => (
-            <View key={u.id} style={{ gap: 6 }}>
-              <Row wrap gap={6}>
-                <Label>{day(u.created_at)}</Label>
-                {u.status ? <Chip tone={toneOf(u.status)} label={projectStatusLabel(u.status)} /> : null}
-                {u.progress != null ? <Chip label={'%' + u.progress} /> : null}
-              </Row>
-              {u.body ? <Text v="small">{u.body}</Text> : null}
-              <Thumbs srcs={(u.photos || []).map(photoSrc)} size={96} />
-              {manage ? <ConfirmDelete label={t('Güncellemeyi sil')} question={t('Bu güncelleme silinsin mi?')} onConfirm={async () => { setErr(null); try { await deleteProjectUpdate(u.id); reload && reload(); } catch (e) { setErr(humanError(e)); } }} /> : null}
-            </View>
-          ))}
-          {updates.length > 3 ? <Button kind="quiet" title={all ? t('Daha az göster') : t('Tüm güncellemeler ({n})', { n: updates.length })} onPress={() => setAll(!all)} style={{ alignSelf: 'flex-start' }} /> : null}
-        </View>
-      ) : <Muted>{t('Henüz güncelleme yok.')}</Muted>}
-      {manage && oid ? (
-        mode === 'vote' ? <OpenVoteForm p={p} done={(ok) => { setMode('view'); if (ok && reload) reload(); }} />
-        : mode === 'update' ? <UpdateForm oid={oid} p={p} stage={stage} done={(ok) => { setMode('view'); if (ok && reload) reload(); }} /> : (
-          <Row wrap gap={8}>
-            {next ? <Button title={t('Sonraki aşama: {s}', { s: projectStatusLabel(next) })} onPress={() => { setStage(next); setMode('update'); }} /> : null}
-            {['acildi', 'teklif', 'red'].includes(p.status) ? <Button kind="ghost" title={t('Oylamaya sun')} onPress={() => setMode('vote')} /> : null}
-            <Button kind="ghost" title={t('Güncelleme ekle')} onPress={() => { setStage(null); setMode('update'); }} />
-            <Button kind="ghost" title={t('Düzenle')} onPress={() => setMode('edit')} />
-            <ConfirmDelete label={t('Projeyi sil')} question={t('Proje ve bütün güncellemeleri silinsin mi?')} onConfirm={async () => { setErr(null); try { await deleteProject(p.id); reload && reload(); } catch (e) { setErr(humanError(e)); } }} />
-          </Row>
-        )
-      ) : null}
-      <Err e={err} />
     </Card>
   );
 }
 
-/** Yönetim: "Projeler" bölümü. */
-export function SiteProjects({ oid, can }: { oid: string; can: (p: string) => boolean }) {
-  const [d, setD] = useState<any>(null);
-  const [adding, setAdding] = useState(false);
-  const [filter, setFilter] = useState('open');
-  const load = useCallback(async () => { setD(await loadProjects([oid])); }, [oid]);
-  useEffect(() => { load().catch(() => setD({ projects: [], updates: [] })); }, [load]);
-  const manage = can('projects.manage');
-  const list = (d?.projects || []).filter((p: any) => filter === 'all' || (filter === 'done' ? p.status === 'tamam' : p.status !== 'tamam'));
+type Ctx = { units?: any[]; expenses?: any[]; budget?: any; mine?: any[] };
+
+/** Proje kartı (üç tür): koyu özet, oylama, kalem ya da bütçe-harcama kartları, yönetici işlemleri, proje akışı. */
+function ProjectCard({ p, updates, oid, manage, reload, costs = [], info, votes = [], ctx = {} }: { p: any; updates: any[]; oid?: string; manage?: boolean; reload?: () => void; costs?: any[]; info?: any; votes?: any[]; ctx?: Ctx }) {
+  const c = useColors();
+  const kind = projectKind(p);
+  const [mode, setMode] = useState<'view' | 'edit' | 'update' | 'vote' | 'supp'>('view');
+  const [stage, setStage] = useState<string | null>(null);
+  const [all, setAll] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const next = nextStage(p.status, p);
+  const shown = all ? updates : updates.slice(0, 4);
+  const done = (ok: boolean) => { setMode('view'); if (ok && reload) reload(); };
+  const run = async (f: () => Promise<any>, ok?: string) => { setErr(null); setMsg(null); setBusy(true); try { await f(); if (ok) setMsg(ok); reload && reload(); } catch (e) { setErr(humanError(e)); } finally { setBusy(false); } };
+  const oidv = oid || p.org_id;
+  if (mode === 'edit' && oid) return kind === 'isletme'
+    ? <BudgetEditor oid={oid} year={p.year} saved={ctx.budget} done={done} />
+    : <ProjectForm oid={oid} p={p} done={done} />;
+
+  const items = kind === 'isletme' ? (ctx.budget?.items || []) : [];
+  const spentOf = ctx.expenses && p.status !== 'acildi' && p.status !== 'oylama' && p.status !== 'red'
+    ? (cat: string) => ctx.expenses!.filter((e: any) => String(e.spent_on).startsWith(String(p.year)) && String(e.cat).toLocaleLowerCase('tr') === String(cat).toLocaleLowerCase('tr')).reduce((a: number, e: any) => a + Number(e.amount), 0) : undefined;
+  const spentAll = spentOf ? items.reduce((a: number, i: any) => a + spentOf(i.cat), 0) : null;
+  const chosen = costs.find((x: any) => x.kind === 'teklif' && x.chosen);
+  const kpis: [string, string][] = kind === 'isletme'
+    ? [[t('Yıllık öngörü'), tl(p.budget || 0)], [t('Gerçekleşen'), spentAll != null ? tl(spentAll) : '—'], [t('Kalan'), spentAll != null ? tl(Math.max(0, Number(p.budget || 0) - spentAll)) : '—'], [t('Aylık aidat toplamı'), tl((Number(p.budget) || 0) / 12)]]
+    : kind === 'ek'
+    ? [[t('Ek tutar'), tl(p.budget || 0)], [t('Gider kalemi'), p.cat || '—'], [t('Yıl'), String(p.year)]]
+    : [[t('Onaylanan bütçe'), Number(p.budget) > 0 ? tl(p.budget) : '—'], [t('Seçilen teklif'), chosen ? tl(chosen.amount) : '—'], [t('Harcanan'), p.spent != null ? tl(p.spent) : '—'], [t('İlerleme'), '%' + (p.progress || 0)]];
+  const canAidat = manage && kind === 'isletme' && ctx.units && ctx.budget && ['onay', 'yapim'].includes(p.status);
   return (
-    <Stack>
-      <Muted>{t('Projeyi aç, aşama aşama ilerlet: teklif alındı, yapıma başlandı, tamamlandı. Her aşamada fotoğraf ekle; sakinlere bildirim gider ve süreci kendi ekranlarından izlerler.')}</Muted>
-      {manage ? (adding ? <ProjectForm oid={oid} done={(ok) => { setAdding(false); if (ok) load(); }} />
-        : <Button title={t('Yeni proje')} onPress={() => setAdding(true)} style={{ alignSelf: 'flex-start' }} />) : null}
-      {d?.projects?.length ? (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-          {[['open', t('Süren')], ['done', t('Tamamlanan')], ['all', t('Tümü')]].map(([k, l]) => <Pill key={k} label={l} on={filter === k} onPress={() => setFilter(k)} />)}
-        </View>
+    <Stack gap={10}>
+      <ProjectHero p={p} kpis={kpis} />
+      {p.cover ? <Thumbs srcs={[photoSrc(p.cover)]} size={160} /> : null}
+      {p.poll_id ? <VoteBlock p={p} info={info} myVotes={votes} manage={!!manage} reload={() => reload && reload()} /> : null}
+      {kind === 'isletme' && p.status === 'onay' ? <Card gap={4} style={{ backgroundColor: c.okBg }}><Text v="small" color={c.okInk}>{t('İşletme projesi onaylandı. Yönetim daire aidatlarını güncelleyince yürürlüğe girer.')}</Text></Card> : null}
+      {kind === 'proje' ? <SpendCard p={p} chosen={chosen} /> : null}
+      {kind === 'proje' ? <CostsBlock oid={oidv} p={p} costs={costs} manage={!!manage} reload={() => reload && reload()} /> : null}
+      {kind === 'isletme' ? <KalemCard items={items} spentOf={spentOf} /> : null}
+      {kind === 'isletme' && ctx.budget && !['acildi', 'oylama', 'red'].includes(p.status) ? (
+        manage && ctx.units ? <PayCard budget={ctx.budget} units={ctx.units} /> : ctx.mine && ctx.mine.length ? <PayCard budget={ctx.budget} units={[]} mine={ctx.mine} /> : null
       ) : null}
-      {!d ? null : list.length ? list.map((p: any) => <ProjectCard key={p.id + ':' + p.updated_at} p={p} updates={d.updates.filter((u: any) => u.project_id === p.id)} costs={d.costs.filter((x: any) => x.project_id === p.id)} info={d.polls[p.poll_id]} votes={d.votes} oid={oid} manage={manage} reload={load} />)
-        : <Empty>{d.projects.length ? t('Bu filtrede proje yok.') : manage ? t('Henüz proje yok. İlk projeyi ekleyerek sakinlerle paylaşabilirsin.') : t('Henüz proje yok.')}</Empty>}
+      {kind === 'ek' ? <Card gap={4}><Muted>{t('Kabul edilirse {c} kaleminin yıllık tutarına {v} eklenir.', { c: p.cat, v: tl(p.budget || 0) })}</Muted></Card> : null}
+      {manage && oid ? (
+        <Card gap={10} style={{ borderStyle: 'dashed', borderColor: c.accent, borderWidth: 2 }}>
+          <Label accent>{t('Yönetici işlemleri')}</Label>
+          {mode === 'vote' ? <OpenVoteForm p={p} done={done} />
+            : mode === 'update' ? <UpdateForm oid={oid} p={p} stage={stage} done={done} />
+            : mode === 'supp' ? <SupplementForm oid={oid} parent={p} done={done} />
+            : (
+              <Row wrap gap={8}>
+                {next ? <Button title={t('Sonraki aşama: {s}', { s: projectLabel(p, next) })} onPress={() => { setStage(next); setMode('update'); }} /> : null}
+                {['acildi', 'teklif', 'red'].includes(p.status) && (kind === 'proje' || Number(p.budget) > 0) ? <Button kind={kind === 'proje' ? 'ghost' : 'primary'} title={t('Oylamaya sun')} onPress={() => setMode('vote')} /> : null}
+                {kind === 'isletme' && ['acildi', 'red'].includes(p.status) ? <Button kind="ghost" title={t('Kalemleri düzenle')} onPress={() => setMode('edit')} /> : null}
+                {kind === 'isletme' && ['acildi', 'red'].includes(p.status) && Number(p.budget) > 0 ? <Button kind="ghost" title={t('Genel kurulda onaylandı olarak işaretle')} disabled={busy} onPress={() => run(() => approveWithoutVote(oid, p.id))} /> : null}
+                {canAidat && p.status === 'onay' ? <Button title={t('Daire aidatlarını güncelle ve yürürlüğe al')} disabled={busy} loading={busy}
+                  onPress={() => run(async () => { const n = await applyBudgetAidat(oid, ctx.units!, ctx.budget); await addProjectUpdate(oid, p.id, { body: t('Daire aidatları işletme projesine göre güncellendi ({n} daire).', { n }), status: 'yapim' }); }, t('Aidatlar güncellendi; işletme projesi yürürlükte.'))} /> : null}
+                {canAidat && p.status === 'yapim' ? <Button kind="ghost" title={t('Daire aidatlarını yeniden hesapla')} disabled={busy}
+                  onPress={() => run(async () => { await applyBudgetAidat(oid, ctx.units!, ctx.budget); }, t('Dairelerin aylık aidatı işletme projesine göre güncellendi.'))} /> : null}
+                {kind === 'isletme' && p.status === 'yapim' ? <Button kind="ghost" title={t('Ek ödenek (yıl ortası ek maliyet)')} onPress={() => setMode('supp')} /> : null}
+                {kind === 'isletme' && p.status === 'yapim' ? <ConfirmDelete label={t('Yılı kapat')} question={t('Yıl kapatılsın mı?')} onConfirm={() => run(() => addProjectUpdate(oid, p.id, { body: t('Yıl kapandı.'), status: 'tamam' }))} /> : null}
+                {kind !== 'ek' ? <Button kind="ghost" title={t('Güncelleme ekle')} onPress={() => { setStage(null); setMode('update'); }} /> : null}
+                {kind === 'proje' ? <Button kind="ghost" title={t('Düzenle')} onPress={() => setMode('edit')} /> : null}
+                {kind !== 'isletme' && ['acildi', 'red'].includes(p.status) || kind === 'proje' ? <ConfirmDelete label={kind === 'ek' ? t('Ek ödeneği sil') : t('Projeyi sil')} question={t('Proje ve bütün güncellemeleri silinsin mi?')} onConfirm={() => run(() => deleteProject(p.id))} /> : null}
+              </Row>
+            )}
+          {msg ? <Text v="small" color={c.okInk}>{msg}</Text> : null}
+        </Card>
+      ) : null}
+      <Card gap={10}>
+        <H2>{t('Proje akışı')}</H2>
+        {updates.length ? (
+          <View style={{ gap: 12, borderLeftWidth: 2, borderColor: c.line, paddingLeft: 12 }}>
+            {shown.map((u: any) => (
+              <View key={u.id} style={{ gap: 6 }}>
+                <Row wrap gap={6}>
+                  <Label>{day(u.created_at)}</Label>
+                  {u.status ? <Chip tone={toneOf(u.status)} label={projectLabel(p, u.status)} /> : null}
+                  {u.progress != null ? <Chip label={'%' + u.progress} /> : null}
+                </Row>
+                {u.body ? <Text v="small">{u.body}</Text> : null}
+                <Thumbs srcs={(u.photos || []).map(photoSrc)} size={96} />
+                {manage ? <ConfirmDelete label={t('Güncellemeyi sil')} question={t('Bu güncelleme silinsin mi?')} onConfirm={async () => { setErr(null); try { await deleteProjectUpdate(u.id); reload && reload(); } catch (e) { setErr(humanError(e)); } }} /> : null}
+              </View>
+            ))}
+            {updates.length > 4 ? <Button kind="quiet" title={all ? t('Daha az göster') : t('Tüm güncellemeler ({n})', { n: updates.length })} onPress={() => setAll(!all)} style={{ alignSelf: 'flex-start' }} /> : null}
+          </View>
+        ) : <Muted>{t('Henüz güncelleme yok.')}</Muted>}
+      </Card>
+      <Err e={err} />
     </Stack>
   );
 }
 
-/** Sakin: "Sitem" ekranında sitenin projeleri (yalnız site; AVM/depo kiracısında gösterilmez). */
+/** Yönetim: "Projeler" bölümü (işletme projesi, projeler ve ek ödenekler tek yerde). d: yönetim verisi (daireler, giderler); reloadAll: yönetim verisini tazeler. */
+export function SiteProjects({ oid, can, d: admin, reloadAll }: { oid: string; can: (p: string) => boolean; d?: any; reloadAll?: () => void }) {
+  const [d, setD] = useState<any>(null);
+  const [adding, setAdding] = useState<null | 'proje' | number>(null);
+  const [filter, setFilter] = useState('open');
+  const load = useCallback(async () => { setD(await loadProjects([oid])); }, [oid]);
+  useEffect(() => { load().catch(() => setD({ projects: [], updates: [], costs: [], polls: {}, votes: [], budgets: [] })); }, [load]);
+  const reload = () => { load().catch(() => {}); if (reloadAll) reloadAll(); };
+  const manage = can('projects.manage');
+  const thisYear = new Date().getFullYear();
+  const have = new Set((d?.projects || []).filter((p: any) => projectKind(p) === 'isletme').map((p: any) => Number(p.year)));
+  const list = (d?.projects || []).filter((p: any) => filter === 'all' || (filter === 'done' ? p.status === 'tamam' : filter === 'isl' ? projectKind(p) === 'isletme' : p.status !== 'tamam'))
+    .sort((a: any, b: any) => (projectKind(a) === 'isletme' ? 0 : 1) - (projectKind(b) === 'isletme' ? 0 : 1));
+  const canBudget = can('charges.manage');
+  return (
+    <Stack>
+      <Muted>{t('Yıllık işletme projesi, onarım ve yatırım projeleri ve ek ödenekler burada tek akışla yürür: hazırla, oylamaya sun, onaylanınca uygula, ilerlemeyi ve harcamayı sakinlerle paylaş.')}</Muted>
+      {adding === 'proje' ? <ProjectForm oid={oid} done={(ok) => { setAdding(null); if (ok) reload(); }} />
+        : typeof adding === 'number' ? <BudgetEditor oid={oid} year={adding} done={(ok) => { setAdding(null); if (ok) reload(); }} />
+        : <Row wrap gap={8}>
+            {manage ? <Button title={t('Yeni proje')} onPress={() => setAdding('proje')} /> : null}
+            {canBudget ? [thisYear, thisYear + 1].filter((y) => !have.has(y)).map((y) => <Button key={y} kind="ghost" title={t('{y} işletme projesi aç', { y })} onPress={() => setAdding(y)} />) : null}
+          </Row>}
+      {d?.projects?.length ? (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          {[['open', t('Süren')], ['isl', t('İşletme projesi')], ['done', t('Tamamlanan')], ['all', t('Tümü')]].map(([k, l]) => <Pill key={k} label={l} on={filter === k} onPress={() => setFilter(k)} />)}
+        </View>
+      ) : null}
+      {!d ? null : list.length ? list.map((p: any) => (
+        <ProjectCard key={p.id} p={p} updates={d.updates.filter((u: any) => u.project_id === p.id)} costs={d.costs.filter((x: any) => x.project_id === p.id)}
+          info={d.polls[p.poll_id]} votes={d.votes} oid={oid} manage={manage} reload={reload}
+          ctx={{ units: admin?.units, expenses: admin?.expenses, budget: (d.budgets || []).find((b: any) => Number(b.year) === Number(p.year)) }} />
+      )) : <Empty>{d.projects.length ? t('Bu filtrede proje yok.') : manage ? t('Henüz proje yok. İlk projeyi ekleyerek sakinlerle paylaşabilirsin.') : t('Henüz proje yok.')}</Empty>}
+    </Stack>
+  );
+}
+
+/** Sakin: "Sitem" ekranında sitenin işletme projesi ve projeleri (yalnız site; AVM/depo kiracısında gösterilmez). */
 export function ResidentProjects({ units }: { units: any[] }) {
   const ids = [...new Set(units.filter((u: any) => !isCommercial(u.sector)).map((u: any) => u.org_id))] as string[];
   const key = ids.join();
@@ -268,13 +327,15 @@ export function ResidentProjects({ units }: { units: any[] }) {
   useEffect(() => { load(); }, [load]);
   if (!d?.projects?.length) return null;
   const many = ids.length > 1;
+  const list = [...d.projects].sort((a: any, b: any) => (projectKind(a) === 'isletme' ? 0 : 1) - (projectKind(b) === 'isletme' ? 0 : 1));
   return (
-    <Stack gap={8}>
+    <Stack gap={14}>
       <H2>{t('Site projeleri')}</H2>
-      {d.projects.map((p: any) => (
+      {list.map((p: any) => (
         <View key={p.id} style={{ gap: 4 }}>
           {many ? <Label>{units.find((u: any) => u.org_id === p.org_id)?.org}</Label> : null}
-          <ProjectCard p={p} updates={d.updates.filter((u: any) => u.project_id === p.id)} costs={d.costs.filter((x: any) => x.project_id === p.id)} info={d.polls[p.poll_id]} votes={d.votes} reload={load} />
+          <ProjectCard p={p} updates={d.updates.filter((u: any) => u.project_id === p.id)} costs={d.costs.filter((x: any) => x.project_id === p.id)} info={d.polls[p.poll_id]} votes={d.votes} reload={load}
+            ctx={{ budget: (d.budgets || []).find((b: any) => b.org_id === p.org_id && Number(b.year) === Number(p.year)), mine: units.filter((u: any) => u.org_id === p.org_id) }} />
         </View>
       ))}
     </Stack>

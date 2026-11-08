@@ -202,7 +202,7 @@ export function Overview({ d, org, can, reload, go, ChargeRow }: {
     const spent = d.expenses.filter((x: any) => String(x.spent_on).startsWith(String(y))).reduce((a: number, x: any) => a + (amountIn(x.amount, x.spent_on, pc, table) || 0), 0);
     const monthsDone = new Date().getMonth() + 1;
     return (
-      <Section title={t('İşletme projesi {y}', { y })} link={t('Bütçe')} onLink={() => go('butce')}>
+      <Section title={t('İşletme projesi {y}', { y })} link={t('Projeler')} onLink={() => go('projeler')}>
         <Line first title={t('Yıllık bütçe')} sub={b.approved_on ? t('Kurul onayı {d}', { d: day(b.approved_on) }) : ''} right={M(plan)} />
         <Line title={t('Harcanan ({n} ay)', { n: monthsDone })} sub={t('Plan: {p}', { p: plan == null ? '—' : M((plan * monthsDone) / 12) })} right={M(spent)} />
       </Section>

@@ -54,7 +54,7 @@ function defaults(table, row, db){
   // guard_site_project_insert: yeni proje her zaman "Proje açıldı" aşamasında başlar.
   if (table === 'site_projects'){ r.status = 'acildi'; r.progress = r.progress ?? 0; r.updated_at = now(); r.created_by = r.created_by || db.session?.user.id || null; }
   if (table === 'site_project_updates'){ r.photos = r.photos || []; r.status = r.status ?? null; r.progress = r.progress ?? null; }
-  if (table === 'site_projects'){ r.poll_id = r.poll_id ?? null; r.approve_pct = r.approve_pct ?? 50; }
+  if (table === 'site_projects'){ r.poll_id = r.poll_id ?? null; r.approve_pct = r.approve_pct ?? 50; r.kind = r.kind || 'proje'; r.year = r.year ?? null; r.parent_id = r.parent_id ?? null; r.cat = r.cat ?? null; }
   if (table === 'site_project_costs'){ r.chosen = !!r.chosen; r.file = r.file || null; r.file_name = r.file_name || ''; r.note = r.note || ''; r.spent_on = r.spent_on || now().slice(0, 10); r.created_by = r.created_by || db.session?.user.id || null; }
   if (table === 'site_request_messages'){
     // guard_site_request_message: gönderen oturumdaki kişi; talebin sahibi değilse yönetim.
@@ -87,7 +87,8 @@ function afterInsert(table, row, db){
   // on_site_project_update: güncelleme projenin durumunu ve yüzdesini taşır ("tamam" yüzdeyi 100 yapar).
   if (table === 'site_project_updates'){
     const p = db.tables.site_projects.find(x => x.id === row.project_id);
-    if (p){ if (row.status) p.status = row.status; p.progress = row.status === 'tamam' ? 100 : (row.progress ?? p.progress); p.updated_at = now(); }
+    if (p){ const was = p.status; if (row.status) p.status = row.status; p.progress = row.status === 'tamam' ? 100 : (row.progress ?? p.progress); p.updated_at = now();
+      if (p.status === 'onay' && was !== 'onay' && p.kind !== 'proje') projectApproved(db, p); }
   }
   // on_site_project_cost (migration site_proje_oylama_maliyet): seçili teklif tekil; fatura gider defterine yazılır, harcanan faturaların toplamı olur.
   if (table === 'site_project_costs'){
@@ -167,7 +168,8 @@ function visible(db, table, row, actor){
     if (table === 'site_documents') return row.uploaded_by === actor || (row.audience === 'herkes' && mine.some(r => r.org_id === row.org_id))
       || (row.audience === 'daire' && mine.some(r => r.unit_id === row.unit_id));
     if (table === 'site_requests') return row.user_id === actor;
-    if (table === 'site_projects' || table === 'site_project_updates' || table === 'site_project_costs') return mine.some(r => r.org_id === row.org_id);
+    if (table === 'site_projects') return mine.some(r => r.org_id === row.org_id) && !(row.kind !== 'proje' && row.status === 'acildi');
+    if (table === 'site_project_updates' || table === 'site_project_costs') return mine.some(r => r.org_id === row.org_id);
     if (table === 'site_request_messages') return db.tables.site_requests.some(q => q.id === row.request_id && q.user_id === actor);
     return false;
   }
@@ -208,6 +210,29 @@ function accessOf(db, uid){
   return { role:p.role, plan, units, trialPeriod: !!(subscribed && ['trial','intro'].includes(s?.period_type)), cardTrial:false,
     access: p.role === 'tenant' || p.role === 'team' || subscribed || inTrial || org, subscribed, inTrial, trialEnds, trialDays:TRIAL_DAYS,
     expiresAt: s?.expires_at || null, store: s?.store || null, productId: s?.product_id || null, willRenew: !!s?.will_renew, billingIssue: !!s?.billing_issue };
+}
+/* site_budgets → işletme projesi (migration isletme_projesi_birlesik): bütçe satırı bir "işletme projesi" satırı açar, tutar eşitlenir. */
+function budgetProjectSync(db, b){
+  const T = db.tables, tot = (b.items || []).reduce((a, i) => a + (Number(i.amount) || 0), 0);
+  let p = T.site_projects.find(x => x.org_id === b.org_id && x.kind === 'isletme' && x.year === b.year);
+  if (!p){
+    p = { id:uuid(), org_id:b.org_id, title:b.year + ' işletme projesi', body:'', kind:'isletme', year:b.year, budget:tot, status: b.approved_on ? 'yapim' : 'acildi', progress:0,
+      spent:null, start_on:b.year + '-01-01', end_on:b.year + '-12-31', cover:null, poll_id:null, approve_pct:50, parent_id:null, cat:null, created_by:null, created_at:now(), updated_at:now() };
+    T.site_projects.push(p);
+  } else { p.budget = tot; p.updated_at = now(); }
+}
+/* on_site_project_approved: işletme projesi onaylanınca kurul onay tarihi yazılır; ek ödenek onaylanınca kalem tutarına eklenir. */
+function projectApproved(db, p){
+  const T = db.tables;
+  if (p.kind === 'isletme'){ const b = T.site_budgets.find(x => x.org_id === p.org_id && x.year === p.year); if (b && !b.approved_on) b.approved_on = now().slice(0, 10); }
+  if (p.kind === 'ek'){
+    const par = T.site_projects.find(x => x.id === p.parent_id), b = par && T.site_budgets.find(x => x.org_id === par.org_id && x.year === par.year);
+    if (!b) return;
+    const it = (b.items || []).find(x => String(x.cat).toLowerCase() === String(p.cat).toLowerCase());
+    if (it) it.amount = Number(it.amount) + Number(p.budget); else b.items = [...(b.items || []), { cat:p.cat, amount:Number(p.budget) }];
+    budgetProjectSync(db, b);
+    T.site_project_updates.push({ id:uuid(), project_id:par.id, org_id:par.org_id, body:'Ek ödenek onaylandı: ' + p.cat + ' · ₺' + Math.round(p.budget).toLocaleString('tr-TR') + '. Yıllık tutar güncellendi; daire aidatlarını yeniden hesaplayabilirsin.', status:null, progress:null, photos:[], created_by:p.created_by, created_at:now() });
+  }
 }
 const GATED = ['properties','payments','rent_history','requests','documents','expenses','property_shared','invites'];
 
@@ -263,12 +288,28 @@ class Query {
       out = [];
       for (const raw of this.rows){
         const existing = this.op === 'upsert' ? list.find(r => matchKey(this.t, r, raw)) : null;
-        if (existing){ const before = JSON.parse(JSON.stringify(existing)); Object.assign(existing, raw); trackReviews(db, this.t, existing, before, actor); out.push(existing); continue; }
+        if (existing){
+          const before = JSON.parse(JSON.stringify(existing));
+          // guard_site_budget: onaylı işletme projesinin kalemleri ve paylaştırması doğrudan değişmez.
+          if (this.t === 'site_budgets' && before.approved_on && (JSON.stringify(raw.items ?? before.items) !== JSON.stringify(before.items) || (raw.method ?? before.method) !== before.method))
+            return { data:null, error:{ message:'Onaylı işletme projesi değiştirilemez; yıl ortasındaki ek maliyet için ek ödenek aç ve oylamaya sun', code:'22023' } };
+          Object.assign(existing, raw); trackReviews(db, this.t, existing, before, actor);
+          if (this.t === 'site_budgets') budgetProjectSync(db, existing);
+          out.push(existing); continue;
+        }
         if (this.op === 'insert' && list.some(r => matchKey(this.t, r, raw) && KEYS[this.t].every(k => raw[k] != null)))
           return { data:null, error:{ message:'duplicate key', code:'23505' } };
+        // guard_site_project_insert: ek ödenek yalnız onaylı (ya da yürürlükteki) işletme projesine açılır.
+        if (this.t === 'site_projects' && raw.kind === 'ek'){
+          const par = db.tables.site_projects.find(x => x.id === raw.parent_id);
+          if (!par || par.org_id !== raw.org_id || par.kind !== 'isletme' || !['onay', 'yapim'].includes(par.status))
+            return { data:null, error:{ message:'Ek ödenek yalnız onaylı işletme projesine açılır', code:'22023' } };
+          raw.year = par.year;
+        }
         const row = defaults(this.t, raw, db);
         list.push(row);
         afterInsert(this.t, row, db);
+        if (this.t === 'site_budgets') budgetProjectSync(db, row);
         trackReviews(db, this.t, row, null, actor);
         out.push(row);
       }
@@ -787,7 +828,7 @@ export function createClient(url, key, opts){
       if (name === 'site_project_vote_open' || name === 'site_project_vote_close' || name === 'site_project_vote_sync'){
         // site_proje_oylama_maliyet: oylamaya sun / erken bitir / süresi dolanları uygula.
         const T = db.tables, mgr = (oid) => (T.org_members || []).some(m => m.org_id === oid && m.user_id === me && m.is_master);
-        const post = (p, status, body) => { T.site_project_updates.push({ id:uuid(), project_id:p.id, org_id:p.org_id, body, status, progress:null, photos:[], created_by:p.created_by, created_at:now() }); p.status = status; p.updated_at = now(); };
+        const post = (p, status, body) => { T.site_project_updates.push({ id:uuid(), project_id:p.id, org_id:p.org_id, body, status, progress:null, photos:[], created_by:p.created_by, created_at:now() }); const was = p.status; p.status = status; p.updated_at = now(); if (status === 'onay' && was !== 'onay' && p.kind !== 'proje') projectApproved(db, p); };
         const closeVote = (p) => {
           if (p.status !== 'oylama' || !p.poll_id) return false;
           const units = T.site_units.filter(u => u.org_id === p.org_id), sh = id => Number((units.find(u => u.id === id) || {}).share) || 0;
@@ -795,7 +836,7 @@ export function createClient(url, key, opts){
           const yes = votes.filter(v => v.choice === 0).reduce((a, v) => a + sh(v.unit_id), 0), no = votes.filter(v => v.choice === 1).reduce((a, v) => a + sh(v.unit_id), 0);
           const ok = total > 0 && (p.approve_pct === 50 ? yes * 100 > 50 * total : yes * 100 >= p.approve_pct * total);
           const r1 = x => Math.round(x * 10) / 10;
-          post(p, ok ? 'onay' : 'red', 'Oylama sonuçlandı: ' + (ok ? 'proje onaylandı' : 'proje onaylanmadı') + '. Kabul %' + r1(yes * 100 / total) + ', ret %' + r1(no * 100 / total) + ' (arsa payına göre); ' + votes.length + ' / ' + units.length + ' daire katıldı.');
+          post(p, ok ? 'onay' : 'red', 'Oylama sonuçlandı: ' + (p.kind === 'isletme' ? 'işletme projesi' : p.kind === 'ek' ? 'ek ödenek' : 'proje') + (ok ? ' onaylandı' : ' onaylanmadı') + '. Kabul %' + r1(yes * 100 / total) + ', ret %' + r1(no * 100 / total) + ' (arsa payına göre); ' + votes.length + ' / ' + units.length + ' daire katıldı.');
           return true;
         };
         if (name === 'site_project_vote_open'){
@@ -803,7 +844,8 @@ export function createClient(url, key, opts){
           if (!p) return { data:null, error:{ message:'Proje bulunamadı', code:'P0002' } };
           if (!mgr(p.org_id)) return { data:null, error:{ message:'Yetkin yok', code:'42501' } };
           if (!['acildi','teklif','red'].includes(p.status)) return { data:null, error:{ message:'Proje bu aşamada oylamaya sunulamaz', code:'22023' } };
-          const poll = { id:uuid(), org_id:p.org_id, meeting_id:null, question:('Proje yapılsın mı: ' + p.title).slice(0, 300), options:['Kabul','Ret'], weighted:true, voters:args.voters || 'malik',
+          if (p.kind !== 'proje' && !(Number(p.budget) > 0)) return { data:null, error:{ message:'Önce gider kalemlerini ve tutarlarını gir', code:'22023' } };
+          const poll = { id:uuid(), org_id:p.org_id, meeting_id:null, question:((p.kind === 'isletme' ? 'İşletme projesi onaylansın mı: ' : p.kind === 'ek' ? 'Ek ödenek onaylansın mı: ' : 'Proje yapılsın mı: ') + p.title).slice(0, 300), options:['Kabul','Ret'], weighted:true, voters:args.voters || 'malik',
             ends_at:new Date(Date.now() + (args.days || 5) * 864e5).toISOString(), created_by:me, created_at:now() };
           T.site_polls.push(poll); p.poll_id = poll.id; p.approve_pct = args.pct || 50;
           post(p, 'oylama', 'Oylamaya sunuldu: kabul için tüm arsa payının ' + (p.approve_pct === 50 ? '%50\'sinden fazlası' : '%' + p.approve_pct + ' ve üzeri') + ' gerekir; süre ' + (args.days || 5) + ' gün.');

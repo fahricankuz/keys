@@ -89,10 +89,9 @@ export function sectorSections(org){
   if (!site && hasModule(org, 'ciro_kira')) list.push({ key: 'ciro', label: t('Ciro'), icon: 'chart' });
   if (!site && hasModule(org, 'endeksleme')) list.push({ key: 'artis', label: t('Kira artışları'), icon: 'calendar' });
   if (can('expenses.manage') || can('reports.view')) list.push({ key: 'giderler', label: t('Giderler'), icon: 'doc' });
-  if (site && hasModule(org, 'gider_dagitim') && (can('charges.manage') || can('reports.view'))) list.push({ key: 'butce', label: t('İşletme projesi'), icon: 'safe' });
   if (hasModule(org, 'duyuru')) list.push({ key: 'duyurular', label: t('Duyurular'), icon: 'bell' });
   if (site && hasModule(org, 'duyuru')) list.push({ key: 'genelkurul', label: t('Genel kurul'), icon: 'calendar' });
-  if (site) list.push({ key: 'projeler', label: t('Projeler'), icon: 'wrench' });
+  if (site) list.push({ key: 'projeler', label: t('Projeler'), icon: 'safe' });
   list.push({ key: 'talepler', label: t('Talepler'), icon: 'wrench' });
   list.push({ key: 'belgeler', label: t('Belgeler'), icon: 'doc' });
   if (hasModule(org, 'rapor') && can('reports.view')) list.push({ key: 'rapor', label: t('Rapor'), icon: 'chart' });
