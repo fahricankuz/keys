@@ -6,6 +6,7 @@ import { MailComposer } from './admin-mail';
 import { CONFIG } from '../domain/config';
 import { planLabel } from '../domain/plans';
 import { SECTORS, adminOrgs, sectorOf } from '../domain/org';
+import { ChurnAndCohorts } from './admin-churn';
 import { FinanceCard, PeriodSeg, SignupChart, YearChart, delta, periodFinance, prevLabel, useAdminFinance, usePeriod } from './admin-finance-ui';
 import { t, locale } from '../domain/i18n';
 import { tl } from '../domain/util';
@@ -166,7 +167,7 @@ export function Overview({ ops, go }: { ops?: { pending?: number; banned?: numbe
 }
 
 /** Büyüme: dönemin yeni kayıtları (karşılaştırmalı), deneme → ödeyen, aktivasyon hunisi, kullanım, kurumlar ve sektörler. */
-export function Growth() {
+export function Growth({ onCrm }: { onCrm?: (s: any) => void } = {}) {
   const c = useColors();
   const { desktop } = useBreakpoint();
   const [period, setPeriod] = usePeriod();
@@ -206,6 +207,7 @@ export function Growth() {
           </KpiGrid>
         </>
       ) : null}
+      <ChurnAndCohorts period={period} onCrm={onCrm} />
       <GroupTitle>{t('Kurumlar ve yönetilen mülk')}</GroupTitle>
       <KpiGrid>
         <Kpi icon="office" tone="sky" label={t('Kurum')} value={orgs ? String(orgs.total) : '—'} sub={orgs ? t('{n} etkin · {m} sözleşme 60 günde bitiyor', { n: orgs.active, m: orgs.ending }) : ''} />
