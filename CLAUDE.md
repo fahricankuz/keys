@@ -18,5 +18,10 @@
 - Kullanıcının açık onayı olmadan yayına alma (PR birleştirme). Yayın testlere bağlıdır (`.github/workflows/hostinger.yml`).
 - Yan etkili işlerde (Supabase, e-posta, bildirim kurulumu) kullanıcının yapacağı adımları sırayla yaz.
 
+## Commit ve push düzeni (Actions kotasını korumak için)
+- Küçük commit'leri yerelde biriktir; **tek push** yap (her push PR'da testleri yeniden çalıştırır, ~15 dk).
+- Test ve yerel kontrolleri push'tan önce yerelde bitir; push'u iş tamamlanınca yap, ara ara değil.
+- Yalnız belge değişikliği (`docs/`, `*.md`) siteyi yeniden derletmez; belgeleri koda karıştırmadan ayrı PR'a koymak gerekmez.
+
 ## Dil ve ton
 - Kullanıcıyla Türkçe konuş; kullanıcıya görünen metinler Türkçe, İngilizce karşılıkları `app/src/domain/en-*.js` içinde.
