@@ -139,7 +139,7 @@ export function YearChart({ data, table }: { data: any; table: any }) {
           <SvgLine key={p} x1={L} x2={W - R} y1={T + (H - T - B) * (1 - p)} y2={T + (H - T - B) * (1 - p)} stroke={c.line} strokeWidth={1} />
         ))}
         {[0, 0.5, 1].map((p) => (
-          <SvgText key={'l' + p} x={L - 6} y={T + (H - T - B) * (1 - p) + 4} fontSize={10} fill={c.muted} textAnchor="end">{fmtShort(max * p, 'TRY')}</SvgText>
+          <SvgText fontFamily="Inter, system-ui, sans-serif" key={'l' + p} x={L - 6} y={T + (H - T - B) * (1 - p) + 4} fontSize={10} fill={c.muted} textAnchor="end">{fmtShort(max * p, 'TRY')}</SvgText>
         ))}
         <SvgText fontFamily="Inter, system-ui, sans-serif" x={W - R + 6} y={T + 4} fontSize={10} fill={c.okInk}>{smax}</SvgText>
         {rows.map((r, i) => {
@@ -147,7 +147,7 @@ export function YearChart({ data, table }: { data: any; table: any }) {
           return [
             <Rect key={'i' + i} x={x + bw * 0.14} y={yv(r.inc)} width={bw * 0.34} height={Math.max(0, H - B - yv(r.inc))} rx={3} fill={c.accent} />,
             <Rect key={'e' + i} x={x + bw * 0.52} y={yv(r.exp)} width={bw * 0.34} height={Math.max(0, H - B - yv(r.exp))} rx={3} fill={c.ink} />,
-            <SvgText key={'m' + i} x={x + bw / 2} y={H - 8} fontSize={10} fill={c.muted} textAnchor="middle">{monthYear(r.m).split(' ')[0].slice(0, 3)}</SvgText>
+            <SvgText fontFamily="Inter, system-ui, sans-serif" key={'m' + i} x={x + bw / 2} y={H - 8} fontSize={10} fill={c.muted} textAnchor="middle">{monthYear(r.m).split(' ')[0].slice(0, 3)}</SvgText>
           ];
         })}
         {pts ? <Polyline points={pts} fill="none" stroke={c.okInk} strokeWidth={2} /> : null}
