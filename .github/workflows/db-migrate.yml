@@ -48,9 +48,9 @@ jobs:
       TARGET: ${{ vars.SUPABASE_TARGET }}
       ENV_NAME: ${{ inputs.environment }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Sürüm sabit: "latest" CLI'ın yeni ana sürümüne (3.x) kendiliğinden geçip davranışı değiştirebilir.
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v3
         with:
           version: 2.120.0
       - name: schema.sql migration'larla uyumlu mu
