@@ -517,12 +517,29 @@ export const PROJECT_STATUS = () => [
 ];
 /** Ana aşamalar (adım çizgisi). Oylamaya sunulmuş projede oylama adımları da görünür (projectSteps). */
 export const PROJECT_STAGES = ['acildi', 'teklif', 'yapim', 'tamam'];
-export const projectSteps = (p) => (p && p.poll_id ? ['acildi', 'oylama', 'onay', 'teklif', 'yapim', 'tamam'] : PROJECT_STAGES);
+/** Proje türleri: proje (çatı, asansör gibi işler), isletme (yıllık işletme projesi), ek (işletme projesine ek ödenek). */
+export const projectKind = (p) => (p && p.kind) || 'proje';
+/** Adım çizgisi türe göre: işletme projesi Taslak → Oylamada → Onaylandı → Yürürlükte → Yıl kapandı; ek ödenek Taslak → Oylamada → Onaylandı. */
+export const projectSteps = (p) => {
+  const k = projectKind(p);
+  if (k === 'isletme') return ['acildi', 'oylama', 'onay', 'yapim', 'tamam'];
+  if (k === 'ek') return ['acildi', 'oylama', 'onay'];
+  return p && p.poll_id ? ['acildi', 'oylama', 'onay', 'teklif', 'yapim', 'tamam'] : PROJECT_STAGES;
+};
 /** Adım çizgisindeki yeri: oylamada olan "oylama"da, reddedilen de orada durur; askıdaki yapımda. */
 export const projectStepAt = (p) => projectSteps(p).indexOf(p.status === 'askida' ? 'yapim' : p.status === 'red' ? 'oylama' : p.status);
 export const projectStatusLabel = (k) => (PROJECT_STATUS().find((s) => s.key === k) || PROJECT_STATUS()[0]).label;
-/** Sonraki aşama (askıdaki proje yapıma döner; oylama süren ya da reddedilen proje ilerletilmez; tamamlanmışın sonrası yok). */
-export function nextStage(k){
+/** Aşama adı türe göre: işletme projesinde "Taslak", "Yürürlükte", "Yıl kapandı"; ek ödenekte "Onaylandı". */
+export function projectLabel(p, k = p && p.status){
+  const kind = projectKind(p);
+  if (kind === 'isletme') return ({ acildi: t('Taslak'), oylama: t('Oylamada'), onay: t('Onaylandı'), red: t('Reddedildi'), yapim: t('Yürürlükte'), tamam: t('Yıl kapandı'), askida: t('Askıda') })[k] || projectStatusLabel(k);
+  if (kind === 'ek') return ({ acildi: t('Taslak'), oylama: t('Oylamada'), onay: t('Onaylandı'), red: t('Reddedildi') })[k] || projectStatusLabel(k);
+  return projectStatusLabel(k);
+}
+/** Sonraki aşama (yalnız kind=proje): askıdaki proje yapıma döner; oylama süren ya da reddedilen proje ilerletilmez; tamamlanmışın sonrası yok.
+    İşletme projesi ve ek ödenek kendi eylemleriyle ilerler (oylama, aidat güncelleme, yılı kapatma). */
+export function nextStage(k, p = null){
+  if (p && projectKind(p) !== 'proje') return null;
   if (k === 'tamam' || k === 'oylama' || k === 'red') return null;
   if (k === 'askida') return 'yapim';
   if (k === 'onay') return 'teklif';
@@ -534,18 +551,19 @@ export const projectSpentPct = (p) => (Number(p?.budget) > 0 && p?.spent != null
 
 /** Oylamaya sunulan projenin yoklama sorusu bu metinle başlar (genel yoklama listelerinde ayrı gösterilmez). */
 export const PROJECT_POLL_PREFIX = 'Proje yapılsın mı: ';
-export const isProjectPoll = (q) => String(q?.question || '').startsWith(PROJECT_POLL_PREFIX);
+export const isProjectPoll = (q) => /^(Proje yapılsın mı|İşletme projesi onaylansın mı|Ek ödenek onaylansın mı): /.test(String(q?.question || ''));
 
 /** Sitelerin projeleri, güncellemeleri, teklif/faturaları ve oylamaları (RLS süzer). Süresi dolan oylamaların sonucu önce uygulanır.
     Tablo henüz yoksa (migration öncesi) boş döner. polls: yoklama kimliği → { poll, results }; votes: kendi oylarım. */
 export async function loadProjects(oids){
-  if (!oids.length) return { projects: [], updates: [], costs: [], polls: {}, votes: [] };
+  if (!oids.length) return { projects: [], updates: [], costs: [], polls: {}, votes: [], budgets: [] };
   const c = await db();
   await Promise.all(oids.map((oid) => Promise.resolve(c.rpc('site_project_vote_sync', { oid })).then(() => null, () => null)));
-  const [projects, updates, costs] = await Promise.all([
+  const [projects, updates, costs, budgets] = await Promise.all([
     c.from('site_projects').select('*').in('org_id', oids),
     c.from('site_project_updates').select('*').in('org_id', oids),
-    c.from('site_project_costs').select('*').in('org_id', oids)
+    c.from('site_project_costs').select('*').in('org_id', oids),
+    c.from('site_budgets').select('*').in('org_id', oids)
   ].map((p) => p.then((r) => (r.error ? [] : r.data || []))));
   const pollIds = projects.map((p) => p.poll_id).filter(Boolean);
   const polls = {};
@@ -562,8 +580,19 @@ export async function loadProjects(oids){
     projects: projects.sort((a, b) => rank(a) - rank(b) || String(b.updated_at).localeCompare(String(a.updated_at))),
     updates: updates.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))),
     costs: costs.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))),
-    polls, votes
+    polls, votes, budgets
   };
+}
+
+/** Ek ödenek: onaylı işletme projesine yıl ortası ek maliyet (kalem + tutar) taslağı açar; sonra oylamaya sunulur, onaylanırsa kalemin tutarına eklenir. */
+export async function addSupplement(oid, parentId, { cat, amount, note = '' }){
+  const n = Number(String(amount).replace(',', '.'));
+  must(await (await db()).from('site_projects').insert({ org_id: oid, title: t('Ek ödenek: {c}', { c: String(cat).trim() }), body: String(note || '').trim(), kind: 'ek',
+    parent_id: parentId, cat: String(cat).trim(), budget: n, created_by: live.user?.id }));
+}
+/** Genel kurulda zaten onaylanmış işletme projesini oylamasız "Onaylandı"ya geçirir (kurul onay tarihi bugünden yazılır). */
+export async function approveWithoutVote(oid, projectId){
+  await addProjectUpdate(oid, projectId, { body: t('Genel kurulda onaylandı olarak işaretlendi.'), status: 'onay' });
 }
 
 /** Projeyi oylamaya sunar: days gün, pct kabul eşiği (50–100, tüm arsa payına göre), voters: 'malik' | 'herkes'. */

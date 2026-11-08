@@ -619,76 +619,6 @@ function RequestCard({ x, unit, who, can, reload }: { x: any; unit: any; who?: s
 const METHOD_LABEL = () => [['share', t('Arsa payına göre')], ['area', t('m²’ye göre')], ['equal', t('Eşit')]] as [string, string][];
 
 /** İşletme projesi: yıllık gider kalemleri, dağıtım anahtarı, dairelerin aylık aidatı ve "aidatları güncelle". */
-function Budget({ d, oid, can, reload }: { d: any; oid: string; can: (p: string) => boolean; reload: () => void }) {
-  const c = useColors();
-  const thisYear = new Date().getFullYear();
-  const [year, setYear] = useState(thisYear);
-  const saved = (d.budgets || []).find((b: any) => Number(b.year) === year);
-  const blank = { year, method: 'share', note: '', approved_on: '', items: [{ cat: '', amount: '' }] };
-  const [b, setB] = useState<any>(saved ? { ...saved, approved_on: saved.approved_on || '' } : blank);
-  useEffect(() => { setB(saved ? { ...saved, approved_on: saved.approved_on || '' } : { ...blank, year }); }, [year, saved?.updated_at]);
-  const [err, setErr] = useState<string | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
-  const edit = can('charges.manage');
-  const plan = budgetAidat(d.units, { ...b, items: b.items.map((i: any) => ({ ...i, amount: Number(String(i.amount).replace(',', '.')) || 0 })) });
-  const unitBy: Record<string, any> = Object.fromEntries(d.units.map((u: any) => [u.id, u]));
-  const total = budgetTotal({ items: b.items.map((i: any) => ({ amount: Number(String(i.amount).replace(',', '.')) || 0 })) });
-  const setItem = (i: number, patch: any) => setB({ ...b, items: b.items.map((x: any, j: number) => (j === i ? { ...x, ...patch } : x)) });
-  const act = async (fn: () => Promise<any>, ok: string) => { setErr(null); setMsg(null); try { await fn(); setMsg(ok); reload(); } catch (e) { setErr(humanError(e)); } };
-  // Gerçekleşen: bu yılın giderleri, bütçe kalemleriyle (adı aynı olan) karşılaştırılır.
-  const spent = (cat: string) => d.expenses.filter((e: any) => String(e.spent_on).startsWith(String(year)) && String(e.cat).toLocaleLowerCase('tr') === String(cat).toLocaleLowerCase('tr'))
-    .reduce((a: number, e: any) => a + Number(e.amount), 0);
-  return (
-    <Stack>
-      <Seg value={String(year)} onChange={(v) => setYear(Number(v))} options={[thisYear - 1, thisYear, thisYear + 1].map((y) => [String(y), String(y)] as [string, string])} />
-      <Muted>{t('İşletme projesi yıllık gider tahminidir; kat malikleri kurulunca onaylanır ve (yönetim planında aksi yoksa) arsa payına göre paylaştırılır.')}</Muted>
-      <Card gap={10}>
-        <H2>{t('{year} işletme projesi', { year })}</H2>
-        {b.items.map((it: any, i: number) => (
-          <Row key={i} gap={10} wrap align="flex-end">
-            <View style={{ flexGrow: 2, flexBasis: 260, gap: 4 }}>
-              <Label>{t('Gider kalemi')}</Label>
-              {edit
-                ? <Seg wrap value={it.cat} onChange={(v: any) => setItem(i, { cat: v })} options={[...SITE_EXPENSE_CATS(), ...(it.cat && !SITE_EXPENSE_CATS().includes(it.cat) ? [it.cat] : [])].map((k) => [k, k] as [string, string])} />
-                : <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{it.cat || '—'}</Text>}
-            </View>
-            <View style={{ flexGrow: 1, flexBasis: 130 }}><MoneyField label={t('Yıllık tutar (₺)')} value={String(it.amount ?? '')} editable={edit} onChange={(v) => setItem(i, { amount: v })} /></View>
-            <View style={{ minWidth: 110, paddingBottom: 14 }}><Muted>{t('Harcanan')} {tl(spent(it.cat))}</Muted></View>
-          </Row>
-        ))}
-        {edit ? <Button kind="ghost" title={t('Kalem ekle')} onPress={() => setB({ ...b, items: [...b.items, { cat: '', amount: '' }] })} style={{ alignSelf: 'flex-start' }} /> : null}
-        <Row between wrap><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{t('Yıllık toplam')}</Text><Text v="h3">{tl(total)}</Text></Row>
-        <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{t('Paylaştırma')}</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{METHOD_LABEL().map(([k, l]) => <Pill key={k} label={l} on={b.method === k} onPress={edit ? () => setB({ ...b, method: k }) : undefined} disabled={!edit} />)}</View>
-        <Field label={t('Kurul onay tarihi (YYYY-AA-GG, isteğe bağlı)')} value={b.approved_on || ''} editable={edit} onChangeText={(v) => setB({ ...b, approved_on: v })} maxLength={10} />
-        {edit ? (
-          <Row wrap>
-            <Button title={t('Kaydet')} onPress={() => act(() => saveBudget(oid, { ...b, year }), t('İşletme projesi kaydedildi.'))} disabled={!total} />
-            {can('units.manage') && saved ? <Button kind="ghost" title={t('Daire aidatlarını güncelle')}
-              onPress={() => act(async () => { await applyBudgetAidat(oid, d.units, saved); }, t('Dairelerin aylık aidatı işletme projesine göre güncellendi.'))} /> : null}
-          </Row>
-        ) : null}
-        <Err e={err} />
-        {msg ? <Text v="small" color={c.okInk}>{msg}</Text> : null}
-      </Card>
-      {plan.length ? (
-        <Stack gap={8}>
-          <H2>{t('Dairelerin aylık payı')}</H2>
-          <Card gap={0}>
-            {plan.map((x, i) => (
-              <Row key={x.unit_id} between style={{ paddingVertical: 10, borderTopWidth: i ? 1 : 0, borderColor: c.line }}>
-                <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{unitLabel(unitBy[x.unit_id])}</Text>
-                <Muted>{unitBy[x.unit_id].aidat != null && Number(unitBy[x.unit_id].aidat) !== x.monthly ? t('şu an') + ' ' + tl(unitBy[x.unit_id].aidat) + ' → ' : ''}</Muted>
-                <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{tl(x.monthly)} {t('/ ay')}</Text>
-              </Row>
-            ))}
-          </Card>
-        </Stack>
-      ) : null}
-    </Stack>
-  );
-}
-
 /** Yönetim kurulu raporu: dönem seçilir, ekranda gösterilir, "Yazdır / PDF" ile çıktı alınır. */
 function Report({ d, org }: { d: any; org: string }) {
   const c = useColors();
@@ -861,8 +791,9 @@ function Increases({ d, oid, can, reload }: { d: any; oid: string; can: (p: stri
 /** Kurumun birim/tahakkuk ekranı: site yönetimi ya da ticari portföy (AVM, depo, GYO). Birden çok kurum varsa üstte seçilir. */
 const cache: { org: string | null; data: any } = { org: null, data: null };
 
-export function SiteAdminScreen({ section = 'ozet' }: { section?: string }) {
+export function SiteAdminScreen({ section: sec = 'ozet' }: { section?: string }) {
   useStore();
+  const section = sec === 'butce' ? 'projeler' : sec;          // işletme projesi artık Projeler'de (eski adres yönlenir)
   const router = useRouter();
   const { desktop } = useBreakpoint();
   const sites = myOrgs().filter((o: any) => PORTFOLIO_SECTORS.includes(o.sector));
@@ -908,12 +839,11 @@ export function SiteAdminScreen({ section = 'ozet' }: { section?: string }) {
                 : { month: String(x.spent_on).slice(0, 7), kind: 'ozel', title: String(x.note || x.cat).slice(0, 120), mode: 'share', value: x.amount };   // başlık: açıklama, yoksa kategori
               go('tahakkuk');
             } : undefined} />}
-          {cur.key === 'butce' && <Budget d={d} oid={org.id} can={can} reload={load} />}
           {cur.key === 'rapor' && <Report d={d} org={org.name} />}
           {cur.key === 'yatirimci' && <InvestorReport d={d} org={org} />}
           {cur.key === 'duyurular' && <Notes d={d} oid={org.id} can={can} reload={load} />}
           {cur.key === 'genelkurul' && <Meetings d={d} org={org} can={can} />}
-          {cur.key === 'projeler' && <SiteProjects oid={org.id} can={can} />}
+          {cur.key === 'projeler' && <SiteProjects oid={org.id} can={can} d={d} reloadAll={load} />}
           {cur.key === 'belgeler' && <SiteDocs d={d} oid={org.id} can={can} reload={load} />}
           {cur.key === 'talepler' && (d.requests.length ? d.requests.map((x: any) => <RequestCard key={x.id} x={x} unit={unitBy[x.unit_id]} who={(d.residents.find((r: any) => r.user_id && r.user_id === x.user_id) || {}).name} can={can} reload={load} />) : <Empty>{t('Talep yok.')}</Empty>)}
         </>
@@ -1036,27 +966,6 @@ export function SiteTeaser({ go }: { go: (p: string) => void }) {
 }
 
 /** Sakinin gördüğü işletme projesi: bu yılın kalemleri ve dairesinin aylık payı. */
-function ResidentBudget({ units }: { units: any[] }) {
-  const [list, setList] = useState<any[]>([]);
-  const year = new Date().getFullYear();
-  const key = units.map((u) => u.org_id).join();
-  useEffect(() => { loadBudgets([...new Set(units.map((u) => u.org_id))]).then(setList).catch(() => {}); }, [key]);
-  const mine = list.filter((b) => Number(b.year) === year);
-  if (!mine.length) return null;
-  return (
-    <Stack gap={8}>
-      <H2>{t('İşletme projesi')}</H2>
-      {mine.map((b) => (
-        <Card key={b.org_id} gap={6}>
-          <Row between wrap><Label>{units.find((u) => u.org_id === b.org_id)?.org} · {b.year}</Label>{b.approved_on ? <Chip tone="ok" label={t('Kurulca onaylı')} /> : null}</Row>
-          {b.items.map((it: any) => <Row key={it.cat} between><Text v="small">{it.cat}</Text><Text v="small" style={{ fontFamily: fonts.bodyBold }}>{tl(it.amount)}</Text></Row>)}
-          <Row between><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{t('Yıllık toplam')}</Text><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{tl(budgetTotal(b))}</Text></Row>
-        </Card>
-      ))}
-    </Stack>
-  );
-}
-
 /** Malik ya da kiracının site ekranı. */
 /** Kiracının ekran adı: sitede "Sitem", AVM'de "Mağazam", diğer ticari birimlerde "Kiraladığım birim". */
 export function residentTitle(units: any[]) {
@@ -1169,7 +1078,6 @@ export function ResidentSiteScreen({ part = 'all' }: { part?: ResidentPart }) {
 
       {show('home') ? <ResidentProjects units={units} /> : null}
       {show('home') ? <ResidentMeetings /> : null}
-      {show('home') ? <ResidentBudget units={units} /> : null}
       {show('home') ? <ResidentCash units={units} /> : null}
 
       {show('req') ? (

@@ -46,7 +46,7 @@ export function VoteBlock({ p, info, myVotes, manage, reload }: { p: any; info: 
   return (
     <Card gap={8} style={{ backgroundColor: c.surface2 }}>
       <Row between wrap>
-        <Text v="body" style={{ fontFamily: fonts.bodyXBold }}>{t('Oylama: proje yapılsın mı?')}</Text>
+        <Text v="body" style={{ fontFamily: fonts.bodyXBold }}>{p.kind === 'isletme' ? t('Oylama: işletme projesi onaylansın mı?') : p.kind === 'ek' ? t('Oylama: ek ödenek onaylansın mı?') : t('Oylama: proje yapılsın mı?')}</Text>
         <Chip tone={open ? 'warn' : p.status === 'onay' ? 'ok' : p.status === 'red' ? 'bad' : 'neutral'}
           label={open ? t('Oylama sürüyor') : p.status === 'onay' ? t('Onaylandı') : p.status === 'red' ? t('Reddedildi') : t('Süre doldu')} />
       </Row>

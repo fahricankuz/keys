@@ -41,7 +41,7 @@ async function login(page, data) {
 test('site: girişte kurum paneli; aidat dilinde menü; sihirbazla daireler (m² zorunlu); Mülklerim kendi mülküne gider', async ({ page }) => {
   await login(page, withOrg('site', ['aidat', 'gider_dagitim', 'duyuru', 'rapor'], { units: 6 }));
   await expect(page).toHaveURL(/\/uygulama\/site$/);
-  for (const n of ['Özet', 'Daireler', 'Aidat', 'Giderler', 'İşletme projesi', 'Duyurular', 'Talepler', 'Rapor', 'Mülklerim', 'Kurum']) await expect(nav(page, n)).toBeVisible();
+  for (const n of ['Özet', 'Daireler', 'Aidat', 'Giderler', 'Projeler', 'Duyurular', 'Talepler', 'Rapor', 'Mülklerim', 'Kurum']) await expect(nav(page, n)).toBeVisible();
   await expect(nav(page, 'Kira')).toHaveCount(0);
   await expect(page.getByText('Sözleşmende 6 daire var, oluşturalım.').first()).toBeVisible();
 
@@ -76,7 +76,7 @@ test('site: kapalı modülün bölümü menüde yok (duyuru ve gider dağıtım�
   await expect(page).toHaveURL(/\/uygulama\/site$/);
   await expect(nav(page, 'Daireler')).toBeVisible();
   await expect(nav(page, 'Duyurular')).toHaveCount(0);
-  await expect(nav(page, 'İşletme projesi')).toHaveCount(0);
+  await expect(nav(page, 'İşletme projesi')).toHaveCount(0);                // işletme projesi ayrı menü değil, Projeler'in içinde
 });
 
 test('AVM: kira tahakkuku ve tahsilatı en üstte; ciro ve kira artışları modüllere bağlı; geciken kira listesi', async ({ page }) => {

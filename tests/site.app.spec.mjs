@@ -216,17 +216,20 @@ test('ev sahibi mülkünü site dairesine bağlar; kiracı kira ile aidatı ayn�
   await page.getByRole('link', { name: 'Daireler', exact: true }).first().click();
   await page.getByRole('button', { name: /^A Blok No 1 · / }).click();
   await expect(page.getByText('Ev sahibi üzerinden')).toBeVisible();              // kiracı ev sahibinin anahtar hesabı üzerinden bağlı
-  await page.getByRole('link', { name: 'İşletme projesi', exact: true }).first().click();
+  await page.getByRole('link', { name: 'Projeler', exact: true }).first().click();               // işletme projesi artık Projeler'de
+  await page.getByRole('button', { name: /işletme projesi aç$/ }).first().click();
   await page.getByRole('button', { name: 'Asansör', exact: true }).first().click();       // kalem gider kategorilerinden seçilir
   await page.getByLabel('Yıllık tutar (₺)').fill('48000');
   await page.getByRole('button', { name: 'Kalem ekle' }).click();
   await page.getByRole('button', { name: 'Temizlik', exact: true }).last().click();
   await page.getByLabel('Yıllık tutar (₺)').last().fill('72000');
-  await expect(page.getByText('₺10.000 / ay')).toBeVisible();          // 120.000 / 12, tek daire
   await page.getByRole('button', { name: 'Kaydet' }).click();
-  await expect(page.getByText('İşletme projesi kaydedildi.')).toBeVisible();
-  await page.getByRole('button', { name: 'Daire aidatlarını güncelle' }).click();
+  await expect(page.getByText('₺10.000').first()).toBeVisible();                           // aylık aidat toplamı: 120.000 / 12
+  await expect(page.getByText('Taslak').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Genel kurulda onaylandı olarak işaretle' }).click();
+  await page.getByRole('button', { name: 'Daire aidatlarını güncelle ve yürürlüğe al' }).click();
   await expect.poll(async () => (await db(page)).tables.site_units[0].aidat).toBe(10000);
+  await expect(page.getByText('Aidatlar güncellendi; işletme projesi yürürlükte.')).toBeVisible();
   await page.getByRole('link', { name: 'Rapor', exact: true }).first().click();
   await expect(page.getByText(/yönetim raporu$/).first()).toBeVisible();
   await expect(page.getByText('Borçlu daireler')).toBeVisible();
