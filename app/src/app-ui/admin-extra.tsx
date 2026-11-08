@@ -400,7 +400,7 @@ export function Support({ onConvert }: { onConvert?: (r: any) => void }) {
           <Row wrap>
             {r.email ? <Button kind="ghost" title={t('E-posta gönder')} onPress={() => setMailFor(mailFor === r.id ? null : r.id)} /> : null}
             {r.kind === 'kurumsal' && r.status === 'open' && onConvert ? <Button title={t('Kuruma çevir')} onPress={() => onConvert(r)} /> : null}
-            <Button kind={r.status === 'open' ? 'primary' : 'ghost'} title={r.status === 'open' ? t('Kapat') : t('Yeniden aç')} onPress={() => toggle(r)} />
+            <Button kind="ghost" title={r.status === 'open' ? t('Kapat') : t('Yeniden aç')} onPress={() => toggle(r)} />
           </Row>
           {mailFor === r.id ? (
             <MailComposer target={{ to: r.email, name: r.name, subject: t('anahtar iletişim talebin'), request_id: r.id, user_id: r.user_id || undefined }}

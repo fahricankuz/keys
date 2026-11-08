@@ -1073,5 +1073,10 @@ export const EN_PAKET = {
   "Bu ödeme kaydı silinsin mi?": "Delete this payment record?",
   "Onayla ve gönder": "Confirm and send",
   "{n} birime toplam {sum} yazılacak. Onaylıyor musun?": "{sum} in total will be billed to {n} units. Confirm?",
-  "{n} daireye toplam {sum} yazılacak ve sakinlere bildirim gidecek. Onaylıyor musun?": "{sum} in total will be billed to {n} flats and residents will be notified. Confirm?"
+  "{n} daireye toplam {sum} yazılacak ve sakinlere bildirim gidecek. Onaylıyor musun?": "{sum} in total will be billed to {n} flats and residents will be notified. Confirm?",
+  "Müşteriler": "Customers",
+  "Destek": "Support",
+  "Operasyon": "Operations",
+  "Sistem": "System",
+  "Özet": "Summary"
 };

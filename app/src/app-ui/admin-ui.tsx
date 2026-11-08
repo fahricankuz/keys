@@ -4,12 +4,27 @@ import { ReactNode, useState } from 'react';
 import { ScrollView, Text as RNText, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { t } from '../domain/i18n';
-import { Button, Chip, PressScale, Text } from '../ui/kit';
+import { AdminUI, Button, Chip, PressScale, Text } from '../ui/kit';
 import { Wordmark } from '../ui/Wordmark';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 import { Icon } from './blocks';
 
-export type NavItem = { key: string; label: string; icon: string; badge?: number };
+export type NavItem = { key: string; label: string; icon: string; badge?: number; group?: string };
+
+/** Menü grupları (sırasıyla); öğe grubu yoksa en üstte, başlıksız. */
+type NavGroup = { name: string; items: NavItem[] };
+function groupsOf(items: NavItem[]): NavGroup[] {
+  const out: NavGroup[] = [];
+  items.forEach((it) => {
+    const name = it.group || '';
+    const g = out.find((x) => x.name === name) || (out.push({ name, items: [] }), out[out.length - 1]);
+    g.items.push(it);
+  });
+  return out;
+}
+const CLOSED_KEY = 'adminNavClosed';
+const readClosed = (): string[] => { try { return JSON.parse(globalThis.localStorage?.getItem(CLOSED_KEY) || '[]') || []; } catch { return []; } };
+const writeClosed = (v: string[]) => { try { globalThis.localStorage?.setItem(CLOSED_KEY, JSON.stringify(v)); } catch { /* yok say */ } };
 
 /** Masaüstünde koyu yan menü, telefonda üst şerit + açılır bölüm menüsü (basınca açılır, seçince kapanır). İçerik sağda / altta. */
 export function AdminShell({ items, active, onPick, email, onReload, onSignOut, busy, children }: {
@@ -20,6 +35,9 @@ export function AdminShell({ items, active, onPick, email, onReload, onSignOut, 
   const router = useRouter();
   const { desktop } = useBreakpoint();
   const [menu, setMenu] = useState(false);
+  // Kapalı menü grupları tarayıcıda hatırlanır; açık sayfanın grubu her zaman açıktır.
+  const [closed, setClosed] = useState<string[]>(readClosed);
+  const toggle = (name: string) => setClosed((x) => { const v = x.includes(name) ? x.filter((y) => y !== name) : [...x, name]; writeClosed(v); return v; });
   if (!desktop) {
     const cur = items.find((x) => x.key === active) || items[0];
     return (
@@ -41,7 +59,9 @@ export function AdminShell({ items, active, onPick, email, onReload, onSignOut, 
             </PressScale>
             {menu ? (
               <ScrollView style={{ maxHeight: 360, borderRadius: 18, backgroundColor: 'rgba(250,245,240,0.08)' }} contentContainerStyle={{ padding: 6, gap: 2 }}>
-                {items.map((it) => {
+                {groupsOf(items).map((g) => [
+                  g.name ? <RNText key={'g' + g.name} style={{ fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', color: c.heroMuted, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 2 }}>{g.name}</RNText> : null,
+                  ...g.items.map((it) => {
                   const on = it.key === active;
                   return (
                     <PressScale key={it.key} onPress={() => { onPick(it.key); setMenu(false); }} accessibilityRole="button" accessibilityState={{ selected: on }} scaleTo={0.98}
@@ -58,12 +78,12 @@ export function AdminShell({ items, active, onPick, email, onReload, onSignOut, 
                       ) : null}
                     </PressScale>
                   );
-                })}
+                })])}
               </ScrollView>
             ) : null}
           </View>
         </View>
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>{children}</ScrollView>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}><AdminUI.Provider value={true}>{children}</AdminUI.Provider></ScrollView>
       </View>
     );
   }
@@ -76,23 +96,40 @@ export function AdminShell({ items, active, onPick, email, onReload, onSignOut, 
             <PressScale onPress={() => router.push('/' as any)} accessibilityRole="link" accessibilityLabel={t('Ana sayfa')} style={{ alignSelf: 'flex-start' }}><Wordmark size={26} variant="cream" bg={c.deepA} /></PressScale>
             <View style={{ alignSelf: 'flex-start' }}><Chip tone="warn" label={t('Yönetici paneli')} /></View>
           </View>
-          <View style={{ gap: 4 }} role="navigation" aria-label={t('Yönetici bölümleri')}>
-            {items.map((it) => {
-              const on = it.key === active;
+          <View style={{ gap: 14 }} role="navigation" aria-label={t('Yönetici bölümleri')}>
+            {groupsOf(items).map((g) => {
+              const hasActive = g.items.some((x) => x.key === active);
+              const open = !g.name || hasActive || !closed.includes(g.name);
+              const badge = g.items.reduce((a, x) => a + (x.badge || 0), 0);
               return (
-                <PressScale key={it.key} onPress={() => onPick(it.key)} accessibilityRole="button" accessibilityState={{ selected: on }} scaleTo={0.98}
-                  accessibilityLabel={it.label + (it.badge ? ' (' + it.badge + ')' : '')}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, minHeight: 44, borderRadius: 14, backgroundColor: on ? 'rgba(250,245,240,0.10)' : 'transparent' }}>
-                  <View style={{ width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? c.accent : 'rgba(250,245,240,0.06)' }}>
-                    <Icon name={it.icon} size={16} color={on ? '#fff' : c.heroInk} />
-                  </View>
-                  <RNText style={{ flex: 1, fontFamily: on ? fonts.bodyXBold : fonts.bodyMedium, fontSize: 14.5, color: on ? c.heroInk : c.heroMuted }}>{it.label}</RNText>
-                  {it.badge ? (
-                    <View style={{ minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, backgroundColor: c.lemon, alignItems: 'center', justifyContent: 'center' }}>
-                      <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 12, color: '#1D1A19' }}>{it.badge}</RNText>
-                    </View>
+                <View key={g.name || '_'} style={{ gap: 2 }}>
+                  {g.name ? (
+                    <PressScale onPress={() => toggle(g.name)} accessibilityRole="button" aria-expanded={open} accessibilityLabel={g.name} scaleTo={0.99}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 4 }}>
+                      <RNText style={{ flex: 1, fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 0.9, textTransform: 'uppercase', color: c.heroMuted }}>{g.name}</RNText>
+                      {!open && badge ? <View style={{ minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, backgroundColor: c.lemon, alignItems: 'center', justifyContent: 'center' }}><RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 11, color: '#1D1A19' }}>{badge}</RNText></View> : null}
+                      <RNText style={{ fontSize: 11, color: c.heroMuted }}>{open ? '▾' : '▸'}</RNText>
+                    </PressScale>
                   ) : null}
-                </PressScale>
+                  {open ? g.items.map((it) => {
+                    const on = it.key === active;
+                    return (
+                      <PressScale key={it.key} onPress={() => onPick(it.key)} accessibilityRole="button" accessibilityState={{ selected: on }} scaleTo={0.98}
+                        accessibilityLabel={it.label + (it.badge ? ' (' + it.badge + ')' : '')}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, minHeight: 40, borderRadius: 12, backgroundColor: on ? 'rgba(250,245,240,0.10)' : 'transparent' }}>
+                        <View style={{ width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? c.accent : 'rgba(250,245,240,0.06)' }}>
+                          <Icon name={it.icon} size={15} color={on ? '#fff' : c.heroInk} />
+                        </View>
+                        <RNText style={{ flex: 1, fontFamily: on ? fonts.bodyXBold : fonts.bodyMedium, fontSize: 14, color: on ? c.heroInk : c.heroMuted }}>{it.label}</RNText>
+                        {it.badge ? (
+                          <View style={{ minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, backgroundColor: c.lemon, alignItems: 'center', justifyContent: 'center' }}>
+                            <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 12, color: '#1D1A19' }}>{it.badge}</RNText>
+                          </View>
+                        ) : null}
+                      </PressScale>
+                    );
+                  }) : null}
+                </View>
               );
             })}
           </View>
@@ -106,7 +143,7 @@ export function AdminShell({ items, active, onPick, email, onReload, onSignOut, 
         </View>
       </View>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 40, paddingVertical: 34, paddingBottom: 80 }}>
-        <View style={{ width: '100%', maxWidth: 1180, alignSelf: 'center' }}>{children}</View>
+        <View style={{ width: '100%', maxWidth: 1180, alignSelf: 'center' }}><AdminUI.Provider value={true}>{children}</AdminUI.Provider></View>
       </ScrollView>
     </View>
   );

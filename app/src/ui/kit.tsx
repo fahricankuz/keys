@@ -72,6 +72,8 @@ const ACCENT_HOVER = '#D93F3D';
 /** Panel (uygulama, kurum ve yönetici paneli) içinde düğmeler daha küçüktür; tanıtım sitesinde büyük kalır.
     Telefonda en az 44 px (parmakla rahat basılır). */
 export const PanelUI = createContext(false);
+/** Yönetici paneli: ortak parçalar (kart, bölüm başlığı, boş durum, seçim şeridi) panelin tek tasarım dilini kullanır (app-ui/admin-ui.tsx). */
+export const AdminUI = createContext(false);
 
 export function Button({ title, onPress, kind = 'primary', block, disabled, loading, style, icon }: {
   title: string; onPress?: () => void; kind?: 'primary' | 'dark' | 'ghost' | 'quiet' | 'onDark';

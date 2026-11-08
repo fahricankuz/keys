@@ -64,25 +64,27 @@ export default function AdminPanel() {
   useEffect(() => { load(); }, [load]);
 
   // Bölümler: yan menü sırası, simge ve başlık / açıklama.
-  const SECTIONS: [string, string, string, string][] = [
-    ['kpi', t('Genel bakış'), 'grid', ''],
-    ['growth', t('Büyüme'), 'chart', t('Yeni kayıt eğrisi, deneme → ödeyen dönüşümü, aktivasyon hunisi, kullanım, kurumlar ve yönetilen mülk.')],
-    ['revenue', t('Gelir'), 'card', t('Paket fiyatlarından tahmini aylık ve yıllık gelir, pakete göre dağılım, kurum sözleşmeleri ve net (gelir − gider).')],
-    ['costs', t('Gider'), 'doc', t('Altyapı, mağaza komisyonu, sanal POS, vergi, pazarlama ve hizmet giderleri. Dövizli giderler o günün TCMB kuruyla TL’ye çevrilir.')],
-    ['accounts', t('Hesaplar'), 'key', t('Herkes tek listede: mülk sahibinin paketi ve denemesi, mülkleri ve kiracıları, kiracının hangi mülke bağlı olduğu, askı ve silme. Bir satıra dokun, ayrıntısı açılsın.')],
-    ['health', t('Müşteri sağlığı'), 'flag', t('İlgilenilmezse kaybedilebilecek müşteriler: nedeni, iletişim bilgisi ve son temas. Haftalık arama listesi.')],
-    ['orgs', t('Kurumlar'), 'office', t('Kurumsal müşteriler: sektör ve modüller, sözleşme, master yönetici, yöneticiler ve roller.')],
-    ['cpi', t('Kira artış oranları'), 'chart', t('TÜFE 12 aylık ortalama: sitedeki hesaplayıcı ve uygulamadaki yenileme bu tablodan okur.')],
-    ['support', t('Talepler'), 'chat', t('“Bize ulaş” formundan gelen kurumsal, içe aktarma ve genel talepler.')],
-    ['reports', t('Şikâyetler'), 'flag', t('Kullanıcıların bildirdiği mesaj ve kişiler: 24 saat içinde incele, gerekirse mesajı sil ya da hesabı askıya al.')],
-    ['errors', t('Hatalar'), 'chart', t('Uygulamada kullanıcıların karşılaştığı beklenmeyen hatalar (ekran yolu, platform, sürüm).')],
-    ['legal', t('Hukuki talepler'), 'scale', t('Hukuki süreç desteği talepleri: ödemeyi işaretle, büroya ilet, kişiye not yaz. Talebin dosyalarını büroya elle iletirsin.')],
-    ['pay', t('Ödemeler'), 'chart', t('Tüm kira ödemeleri ve durumları.')],
-    ['msgs', t('Mesajlar'), 'send', t('Yazışmaları okuma ve gerektiğinde silme (her işlem kayda düşer).')],
-    ['audit', t('İşlem kaydı'), 'flag', t('Yönetici işlemlerinin değiştirilemez kaydı.')]
+  // Bölümler: [anahtar, ad, simge, açıklama, grup]. Grup adı yan menüde başlıktır (Özet, Müşteriler, Destek, Operasyon, Sistem).
+  const SECTIONS: [string, string, string, string, string][] = [
+    ['kpi', t('Genel bakış'), 'grid', '', t('Özet')],
+    ['growth', t('Büyüme'), 'chart', t('Yeni kayıt eğrisi, deneme → ödeyen dönüşümü, aktivasyon hunisi, kullanım, kurumlar ve yönetilen mülk.'), t('Özet')],
+    ['revenue', t('Gelir'), 'card', t('Paket fiyatlarından tahmini aylık ve yıllık gelir, pakete göre dağılım, kurum sözleşmeleri ve net (gelir − gider).'), t('Özet')],
+    ['costs', t('Gider'), 'doc', t('Altyapı, mağaza komisyonu, sanal POS, vergi, pazarlama ve hizmet giderleri. Dövizli giderler o günün TCMB kuruyla TL’ye çevrilir.'), t('Özet')],
+    ['accounts', t('Hesaplar'), 'landlord', t('Herkes tek listede: mülk sahibinin paketi ve denemesi, mülkleri ve kiracıları, kiracının hangi mülke bağlı olduğu, askı ve silme. Bir satıra dokun, ayrıntısı açılsın.'), t('Müşteriler')],
+    ['health', t('Müşteri sağlığı'), 'bell', t('İlgilenilmezse kaybedilebilecek müşteriler: nedeni, iletişim bilgisi ve son temas. Haftalık arama listesi.'), t('Müşteriler')],
+    ['orgs', t('Kurumlar'), 'office', t('Kurumsal müşteriler: sektör ve modüller, sözleşme, master yönetici, yöneticiler ve roller.'), t('Müşteriler')],
+    ['support', t('Talepler'), 'chat', t('“Bize ulaş” formundan gelen kurumsal, içe aktarma ve genel talepler.'), t('Destek')],
+    ['reports', t('Şikâyetler'), 'flag', t('Kullanıcıların bildirdiği mesaj ve kişiler: 24 saat içinde incele, gerekirse mesajı sil ya da hesabı askıya al.'), t('Destek')],
+    ['legal', t('Hukuki talepler'), 'scale', t('Hukuki süreç desteği talepleri: ödemeyi işaretle, büroya ilet, kişiye not yaz. Talebin dosyalarını büroya elle iletirsin.'), t('Destek')],
+    ['msgs', t('Mesajlar'), 'send', t('Yazışmaları okuma ve gerektiğinde silme (her işlem kayda düşer).'), t('Destek')],
+    ['pay', t('Ödemeler'), 'safe', t('Tüm kira ödemeleri ve durumları.'), t('Operasyon')],
+    ['cpi', t('Kira artış oranları'), 'meter', t('TÜFE 12 aylık ortalama: sitedeki hesaplayıcı ve uygulamadaki yenileme bu tablodan okur.'), t('Operasyon')],
+    ['errors', t('Hatalar'), 'wrench', t('Uygulamada kullanıcıların karşılaştığı beklenmeyen hatalar (ekran yolu, platform, sürüm).'), t('Sistem')],
+    ['audit', t('İşlem kaydı'), 'key', t('Yönetici işlemlerinin değiştirilemez kaydı.'), t('Sistem')]
   ];
+
   const cur = SECTIONS.find((x) => x[0] === tab) || SECTIONS[0];
-  const items = SECTIONS.map(([key, label, icon]) => ({ key, label, icon, badge: key === 'legal' ? legalOpen : key === 'reports' ? reportsOpen : undefined }));
+  const items = SECTIONS.map(([key, label, icon, , group]) => ({ key, label, icon, group, badge: key === 'legal' ? legalOpen : key === 'reports' ? reportsOpen : undefined }));
   return (
     <>
     <AdminShell items={items} active={tab} onPick={setTab} email={user?.email} onReload={load} busy={busy}
