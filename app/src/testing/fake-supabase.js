@@ -905,6 +905,25 @@ export function createClient(url, key, opts){
                    banned: !!b, ban_reason: b ? b.reason : null, banned_at: b ? b.banned_at : null };
         }), error:null };
       }
+      // schema.sql (migration abonelik_gecmisi): abonelik olayları ve etkinlik kohortu; yalnız yönetici.
+      if (name === 'admin_subscription_events' || name === 'admin_cohorts'){
+        if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
+        if (name === 'admin_subscription_events') return { data: [...(db.tables.subscription_events || [])].sort((a, b) => String(a.at).localeCompare(String(b.at))), error:null };
+        const ym = v => new Date(new Date(v).getTime() + 3 * 36e5).toISOString().slice(0, 7);
+        const admins = new Set((db.tables.admins || []).map(a => a.user_id));
+        const groups = {};
+        db.tables.profiles.filter(p => !admins.has(p.id) && p.created_at).forEach(p => {
+          const k = ym(p.created_at) + '|' + p.role;
+          const g = groups[k] || (groups[k] = { cohort: ym(p.created_at), role: p.role, size: 0, ids: new Set(), active: {} });
+          g.size++; g.ids.add(p.id);
+        });
+        (db.tables.activity || []).forEach(a => Object.values(groups).forEach(g => {
+          if (!g.ids.has(a.actor)) return;
+          const m = ym(a.at); (g.seen || (g.seen = {}))[m] = (g.seen[m] || new Set()).add(a.actor);
+        }));
+        return { data: Object.values(groups).map(g => ({ cohort: g.cohort, role: g.role, size: g.size,
+          active: Object.fromEntries(Object.entries(g.seen || {}).map(([m, set]) => [m, set.size])) })), error:null };
+      }
       if (name === 'admin_subscriptions'){
         if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
         return { data: db.tables.profiles.filter(p => p.role === 'landlord').map(p => {
@@ -912,7 +931,7 @@ export function createClient(url, key, opts){
           const a = accessOf(db, p.id);
           const s = db.tables.subscriptions.find(x => x.user_id === p.id);
           return { id:p.id, name:p.name, email:u.email || '', created_at:p.created_at, subscribed:!!a.subscribed, in_trial:!!a.inTrial, trial_ends:a.trialEnds,
-                   extra_days:0, plan:a.plan, store:s ? s.store : null, expires_at:s ? s.expires_at : null, will_renew:false, billing_issue:false,
+                   extra_days:0, plan:a.plan, store:s ? s.store : null, expires_at:s ? s.expires_at : null, will_renew:s ? s.will_renew !== false : false, billing_issue:!!(s && s.billing_issue),
                    banned:db.tables.bans.some(b => b.user_id === p.id), units:db.tables.properties.filter(x => x.owner_id === p.id).length, tenants:0,
                    choice:null, plan_units:s ? s.units || null : null, plan_sector:s ? s.sector || null : null };
         }), error:null };

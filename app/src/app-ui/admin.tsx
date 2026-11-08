@@ -98,7 +98,7 @@ export default function AdminPanel() {
         tab === 'kpi' ? <Overview ops={{ pending: data.stats.pending, banned: data.stats.banned }} go={setTab} /> : (
           <Stack>
             <PageHead label={t('Yönetici')} title={cur[1]} sub={cur[3]} />
-            {tab === 'growth' && <Growth />}
+            {tab === 'growth' && <Growth onCrm={(s: any) => { setCrmSeed({ name: s.name || s.email || '', email: s.email || '', plan: s.plan === 'tek' ? 'tek' : 'bes', note: t('Ayrılma riski: yenileme kapalı ya da ödeme sorunu (Büyüme sayfasından).'), user_id: s.id }); setTab('crm'); }} />}
             {tab === 'revenue' && <Revenue />}
             {tab === 'costs' && <Costs />}
             {tab === 'crm' && <Crm seed={crmSeed} clearSeed={() => setCrmSeed(null)} />}

@@ -6,7 +6,8 @@ import { MailComposer } from './admin-mail';
 import { CONFIG } from '../domain/config';
 import { planLabel } from '../domain/plans';
 import { SECTORS, adminOrgs, sectorOf } from '../domain/org';
-import { FinanceCard, PeriodSeg, YearChart, delta, periodFinance, prevLabel, useAdminFinance, usePeriod } from './admin-finance-ui';
+import { ChurnAndCohorts } from './admin-churn';
+import { FinanceCard, PeriodSeg, SignupChart, YearChart, delta, periodFinance, prevLabel, useAdminFinance, usePeriod } from './admin-finance-ui';
 import { t, locale } from '../domain/i18n';
 import { tl } from '../domain/util';
 import { Button, Chip, Field, Text } from '../ui/kit';
@@ -153,6 +154,7 @@ export function Overview({ ops, go }: { ops?: { pending?: number; banned?: numbe
         <Kpi icon="chat" tone="sky" label={t('Açık destek talebi')} value={String(k.supportOpen)} sub={t('Askıdaki hesap: {n}', { n: ops?.banned ?? 0 })} />
       </KpiGrid>
       <YearChart data={data} table={table} />
+      <SignupChart data={data} />
       {go ? (
         <Row wrap>
           <Button kind="ghost" title={t('Büyüme')} onPress={() => go('growth')} />
@@ -165,7 +167,7 @@ export function Overview({ ops, go }: { ops?: { pending?: number; banned?: numbe
 }
 
 /** Büyüme: dönemin yeni kayıtları (karşılaştırmalı), deneme → ödeyen, aktivasyon hunisi, kullanım, kurumlar ve sektörler. */
-export function Growth() {
+export function Growth({ onCrm }: { onCrm?: (s: any) => void } = {}) {
   const c = useColors();
   const { desktop } = useBreakpoint();
   const [period, setPeriod] = usePeriod();
@@ -186,6 +188,7 @@ export function Growth() {
         <Kpi icon="flag" tone="sky" label={t('Denemede')} value={String(o.trial)} sub={t('{n} tanesi 7 gün içinde bitiyor', { n: o.expiring })} />
         <Kpi icon="check" tone="sage" label={t('Deneme → ödeyen')} value={pct(o.paying, o.total)} sub={t('{a} ödeyen / {b} mülk sahibi', { a: o.paying, b: o.total })} />
       </KpiGrid>
+      <SignupChart data={data} />
       <View style={{ flexDirection: desktop ? 'row' : 'column', gap: 16, alignItems: 'stretch' }}>
         <View style={{ flex: 1.3, gap: 8 }}>
           <Row between wrap><Muted>{t('Günlük yeni kayıt')}</Muted><DaysSeg days={days} setDays={setDays} /></Row>
@@ -204,6 +207,7 @@ export function Growth() {
           </KpiGrid>
         </>
       ) : null}
+      <ChurnAndCohorts period={period} onCrm={onCrm} />
       <GroupTitle>{t('Kurumlar ve yönetilen mülk')}</GroupTitle>
       <KpiGrid>
         <Kpi icon="office" tone="sky" label={t('Kurum')} value={orgs ? String(orgs.total) : '—'} sub={orgs ? t('{n} etkin · {m} sözleşme 60 günde bitiyor', { n: orgs.active, m: orgs.ending }) : ''} />
