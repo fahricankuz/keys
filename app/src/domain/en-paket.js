@@ -1093,10 +1093,7 @@ export const EN_PAKET = {
   "Bu dönemde gider yok.": "No expenses in this period.",
   "Üyelik ücreti paket fiyatlarından tahmindir; işlem ücreti kartla ödemelerden, sanal POS payı gidere kendiliğinden yazılır.": "Membership fees are estimated from plan prices; transaction fees come from card payments, and the virtual POS share is added to expenses automatically.",
   "{n} geçmiş ay için üyelik kaydı yok (kayıt bu aydan başlıyor).": "No membership record for {n} past months (recording starts this month).",
-  "{y} aylık gelir, gider ve büyüme": "{y} monthly revenue, expenses and growth",
   "Yeni kayıt": "New sign-ups",
-  "Aylık gelir, gider ve yeni kayıt grafiği": "Monthly revenue, expenses and sign-ups chart",
-  "Gelir: üyelik (kaydedilen aylık tahmin), işlem ücreti ve hukuki destek; gider: girilen giderler ve sanal POS payı. Yeni kayıt sağ eksende.": "Revenue: membership (recorded monthly estimate), transaction fees and legal support; expenses: entered expenses and the virtual POS share. Sign-ups on the right axis.",
   "Bu yıl onaylı kira hacmi": "Approved rent this year",
   "Bu yıl onaylı aidat hacmi": "Approved dues this year",
   "Yeni kayıt (bu yıl)": "New sign-ups (this year)",
@@ -1162,5 +1159,13 @@ export const EN_PAKET = {
   "CRM’e ekle": "Add to CRM",
   "{name} kişisini aç": "Open {name}",
   "Hazırlanıyor…": "Preparing…",
-  "Dosya hazırlanıyor; bitince gönderebilirsin.": "Preparing the file; you can send once it’s ready."
+  "Dosya hazırlanıyor; bitince gönderebilirsin.": "Preparing the file; you can send once it’s ready.",
+  "Grafik": "Chart",
+  "Tablo": "Table",
+  "Net {v}": "Net {v}",
+  "Bu ay için üyelik kaydı yok; üyelik geliri dahil değil.": "No membership record for this month; membership revenue not included.",
+  "{y} aylık gelir, gider ve net": "{y} monthly revenue, expenses and net",
+  "Yıl toplamı: gelir {a} · gider {b} · net {c}": "Year total: revenue {a} · expenses {b} · net {c}",
+  "{y} aylık yeni kayıt": "{y} monthly sign-ups",
+  "Yıl toplamı: {n} yeni kayıt": "Year total: {n} sign-ups"
 };
