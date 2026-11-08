@@ -27,6 +27,7 @@ import { useStore } from './hooks';
 import { humanError, refreshProperty, olderMessages, realtimeStatus, setActiveChat } from '../domain/backend';
 import { mySiteUnits, linkSiteUnit, unitLabel } from '../domain/site';
 import { Picked, pickImages, takePhoto } from './media';
+import { preparing } from '../domain/file-prep';
 import { mediaSrc } from '../domain/backend';
 import { LIVE } from '../domain/config';
 import { useSheet } from './overlays';
@@ -600,8 +601,8 @@ export function InspectTabs({ p, active }: { p: any; active: 'giris' | 'cikis' }
 function PhotoButtons({ onPick, label }: { onPick: (f: any[]) => void; label?: string }) {
   return (
     <Row wrap>
-      <Button kind="ghost" title={label || t('Fotoğraf ekle')} icon={<Icon name="cam" size={16} />} onPress={async () => { const f = await pickImages(6); if (f.length) onPick(f); }} />
-      {Platform.OS !== 'web' ? <Button kind="ghost" title={t('Kamerayla çek')} onPress={async () => { const f = await takePhoto(); if (f.length) onPick(f); }} /> : null}
+      <Button kind="ghost" title={label || t('Fotoğraf ekle')} icon={<Icon name="cam" size={16} />} onPress={() => preparing(async () => { const f = await pickImages(6); if (f.length) onPick(f); })} />
+      {Platform.OS !== 'web' ? <Button kind="ghost" title={t('Kamerayla çek')} onPress={() => preparing(async () => { const f = await takePhoto(); if (f.length) onPick(f); })} /> : null}
     </Row>
   );
 }

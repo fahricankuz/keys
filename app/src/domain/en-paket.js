@@ -1160,5 +1160,7 @@ export const EN_PAKET = {
   "CRM": "CRM",
   "İletişime geçtiğin potansiyel aboneler: aşamalar, paket ve mülk adedine göre potansiyel getiri, görüşme notları ve takip hatırlatmaları.": "Prospects you are in touch with: stages, potential revenue by plan and properties, conversation notes and follow-up reminders.",
   "CRM’e ekle": "Add to CRM",
-  "{name} kişisini aç": "Open {name}"
+  "{name} kişisini aç": "Open {name}",
+  "Hazırlanıyor…": "Preparing…",
+  "Dosya hazırlanıyor; bitince gönderebilirsin.": "Preparing the file; you can send once it’s ready."
 };
