@@ -9,7 +9,7 @@ const TABLES = ['profiles','properties','property_shared','memberships','invites
                 'organizations','org_roles','org_members','org_invites',
                 'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes','site_documents','site_investor_notes','mail_outbox','site_cash','site_recurring_expenses',
                 'site_projects','site_project_updates','site_request_messages','site_project_costs',
-                'fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_costs','admin_emails'];
+                'fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_costs','admin_revenue_months','admin_emails'];
 
 function load(){
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d){ TABLES.forEach(t => d.tables[t] = d.tables[t] || []); d.tables.payments.forEach(r => { r.kind = r.kind || 'kira'; }); return d; } } catch(e){}
@@ -454,6 +454,30 @@ export function createClient(url, key, opts){
         db.tables.messages.push({ id:uuid(), property_id:inv.property_id, from_role:'system', by_user:null, body:prof.name + ' eve katıldı', at:now() });
         persist(db);
         return { data:inv.property_id, error:null };
+      }
+      if (name === 'admin_monthly' || name === 'admin_revenue_save'){
+        // schema.sql (migration panel_aylik_veri): yalnız yönetici; 12 ay için hacimler, kartla ödeme, hukuki ücret, yeni kayıt, üyelik kaydı.
+        if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
+        const T = db.tables;
+        T.admin_revenue_months = T.admin_revenue_months || [];
+        if (name === 'admin_revenue_save'){
+          const m = new Date().toISOString().slice(0, 7);
+          T.admin_revenue_months = T.admin_revenue_months.filter(x => x.month !== m).concat([{ month:m, mrr:Number(args.mrr) || 0, payers:Number(args.payers) || 0 }]);
+          persist(db); return { data:null, error:null };
+        }
+        const ok = (x) => ['approved','partial'].includes(x.status);
+        const coll = (kinds, m) => (T.site_charges || []).filter(x => kinds.includes(x.kind) && x.month === m && ['paid','partial'].includes(x.status)).reduce((a, x) => a + Number(x.status === 'paid' ? x.amount : x.paid_amount || 0), 0);
+        const rows = Array.from({ length: 12 }, (_, i) => {
+          const m = args.y + '-' + String(i + 1).padStart(2, '0');
+          const pay = (k) => T.payments.filter(x => (x.kind || 'kira') === k && ok(x) && x.month === m).reduce((a, x) => a + Number(x.amount || 0), 0);
+          const card = T.payments.filter(x => x.method === 'pos' && ok(x) && x.month === m).reduce((a, x) => a + Number(x.amount || 0), 0)
+            + (T.site_charges || []).filter(x => x.method === 'pos' && ['paid','partial'].includes(x.status) && x.month === m).reduce((a, x) => a + Number(x.status === 'paid' ? x.amount : x.paid_amount || 0), 0);
+          const legal = (T.legal_requests || []).filter(x => x.paid_at && String(x.paid_at).slice(0, 7) === m).reduce((a, x) => a + Number(x.price || 0), 0);
+          const r = T.admin_revenue_months.find(x => x.month === m);
+          return { month:m, rent:pay('kira'), orgRent:coll(['kira','ciro'], m), aidat:pay('aidat'), siteAidat:coll(['aidat','yakit','demirbas','ozel'], m), card, legal,
+                   signups:T.profiles.filter(p => String(p.created_at || '').slice(0, 7) === m).length, mrr: r ? r.mrr : null, payers: r ? r.payers : null };
+        });
+        return { data:rows, error:null };
       }
       if (name === 'admin_cost_save' || name === 'admin_cost_delete'){
         // schema.sql (migration panel_gelir_gider): yalnız yönetici; her işlem İşlem kaydı'na.

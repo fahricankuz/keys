@@ -33,7 +33,7 @@ export function useCosts(month: string) {
   useEffect(() => { reload(); }, [reload]);
   const from = (() => { const d = parse(month + '-01'); d.setMonth(d.getMonth() - 1); return mkey(d) + '-01'; })();
   const { table, ready } = useFx(from);
-  return { costs, err, reload, table, ready, sum: costs ? monthCosts(costs, month, table) : null };
+  return { costs, err, reload, table, ready, sum: costs ? monthCosts(costs, month, table) : null };   // table: yıl görünümü de kullanır
 }
 
 function CostForm({ init, done, cancel }: { init: any; done: () => void; cancel: () => void }) {
@@ -87,7 +87,16 @@ function CostForm({ init, done, cancel }: { init: any; done: () => void; cancel:
 export function Costs() {
   const c = useColors();
   const [month, setMonth] = useState(mkey(new Date()));
-  const { costs, err, reload, sum, ready } = useCosts(month);
+  const [period, setPeriod] = useState<'month' | 'year'>(() => { try { return globalThis.localStorage?.getItem('adminPeriod') === 'year' ? 'year' : 'month'; } catch { return 'month'; } });
+  const { costs, err, reload, sum: monthSum, ready, table } = useCosts(period === 'year' ? (new Date().getFullYear() - 1) + '-12' : month);
+  // Yıl: 1 Ocak'tan bu aya ayların toplamı (kategori ve ay ay).
+  const yearMonths = Array.from({ length: new Date().getMonth() + 1 }, (_, i) => new Date().getFullYear() + '-' + String(i + 1).padStart(2, '0'));
+  const yearRows = costs && period === 'year' ? yearMonths.map((m) => ({ m, s: monthCosts(costs, m, table) })) : [];
+  const sum: any = period === 'year' && costs ? yearRows.reduce((a: any, r: any) => {
+    a.total += r.s.total; a.net += r.s.net; a.vat += r.s.vat; a.missing = a.missing || r.s.missing;
+    Object.entries(r.s.byCat).forEach(([k, v]: any) => { a.byCat[k] = (a.byCat[k] || 0) + v; });
+    a.items.push(...r.s.items); return a;
+  }, { total: 0, net: 0, vat: 0, byCat: {}, items: [], missing: false }) : monthSum;
   const [edit, setEdit] = useState<any>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const M = (n: any) => fmtMoney(n, 'TRY');
@@ -97,19 +106,23 @@ export function Costs() {
   };
   if (err) return <Text v="small" color={c.badInk}>{err}</Text>;
   if (!costs || !sum) return <View style={{ alignItems: 'center', paddingVertical: 30 }}><Loader size={72} /></View>;
-  const cats = Object.entries(sum.byCat).sort((a, b) => b[1] - a[1]);
+  const cats = Object.entries(sum.byCat as Record<string, number>).sort((a, b) => b[1] - a[1]);
   const max = Math.max(1, ...cats.map(([, v]) => v));
   const soon = upcoming(costs);
   return (
     <Stack>
       <Row between wrap>
-        <MonthStepper value={month} onChange={setMonth} />
+        <Row gap={10} wrap>
+          <Seg value={period} onChange={(v: any) => { setPeriod(v); try { globalThis.localStorage?.setItem('adminPeriod', v); } catch { /* yok say */ } }}
+            options={[['month', t('Ay')], ['year', t('Bu yıl (1 Ocak’tan bugüne)')]]} />
+          {period === 'month' ? <MonthStepper value={month} onChange={setMonth} /> : null}
+        </Row>
         {!edit ? <Button title={t('Gider ekle')} onPress={() => { setMsg(null); setEdit(blank()); }} /> : null}
       </Row>
       {edit ? <CostForm init={edit} cancel={() => setEdit(null)} done={() => { setEdit(null); setMsg(t('Gider kaydedildi.')); reload(); }} /> : null}
       {msg ? <Muted>{msg}</Muted> : null}
       <Card gap={8}>
-        <Label>{t('{m} giderleri', { m: monthYear(month) })}</Label>
+        <Label>{period === 'year' ? t('{y} giderleri (1 Ocak’tan bugüne)', { y: new Date().getFullYear() }) : t('{m} giderleri', { m: monthYear(month) })}</Label>
         <Text v="h1" style={{ fontVariant: ['tabular-nums'] }}>{M(sum.total)}</Text>
         <Muted>{t('KDV hariç {n} · KDV {v}', { n: M(sum.net), v: M(sum.vat) })}{!ready ? ' · ' + t('Kurlar yükleniyor…') : sum.missing ? ' · ' + t('Bazı dövizli giderlerin günü için kur yok; toplama katılmadı.') : ''}</Muted>
         {cats.length ? cats.map(([k, v]) => (
@@ -119,8 +132,19 @@ export function Costs() {
           </View>
         )) : <Empty>{t('Bu ay gider yok.')}</Empty>}
       </Card>
+      {period === 'year' ? (
+        <Card gap={4}>
+          <H2>{t('Aylara göre')}</H2>
+          {yearRows.map((r: any, i: number) => (
+            <Row key={r.m} between style={{ paddingVertical: 6, borderTopWidth: i ? 1 : 0, borderColor: c.line }}>
+              <Text v="small">{monthYear(r.m)}</Text>
+              <Text v="small" style={{ fontFamily: fonts.bodyBold, fontVariant: ['tabular-nums'] }}>{M(r.s.total)}</Text>
+            </Row>
+          ))}
+        </Card>
+      ) : null}
       <Card gap={4}>
-        <H2>{t('Bu ayın kalemleri')}</H2>
+        <H2>{period === 'year' ? t('Bu yılın kalemleri') : t('Bu ayın kalemleri')}</H2>
         {sum.items.length ? sum.items.map((x: any, i: number) => (
           <Row key={x.cost.id + x.day} between wrap style={{ paddingVertical: 8, borderTopWidth: i ? 1 : 0, borderColor: c.line }}>
             <View style={{ flex: 1, minWidth: 180 }}>

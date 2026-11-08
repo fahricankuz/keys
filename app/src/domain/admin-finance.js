@@ -51,6 +51,7 @@ export function splitVat(amount, included, rate){
 }
 
 /** Ayın giderleri (TL): { total (KDV dahil), net, vat, byCat, items: [{ cost, day, gross, net, vat, rate, missing }], missing }. */
+/** @param {any[]} costs @param {string} month @param {any} table @returns {{ total: number, net: number, vat: number, byCat: Record<string, number>, items: any[], missing: boolean }} */
 export function monthCosts(costs = [], month, table){
   const items = [];
   let total = 0, net = 0, vat = 0, missing = false;
@@ -99,3 +100,87 @@ export async function loadCosts(){
 }
 export const saveCost = (p) => rpc('admin_cost_save', { p });
 export const deleteCost = (id) => rpc('admin_cost_delete', { cid: id });
+
+/* ---- Dönem (Ay / Yıl: 1 Ocak'tan bugüne) ve kırılımlar ---- */
+
+const mk = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1);
+
+/** Dönemin ayları: 'month' → içinde bulunulan ay; 'year' → 1 Ocak'tan bu aya. prev: geçen yılın aynı dönemi (ayda geçen ay). */
+export function periodMonths(period, now = new Date()){
+  const y = now.getFullYear(), m = now.getMonth() + 1;
+  if (period === 'year'){
+    const cur = Array.from({ length: m }, (_, i) => y + '-' + pad(i + 1));
+    return { cur, prev: cur.map((x) => (y - 1) + x.slice(4)) };
+  }
+  return { cur: [mk(now)], prev: [mk(new Date(y, m - 2, 1))] };
+}
+
+/** Kartla ödemede işlem ücreti: kişiden alınan pay (gelir) ve sanal POS'un payı (gider); oranlar CONFIG.cardPay. */
+export function cardSplit(base, cfg = CONFIG.cardPay){
+  const b = Number(base) || 0;
+  const fee = b * (Number(cfg.feeRate) || 0), pos = b * (Number(cfg.providerRate) || 0);
+  return { fee, pos, net: fee - pos };
+}
+
+/** Kurumsal sözleşmelerin aylık bedeli (yalnız yönetici panelinde girilir: organizations.billing.monthly_fee). Ay, kurum açıldıktan sonraysa sayılır. */
+export function orgFeeFor(orgs = [], month){
+  return orgs.filter((o) => o.status === 'active' && Number(o.billing?.monthly_fee) > 0 && String(o.created_at || '').slice(0, 7) <= month
+    && (!o.contract_until || String(o.contract_until).slice(0, 7) >= month))
+    .reduce((a, o) => a + Number(o.billing.monthly_fee), 0);
+}
+
+/**
+ * Dönemin gelir ve gider kırılımı (TL).
+ * monthly: admin_monthly satırları (ay ay); months: dönemin ayları; liveMrr: bu ayın canlı üyelik tahmini; orgs: admin_orgs;
+ * costs + table: elle girilen giderler ve kur tablosu.
+ * Üyelik: kaydedilmiş aylık tahmin (admin_revenue_months); bu ay için canlı tahmin; kaydı olmayan geçmiş ay "veri yok" (missing).
+ */
+/** @param {{ monthly?: any[], months?: string[], liveMrr?: number, orgs?: any[], costs?: any[], table?: any, now?: Date }} o */
+export function finance({ monthly = [], months = [], liveMrr = 0, orgs = [], costs = [], table = null, now = new Date() }){
+  const by = Object.fromEntries(monthly.map((x) => [x.month, x]));
+  const thisMonth = mk(now);
+  let membership = 0, contracts = 0, fee = 0, legal = 0, pos = 0, missing = 0;
+  const costCats = {};
+  let manual = 0;
+  months.forEach((m) => {
+    const r = by[m] || {};
+    if (m === thisMonth) membership += Number(liveMrr) || 0;
+    else if (r.mrr != null) membership += Number(r.mrr);
+    else if (m < thisMonth) missing++;
+    contracts += orgFeeFor(orgs, m);
+    const card = cardSplit(r.card);
+    fee += card.fee; pos += card.pos;
+    legal += Number(r.legal) || 0;
+    const c = monthCosts(costs, m, table);
+    manual += c.total;
+    Object.entries(c.byCat).forEach(([k, v]) => { costCats[k] = (costCats[k] || 0) + v; });
+  });
+  if (pos) costCats.odeme = (costCats.odeme || 0) + pos;
+  const income = membership + contracts + fee + legal;
+  const expense = manual + pos;
+  return {
+    income, expense, net: income - expense, missingMonths: missing,
+    incomeParts: [
+      { key: 'uyelik', value: membership + contracts, detail: { packages: membership, contracts } },
+      { key: 'komisyon', value: fee },
+      { key: 'diger', value: legal }
+    ],
+    expenseParts: Object.entries(costCats).map(([key, value]) => ({ key, value })).sort((a, b) => b.value - a.value)
+  };
+}
+
+/** Dönemin hacimleri ve yeni kayıtları (admin_monthly satırlarından). */
+/** @param {any[]} monthly @param {string[]} months */
+export function volumes(monthly = [], months = []){
+  const rows = monthly.filter((x) => months.includes(x.month));
+  const sum = (k) => rows.reduce((a, x) => a + (Number(x[k]) || 0), 0);
+  return { rent: sum('rent') + sum('orgRent'), orgRent: sum('orgRent'), aidat: sum('aidat') + sum('siteAidat'), siteAidat: sum('siteAidat'), card: sum('card'), signups: sum('signups') };
+}
+
+export async function loadMonthly(year){
+  try { return (await rpc('admin_monthly', { y: year })) || []; } catch { return []; }
+}
+/** Bu ayın üyelik tahminini kaydeder (grafik zamanla dolar); hata olursa sessiz. */
+export async function saveRevenueMonth(mrr, payers){
+  try { await rpc('admin_revenue_save', { mrr: Math.round((Number(mrr) || 0) * 100) / 100, payers: Number(payers) || 0 }); } catch { /* yok say */ }
+}

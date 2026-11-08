@@ -443,10 +443,10 @@ test('yönetici genel bakışı özet; Büyüme ve Gelir sayfalarında üyelik, 
   await tenantUploads(page);
   await login(page, 'admin@ornek.com');
   await expect(page).toHaveURL(/\/admin$/);
-  for (const label of ['Üye', 'Aylık gelir (tahmini)', 'Bu ay onaylı kira hacmi', 'Bu ay gider'])
+  for (const label of ['Üye', 'Aylık gelir (tahmini)', 'Bu ay onaylı kira hacmi', 'Gelir, gider ve net', 'Gelir kırılımı', 'Gider kırılımı'])
     await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
   await page.getByRole('button', { name: 'Gelir' }).first().click();
-  await expect(page.getByText('Yıllık gelir (ARR, tahmini)', { exact: true })).toBeVisible();
+  await expect(page.getByText('Yıllık üyelik geliri (ARR, tahmini)', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Büyüme' }).first().click();
   for (const label of ['Üye', 'Deneme → ödeyen', 'Haftalık etkin kullanıcı', 'Davet kabul oranı (30 gün)', 'Aktivasyon hunisi', 'Günlük yeni kayıt'])
     await expect(page.getByText(label, { exact: true }).first()).toBeVisible();

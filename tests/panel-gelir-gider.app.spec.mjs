@@ -44,7 +44,7 @@ test('genel bakış: kira hacmine kurum kiraları, aidat hacmi ayrı; Büyüme v
   await expect(page.getByText('Sektörlere göre kurumlar')).toBeVisible();
   await expect(page.getByText('AVM').first()).toBeVisible();
   await page.getByRole('button', { name: 'Gelir' }).first().click();
-  await expect(page.getByText('Net (gelir − gider), bu ay')).toBeVisible();
+  await expect(page.getByText('Gelir, gider ve net')).toBeVisible();
   await expect(page.getByText('Kordon AVM')).toBeVisible();
 });
 
@@ -65,7 +65,8 @@ test('gider: dolar gider o günün kuruyla TL, düzenle ve sil; Gelir’de net; 
   await page.getByRole('button', { name: 'Kaydet' }).click();
   await expect(page.getByText('₺2.520').first()).toBeVisible();
   await page.getByRole('button', { name: 'Gelir' }).first().click();
-  await expect(page.getByText(/gider ₺2\.520/)).toBeVisible();
+  await expect(page.getByText('Gelir, gider ve net')).toBeVisible();
+  await expect(page.getByText('₺2.520').first()).toBeVisible();                     // dönemin gideri
   await page.getByRole('button', { name: 'Gider' }).first().click();
   page.once('dialog', (d) => d.accept());
   await page.getByRole('button', { name: 'Sil' }).first().click();
