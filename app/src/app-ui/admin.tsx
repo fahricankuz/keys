@@ -138,68 +138,106 @@ function Shown<T>({ list, render, step = 100 }: { list: T[]; render: (x: T) => R
 
 const SEV: Record<number, [string, 'bad' | 'neutral' | 'accent']> = { 3: ['Acil', 'bad'], 2: ['Önemli', 'accent'], 1: ['İzle', 'neutral'] };
 
-function HealthRow({ x, onSaved }: { x: any; onSaved: () => void }) {
+/** Müşteri kartı: neden riskte, iletişim, son temas, tek tıkla Ara / WhatsApp / E-posta / Not; tüm notlar açılır.
+    Not kaydedilince kart yerinde kalır ve not hemen görünür (liste yeniden sıralanmaz). */
+function HealthCard({ x, onNote }: { x: any; onNote: (n: any) => void }) {
   const c = useColors();
+  const [sl, tone] = SEV[x.sev] || SEV[1];
+  const [open, setOpen] = useState<'' | 'note' | 'mail' | 'all'>('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [sl, tone] = SEV[x.sev] || SEV[1];
-  const [mail, setMail] = useState(false);
   const [done, setDone] = useState<string | null>(null);
+  const first = String(x.name || '').split(' ')[0];
+  const target = x.kind === 'org' ? { org_id: x.id } : { user_id: x.id };
   const save = async () => {
-    if (!note.trim()) return;
+    const text = note.trim();
+    if (!text) return;
     setBusy(true); setErr(null); setDone(null);
     try {
-      await addContact(x.kind === 'org' ? { org_id: x.id, note } : { user_id: x.id, note });
-      setNote(''); setDone(note.trim()); onSaved();
-    } catch (e) { setErr(humanError(e)); }
+      await addContact({ ...target, note: text });
+      onNote({ ...target, id: 'yeni-' + Date.now(), note: text, created_at: new Date().toISOString() });
+      setNote(''); setDone(t('Not kaydedildi.')); setOpen('');
+    } catch (e) { setErr(t('Temas notu kaydedilemedi: {err}', { err: humanError(e) })); }
     setBusy(false);
   };
+  const notes = x.notes || [];
   return (
-    <Card gap={10}>
-      <Row between wrap>
-        <View style={{ flex: 1, minWidth: 200, gap: 2 }}>
-          <Row gap={8} wrap><H2>{x.name || '—'}</H2><Tag label={t(sl)} tone={tone} />{x.kind === 'org' ? <Tag label={sectorOf(x.sector).label} /> : null}</Row>
-          <Muted>{[x.email, x.phone].filter(Boolean).join(' · ') || t('İletişim bilgisi yok')}</Muted>
-        </View>
-        <Row gap={6} wrap>
-          {x.phone ? <Button kind="ghost" title={t('WhatsApp')} onPress={() => Linking.openURL(waLink(x.phone, t('Merhaba {name}, anahtar’dan yazıyorum.', { name: String(x.name || '').split(' ')[0] }))).catch(() => {})} /> : null}
-          {x.email ? <Button kind="ghost" title={t('E-posta')} onPress={() => setMail(!mail)} /> : null}
+    <Card gap={8}>
+      <View style={{ gap: 2 }}>
+        <Row gap={6} wrap><Text v="body" style={{ fontFamily: fonts.bodyXBold }}>{x.name || '—'}</Text><Tag label={t(sl)} tone={tone} />{x.kind === 'org' ? <Tag label={sectorOf(x.sector).label} /> : null}</Row>
+        <Muted>{[x.email, x.phone].filter(Boolean).join(' · ') || t('İletişim bilgisi yok')}</Muted>
+      </View>
+      <View style={{ gap: 2 }}>{x.reasons.map((r: any) => <Text key={r.code} v="small" color={r.sev === 3 ? c.badInk : c.ink}>• {r.label}</Text>)}</View>
+      <Muted>{notes.length ? t('Son temas {d}: {note}', { d: day(notes[0].created_at), note: notes[0].note }) : t('Henüz temas kaydı yok.')}</Muted>
+      <Row gap={6} wrap>
+        {x.phone ? <Button kind="ghost" title={t('Ara')} onPress={() => Linking.openURL('tel:' + String(x.phone).replace(/\s/g, '')).catch(() => {})} style={{ minHeight: 38, paddingHorizontal: 12 }} /> : null}
+        {x.phone ? <Button kind="ghost" title={t('WhatsApp')} onPress={() => Linking.openURL(waLink(x.phone, t('Merhaba {name}, anahtar’dan yazıyorum.', { name: first }))).catch(() => {})} style={{ minHeight: 38, paddingHorizontal: 12 }} /> : null}
+        {x.email ? <Button kind="ghost" title={t('E-posta')} onPress={() => setOpen(open === 'mail' ? '' : 'mail')} style={{ minHeight: 38, paddingHorizontal: 12 }} /> : null}
+        <Button kind={open === 'note' ? 'dark' : 'ghost'} title={t('Not ekle')} onPress={() => setOpen(open === 'note' ? '' : 'note')} style={{ minHeight: 38, paddingHorizontal: 12 }} />
+      </Row>
+      {open === 'mail' ? <MailComposer target={{ to: x.email, name: x.name, ...target }} onSent={() => onNote({ ...target, id: 'e-' + Date.now(), note: t('E-posta gönderildi'), created_at: new Date().toISOString() })} onClose={() => setOpen('')} /> : null}
+      {open === 'note' ? (
+        <Row gap={8} wrap align="flex-end">
+          <View style={{ flexGrow: 1, flexBasis: 200 }}><Field label={t('Temas notu')} value={note} onChangeText={setNote} placeholder={t('Ör. aradım, Excel aktarımında yardım istedi')} maxLength={1000} /></View>
+          <Button title={t('Kaydet')} disabled={!note.trim()} loading={busy} onPress={save} style={{ minHeight: 52 }} />
         </Row>
-      </Row>
-      {mail ? <MailComposer target={{ to: x.email, name: x.name, ...(x.kind === 'org' ? { org_id: x.id } : { user_id: x.id }) }} onSent={onSaved} onClose={() => setMail(false)} /> : null}
-      <View style={{ gap: 4 }}>{x.reasons.map((r: any) => <Text key={r.code} v="small" color={r.sev === 3 ? c.badInk : c.ink}>• {r.label}</Text>)}</View>
-      {x.notes && x.notes.length ? x.notes.map((n: any, i: number) => <Muted key={n.id || i}>{i === 0 ? t('Son temas {d}: {note}', { d: day(n.created_at), note: n.note }) : day(n.created_at) + ': ' + n.note}</Muted>)
-        : <Muted>{t('Henüz temas kaydı yok.')}</Muted>}
-      <Row gap={8} wrap align="flex-end">
-        <View style={{ flexGrow: 1, flexBasis: 240 }}><Field label={t('Temas notu')} value={note} onChangeText={setNote} placeholder={t('Ör. aradım, Excel aktarımında yardım istedi')} maxLength={1000} /></View>
-        <Button title={t('Kaydet')} disabled={!note.trim()} loading={busy} onPress={save} style={{ minHeight: 52 }} />
-      </Row>
-      {done ? <Text v="small" color={c.okInk}>{t('Temas notu kaydedildi: {note}', { note: done })}</Text> : null}
-      {err ? <Text v="small" color={c.badInk}>{t('Temas notu kaydedilemedi: {err}', { err })}</Text> : null}
+      ) : null}
+      {done ? <Text v="small" color={c.okInk}>{done}</Text> : null}
+      {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
+      {notes.length > 1 ? (
+        open === 'all'
+          ? <View style={{ gap: 2 }}>{notes.map((n: any, i: number) => <Muted key={n.id || i}>{day(n.created_at)}: {n.note}</Muted>)}<Button kind="quiet" title={t('Kapat')} onPress={() => setOpen('')} style={{ alignSelf: 'flex-start', minHeight: 34 }} /></View>
+          : <Button kind="quiet" title={t('Tüm notlar ({n})', { n: notes.length })} onPress={() => setOpen('all')} style={{ alignSelf: 'flex-start', minHeight: 34 }} />
+      ) : null}
     </Card>
   );
 }
 
-/** Müşteri sağlığı: denemesi biten, mülk eklemeyen, daveti bekleyen, ödeme sorunlu müşteriler ve az katılımlı kurumlar. */
+/** Müşteri sağlığı: riske göre üç sütun (Acil, Önemli, İzle); süzgeç ve arama. Sıra ilk yüklemede sabitlenir: not eklenince
+    kişi yerinde kalır (önceden en uzun süredir aranmayan en üste çıktığı için not kaydedilmemiş gibi görünüyordu). */
 function Health({ d }: { d: Data }) {
   const c = useColors();
+  const { desktop } = useBreakpoint();
   const [h, setH] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
   const [f, setF] = useState('all');
-  const load = useCallback(() => { loadHealth().then(setH).catch((e) => setErr(humanError(e))); }, []);
+  const [q, setQ] = useState('');
+  const [order, setOrder] = useState<string[] | null>(null);
+  const load = useCallback(() => { setOrder(null); loadHealth().then(setH).catch((e) => setErr(humanError(e))); }, []);
   useEffect(() => { load(); }, [load]);
-  const list = useMemo(() => (h ? healthList({ users: d.users, landlords: d.landlords, payments: d.payments, ...h }) : []), [h, d]);
+  const raw = useMemo(() => (h ? healthList({ users: d.users, landlords: d.landlords, payments: d.payments, ...h }) : []), [h, d]);
+  useEffect(() => { if (h && !order) setOrder(raw.map((x: any) => x.kind + x.id)); }, [h, raw, order]);
+  const pos = new Map((order || []).map((k, i) => [k, i]));
+  const list = [...raw].sort((a: any, b: any) => (pos.get(a.kind + a.id) ?? 1e9) - (pos.get(b.kind + b.id) ?? 1e9));
+  const addNote = (n: any) => setH((x: any) => ({ ...x, contacts: [n, ...(x.contacts || [])] }));
   if (err) return <Text v="small" color={c.badInk}>{err}</Text>;
   if (!h) return <View style={{ alignItems: 'center', paddingVertical: 30 }}><Loader size={64} /></View>;
+  const match = (x: any) => (f === 'all' || (f === 'org' ? x.kind === 'org' : x.reasons.some((r: any) => r.code === f)))
+    && (!q.trim() || [x.name, x.email, x.phone].some((v) => String(v || '').toLocaleLowerCase('tr').includes(q.trim().toLocaleLowerCase('tr'))));
   const n = (k: string) => list.filter((x: any) => k === 'all' || (k === 'org' ? x.kind === 'org' : x.reasons.some((r: any) => r.code === k))).length;
-  const shown = list.filter((x: any) => f === 'all' || (f === 'org' ? x.kind === 'org' : x.reasons.some((r: any) => r.code === f)));
+  const shown = list.filter(match);
   const opts: [string, string][] = [['all', t('Hepsi')], ['trial', t('Deneme bitiyor')], ['billing', t('Ödeme sorunu')], ['noprop', t('Mülk eklemedi')], ['invite', t('Davet bekliyor')], ['nopay', t('Ödeme yok')], ['org', t('Kurumlar')]];
+  const cols = [3, 2, 1].map((sev) => ({ sev, items: shown.filter((x: any) => x.sev === sev) }));
   return (
     <Stack>
-      <Seg scroll value={f} onChange={setF} options={opts.filter(([k]) => k === 'all' || n(k)).map(([k, l]) => [k, l + ' ' + n(k)] as [string, string])} />
-      {shown.length ? <Shown list={shown} step={50} render={(x: any) => <HealthRow key={x.kind + x.id} x={x} onSaved={load} />} />
-        : <Empty>{t('Şu an risk görünen müşteri yok.')}</Empty>}
+      <Row between wrap>
+        <Seg scroll value={f} onChange={setF} options={opts.filter(([k]) => k === 'all' || n(k)).map(([k, l]) => [k, l + ' ' + n(k)] as [string, string])} />
+        <Row gap={8}>
+          <View style={{ width: 220 }}><Field label={t('Ara')} value={q} onChangeText={setQ} placeholder={t('Ad, e-posta ya da telefon')} /></View>
+          <Button kind="ghost" title={t('Yeniden sırala')} onPress={load} style={{ minHeight: 44 }} />
+        </Row>
+      </Row>
+      {shown.length ? (
+        <View style={{ flexDirection: desktop ? 'row' : 'column', gap: 14, alignItems: 'flex-start' }}>
+          {cols.map(({ sev, items }) => (
+            <View key={sev} style={{ flex: 1, width: desktop ? undefined : '100%', gap: 10 }}>
+              <Row gap={8}><Tag label={t((SEV[sev] || SEV[1])[0])} tone={(SEV[sev] || SEV[1])[1]} /><Muted>{t('{n} müşteri', { n: items.length })}</Muted></Row>
+              {items.length ? items.slice(0, 60).map((x: any) => <HealthCard key={x.kind + x.id} x={x} onNote={addNote} />) : <Empty>{t('Bu sütunda müşteri yok.')}</Empty>}
+            </View>
+          ))}
+        </View>
+      ) : <Empty>{t('Şu an risk görünen müşteri yok.')}</Empty>}
     </Stack>
   );
 }

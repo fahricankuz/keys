@@ -1114,5 +1114,12 @@ export const EN_PAKET = {
   "Aylara göre": "By month",
   "Bu yılın kalemleri": "This year’s items",
   "Aylık sözleşme bedeli (₺, yalnız panelde)": "Monthly contract fee (₺, admin only)",
-  "ör. 12000": "e.g. 12000"
+  "ör. 12000": "e.g. 12000",
+  "Not ekle": "Add note",
+  "E-posta gönderildi": "E-mail sent",
+  "Tüm notlar ({n})": "All notes ({n})",
+  "Yeniden sırala": "Re-sort",
+  "{n} müşteri": "{n} customers",
+  "Bu sütunda müşteri yok.": "No customers in this column.",
+  "Ara": "Call"
 };

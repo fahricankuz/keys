@@ -534,16 +534,20 @@ test('müşteri sağlığı: mülk eklemeyen hesap listede; temas notu kaydedili
   await page.getByRole('button', { name: 'Müşteri sağlığı', exact: true }).click();
   await expect(page.getByText('Boş Mülk Sahibi')).toBeVisible();
   await expect(page.getByText('• 10 gündür mülk eklemedi')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ara', exact: true }).first()).toBeVisible();          // telefonla tek tıkla
+  await page.getByRole('button', { name: 'Not ekle' }).first().click();
   await page.getByLabel('Temas notu').first().fill('Aradım, hafta sonu mülk ekleyecek.');
   await page.getByRole('button', { name: 'Kaydet', exact: true }).first().click();
-  await expect(page.getByText(/Son temas .*: Aradım, hafta sonu mülk ekleyecek\./)).toBeVisible();
-  await expect(page.getByText('Temas notu kaydedildi: Aradım, hafta sonu mülk ekleyecek.')).toBeVisible();     // onay görünür (satır listede yer değiştirse de)
+  await expect(page.getByText('Not kaydedildi.')).toBeVisible();
+  await expect(page.getByText(/Son temas .*: Aradım, hafta sonu mülk ekleyecek\./)).toBeVisible();     // kart yerinde, not hemen görünür
+  await expect(page.getByText('Boş Mülk Sahibi')).toBeVisible();
   expect((await db(page)).tables.customer_contacts.map((x) => [x.user_id, x.note])).toEqual([['u-bos', 'Aradım, hafta sonu mülk ekleyecek.']]);
-  // İkinci not: geçmiş listelenir, en yeni "Son temas" olur.
+  // İkinci not: en yeni "Son temas" olur, geçmiş "Tüm notlar"da.
+  await page.getByRole('button', { name: 'Not ekle' }).first().click();
   await page.getByLabel('Temas notu').first().fill('Ertesi gün tekrar aradım, mülkü ekledi.');
   await page.getByRole('button', { name: 'Kaydet', exact: true }).first().click();
-  await expect(page.getByText('Temas notu kaydedildi: Ertesi gün tekrar aradım, mülkü ekledi.')).toBeVisible();
   await expect(page.getByText(/Son temas .*: Ertesi gün tekrar aradım/)).toBeVisible();
+  await page.getByRole('button', { name: 'Tüm notlar (2)' }).click();
   await expect(page.getByText(/^\d.*: Aradım, hafta sonu mülk ekleyecek\.$/)).toBeVisible();
 });
 
