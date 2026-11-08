@@ -7,7 +7,7 @@ import { watchErrors } from './helpers.mjs';
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
 const PORT = 8261;
 let server;
-test.describe.configure({ mode: 'serial' });
+test.describe.configure({ mode: 'serial', timeout: 90_000 });          // CI'da ilk açılış yavaş: 30 sn'lik varsayılan kararsızdı
 test.beforeAll(async () => { test.setTimeout(300_000); await ensureDist(DIST); server = await serveDist(DIST, PORT); });
 test.afterAll(() => server && server.close());
 
@@ -32,7 +32,9 @@ async function ac(page, d) {
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
   await expect(page).toHaveURL(/uygulama/);
+  await expect(page.getByText('Moda Dairesi').first()).toBeVisible({ timeout: 30_000 });
   await page.getByText('Moda Dairesi').first().click();
+  await expect(page.getByRole('button', { name: 'Tutanak', exact: true })).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Tutanak', exact: true }).click();
   await expect(page.getByText('Salon').first()).toBeVisible({ timeout: 15000 });
   return errors;
