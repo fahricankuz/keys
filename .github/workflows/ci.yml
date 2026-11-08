@@ -8,6 +8,12 @@ on:
   # Hostinger paketi (yayın) bu iş akışını çağırır: testler geçmeden site yayına çıkmaz.
   workflow_call:
 
+# Aynı PR'a yeni gönderim gelince eski test turu iptal edilir (yarım kalan tur dakika yemesin).
+# Yayın (workflow_call) içinden çağrıldığında grup o çalışmaya özeldir; yayın testleri iptal edilmez.
+concurrency:
+  group: testler-${{ github.event_name == 'pull_request' && github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
