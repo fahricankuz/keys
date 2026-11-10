@@ -9,6 +9,7 @@ const svg = body => `<svg viewBox="0 0 24 24" ${S}>${body}</svg>`;
 
 export const I = {
   home:     svg('<path d="M4 11 12 4l8 7v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle fill="{RING}" stroke="none" cx="12" cy="13" r="1.7"/><path fill="{RING}" stroke="none" d="M11 13.8 L10.6 16.6 H13.4 L13 13.8Z"/>'),
+  more:     svg('<path d="M5 7h14M5 12h14M5 17h9"/>' + R(18.3, 17, 1.7)),
   grid:     svg('<rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/>' + R(17, 17, 2.4)),
   card:     svg('<rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18"/><circle fill="{RING}" stroke="none" cx="16.5" cy="14.5" r="1.8"/>'),
   wrench:   svg('<path d="M14.5 6.5a4 4 0 0 0-5 5L4 17l3 3 5.5-5.5a4 4 0 0 0 5-5l-2.5 2.5-2.5-.5-.5-2.5z"/><circle fill="{RING}" stroke="none" cx="18" cy="18" r="1.8"/>'),

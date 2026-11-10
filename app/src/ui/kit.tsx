@@ -21,6 +21,8 @@ const SCALE: Record<Variant, TextStyle> = {
   num: { fontFamily: fonts.displayBold, fontSize: 56, lineHeight: 60, letterSpacing: -1.1, fontVariant: ['tabular-nums'] }
 };
 
+const PHONE: Partial<Record<Variant, TextStyle>> = { h2: { fontSize: 24, lineHeight: 29 }, h3: { fontSize: 19, lineHeight: 24 } };
+
 /** Web'de satır kırılımı: başlıklar dengeli (ikinci satırda tek sözcük kalmaz), metinler "pretty" (son satırda tek sözcük kalmaz). */
 const WRAP: Record<string, any> = Platform.OS === 'web'
   ? { h1: { textWrap: 'balance' }, h2: { textWrap: 'balance' }, h3: { textWrap: 'balance' }, body: { textWrap: 'pretty' }, small: { textWrap: 'pretty' } }
@@ -30,8 +32,10 @@ export function Text({ v = 'body', muted, color, style, children, ...rest }: {
   v?: Variant; muted?: boolean; color?: string; style?: StyleProp<TextStyle>; children?: ReactNode;
 } & Omit<React.ComponentProps<typeof RNText>, 'style'>) {
   const c = useColors();
+  // Panelde telefonda kart ve liste başlıkları ölçülü: üç satırlık dev başlık yerine iki satıra sığan başlık.
+  const small = useContext(PanelPhone) ? PHONE[v] : null;
   return (
-    <RNText {...rest} style={[SCALE[v], { color: color ?? (muted ? c.muted : c.ink) }, WRAP[v] || null, style]}>
+    <RNText {...rest} style={[SCALE[v], small, { color: color ?? (muted ? c.muted : c.ink) }, WRAP[v] || null, style]}>
       {children}
     </RNText>
   );
@@ -73,6 +77,8 @@ const ACCENT_HOVER = '#D93F3D';
 /** Panel (uygulama, kurum ve yönetici paneli) içinde düğmeler daha küçüktür; tanıtım sitesinde büyük kalır.
     Telefonda en az 44 px (parmakla rahat basılır). */
 export const PanelUI = createContext(false);
+/** Panel telefonda mı? (AppShell ve yönetici kapısı sağlar; Text başlık ölçüsünü buradan okur, her metin ekranı ayrı ölçmez.) */
+export const PanelPhone = createContext(false);
 /** Yönetici paneli: ortak parçalar (kart, bölüm başlığı, boş durum, seçim şeridi) panelin tek tasarım dilini kullanır (app-ui/admin-ui.tsx). */
 export const AdminUI = createContext(false);
 
@@ -98,7 +104,8 @@ export function Button({ title, onPress, kind = 'primary', block, disabled, load
     : kind === 'quiet' ? c.surface2
     : 'transparent';
   const fg = off && filled ? c.offInk : hot || kind === 'primary' ? c.accentInk : kind === 'dark' ? c.bg : kind === 'onDark' ? c.heroInk : c.ink;
-  const border = hot ? (kind === 'primary' ? ACCENT_HOVER : c.accent) : kind === 'ghost' ? c.ink : kind === 'onDark' ? 'rgba(251,244,234,0.45)' : kind === 'primary' ? c.accent : 'transparent';
+  // Pasif düğme: gri zemin, çerçevesiz (kırmızı çerçeve hata uyarısı gibi görünüyordu).
+  const border = off && filled ? 'transparent' : off ? c.line : hot ? (kind === 'primary' ? ACCENT_HOVER : c.accent) : kind === 'ghost' ? c.ink : kind === 'onDark' ? 'rgba(251,244,234,0.45)' : kind === 'primary' ? c.accent : 'transparent';
   const ring = kind === 'onDark' ? c.heroInk : c.ink;
   const web: any = Platform.OS === 'web' ? { transitionProperty: 'background-color, border-color, box-shadow', transitionDuration: '220ms', cursor: off ? 'default' : 'pointer' } : null;
   return (

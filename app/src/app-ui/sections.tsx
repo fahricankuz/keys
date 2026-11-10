@@ -314,7 +314,7 @@ export function ReqCard({ p, r, showProp }: { p: any; r: any; showProp?: boolean
       <Row between align="flex-start">
         <View style={{ flex: 1, gap: 3 }}>
           <Label accent>{t(r.cat)}{r.urgency === 'Acil' ? ' ' + t('· Acil') : ''}{showProp ? ' · ' + p.name : ''}</Label>
-          <Text v="h3">{r.title}</Text>
+          <Text v="h3" numberOfLines={2}>{r.title}</Text>
         </View>
         <Muted>{fmt(parse(r.date))}</Muted>
       </Row>

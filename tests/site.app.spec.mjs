@@ -251,6 +251,7 @@ test('genel kurul: yönetim çağırır ve paketi açar, yoklama açar; malik ka
   await expect(page).toHaveURL(/\/uygulama\/site$/);
   await page.getByRole('link', { name: 'Genel kurul', exact: true }).first().click();
   await expect(page.getByText(/bağlayıcı değildir/).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Yeni genel kurul çağrısı' }).click();     // form düğmeyle açılır
   await page.getByLabel('Tarih', { exact: true }).fill(later);
   await page.getByLabel('Yer', { exact: true }).fill('Kapalı otopark');
   await page.getByRole('button', { name: 'Çağrıyı yayınla' }).click();
@@ -263,6 +264,7 @@ test('genel kurul: yönetim çağırır ve paketi açar, yoklama açar; malik ka
   await expect(pack.getByText('Kapalı otopark')).toBeVisible();
   await pack.close();
 
+  await page.getByRole('button', { name: 'Görüş yoklaması aç' }).click();
   await page.getByLabel('Soru').fill('Çatı yalıtımı yapılsın mı?');
   await page.getByLabel('Bitiş tarihi').fill(later);
   await page.getByRole('switch', { name: 'Arsa payıyla ağırlıklı sonuç' }).click();
@@ -329,6 +331,7 @@ test('yalnız site sakini: "Mülküne bağlan" yok; ana sayfa, ödemeler, talepl
   await page.goto(url('/uygulama/site/belgeler'));
   await expect(page.getByText('Sakinlerden gelenler')).toBeVisible();
   await expect(page.getByText('Kira sözleşmem')).toBeVisible();
+  await page.getByRole('button', { name: 'Belge paylaş' }).click();
   await page.getByRole('tab', { name: 'Bir daire' }).or(page.getByRole('button', { name: 'Bir daire' })).first().click();
   await page.getByLabel('Daire', { exact: true }).fill('A Blok');
   await page.getByRole('checkbox', { name: 'A Blok No 1' }).click();

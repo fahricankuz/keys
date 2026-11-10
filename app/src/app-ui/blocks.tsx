@@ -1,6 +1,6 @@
 import { Grain } from '../ui/Grain';
 import { ReactNode, useContext, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleProp, View, ViewStyle, Image } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, StyleProp, View, ViewStyle, Image } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { SvgXml } from 'react-native-svg';
 import { I, ic } from '../domain/icons';
@@ -27,7 +27,8 @@ export function Stack({ children, gap = 14, style }: { children?: ReactNode; gap
 export function Row({ children, between, gap = 10, wrap, style, align = 'center' }: {
   children?: ReactNode; between?: boolean; gap?: number; wrap?: boolean; style?: StyleProp<ViewStyle>; align?: 'center' | 'flex-start' | 'flex-end' | 'baseline';
 }) {
-  return <View style={[{ flexDirection: 'row', alignItems: align, gap, justifyContent: between ? 'space-between' : 'flex-start', flexWrap: wrap ? 'wrap' : 'nowrap' }, style]}>{children}</View>;
+  // Sarılan satır, kendisi de bir satırın içindeyse içeriği kadar genişleyip ekrandan taşmasın (maxWidth + minWidth 0).
+  return <View style={[{ flexDirection: 'row', alignItems: align, gap, justifyContent: between ? 'space-between' : 'flex-start', flexWrap: wrap ? 'wrap' : 'nowrap' }, wrap ? { maxWidth: '100%', minWidth: 0 } : null, style]}>{children}</View>;
 }
 
 export function Card({ children, onPress, style, gap = 10 }: { children?: ReactNode; onPress?: () => void; style?: StyleProp<ViewStyle>; gap?: number }) {
@@ -165,12 +166,12 @@ export function Seg({ options, value, onChange, scroll, wrap }: { options: [stri
   // Panelde seçim şeridi içerik genişliğinde, tek parça (ekran boyu siyah şerit değil).
   if (admin && !wrap && !(scroll && phone) && options.length <= 6) {
     return (
-      <View style={{ flexDirection: 'row', alignSelf: 'flex-start', flexWrap: 'wrap', gap: 2, padding: 4, borderRadius: radius.pill, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line }}>
+      <View style={{ flexDirection: 'row', alignSelf: 'flex-start', flexWrap: 'wrap', gap: 2, padding: 4, borderRadius: phone ? 26 : radius.pill, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, maxWidth: '100%' }}>
         {options.map(([v, l]) => {
           const on = v === value;
           return (
             <PressScale key={v} onPress={() => onChange(v)} accessibilityRole="button" accessibilityState={{ selected: on }} scaleTo={0.96}
-              style={{ paddingHorizontal: 14, minHeight: 34, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? c.ink : 'transparent' }}>
+              style={{ paddingHorizontal: 14, minHeight: phone ? 44 : 34, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? c.ink : 'transparent' }}>
               <Text v="small" numberOfLines={1} color={on ? c.bg : c.ink} style={{ fontFamily: fonts.bodyBold, fontSize: 13.5 }}>{l}</Text>
             </PressScale>
           );
@@ -197,10 +198,17 @@ export function Seg({ options, value, onChange, scroll, wrap }: { options: [stri
   });
   // Telefonda yatay kaydırılır (son sekme tam görünsün diye sağda pay). wrap verilmişse geniş ekranda kaydırma yerine alt satıra geçer
   // (masaüstünde çubuksuz yatay şerit fareyle kaydırılamaz, son sekmeler kesik kalırdı).
-  if (scroll && (phone || (many && !wrap))) return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>{items}</ScrollView>;
+  // Sağ kenarda soluklaşma: şeridin devamı olduğu anlaşılır (seçenek kelimenin ortasında kesilmiş görünmez).
+  if (scroll && (phone || (many && !wrap))) return (
+    <View style={{ minWidth: 0 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 36 }}>{items}</ScrollView>
+      <View pointerEvents="none" style={[{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 36 }, Platform.OS === 'web' ? ({ backgroundImage: `linear-gradient(to right, ${c.bg}00, ${c.bg})` } as any) : null]} />
+    </View>
+  );
   if (track) return <View style={{ flexDirection: 'row', gap: 2, padding: 4, borderRadius: radius.pill, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, minWidth: 'max-content' as any }}>{items}</View>;
   if (wrap) return <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{items}</View>;
-  return <View style={{ flexDirection: 'row', gap: 8 }}>{items}</View>;
+  // Sığmayan seçenek ekrandan taşmaz, alt satıra geçer.
+  return <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{items}</View>;
 }
 
 /** Dönem seçici: ‹ Ekim 2026 › (aylar ya da yıllar arasında bir adım ileri / geri). */
@@ -334,9 +342,19 @@ export function DownloadLink({ path, label }: { path?: string; label: string }) 
   if (!path) return null;
   return (
     <PressScale onPress={() => { downloadFile(path, label); }} accessibilityRole="button" accessibilityLabel={t('{name} dosyasını indir', { name: label })} scaleTo={0.96}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 32 }}>
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44, paddingRight: 6 }}>
       <Icon name="doc" size={14} color={c.accentText} />
       <Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyXBold }}>{t('İndir')}</Text>
+    </PressScale>
+  );
+}
+
+/** Satır içi küçük işlem (Sil, Kaldır…): metin bağlantısı görünümünde ama dokunma alanı en az 44 px. */
+export function LinkBtn({ label, onPress, danger, a11y }: { label: string; onPress: () => void; danger?: boolean; a11y?: string }) {
+  const c = useColors();
+  return (
+    <PressScale onPress={onPress} accessibilityRole="button" accessibilityLabel={a11y || label} scaleTo={0.96} style={{ minHeight: 44, minWidth: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' }}>
+      <Text v="small" color={danger ? c.badInk : c.accentText} style={{ fontFamily: fonts.bodyBold, textDecorationLine: 'underline' }}>{label}</Text>
     </PressScale>
   );
 }
@@ -424,14 +442,14 @@ export function YearTiles({ p, onDark }: { p: any; onDark?: boolean }) {
       <View key={m.key} accessible accessibilityLabel={m.full + ': ' + (m.before ? t('Sözleşme öncesi') : t(TILE_NAME[m.kind]))}
         style={{ flex: 1, minWidth: 0, height: 46, borderRadius: 10, backgroundColor: st.bg, borderWidth: m.current ? 2.5 : 1.5,
           borderColor: m.current ? (onDark ? '#fff' : c.ink) : st.border, borderStyle: st.dashed && !m.current ? 'dashed' : 'solid',
-          alignItems: 'center', justifyContent: 'center', opacity: m.before ? 0.35 : 1 }}>
+          alignItems: 'center', justifyContent: 'center', opacity: m.before ? 0.6 : 1 }}>
         <Text v="small" numberOfLines={1} color={st.ink} style={{ fontSize: 11, lineHeight: 13, fontFamily: m.current ? fonts.bodyXBold : undefined }}>{m.label}</Text>
         <Text v="small" color={st.ink} style={{ fontFamily: fonts.bodyXBold, fontSize: 12, lineHeight: 14 }}>{m.before ? ' ' : TILE_MARK[m.kind]}</Text>
       </View>
     );
   };
   return (
-    <View style={{ gap: 6, maxWidth: 520 }}>
+    <View style={{ gap: 6, maxWidth: 520, width: '100%', alignSelf: 'stretch' }}>
       <View style={{ flexDirection: 'row', gap: 5 }}>{months.slice(0, 6).map(tile)}</View>
       <View style={{ flexDirection: 'row', gap: 5 }}>{months.slice(6).map(tile)}</View>
     </View>

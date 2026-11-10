@@ -56,6 +56,8 @@ export function Meetings({ d, org, can }: { d: any; org: any; can: (p: string) =
   const [x, setX] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
   const write = can('announce');
+  // Önce liste; formlar düğmeyle açılır (ilk kullanımda, hiç çağrı yokken çağrı formu açık gelir).
+  const [form, setForm] = useState<'' | 'meeting' | 'poll'>('');
   const load = useCallback(async () => { try { setX(await loadMeetings(org.id)); } catch (e) { setErr(humanError(e)); } }, [org.id]);
   useEffect(() => { load(); }, [load]);
   const run = async (f: () => Promise<any>) => { setErr(null); try { await f(); await load(); return true; } catch (e) { setErr(humanError(e)); return false; } };
@@ -69,9 +71,15 @@ export function Meetings({ d, org, can }: { d: any; org: any; can: (p: string) =
     <Stack>
       <Note>{LEGAL()}</Note>
       <Err e={err} />
-      {write ? (
+      {write && !form ? (
+        <Row wrap gap={8}>
+          <Button title={t('Yeni genel kurul çağrısı')} onPress={() => setForm('meeting')} />
+          <Button kind="ghost" title={t('Görüş yoklaması aç')} onPress={() => setForm('poll')} />
+        </Row>
+      ) : null}
+      {write && form === 'meeting' ? (
         <Card gap={10}>
-          <H2>{t('Genel kurul çağrısı')}</H2>
+          <Row between><H2>{t('Genel kurul çağrısı')}</H2><Button kind="quiet" title={t('Kapat')} onPress={() => setForm('')} /></Row>
           <Seg value={m.v.kind} onChange={(k) => m.set('kind', k)} options={[['olagan', t('Olağan')], ['olaganustu', t('Olağanüstü')]]} />
           <Field label={t('Başlık')} value={m.v.title} onChangeText={(v) => m.set('title', v)} maxLength={120} />
           <Row wrap gap={10}>
@@ -88,7 +96,7 @@ export function Meetings({ d, org, can }: { d: any; org: any; can: (p: string) =
           <Button title={t('Çağrıyı yayınla')} style={{ alignSelf: 'flex-start' }} disabled={!m.v.date || m.v.title.trim().length < 2}
             onPress={() => run(async () => {
               await saveMeeting(org.id, { title: m.v.title, kind: m.v.kind, held_at: at(m.v.date, m.v.time), second_at: at(m.v.date2, m.v.time2), place: m.v.place, agenda: String(m.v.agenda).split('\n') });
-              m.setV({ ...m.v, date: '', date2: '', place: '' });
+              m.setV({ ...m.v, date: '', date2: '', place: '' }); setForm('');
             })} />
         </Card>
       ) : null}
@@ -117,9 +125,9 @@ export function Meetings({ d, org, can }: { d: any; org: any; can: (p: string) =
         );
       }) : <Empty>{t('Henüz genel kurul çağrısı yok.')}</Empty>}
 
-      {write ? (
+      {write && form === 'poll' ? (
         <Card gap={10}>
-          <H2>{t('Görüş yoklaması aç')}</H2>
+          <Row between><H2>{t('Görüş yoklaması aç')}</H2><Button kind="quiet" title={t('Kapat')} onPress={() => setForm('')} /></Row>
           <Field label={t('Soru')} value={p.v.question} onChangeText={(v) => p.set('question', v)} maxLength={300} />
           <Box label={t('Seçenekler (her satır bir seçenek)')} value={p.v.options} onChange={(v) => p.set('options', v)} lines={3} />
           <DateField label={t('Bitiş tarihi')} v={p.v} set={p.set} k="ends" />
@@ -134,7 +142,7 @@ export function Meetings({ d, org, can }: { d: any; org: any; can: (p: string) =
             disabled={p.v.question.trim().length < 3 || !p.v.ends || p.v.ends < iso(new Date()) || String(p.v.options).split('\n').filter((o) => o.trim()).length < 2}
             onPress={() => run(async () => {
               await createPoll(org.id, { question: p.v.question, options: String(p.v.options).split('\n'), weighted: p.v.weighted, voters: p.v.voters, meeting_id: p.v.meeting || null, ends_at: new Date(p.v.ends + 'T23:59:00') });
-              p.setV({ ...p.v, question: '', ends: '' });
+              p.setV({ ...p.v, question: '', ends: '' }); setForm('');
             })} />
         </Card>
       ) : null}

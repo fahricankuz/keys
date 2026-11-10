@@ -6,7 +6,7 @@ import { t } from '../domain/i18n';
 import { loadKpis } from '../domain/admin';
 import { adminOrgs } from '../domain/org';
 import { finance, loadCosts, loadMonthly, periodMonths, revenueEstimate, saveRevenueMonth, volumes } from '../domain/admin-finance';
-import { tl } from '../domain/util';
+import { percent, tl } from '../domain/util';
 import { fmtShort } from '../domain/money';
 import { Text } from '../ui/kit';
 import { fonts, useBreakpoint, useColors } from '../ui/theme';
@@ -30,7 +30,7 @@ export const PeriodSeg = ({ value, onChange }: { value: Period; onChange: (p: Pe
 
 /** Dönemin karşılaştırma metni: ayda "geçen ay", yılda "geçen yıl aynı dönem". */
 export const prevLabel = (p: Period) => (p === 'year' ? t('geçen yıl aynı dönem') : t('geçen ay'));
-export function delta(a: number, b: number) { return b ? (a >= b ? '+' : '−') + Math.abs(Math.round(((a - b) / b) * 100)) + '%' : ''; }
+export function delta(a: number, b: number) { return b ? (a >= b ? '+' : '−') + percent(Math.abs(((a - b) / b) * 100), 0) : ''; }
 
 /** Panel verisi: göstergeler, bu yılın ve geçen yılın aylık verisi, kurumlar, giderler ve kur tablosu. Bu ayın üyelik tahminini kaydeder. */
 export function useAdminFinance() {
@@ -89,12 +89,12 @@ export function FinanceCard({ f, prev, period }: { f: any; prev: any; period: Pe
         {big(t('Net (gelir − gider)'), f.net, prev.net, 'net')}
       </Row>
       <View style={{ flexDirection: phone ? 'column' : 'row', gap: 18 }}>
-        <View style={{ flex: 1, gap: 4 }}>
+        <View style={{ flex: phone ? undefined : 1, gap: 4 }}>
           <Muted>{t('Gelir kırılımı')}</Muted>
           {f.incomeParts.map((x: any, i: number) => part(INCOME_LABEL(x.key), x.value, f.income, i))}
           {up?.detail?.contracts ? <Muted>{t('Üyelik: paketler {a} · kurumsal sözleşmeler {b}', { a: tl(up.detail.packages), b: tl(up.detail.contracts) })}</Muted> : null}
         </View>
-        <View style={{ flex: 1, gap: 4 }}>
+        <View style={{ flex: phone ? undefined : 1, gap: 4 }}>
           <Muted>{t('Gider kırılımı')}</Muted>
           {f.expenseParts.length ? f.expenseParts.map((x: any, i: number) => part(categoryLabel(x.key), x.value, f.expense, i)) : <Muted>{t('Bu dönemde gider yok.')}</Muted>}
         </View>

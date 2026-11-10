@@ -55,9 +55,10 @@ export function Page({ title, sub, back, children, fill }: { title: string; sub?
           {back ? <IconBtn name="back" label={t('Geri')} onPress={() => go(back)} /> : null}
           <View style={{ flex: 1, gap: 2 }}>
             {/* Telefonda uzun başlık (ör. site adı) küçülür ve en çok iki satır olur; sağdaki düğmelere yer kalır. */}
-            <Text v="h1" numberOfLines={fill ? 1 : compact ? 2 : undefined} style={fill && compact ? { fontSize: 26, lineHeight: 30, letterSpacing: -0.8 }
-              : compact && title.length > 10 ? { fontSize: 28, lineHeight: 31, letterSpacing: -0.9 } : { fontSize: 36, lineHeight: 38, letterSpacing: -1.2 }}>{title}</Text>
-            {sub ? <Muted>{sub}</Muted> : null}
+            <Text v="h1" numberOfLines={fill ? 1 : compact ? 2 : undefined} style={fill && compact ? { fontSize: 24, lineHeight: 28, letterSpacing: -0.7 }
+              : compact && title.length > 16 ? { fontSize: 22, lineHeight: 26, letterSpacing: -0.5 }
+              : compact ? { fontSize: 28, lineHeight: 31, letterSpacing: -0.9 } : { fontSize: 36, lineHeight: 38, letterSpacing: -1.2 }}>{title}</Text>
+            {sub ? <Text v="small" muted numberOfLines={compact ? 2 : undefined}>{sub}</Text> : null}
           </View>
         </Row>
         <Row gap={8}>
@@ -442,22 +443,26 @@ export function Threads() {
   useStore();
   const go = useGo();
   const c = useColors();
-  const ids = threadIds();
+  const every = threadIds();
+  // Kiracısı ve mesajı olmayan mülk listede yer kaplamaz; altta tek satırla anılır.
+  const ids = every.filter((id: string) => { const p = P(id); return p.msgs.length || (p.tenants || []).length; });
+  const quiet = every.length - ids.length;
   return (
     <Page title={t('Mesajlar')} sub={t('Kiracılarınla yazışmalar')}>
       <SubBanner full={false} />
-      {ids.length ? (
+      {every.length ? (ids.length ? (
         <Items data={ids} render={(id, last) => {
           const p = P(id), lastMsg = p.msgs[p.msgs.length - 1], unread = unreadIn(p);
           const preview = lastMsg
             ? (lastMsg.from === 'system' ? '' : isMineMsg(p, lastMsg) ? t('Sen') + ': ' : senderName(p, lastMsg) + ': ') + (lastMsg.text || (lastMsg.img ? t('Fotoğraf') : ''))
             : t('Henüz mesaj yok');
           return <LI key={id} last={last} onPress={() => go('/mulk-sahibi/mulk/' + id + '/mesaj')}
-            title={<Text v="h3" style={{ fontFamily: unread ? fonts.bodyXBold : undefined }}>{tenantsLabel(p)}</Text>}
+            title={<Text v="body" numberOfLines={2} style={{ fontFamily: unread ? fonts.bodyXBold : fonts.bodyBold, fontSize: 17, lineHeight: 22 }}>{tenantsLabel(p)}</Text>}
             sub={p.name + ' · ' + preview}
             right={<View style={{ alignItems: 'flex-end', gap: 4 }}><Muted>{lastMsg ? fmt(lastMsg.at) : ''}</Muted>{unread ? <Chip tone="accent" label={t('{n} yeni', { n: unread })} /> : null}</View>} />;
         }} />
-      ) : <Empty>{t('Henüz mülk yok')}</Empty>}
+      ) : <Empty>{t('Henüz yazışma yok. Kiracın bağlanınca buradan yazışırsınız.')}</Empty>) : <Empty>{t('Henüz mülk yok')}</Empty>}
+      {ids.length && quiet ? <Muted>{t('{n} mülkte kiracı yok; kiracı eklenince yazışma burada görünür.', { n: quiet })}</Muted> : null}
     </Page>
   );
 }

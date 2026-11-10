@@ -22,6 +22,15 @@ export function RoleSwitcher({ compact }: { compact?: boolean }) {
   const pick = (k: string) => { setOpen(false); if (k !== key) router.replace(selectCtx(k) as any); };
   return (
     <View style={{ marginBottom: compact ? 0 : 16, zIndex: 5 }}>
+      {compact ? (
+        // Telefonda küçük tek satır: "Site yöneticisi · Fişekhane ▾" (içeriğe yer kalsın).
+        <PressScale onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityLabel={t('Rol seç') + ': ' + cur.label} accessibilityState={{ expanded: open }} scaleTo={0.98}
+          style={{ alignSelf: 'flex-start', maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 6, paddingRight: 12, minHeight: 40, borderRadius: radius.pill, backgroundColor: c.tile, borderWidth: 1, borderColor: open ? c.accent : c.line }}>
+          <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center' }}><Icon name={cur.icon} size={15} color={c.accent} /></View>
+          <RNText numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.bodyXBold, fontSize: 13.5, color: c.ink }}>{cur.label}{cur.sub ? <RNText style={{ fontFamily: fonts.body, color: c.muted }}>{' · ' + cur.sub}</RNText> : null}</RNText>
+          <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 13, color: c.muted }}>{open ? '▴' : '▾'}</RNText>
+        </PressScale>
+      ) : (<>
       <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 0.6, color: c.muted, marginBottom: 6, marginLeft: 4, textTransform: 'uppercase' }}>{t('Kullandığın hesap')}</RNText>
       <PressScale onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityLabel={t('Rol seç') + ': ' + cur.label} accessibilityState={{ expanded: open }} scaleTo={0.99}
         style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: radius.md, backgroundColor: c.tile, borderWidth: 1.5, borderColor: open ? c.accent : c.line }}>
@@ -32,6 +41,7 @@ export function RoleSwitcher({ compact }: { compact?: boolean }) {
         </View>
         <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 14, color: c.muted }}>{open ? '▴' : '▾'}</RNText>
       </PressScale>
+      </>)}
       {open ? (
         <View accessibilityRole="menu" style={{ marginTop: 6, padding: 6, borderRadius: radius.md, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, gap: 2 }}>
           {list.map((x) => {

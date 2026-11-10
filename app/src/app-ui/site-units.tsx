@@ -12,7 +12,7 @@ import { pickTable } from './media';
 import { tl, fmtFull, parse, match } from '../domain/util';
 import { Button, Chip, Field, PressScale, Text } from '../ui/kit';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
-import { Card, Empty, H2, Muted, Note, Row, Seg, Stack } from './blocks';
+import { LinkBtn, Card, Empty, H2, Muted, Note, Row, Seg, Stack } from './blocks';
 import { SetupWizard } from './site-overview';
 import { MoneyField } from './forms';
 import { Pill } from './org';
@@ -228,9 +228,9 @@ function UnitRow({ u, d, oid, org, can, reload, first }: { u: any; d: any; oid: 
               <Pill label={t('Aidatı kiracı öder')} on={u.payer !== 'malik'} onPress={() => act(() => saveUnit(oid, { ...u, payer: 'kiraci' }))} />
               <Pill label={t('Aidatı malik öder')} on={u.payer === 'malik'} onPress={() => act(() => saveUnit(oid, { ...u, payer: 'malik' }))} />
             </> : null}
-            {can('units.manage') && !people.length ? <Text v="small" color={c.badInk} accessibilityRole="button" style={{ fontFamily: fonts.bodyBold, textDecorationLine: 'underline', paddingHorizontal: 6 }} onPress={async () => {
+            {can('units.manage') && !people.length ? <LinkBtn danger label={commercial ? t('Birimi sil') : t('Daireyi sil')} onPress={async () => {
               if (await host.ask({ title: t('{x} silinsin mi?', { x: label }), body: t('Aidat ve ödeme kayıtları da silinir. Bu işlem geri alınamaz.'), ok: t('Sil'), danger: true })) act(() => deleteUnit(u.id));
-            }}>{commercial ? t('Birimi sil') : t('Daireyi sil')}</Text> : null}
+            }} /> : null}
           </View>
           {edit ? (commercial ? <LeaseForm u={u} oid={oid} done={() => { setEdit(false); reload(); }} />
             : <FlatForm u={u} oid={oid} done={() => { setEdit(false); reload(); }} />) : null}
