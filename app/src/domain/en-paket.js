@@ -1203,5 +1203,12 @@ export const EN_PAKET = {
   "Henüz kohort verisi yok.": "No cohort data yet.",
   "Ortalama: 1. ay {a}, 3. ay {b}.": "Average: month 1 {a}, month 3 {b}.",
   "En büyük düşüş {k}. ayda ({p} puan).": "Biggest drop in month {k} ({p} points).",
-  "Ayrılma riski: yenileme kapalı ya da ödeme sorunu (Büyüme sayfasından).": "Churn risk: renewal off or payment issue (from the Growth page)."
+  "Ayrılma riski: yenileme kapalı ya da ödeme sorunu (Büyüme sayfasından).": "Churn risk: renewal off or payment issue (from the Growth page).",
+  "Tamamlananları gizle": "Hide completed",
+  "Tamamlanan {n} adımı göster": "Show {n} completed steps",
+  "Yeni genel kurul çağrısı": "New general meeting call",
+  "Bu aşamada kimse yok.": "No one at this stage.",
+  "Henüz yazışma yok. Kiracın bağlanınca buradan yazışırsınız.": "No conversations yet. You'll chat here once your tenant joins.",
+  "{n} mülkte kiracı yok; kiracı eklenince yazışma burada görünür.": "{n} properties have no tenant; the chat appears here once one is added.",
+  "İlk kişiyi ekle": "Add the first lead"
 };

@@ -149,7 +149,7 @@ export function Crm({ seed, clearSeed }: { seed?: any; clearSeed?: () => void })
       <Row between wrap>
         <Row gap={8} wrap>
           <Seg value={f} onChange={setF} options={[['all', t('Hepsi')], ['follow', t('Takip bekleyen') + (due ? ' · ' + due : '')]]} />
-          <View style={{ width: 220 }}><Field label={t('Ara')} value={q} onChangeText={setQ} placeholder={t('Ad, kurum, telefon')} /></View>
+          <View style={{ flexGrow: 1, flexBasis: 220, maxWidth: 320, minWidth: 0 }}><Field label={t('Ara')} value={q} onChangeText={setQ} placeholder={t('Ad, kurum, telefon')} /></View>
         </Row>
         {!open ? <Button title={t('Kişi ekle')} onPress={() => setOpen(blank())} /> : null}
       </Row>
@@ -158,14 +158,16 @@ export function Crm({ seed, clearSeed }: { seed?: any; clearSeed?: () => void })
         {STAGES().map((s) => {
           const items = leads.filter((l: any) => l.stage === s.key);
           return (
-            <View key={s.key} style={{ width: phone ? 260 : 250, gap: 8 }}>
+            <View key={s.key} style={{ width: phone ? 260 : 250, gap: 8, backgroundColor: c.tile, borderRadius: 18, padding: 10, minHeight: 140 }}>
               <View style={{ gap: 2 }}>
                 <Row between><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{s.label}</Text><Muted>{items.length}</Muted></Row>
                 <Muted>{tl(pl.by[s.key].monthly)} {t('/ ay')}</Muted>
               </View>
               {items.length ? items.map((l: any) => (
                 <LeadCard key={l.id} l={l} onOpen={() => setOpen(l)} onMove={(dir) => move(l, dir)} />
-              )) : <Empty>{t('Boş')}</Empty>}
+              )) : s.key === STAGES()[0].key && !open
+                ? <Button kind="ghost" title={t('İlk kişiyi ekle')} onPress={() => setOpen(blank())} style={{ alignSelf: 'stretch' }} />
+                : <Muted>{t('Bu aşamada kimse yok.')}</Muted>}
             </View>
           );
         })}

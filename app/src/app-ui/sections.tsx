@@ -79,11 +79,12 @@ export function RentHero({ p }: { p: any }) {
           <Label onDark>{monthYear(per.key)} {t('kirası')}</Label>
           <BigRoll onDark value={expectedAt(p, per.key)} />
           {p.stopaj ? <Muted onDark>{stopajLine(p, per.key)}</Muted> : null}
-          <View style={{ marginVertical: 6, gap: 10 }}><YearTiles p={p} onDark /><MonthLegend onDark /></View>
-          <Muted onDark>{line}</Muted>
         </View>
         <StatusChip st={per.status} />
       </Row>
+      {/* Ay karoları kartın tam genişliğinde: durum etiketinin yanına sıkışınca ay adları okunmuyordu. */}
+      <View style={{ gap: 10 }}><YearTiles p={p} onDark /><MonthLegend onDark /></View>
+      <Muted onDark>{line}</Muted>
       {action}
     </Hero>
   );
@@ -314,7 +315,7 @@ export function ReqCard({ p, r, showProp }: { p: any; r: any; showProp?: boolean
       <Row between align="flex-start">
         <View style={{ flex: 1, gap: 3 }}>
           <Label accent>{t(r.cat)}{r.urgency === 'Acil' ? ' ' + t('· Acil') : ''}{showProp ? ' · ' + p.name : ''}</Label>
-          <Text v="h3">{r.title}</Text>
+          <Text v="h3" numberOfLines={2}>{r.title}</Text>
         </View>
         <Muted>{fmt(parse(r.date))}</Muted>
       </Row>

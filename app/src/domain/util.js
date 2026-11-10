@@ -36,7 +36,8 @@ export function percent(v, digits = 1){
   const n = Number(v).toLocaleString(locale(), { maximumFractionDigits:digits });
   return locale().startsWith('tr') ? '%' + n : n + '%';
 }
-export function tl(n){ return '₺' + Math.round(Number(n)||0).toLocaleString(locale()); }
+/** Eksi tutar "−₺24.500" yazılır (işaret para biriminin önünde). */
+export function tl(n){ const v = Math.round(Number(n)||0); return (v < 0 ? '−' : '') + '₺' + Math.abs(v).toLocaleString(locale()); }
 /** Tutar alanı: kayıtlı ham değer "20000.5" → ekranda "20.000,5" (İngilizcede "20,000.5"). */
 export function numShow(raw){
   const s = String(raw ?? '');

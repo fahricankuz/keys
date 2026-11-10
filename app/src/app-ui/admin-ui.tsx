@@ -1,7 +1,7 @@
 /* Yönetici paneli tasarım parçaları (tanıtım sitesinin dilinden): koyu yan menü, bölüm başlığı,
    renkli simgeli gösterge kutusu ve grup başlığı. */
 import { ReactNode, useState } from 'react';
-import { ScrollView, Text as RNText, View } from 'react-native';
+import { Platform, ScrollView, Text as RNText, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { t } from '../domain/i18n';
 import { AdminUI, Button, Chip, PressScale, Text } from '../ui/kit';
@@ -91,7 +91,7 @@ export function AdminShell({ items, active, onPick, email, onReload, onSignOut, 
     <View style={{ flex: 1, flexDirection: 'row', backgroundColor: c.bg }}>
       {/* Yan menü ekran yüksekliğine sığar: bölümler kendi içinde kayar, e-posta ve çıkış düğmeleri altta sabit kalır (Safari dahil). */}
       <View style={{ width: 260, backgroundColor: c.deepA, paddingTop: 26, paddingBottom: 18, paddingHorizontal: 16, minHeight: 0 }}>
-        <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ gap: 26, paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
+        <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ gap: 26, paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
           <View style={{ gap: 10, paddingHorizontal: 8 }}>
             <PressScale onPress={() => router.push('/' as any)} accessibilityRole="link" accessibilityLabel={t('Ana sayfa')} style={{ alignSelf: 'flex-start' }}><Wordmark size={26} variant="cream" bg={c.deepA} /></PressScale>
             <View style={{ alignSelf: 'flex-start' }}><Chip tone="warn" label={t('Yönetici paneli')} /></View>
@@ -134,6 +134,8 @@ export function AdminShell({ items, active, onPick, email, onReload, onSignOut, 
             })}
           </View>
         </ScrollView>
+        {/* Menü kayıyorsa altta soluklaşma: devamı olduğu anlaşılır. */}
+        <View pointerEvents="none" style={[{ height: 28, marginTop: -28 }, Platform.OS === 'web' ? ({ backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0), ${c.deepA})` } as any) : null]} />
         <View style={{ gap: 10, paddingHorizontal: 8, paddingTop: 12, flexShrink: 0, borderTopWidth: 1, borderTopColor: 'rgba(250,245,240,0.10)' }}>
           {email ? <RNText numberOfLines={1} style={{ fontFamily: fonts.body, fontSize: 13, color: c.heroMuted }}>{email}</RNText> : null}
           <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -158,7 +160,8 @@ export function PageHead({ label, title, sub, right }: { label?: string; title: 
       <View style={{ flex: 1, minWidth: 240, gap: 4 }}>
         {label ? <Text v="label" color={c.accentText} style={{ fontSize: 12.5, letterSpacing: 0.4 }}>{label}</Text> : null}
         <RNText style={{ fontFamily: fonts.siteBold, fontSize: phone ? 28 : 40, lineHeight: phone ? 32 : 44, letterSpacing: phone ? -0.6 : -1.2, color: c.ink }}>{title}</RNText>
-        {sub ? <Text v="small" muted style={{ fontSize: 14.5 }}>{sub}</Text> : null}
+        {/* Telefonda uzun açıklama yer kaplar; yalnız geniş ekranda. */}
+        {sub && !phone ? <Text v="small" muted style={{ fontSize: 14.5 }}>{sub}</Text> : null}
       </View>
       {right}
     </View>
