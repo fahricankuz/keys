@@ -1,0 +1,13 @@
+# gitleaks ayarı (Güvenlik taraması → gizli-anahtar). Varsayılan kuralların hepsi geçerli; yalnız aşağıdaki izin var.
+#
+# Supabase "publishable" anahtarı (sb_publishable_…) gizli değildir: tarayıcıda ve mobil uygulamada herkese açık kullanılmak
+# üzere tasarlanmıştır (eski "anon" anahtarının yerini alır; yetki RLS kurallarıyla sağlanır). Sitede ve uygulamada zaten
+# görünür; app/eas.json ve hostinger.yml içinde bilerek durur. Gizli (service_role / sb_secret_…) anahtarlar asla depoya
+# girmez ve bu izin onları kapsamaz.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Supabase publishable (herkese açık) anahtarı"
+regexTarget = "secret"
+regexes = ['''^sb_publishable_[A-Za-z0-9_-]+$''']
