@@ -60,7 +60,7 @@ export default function LoginForm({ as = 'user' }: { as?: Entry }) {
     );
   }
   return (
-    <AuthShell title={admin ? t('Yönetici girişi') : t('Giriş yap')} lead={live ? (admin ? undefined : t('Kiracı, mülk sahibi, site sakini ya da site yöneticisi: hepsi aynı girişten.')) : t('Bu sürümde hesap bu cihazda tutulur. Sunucu kurulunca hesaplar cihazlar arası çalışır.')}>
+    <AuthShell top={admin ? undefined : { label: t('Hesabın yok mu?'), action: t('Kayıt ol'), href: '/kayit' }} title={admin ? t('Yönetici girişi') : t('Giriş yap')} lead={live ? (admin ? undefined : t('Kiracı, mülk sahibi, site sakini ya da site yöneticisi: hepsi aynı girişten.')) : t('Bu sürümde hesap bu cihazda tutulur. Sunucu kurulunca hesaplar cihazlar arası çalışır.')}>
       {ui.authMsg && !admin ? (
         <View accessibilityRole="alert" style={{ flexDirection: 'row', gap: 10, alignItems: 'center', backgroundColor: c.tile, borderRadius: radius.md, padding: 14 }}>
           <Icon name="key" size={18} />
@@ -77,13 +77,12 @@ export default function LoginForm({ as = 'user' }: { as?: Entry }) {
       <Field label={t('Şifre')} value={pw} onChangeText={setPw} secureTextEntry autoComplete="current-password" textContentType="password" onSubmitEditing={submit} error={err} />
       <Captcha />
       <Button kind="primary" block title={t('Giriş yap')} onPress={submit} loading={busy} />
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-        <PressScale onPress={() => router.push('/sifre')} accessibilityRole="link"><Text v="small" color={c.accentText} style={{ fontWeight: '700' }}>{t('Şifremi unuttum')}</Text></PressScale>
-        {!admin ? <PressScale onPress={() => router.push('/kayit')} accessibilityRole="link"><Text v="small" color={c.accentText} style={{ fontWeight: '700' }}>{t('Hesabın yok mu? Kayıt ol')}</Text></PressScale> : null}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+        <PressScale onPress={() => router.push('/sifre')} accessibilityRole="link"><Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('Şifremi unuttum')}</Text></PressScale>
+        {!admin && live ? (
+          <PressScale onPress={() => router.push('/giris/yonetici')} accessibilityRole="link"><Text v="small" muted>{t('Yönetici girişi')}</Text></PressScale>
+        ) : null}
       </View>
-      {!admin && live ? (
-        <PressScale onPress={() => router.push('/giris/yonetici')} accessibilityRole="link"><Text v="small" muted>{t('Yönetici girişi')}</Text></PressScale>
-      ) : null}
     </AuthShell>
   );
 }

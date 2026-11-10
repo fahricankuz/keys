@@ -68,7 +68,7 @@ export default function SignupForm({ role, site = false }: { role: Role; site?: 
     : landlord ? (CONFIG.billing.cardTrial ? t('1 ay ücretsiz başla: kart bilgin ya da App Store / Google Play hesabın gerekir. İptal etmezsen ay sonunda seçtiğin paket başlar; çekimden 1 gün önce hatırlatırız.') : t('1 ay ücretsiz dene. Deneme süresince bütün özellikleri kullanabilirsin.')) : site ? t('Site sakini hesabı ücretsizdir. Hesabı açmak için site yönetiminin verdiği davet kodu gerekir.') : needCode ? t('Kiracı hesabı her zaman ücretsizdir. Hesabı açmak için mülk sahibinin verdiği davet kodu gerekir.') : t('Kiracı hesabı her zaman ücretsizdir.');
 
   return (
-    <AuthShell title={title} lead={lead}>
+    <AuthShell top={{ label: t('Hesabın var mı?'), action: t('Giriş yap'), href: '/giris' }} title={title} lead={lead}>
       <Field label={t('Ad soyad')} value={name} onChangeText={setName} autoComplete="name" maxLength={60} />
       <Field label={t('E-posta')} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
       {role === 'tenant' ? <Field label={t('Telefon (isteğe bağlı)')} value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" maxLength={30} /> : null}
@@ -101,7 +101,6 @@ export default function SignupForm({ role, site = false }: { role: Role; site?: 
       {team && !live ? <Text v="small" muted>{t('Ekip hesapları yalnızca sunucuya bağlı kurulumda açılır.')}</Text> : null}
       <Captcha />
       <Button kind="primary" block title={landlord ? t('1 ay ücretsiz başla') : t('Hesap oluştur')} onPress={submit} loading={busy} />
-      <PressScale onPress={() => router.push('/giris')} accessibilityRole="link"><Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('Hesabın var mı? Giriş yap')}</Text></PressScale>
       <PressScale onPress={() => router.replace('/kayit')} accessibilityRole="link"><Text v="small" muted>{t('Başka bir rolle mi kayıt olacaksın? Seçeneklere dön')}</Text></PressScale>
     </AuthShell>
   );

@@ -49,6 +49,16 @@ function sectorItems(org: any): { tabs: Item[]; extra: Item[]; side?: Item[] } {
   return { tabs: list.filter((x) => main.includes(x.path)), extra: [...list.filter((x) => !main.includes(x.path)), ...rest], side: [...list, ...rest] };
 }
 
+/** Sitede dairesi olan kişinin "Sitem" sekmesi alt çubukta görünür: verilen sekmenin önüne girer (yoksa sona); Diğer'den çıkar. */
+function withSitem(tabs: Item[], extra: Item[], before: string): { tabs: Item[]; extra: Item[] } {
+  const sitem = extra.find((x) => x.path === '/uygulama/sitem');
+  if (!sitem) return { tabs, extra };
+  const i = tabs.findIndex((x) => x.path === before);
+  const next = [...tabs];
+  next.splice(i < 0 ? next.length : i, 0, sitem);
+  return { tabs: next, extra: extra.filter((x) => x !== sitem) };
+}
+
 function items(): { tabs: Item[]; extra: Item[]; side?: Item[] } {
   const org = currentPortfolioOrg();
   if (org) return sectorItems(org);
@@ -65,16 +75,13 @@ function items(): { tabs: Item[]; extra: Item[]; side?: Item[] } {
   if (ui.role === 'tenant') {
     const home = P(S.myHome);
     const n = home ? openReqs(home).length : 0;
-    return {
-      tabs: [
-        { label: t('Panel'), icon: 'home', path: '/uygulama' },
-        { label: t('Ödemeler'), icon: 'card', path: '/uygulama/odemeler' },
-        { label: t('Talepler'), icon: 'wrench', path: '/uygulama/talepler', badge: n },
-        { label: t('Mesajlar'), icon: 'chat', path: '/uygulama/mesajlar', badge: unreadMessages() },
-        { label: t('Belgeler'), icon: 'doc', path: '/uygulama/belgeler' }
-      ],
-      extra: [{ label: t('Takvim'), icon: 'calendar', path: '/uygulama/takvim' }, ...orgItem()]
-    };
+    return withSitem([
+      { label: t('Panel'), icon: 'home', path: '/uygulama' },
+      { label: t('Ödemeler'), icon: 'card', path: '/uygulama/odemeler' },
+      { label: t('Talepler'), icon: 'wrench', path: '/uygulama/talepler', badge: n },
+      { label: t('Mesajlar'), icon: 'chat', path: '/uygulama/mesajlar', badge: unreadMessages() },
+      { label: t('Belgeler'), icon: 'doc', path: '/uygulama/belgeler' }
+    ], [{ label: t('Takvim'), icon: 'calendar', path: '/uygulama/takvim' }, ...orgItem()], '/uygulama/belgeler');
   }
   const n = S.order.reduce((a: number, id: string) => a + newReqs(P(id)).length, 0);
   const team = isTeam();
@@ -86,7 +93,7 @@ function items(): { tabs: Item[]; extra: Item[]; side?: Item[] } {
   if (!team || canAny(S.order, 'message')) tabs.push({ label: t('Mesajlar'), icon: 'chat', path: '/uygulama/mesajlar', badge: unreadMessages(can) });
   tabs.push({ label: t('Takvim'), icon: 'calendar', path: '/uygulama/takvim' });
   if (!team || canAny(S.order, 'expense_read')) tabs.push({ label: t('Rapor'), icon: 'chart', path: '/uygulama/rapor' });
-  return { tabs, extra: [...(team ? [] : [{ label: t('Ekip'), icon: 'landlord', path: '/uygulama/ekip' }]), ...orgItem()] };
+  return withSitem(tabs, [...(team ? [] : [{ label: t('Ekip'), icon: 'landlord', path: '/uygulama/ekip' }]), ...orgItem()], '/uygulama/rapor');
 }
 
 function useActive() {
