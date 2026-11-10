@@ -200,7 +200,7 @@ export function Seg({ options, value, onChange, scroll, wrap }: { options: [stri
   // (masaüstünde çubuksuz yatay şerit fareyle kaydırılamaz, son sekmeler kesik kalırdı).
   // Sağ kenarda soluklaşma: şeridin devamı olduğu anlaşılır (seçenek kelimenin ortasında kesilmiş görünmez).
   if (scroll && (phone || (many && !wrap))) return (
-    <View style={{ minWidth: 0 }}>
+    <View style={{ minWidth: 0, maxWidth: '100%', flexShrink: 1 }}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 36 }}>{items}</ScrollView>
       <View pointerEvents="none" style={[{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 36 }, Platform.OS === 'web' ? ({ backgroundImage: `linear-gradient(to right, ${c.bg}00, ${c.bg})` } as any) : null]} />
     </View>

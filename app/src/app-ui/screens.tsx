@@ -55,8 +55,8 @@ export function Page({ title, sub, back, children, fill }: { title: string; sub?
           {back ? <IconBtn name="back" label={t('Geri')} onPress={() => go(back)} /> : null}
           <View style={{ flex: 1, gap: 2 }}>
             {/* Telefonda uzun başlık (ör. site adı) küçülür ve en çok iki satır olur; sağdaki düğmelere yer kalır. */}
-            <Text v="h1" numberOfLines={fill ? 1 : compact ? 2 : undefined} style={fill && compact ? { fontSize: 24, lineHeight: 28, letterSpacing: -0.7 }
-              : compact && title.length > 16 ? { fontSize: 22, lineHeight: 26, letterSpacing: -0.5 }
+            <Text v="h1" numberOfLines={fill ? 1 : compact ? (back ? 3 : 2) : undefined} style={fill && compact ? { fontSize: 24, lineHeight: 28, letterSpacing: -0.7 }
+              : compact && title.length > 16 ? { fontSize: back ? 20 : 22, lineHeight: back ? 24 : 26, letterSpacing: -0.4 }
               : compact ? { fontSize: 28, lineHeight: 31, letterSpacing: -0.9 } : { fontSize: 36, lineHeight: 38, letterSpacing: -1.2 }}>{title}</Text>
             {sub ? <Text v="small" muted numberOfLines={compact ? 2 : undefined}>{sub}</Text> : null}
           </View>

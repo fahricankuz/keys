@@ -79,11 +79,12 @@ export function RentHero({ p }: { p: any }) {
           <Label onDark>{monthYear(per.key)} {t('kirası')}</Label>
           <BigRoll onDark value={expectedAt(p, per.key)} />
           {p.stopaj ? <Muted onDark>{stopajLine(p, per.key)}</Muted> : null}
-          <View style={{ marginVertical: 6, gap: 10 }}><YearTiles p={p} onDark /><MonthLegend onDark /></View>
-          <Muted onDark>{line}</Muted>
         </View>
         <StatusChip st={per.status} />
       </Row>
+      {/* Ay karoları kartın tam genişliğinde: durum etiketinin yanına sıkışınca ay adları okunmuyordu. */}
+      <View style={{ gap: 10 }}><YearTiles p={p} onDark /><MonthLegend onDark /></View>
+      <Muted onDark>{line}</Muted>
       {action}
     </Hero>
   );
