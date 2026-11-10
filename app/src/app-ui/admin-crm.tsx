@@ -166,7 +166,7 @@ export function Crm({ seed, clearSeed }: { seed?: any; clearSeed?: () => void })
               {items.length ? items.map((l: any) => (
                 <LeadCard key={l.id} l={l} onOpen={() => setOpen(l)} onMove={(dir) => move(l, dir)} />
               )) : s.key === STAGES()[0].key && !open
-                ? <Button kind="ghost" title={'+ ' + t('Kişi ekle')} onPress={() => setOpen(blank())} style={{ alignSelf: 'stretch' }} />
+                ? <Button kind="ghost" title={t('İlk kişiyi ekle')} onPress={() => setOpen(blank())} style={{ alignSelf: 'stretch' }} />
                 : <Muted>{t('Bu aşamada kimse yok.')}</Muted>}
             </View>
           );

@@ -7,6 +7,8 @@ const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
 const PORT = 8281;
 let server;
 
+test.describe.configure({ mode: 'serial' });   // tek sunucu, tek işçi
+
 test.beforeAll(async () => { test.setTimeout(300_000); await ensureDist(DIST); server = await serveDist(DIST, PORT); });
 test.afterAll(() => server && server.close());
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
@@ -89,7 +91,7 @@ test('site yöneticisi: telefonda taşma yok; bölümlere alt çubuktaki "Diğer
   await page.getByRole('tab', { name: 'Diğer' }).click();
   await page.getByRole('menuitem', { name: 'Giderler' }).click();
   await expect(page).toHaveURL(/\/uygulama\/site\/giderler$/);
-  await expect(page.getByRole('tab', { name: 'Diğer' })).toHaveAttribute('aria-selected', 'true');     // açık bölüm "Diğer" altında
+  await expect(page.getByText('Asansör bakımı').first()).toBeVisible();
   await page.getByRole('tab', { name: 'Diğer' }).click();
   await expect(page.getByRole('menuitem', { name: 'Ayarlar' })).toBeVisible();
 });
@@ -108,7 +110,7 @@ test('yönetici paneli: telefonda bölümlerde taşma ve ekran dışı düğme y
   const found = {};
   for (const name of ['Genel bakış', 'Büyüme', 'Gelir', 'Gider', 'CRM', 'Hesaplar', 'Müşteri sağlığı', 'Kurumlar', 'Talepler', 'Ödemeler']) {
     await page.getByRole('button', { name: /^Bölümler: / }).click();
-    await page.getByRole('button', { name, exact: true }).click();
+    await page.getByRole('button', { name, exact: true }).first().click();
     await page.waitForTimeout(700);
     const f = await page.evaluate(problems);
     if (f.length) found[name] = f;

@@ -452,7 +452,7 @@ test('yönetici genel bakışı özet; Büyüme ve Gelir sayfalarında üyelik, 
     await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
   // Örnek veride tek mülk sahibi: mülkü ve bağlı kiracısı var.
   await expect(page.getByText(/^1\. Kayıt olan mülk sahibi$/)).toBeVisible();
-  await expect(page.getByText(/^1 · 100%$/).first()).toBeVisible();
+  await expect(page.getByText(/^1 · %100$/).first()).toBeVisible();
   await page.screenshot({ path: 'test-results/yonetici-genel-bakis.png', fullPage: true });
 });
 

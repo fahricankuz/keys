@@ -1209,5 +1209,6 @@ export const EN_PAKET = {
   "Yeni genel kurul çağrısı": "New general meeting call",
   "Bu aşamada kimse yok.": "No one at this stage.",
   "Henüz yazışma yok. Kiracın bağlanınca buradan yazışırsınız.": "No conversations yet. You'll chat here once your tenant joins.",
-  "{n} mülkte kiracı yok; kiracı eklenince yazışma burada görünür.": "{n} properties have no tenant; the chat appears here once one is added."
+  "{n} mülkte kiracı yok; kiracı eklenince yazışma burada görünür.": "{n} properties have no tenant; the chat appears here once one is added.",
+  "İlk kişiyi ekle": "Add the first lead"
 };
