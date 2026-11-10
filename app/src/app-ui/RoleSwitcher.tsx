@@ -9,11 +9,15 @@ import { fonts, radius, useColors } from '../ui/theme';
 import { PressScale } from '../ui/kit';
 import { Icon } from './blocks';
 import { activeCtx, myContexts, restoreCtx, selectCtx } from './ctx';
+import { useSheet } from './overlays';
+import { LIVE } from '../domain/config';
+import { isTeam } from '../domain/team';
 
 export function RoleSwitcher({ compact }: { compact?: boolean }) {
   const c = useColors();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const sheet = useSheet();
   const list = myContexts();
   useEffect(() => { restoreCtx(); });
   if (list.length < 2) return null;
@@ -58,6 +62,13 @@ export function RoleSwitcher({ compact }: { compact?: boolean }) {
               </PressScale>
             );
           })}
+          {LIVE && !isTeam() ? (
+            <PressScale onPress={() => { setOpen(false); sheet.open('rol-ekle'); }} accessibilityRole="menuitem" accessibilityLabel={t('Rol ekle')} scaleTo={0.99}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 14, borderTopWidth: 1, borderTopColor: c.line }}>
+              <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: c.tile, alignItems: 'center', justifyContent: 'center' }}><RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 16, color: c.accentText }}>+</RNText></View>
+              <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 13.5, color: c.accentText }}>{t('Rol ekle')}</RNText>
+            </PressScale>
+          ) : null}
         </View>
       ) : null}
     </View>

@@ -1,7 +1,7 @@
 // Site kasası: devreden + tahsilat − gider = kalan (açılıştan önceki işlem sayılmaz); kategoriyle ve faturayla gider; "Ek toplama yap"
 // onay ister; Rapor'da dönemin kasası.
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist, ID , pickRole } from './app-helpers.mjs';
 import { watchErrors, PNG } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -40,6 +40,7 @@ async function login(page) {
   await page.getByLabel('E-posta').fill('ev@ornek.com');
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);
   await expect(page).toHaveURL(/\/uygulama\/site$/);
 }
 

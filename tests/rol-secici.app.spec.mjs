@@ -1,7 +1,7 @@
 // Rol seçici: aynı e-posta mülk sahibi + başka mülkte kiracı + site yöneticisi olabilir. Giriş sonrası menünün üstündeki seçici rolleri
 // (paket/yer yanında yazılı) listeler; seçim paneli ve menüyü günceller, kalıcıdır; tek rolü olanda seçici görünmez.
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist, ID, pickRole } from './app-helpers.mjs';
 import { watchErrors } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -35,6 +35,7 @@ async function giris(page, d, email, entry) {
   await page.getByLabel('E-posta').fill(email);
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);                                                              // çok rollü hesapta giriş sonrası rol seçimi (varsayılan: site yöneticisi)
   await expect(page).toHaveURL(/uygulama/);
 }
 const secici = (page) => page.getByRole('button', { name: /^Rol seç/ });
@@ -79,4 +80,27 @@ test('tek rolü olan hesapta seçici görünmez (mülk sahibi ve kiracı)', asyn
   await giris(p2, veri(false), 'kiraci@ornek.com', '/giris/kiraci');
   await expect(p2.getByText('Moda Dairesi').first()).toBeVisible({ timeout: 15000 });
   await expect(secici(p2)).toHaveCount(0);
+});
+
+test('tek giriş: çok rollü hesap girişten sonra rolünü seçer; seçilen rolün paneli açılır', async ({ page }) => {
+  errors = watchErrors(page);
+  const d = veri(true);
+  await page.addInitScript((x) => { if (!localStorage.getItem('__fakedb')) localStorage.setItem('__fakedb', JSON.stringify(x)); }, d);
+  await page.goto(`http://localhost:${PORT}/giris`);
+  await page.getByLabel('E-posta').fill('ev@ornek.com');
+  await page.getByLabel('Şifre', { exact: true }).fill(PW);
+  await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await expect(page.getByText('Hangi rolle devam edeceksin?')).toBeVisible({ timeout: 15000 });
+  await expect(page).toHaveURL(/\/giris$/);
+  await expect(page.getByRole('menuitem', { name: /^Mülk sahibi,/ })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Kiracı, Bebek Dairesi' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Site yöneticisi, Atakum Sitesi' })).toBeVisible();
+  await page.getByRole('menuitem', { name: 'Kiracı, Bebek Dairesi' }).click();
+  await expect(page).toHaveURL(/\/uygulama/);
+  await expect(page.getByText('Bebek Dairesi').first()).toBeVisible();
+  await expect(secici(page)).toHaveAccessibleName(/^Rol seç: Kiracı/, { timeout: 15000 });
+  // Seçicinin altında "Rol ekle" var.
+  await secici(page).click();
+  await expect(page.getByRole('menuitem', { name: 'Rol ekle' })).toBeVisible();
+  expect(errors).toEqual([]);
 });

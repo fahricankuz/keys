@@ -1,7 +1,7 @@
 // Panel düzeni denetimi: telefonda hiçbir ekran yatay kaymaz, hiçbir düğme ekran dışında kalmaz, tutarlar "…" ile kesilmez.
 // Yeni eklenen ekranlar da aynı kurala uysun diye ana ekranlar tek tek açılır (masaüstü projesinde telefon boyutu elle verilir).
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist, ID, pickRole } from './app-helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
 const PORT = 8281;
@@ -65,6 +65,7 @@ async function check(page, who, entry, db, paths) {
   await page.getByLabel('E-posta').fill(who);
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);                                    // tek giriş: birden çok rolü olan hesap rolünü seçer
   await expect(page).toHaveURL(/\/(uygulama|admin)/);
   const found = {};
   for (const p of paths) {

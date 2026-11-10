@@ -1,2 +1,3 @@
-import RolePicker from '../../auth/RolePicker';
-export default function Giris() { return <RolePicker mode="giris" />; }
+import LoginForm from '../../auth/LoginForm';
+/** Tek giriş: hesap türü sorulmaz. */
+export default function Giris() { return <LoginForm />; }

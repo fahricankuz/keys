@@ -1,7 +1,7 @@
 // Yönetici → Kurumlar: askıdaki kurum "Kurumu sil" ile silinir; önce onay sorulur (Vazgeç / Evet, sil); etkin kurumda düğme yoktur.
 // Sunucu kuralları gerçek Postgres'te ayrıca sınanır (org.sql.spec.mjs).
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist, ID , pickRole } from './app-helpers.mjs';
 import { watchErrors } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -29,6 +29,7 @@ test('askıya aldıktan sonra silinir: onay sorulur, vazgeçilebilir, onaylayın
   await page.getByLabel('E-posta').fill('admin@ornek.com');
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);
   await expect(page).toHaveURL(/\/admin/);
   await page.getByRole('button', { name: 'Kurumlar', exact: true }).first().click();
   await expect(page.getByText('Akif Aş.')).toBeVisible();

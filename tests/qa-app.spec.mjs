@@ -146,7 +146,7 @@ test('performans: etkileşim (menü açma, sayfa geçişi) 1 saniyenin altında 
   t = Date.now();
   await page.getByRole('button', { name: 'Giriş yap' }).first().click();
   await expect(page).toHaveURL(/\/giris/);
-  await expect(page.getByText('Kiracı girişi').first()).toBeVisible();
+  await expect(page.getByLabel('E-posta')).toBeVisible();
   expect(Date.now() - t).toBeLessThan(2000);
 });
 
@@ -283,7 +283,7 @@ test('güvenlik: oturumsuz kullanıcı uygulama ve yönetici sayfalarını göre
 });
 
 test('güvenlik: uygulama kendi depolama anahtarlarına parola yazmaz; adreste sır yok', async ({ page }) => {
-  await signup(page, '/kayit/kiraci', 'Gizli Kişi', 'gizli@ornek.com');
+  await signup(page, '/kayit/mulk-sahibi', 'Gizli Kişi', 'gizli@ornek.com');
   await page.waitForTimeout(1500);
   expect(page.url()).not.toMatch(/gizli-sifre|password|token/i);
   // Sahte sunucunun kendi kaydı (test düzeneği) hariç, uygulamanın sakladıkları parola içermez.

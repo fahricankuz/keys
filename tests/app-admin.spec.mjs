@@ -157,15 +157,22 @@ test('/katil?kod=… bağlantısı: kod saklanır, giriş sonrası kiracı mülk
   expect((await db(page)).tables.invites[0].accepted_by).toBeTruthy();
 });
 
-test('giriş ayrı: hesap türü girişle uyuşmazsa oturum açılmaz', async ({ page }) => {
+test('giriş tek: hesap türü sorulmaz; kiracı ve mülk sahibi aynı formdan (eski adreslerden de) girer; yönetici girişi ayrı', async ({ page }) => {
   await page.goto(url('/giris'));
-  await expect(page.getByRole('link', { name: /Kiracı girişi/ })).toBeVisible();
-  await expect(page.getByRole('link', { name: /Mülk sahibi girişi/ })).toBeVisible();
+  await expect(page.getByLabel('E-posta')).toBeVisible();                              // rol kartı yok: doğrudan form
+  await expect(page.getByRole('link', { name: /Kiracı girişi/ })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /Mülk sahibi girişi/ })).toHaveCount(0);
 
+  // Eski adresler aynı formu açar; hesap türü uyuşmazlığı diye bir hata yok.
   await login(page, 'ev@ornek.com', '/giris/kiraci');
-  await expect(page.getByText('Bu hesap bir mülk sahibi hesabı. Mülk sahibi girişini kullan.')).toBeVisible();
+  await expect(page).toHaveURL(/\/uygulama$/);
+  await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
+  await page.evaluate(() => { const d = JSON.parse(localStorage.getItem('__fakedb')); d.session = null; localStorage.setItem('__fakedb', JSON.stringify(d)); });
   await login(page, 'kiraci@ornek.com', '/giris/mulk-sahibi');
-  await expect(page.getByText('Bu hesap bir kiracı hesabı. Kiracı girişini kullan.')).toBeVisible();
+  await expect(page).toHaveURL(/\/uygulama$/);
+  await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
+  await page.evaluate(() => { const d = JSON.parse(localStorage.getItem('__fakedb')); d.session = null; localStorage.setItem('__fakedb', JSON.stringify(d)); });
+
   await login(page, 'kiraci@ornek.com', '/giris/yonetici');
   await expect(page.getByText('Bu hesap yönetici hesabı değil.')).toBeVisible();
   await login(page, 'admin@ornek.com', '/giris/kiraci');
@@ -177,9 +184,11 @@ test('giriş ayrı: hesap türü girişle uyuşmazsa oturum açılmaz', async ({
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
 });
 
-test('kayıt ayrı: mülk sahibi kaydı rol seçtirmeden mülk sahibi hesabı açar', async ({ page }) => {
+test('kayıt tek ekran: beş seçenek; mülk sahibi seçeneği mülk sahibi hesabı açar', async ({ page }) => {
   await page.goto(url('/kayit'));
-  await page.getByRole('link', { name: /Mülk sahibi olarak kayıt ol/ }).click();
+  for (const n of ['Kiracıyım', 'Sitede oturuyorum', 'Mülk sahibiyim', 'Site ya da portföy yönetiyorum', 'Emlakçı, muhasebeci ya da personelim'])
+    await expect(page.getByRole('link', { name: n, exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Mülk sahibiyim', exact: true }).click();
   await expect(page).toHaveURL(/\/kayit\/mulk-sahibi$/);
   await page.getByLabel('Ad soyad').fill('Yeni Mülk Sahibi');
   await page.getByLabel('E-posta').fill('yeni@ornek.com');

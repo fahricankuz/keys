@@ -2,7 +2,7 @@
 // menü sektörün dilinde ve açık modüllere göre; Özet'te site için aidat, AVM / depo / GYO için kira tahakkuku ve tahsilatı;
 // kurulum sihirbazı birimleri blok/kat düzenine göre oluşturur (katlarda farklı sayılar dahil); m² zorunlu.
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist, ID , pickRole } from './app-helpers.mjs';
 import { watchErrors } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -36,6 +36,7 @@ async function login(page, data) {
   await page.getByLabel('E-posta').fill('ev@ornek.com');
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);
 }
 
 test('site: girişte kurum paneli; aidat dilinde menü; sihirbazla daireler (m² zorunlu); Mülklerim kendi mülküne gider', async ({ page }) => {
@@ -133,6 +134,7 @@ test('kurumu olmayan mülk sahibi: mülk eklerken m² zorunlu', async ({ page })
   await page.getByLabel('E-posta').fill('ev@ornek.com');
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();          // kurumu yok: kira portföyü açılır
   await page.goto(url('/uygulama?s=ev-ekle'));
   await page.getByRole('button', { name: /Mülk ekle/ }).first().click().catch(() => {});
@@ -167,6 +169,7 @@ test('kurulum kontrol listesi: mülk sahibinin portföyünde; tamamlanan adımla
   await page.getByLabel('E-posta').fill('ev@ornek.com');
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
   await expect(page.getByText('Kurulumu tamamla')).toBeVisible();
   await expect(page.getByRole('button', { name: 'İlk mülkünü ekle' })).toHaveCount(0);   // tamamlanan adım düğme değil

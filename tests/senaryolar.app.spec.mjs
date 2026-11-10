@@ -99,7 +99,7 @@ test('Z5 kira artış hesaplayıcı: saçma girdide (harf, negatif) NaN ya da so
 
 /* ---------- Kayıt ve giriş ---------- */
 async function signupForm(page, { name = 'Deneme Kişi', email = 'yeni@ornek.com', pass = 'gizli-sifre-1', pass2 = pass, accept = true } = {}) {
-  await page.goto(url('/kayit/kiraci'));
+  await page.goto(url('/kayit/mulk-sahibi'));        // genel form doğrulamaları: kodsuz açılan kayıt (kiracı kaydı davet kodu ister)
   if (name) await page.getByLabel('Ad soyad').fill(name);
   if (email) await page.getByLabel('E-posta').fill(email);
   await page.getByLabel('Şifre', { exact: true }).fill(pass);
@@ -148,7 +148,7 @@ test('K5 kayıt: kullanılan e-postayla ikinci hesap açılmaz', async ({ page }
 
 test('K6 kayıt: düğmeye art arda basmak tek hesap açar', async ({ page }) => {
   await seedDb(page);
-  await page.goto(url('/kayit/kiraci'));
+  await page.goto(url('/kayit/mulk-sahibi'));
   await page.getByLabel('Ad soyad').fill('Çift Tık');
   await page.getByLabel('E-posta').fill('cift@ornek.com');
   await page.getByLabel('Şifre', { exact: true }).fill('gizli-sifre-1');

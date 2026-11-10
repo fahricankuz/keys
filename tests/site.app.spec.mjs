@@ -3,7 +3,7 @@
 // "Sitem"de yalnız kendi dairesini görür, dekont yükler ve talep açar; yönetim onaylar ve yanıtlar.
 // Sunucu kuralları gerçek Postgres'te ayrıca sınanır (site.sql.spec.mjs).
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist, ID , pickRole } from './app-helpers.mjs';
 import { watchErrors, PNG } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -41,6 +41,7 @@ async function login(page, email) {
   await page.getByLabel('E-posta').fill(email);
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);
 }
 /** Tarayıcı Europe/Istanbul saatinde çalışır (playwright.config); beklenen ay ve günler de o saat dilimiyle hesaplanır. */
 const istDay = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(d);
@@ -112,7 +113,7 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await expect(page.getByLabel('Ad soyad')).toHaveValue('Mehmet Kiracı');
   await expect(page.getByLabel('E-posta')).toHaveValue('mehmet@ornek.com');
   await expect(page.getByLabel('Telefon (isteğe bağlı)')).toHaveValue('0532 123 45 67');
-  await expect(page.getByLabel('Davet kodu (isteğe bağlı)')).toHaveValue(code);
+  await expect(page.getByLabel('Davet kodu')).toHaveValue(code);
 
   // 2. Kiracı: davet bağlantısıyla bağlanır; yalnız kendi dairesini görür; dekont yükler, talep açar.
   await login(page, 'kiraci@ornek.com');
