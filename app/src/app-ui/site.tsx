@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { TextInput, View } from 'react-native';
 import { t } from '../domain/i18n';
 import { humanError, inviteLink, fileUrl } from '../domain/backend';
-import { myOrgs, orgCan, hasModule, sectorSections } from '../domain/org';
+import { myOrgs, orgCan, hasModule, sectorSections, PORTFOLIO_SECTORS } from '../domain/org';
 import {
   KINDS, MODES, kindLabel, unitLabel, distribute, unpaidOf, lateFee, loadSiteAdmin, saveUnit, deleteUnit, parseUnits, importUnits,
   saveResident, deleteResident, createCharges, deleteCharge, decideCharge, markPaid, addExpense, deleteExpense, announce, deleteAnnouncement,
@@ -49,7 +49,7 @@ const stOf = (c: any) => (c.status === 'paid' ? 'approved' : c.status === 'open'
 const money = (n: any, cur?: string) => (!cur || cur === 'TRY' ? tl(n) : (cur === 'USD' ? '$' : '€') + Number(n || 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 }));
 const CURS: [string, string][] = [['TRY', '₺ TL'], ['USD', '$ USD'], ['EUR', '€ EUR']];
 /** Bu ekranın açıldığı kurum türleri: site yönetimi ve ticari portföy (AVM, depo, GYO). */
-export const PORTFOLIO_SECTORS = ['site', 'avm', 'depo', 'gyo'];
+export { PORTFOLIO_SECTORS };
 /** Kurum paneli bölümlerinin adresleri (/uygulama/site/<bölüm>); menü org.js → sectorSections. */
 export const SECTION_KEYS = ['ozet', 'birimler', 'tahakkuk', 'ciro', 'artis', 'giderler', 'butce', 'duyurular', 'genelkurul', 'projeler', 'belgeler', 'talepler', 'rapor', 'yatirimci'];
 export const sectionPath = (k: string) => (k === 'ozet' ? '/uygulama/site' : '/uygulama/site/' + k);

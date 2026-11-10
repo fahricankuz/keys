@@ -2,7 +2,7 @@
 // aidatları güncelleyip yürürlüğe alır; onaylı plan doğrudan değişmez; yıl ortası ek maliyet "ek ödenek" olarak oylanır ve kalemin tutarına eklenir.
 // Sunucu kuralları gerçek Postgres'te ayrıca sınanır (isletme-proje.sql).
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist, ID , pickRole } from './app-helpers.mjs';
 import { watchErrors } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -39,6 +39,7 @@ async function login(page, email) {
   await page.getByLabel('E-posta').fill(email);
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);
 }
 const budget = async (page) => (await db(page)).tables.site_budgets[0];
 

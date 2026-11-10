@@ -76,18 +76,18 @@ export default function Katil() {
         </>
       ) : site ? (
         <>
-          <Button kind="primary" block title={t('Ücretsiz hesap oluştur')} onPress={() => router.push('/kayit/kiraci')} />
+          <Button kind="primary" block title={t('Ücretsiz hesap oluştur')} onPress={() => router.push('/kayit/site-sakini')} />
           <Button block kind="ghost" title={t('Hesabım var, giriş yap')} onPress={() => router.push('/giris')} />
         </>
       ) : team ? (
         <>
           <Button kind="primary" block title={org ? t('Hesap oluştur') : t('Ekip hesabı oluştur')} onPress={() => router.push('/kayit/ekip')} />
-          <Button block kind="ghost" title={t('Hesabım var, giriş yap')} onPress={() => router.push('/giris/mulk-sahibi')} />
+          <Button block kind="ghost" title={t('Hesabım var, giriş yap')} onPress={() => router.push('/giris')} />
         </>
       ) : (
         <>
           <Button kind="primary" block title={t('Kiracı hesabı oluştur')} onPress={() => router.push('/kayit/kiraci')} />
-          <Button block kind="ghost" title={t('Hesabım var, giriş yap')} onPress={() => router.push('/giris/kiraci')} />
+          <Button block kind="ghost" title={t('Hesabım var, giriş yap')} onPress={() => router.push('/giris')} />
         </>
       )}
     </AuthShell>

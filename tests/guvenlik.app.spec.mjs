@@ -37,7 +37,6 @@ test('oturum sunucuda düşünce girişe yönlenir ve açıklama görünür; yen
   await page.evaluate(() => window.__fakeExpire());
   await expect(page).toHaveURL(/\/giris$/);
   await expect(page.getByText(/Oturumun sona erdi/)).toBeVisible();
-  await page.getByRole('link', { name: /Kiracı girişi/ }).click();
   await page.getByLabel('E-posta').fill('kiraci@ornek.com');
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();

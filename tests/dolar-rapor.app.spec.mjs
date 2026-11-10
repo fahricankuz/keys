@@ -1,7 +1,7 @@
 // Kurumsal panelde ₺ / $ / € anahtarı: Özet ve Rapor seçilen para biriminde, seçim hesapta hatırlanır; 12 aylık gelir
 // grafiği TL ve dolarda; dövizli sözleşmede kur farkı ayrı satırda; kur dip notu.
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist, ID , pickRole } from './app-helpers.mjs';
 import { watchErrors } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -48,6 +48,7 @@ async function login(page) {
   await page.getByLabel('E-posta').fill('ev@ornek.com');
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);
   await expect(page).toHaveURL(/\/uygulama\/site$/);
 }
 

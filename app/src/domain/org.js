@@ -127,6 +127,8 @@ export const removeOrgMember = (oid, member) => rpc('org_member_remove', { oid, 
 export const transferMaster = (oid, member) => rpc('org_transfer_master', { oid, member });
 
 /** Kurum davet kodu "K" ile başlar (mülk davet kodları yalnız 0-9 ve A-F içerir). */
+/** Kurum paneli açılan sektörler: site yönetimi ve ticari portföy (AVM, depo, GYO). */
+export const PORTFOLIO_SECTORS = ['site', 'avm', 'depo', 'gyo'];
 export const isOrgCode = (code) => /^K[0-9A-F]{7}$/.test(String(code || '').trim().toUpperCase());
 export async function acceptOrgInvite(code){
   const oid = await rpc('accept_org_invite', { invite_code: String(code).trim().toUpperCase() });

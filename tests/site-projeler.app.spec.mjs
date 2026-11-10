@@ -3,7 +3,7 @@
 // talep yeniden açılır. Ek ödemede tutar boşken gönderilemez, gönderim onay ister.
 // Sunucu kuralları gerçek Postgres'te ayrıca sınanır (site-projeler.sql, site-talep-yazisma.sql, site-tahakkuk-koruma.sql).
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist, ID , pickRole } from './app-helpers.mjs';
 import { watchErrors, PNG } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -48,6 +48,7 @@ async function login(page, email) {
   await page.getByLabel('E-posta').fill(email);
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);
 }
 
 test('yönetim projeyi açar ve aşama aşama (teklif, yapım, tamamlandı) fotoğraflarla ilerletir; sakin süreci görür; talepte yazışma', async ({ page }) => {

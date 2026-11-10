@@ -6,7 +6,7 @@ import { unregisterDevice } from '../domain/native-push';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { hydrate, storage } from '../domain/storage';
 import { LIVE, CONFIG } from '../domain/config';
-import { closeLocal, openLocal, ui } from '../domain/state';
+import { closeLocal, openLocal, S, ui } from '../domain/state';
 import { t, getLang } from '../domain/i18n';
 import { account, adoptPlanChoice, PLAN_CHOICE } from '../domain/billing';
 import * as backend from '../domain/backend';
@@ -14,7 +14,8 @@ import { playOnNextOpen } from '../app-ui/OpenSplash';
 import { refreshBlocks } from '../domain/moderation';
 
 export type Role = 'tenant' | 'landlord' | 'team';
-export type Entry = 'tenant' | 'landlord' | 'admin';
+/** Giriş türü: 'user' tek giriş (kiracı, mülk sahibi, ekip, site); 'admin' yönetici girişi. Eski 'tenant'/'landlord' değerleri 'user' gibi davranır. */
+export type Entry = 'user' | 'tenant' | 'landlord' | 'admin';
 export type User = { id: string; email: string; name: string; role: Role; createdAt?: number; admin?: boolean; phone?: string };
 
 /** Görünüm rolü: ekip üyeleri mülk sahibi arayüzünü (yetkileri kadar) kullanır. */
@@ -35,7 +36,10 @@ type Ctx = {
   user: User | null; ready: boolean; live: boolean;
   /** `as`: hangi girişten gelindi; hesap türü uyuşmazsa oturum açılmaz. */
   signIn(e: string, p: string, as?: Entry): Promise<string | null>;
-  signUp(a: { name: string; email: string; password: string; role: Role; phone?: string }): Promise<string | null>;
+  /** `invite`: kiracı ve site sakini kaydında zorunlu davet kodu (sunucu da denetler). */
+  signUp(a: { name: string; email: string; password: string; role: Role; phone?: string; invite?: string }): Promise<string | null>;
+  /** Hesaba mülk sahibi özelliğini ekler (kiracı ya da site sakini hesabı); kiracı ve site bağları kalır. */
+  addLandlord(): Promise<string | null>;
   reset(email: string): Promise<string | null>;
   /** E-posta onay bağlantısıyla açılan oturumu benimser (panel açılırken giriş geçişi oynar). */
   adopt(): Promise<User | null>;
@@ -89,23 +93,22 @@ export const pendingPrefill = (): { code: string; name?: string; phone?: string;
 /** Kayıt formunda gösterilecek bekleyen davet kodu. */
 export const pendingInvite = (): string => { try { return storage.getItem(INVITE) || ''; } catch { return ''; } };
 
-/** Girişten gelinen tür hesapla uyuşmuyorsa kullanıcıya doğru girişi söyler. */
+/** Tek giriş: hesap türü sorulmaz (roller hesaptan okunur). Yalnız yönetici hesabı ayrı girişten girer. */
 function wrongEntry(u: User, as: Entry): string | null {
   if (as === 'admin') return u.admin ? null : t('Bu hesap yönetici hesabı değil.');
-  if (u.admin) return t('Bu bir yönetici hesabı. Yönetici girişini kullan.');
-  if (viewRole(u.role) === as) return null;
-  if (u.role === 'team') return t('Bu bir ekip hesabı. Mülk sahibi girişini kullan.');
-  return as === 'tenant' ? t('Bu hesap bir mülk sahibi hesabı. Mülk sahibi girişini kullan.') : t('Bu hesap bir kiracı hesabı. Kiracı girişini kullan.');
+  return u.admin ? t('Bu bir yönetici hesabı. Yönetici girişini kullan.') : null;
 }
 
 /** Gerçek hesap: sunucudan profil ve veriyi yükler; yönetici hesabı ev verisi yüklemez. */
-async function enterLive(au: { id: string; email?: string }): Promise<User> {
+async function enterLive(au: { id: string; email?: string; user_metadata?: any }): Promise<User> {
   const res: any = await backend.openSession({ id: au.id, email: au.email });
   const p = backend.live.profile || {};
   const u: User = { id: au.id, email: au.email || '', name: p.name || '', phone: p.phone || '', role: (p.role as Role) || 'tenant', admin: !!res.admin };
   if (!u.admin) {
     ui.role = viewRole(u.role);
-    const code = storage.getItem(INVITE);
+    // Bekleyen davet: bu cihazda saklanan kod; yoksa (onay başka cihazda yapıldıysa) kayıtta girilen kod. Henüz hiçbir yere bağlı değilse denenir.
+    let code = storage.getItem(INVITE);
+    if (!code && u.role === 'tenant' && !(S as any).myHome && !(backend.live.siteUnits || []).length) code = String(au.user_metadata?.invite || '') || null;
     if (code) {
       try { await backend.acceptInvite(code); } catch {}
       storage.removeItem(INVITE);
@@ -166,7 +169,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (as === 'admin') return t('Yönetici girişi yalnızca sunucuya bağlı kurulumda çalışır.');
       const a = readAccounts().find((x) => x.email === email);
       if (!a || a.hash !== (await hashPw(password, a.salt))) return t('E-posta ya da şifre yanlış.');
-      if (as && viewRole(a.role) !== as) return wrongEntry({ ...a, admin: false }, as);
       storage.setItem(SESSION, a.id);
       const u = { id: a.id, email: a.email, name: a.name, phone: a.phone, role: a.role, createdAt: a.createdAt };
       playOnNextOpen(); enter(u); setUser(u); return null;
@@ -176,20 +178,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const signUp = useCallback(async ({ name, email, password, role, phone = '' }: { name: string; email: string; password: string; role: Role; phone?: string }) => {
-    email = email.trim().toLowerCase(); name = name.trim(); phone = phone.trim().slice(0, 30);
+  const signUp = useCallback(async ({ name, email, password, role, phone = '', invite = '' }: { name: string; email: string; password: string; role: Role; phone?: string; invite?: string }) => {
+    email = email.trim().toLowerCase(); name = name.trim(); phone = phone.trim().slice(0, 30); invite = invite.trim().toUpperCase();
     if (!name || !email || password.length < 8) return t('Adını, e-postanı ve en az 8 karakterli bir şifre gir.');
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return t('Geçerli bir e-posta adresi yaz.');
     try {
       if (LIVE) {
         if (captchaPending()) return t('Güvenlik doğrulaması bitsin, sonra tekrar dene.');
+        // Kiracı ve site sakini hesabı yalnız geçerli davet koduyla açılır (sunucu da aynı kuralı uygular).
+        if (role === 'tenant') {
+          if (!invite) return t('Davet kodunu gir. Kodu mülk sahibin ya da site yönetimin verir.');
+          if (!(await backend.signupCodeOk(invite))) return t('Bu davet kodu geçerli değil: yanlış yazılmış, kullanılmış ya da süresi dolmuş olabilir. Mülk sahibinden ya da site yönetiminden yeni kod iste.');
+        }
         const c = await backend.client();
         // Onay e-postasındaki bağlantı /dogrula sayfasına döner: oturum açılır, kişi doğrudan paneline geçer
         // (Supabase → Redirect URLs listesinde anahtar.io/** olmalı).
         // Mülk sahibinin seçtiği paket hesap bilgisine de yazılır: onayı başka cihazda yapsa da hoş geldin e-postası doğru paketi anlatır.
         let plan: string | undefined;
         try { const pc = JSON.parse(storage.getItem(PLAN_CHOICE) || 'null'); if (role === 'landlord' && pc && ['tek', 'bes'].includes(pc.plan)) plan = pc.plan; } catch {}
-        const { data, error } = await c.auth.signUp({ email, password, options: { data: { name, role, lang: getLang(), ...(plan ? { plan } : {}), ...(phone ? { phone } : {}) }, captchaToken: captchaToken() ?? undefined,
+        const { data, error } = await c.auth.signUp({ email, password, options: { data: { name, role, lang: getLang(), ...(plan ? { plan } : {}), ...(phone ? { phone } : {}), ...(role === 'tenant' && invite ? { invite } : {}) }, captchaToken: captchaToken() ?? undefined,
           emailRedirectTo: CONFIG.publicUrl.replace(/\/?$/, '/') + 'dogrula' } });
         captchaSpent();
         if (error) return t('Hesap oluşturulamadı: {m}', { m: backend.humanError(error) });
@@ -262,6 +269,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try { await backend.acceptInvite(code); storage.removeItem(INVITE); return null; } catch (e) { return backend.humanError(e); }
   }, []);
 
+  const addLandlord = useCallback(async () => {
+    if (!user) return t('Önce giriş yap.');
+    if (user.role === 'landlord') return null;
+    if (user.role === 'team') return t('Ekip hesabı mülk sahibi hesabına dönüştürülemez.');
+    if (!LIVE) return t('Bu özellik sunucuya bağlı kurulumda çalışır.');
+    try {
+      await backend.addLandlordRole();
+      const u = await enterLive({ id: user.id, email: user.email });
+      setUser(u);
+      return null;
+    } catch (e) { return backend.humanError(e); }
+  }, [user]);
+
   /** Yerel hesabın kaydını günceller. */
   const patchLocal = (id: string, patch: Partial<Account>) =>
     storage.setItem(ACCOUNTS, JSON.stringify(readAccounts().map((x) => (x.id === id ? { ...x, ...patch } : x))));
@@ -317,7 +337,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) { return backend.humanError(e); }
   }, [user]);
 
-  const value = useMemo(() => ({ user, ready, live: LIVE, signIn, signUp, reset, adopt, signOut, deleteAccount, join, saveProfile, changeEmail, changePassword }),
-    [user, ready, signIn, signUp, reset, adopt, signOut, deleteAccount, join, saveProfile, changeEmail, changePassword]);
+  const value = useMemo(() => ({ user, ready, live: LIVE, signIn, signUp, addLandlord, reset, adopt, signOut, deleteAccount, join, saveProfile, changeEmail, changePassword }),
+    [user, ready, signIn, signUp, addLandlord, reset, adopt, signOut, deleteAccount, join, saveProfile, changeEmail, changePassword]);
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }

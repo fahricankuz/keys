@@ -2,7 +2,7 @@
 // master yöneticiyi atar; master rolün yetkisini düzenleyip yönetici davet eder; davetle gelen kişi kurumu
 // rolü ve yetkileriyle görür. Sunucu kuralları gerçek Postgres'te ayrıca sınanır (org.sql.spec.mjs).
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist , pickRole } from './app-helpers.mjs';
 import { watchErrors } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -40,6 +40,7 @@ async function login(page, email) {
   await page.getByLabel('E-posta').fill(email);
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);
 }
 
 test('kurumsal başvurudan kurum açılır, master atanır; master rolü düzenleyip davet eder; davetli yönetici rolüyle katılır', async ({ page }) => {

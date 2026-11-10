@@ -195,12 +195,19 @@ function decideEffects(db, r, was){
 
 /* Abonelik: schema.sql → access_state / require_access ile aynı kural. */
 const TRIAL_DAYS = 30;
+/** signup_code_ok: kullanılmamış, süresi dolmamış kiracı daveti ya da kullanılmamış site dairesi kodu. */
+function signupCodeOk(db, code){
+  const k = String(code || '').trim().toUpperCase();
+  if (k.length < 6 || k.length > 12) return false;
+  return (db.tables.invites || []).some(i => i.code === k && (i.role || 'tenant') === 'tenant' && !i.accepted_by && (!i.expires_at || new Date(i.expires_at) > new Date()))
+    || (db.tables.site_residents || []).some(r => r.code === k && !r.user_id);
+}
 function accessOf(db, uid){
   const p = db.tables.profiles.find(x => x.id === uid);
   if (!p) return { access:false };
   const s = db.tables.subscriptions.find(x => x.user_id === uid);
   const subscribed = !!(s && s.active && (!s.expires_at || Date.parse(s.expires_at) > Date.now()));
-  const trialEnds = new Date(Date.parse(p.created_at || now()) + TRIAL_DAYS * 86400000).toISOString();
+  const trialEnds = new Date(Date.parse(p.landlord_since || p.created_at || now()) + TRIAL_DAYS * 86400000).toISOString();
   const inTrial = !subscribed && Date.now() < Date.parse(trialEnds);
   const org = (db.tables.org_members || []).some(m => m.user_id === uid && (db.tables.organizations.find(o => o.id === m.org_id) || {}).status === 'active');
   // schema.sql §21 ile aynı: paket ürün kimliğinden, mülk sınırı ürün kimliğindeki adetten.
@@ -412,6 +419,9 @@ export function createClient(url, key, opts){
         const db = load();
         if (db.users.some(u => u.email === email)) return { data:{}, error:{ message:'User already registered' } };
         const meta = (options && options.data) || {};
+        // Sunucudaki kural (handle_new_user): kiracı / site sakini hesabı yalnız geçerli davet koduyla açılır.
+        if (meta.role !== 'landlord' && meta.role !== 'team' && !signupCodeOk(db, meta.invite))
+          return { data:{}, error:{ message:'Database error saving new user' } };
         const user = { id: uuid(), email };
         db.users.push({ ...user, password, meta });
         db.tables.profiles.push({ id:user.id, role: meta.role === 'landlord' ? 'landlord' : 'tenant', name: meta.name || email, phone: meta.phone || '', lang:'tr', settings:{}, created_at: now() });
@@ -492,7 +502,9 @@ export function createClient(url, key, opts){
         const inv = db.tables.invites.find(i => i.code === String(args.invite_code).toUpperCase().trim());
         if (!inv) return { data:null, error:{ message:'Davet kodu bulunamadı' } };
         const prof = db.tables.profiles.find(p => p.id === me);
-        if (prof.role !== 'tenant') return { data:null, error:{ message:'Davetler kiracı hesapları içindir' } };
+        if (inv.accepted_by) return { data:null, error:{ message:'Bu davet kullanılmış', code:'22023' } };
+        // Aynı hesap birden çok rol taşır: mülk sahibi de başka bir mülkte kiracı olabilir; kendi mülkünün davetini kullanamaz.
+        if (inv.created_by === me || db.tables.properties.some(p => p.id === inv.property_id && p.owner_id === me)) return { data:null, error:{ message:'Kendi davetini kullanamazsın', code:'22023' } };
         if (!db.tables.memberships.some(m => m.property_id === inv.property_id && m.user_id === me))
           db.tables.memberships.push({ property_id:inv.property_id, user_id:me, role:'tenant', display_name:prof.name, phone:'', email:db.session.user.email });
         inv.accepted_by = me;
@@ -872,6 +884,14 @@ export function createClient(url, key, opts){
         return { data:{ units:units.length, share:units.reduce((a, u) => a + (Number(u.share) || 0), 0), voted:votes.length,
           voted_share:votes.reduce((a, v) => a + share(v.unit_id), 0), closed: Date.now() >= Date.parse(p.ends_at),
           options:p.options.map((label, i) => { const vs = votes.filter(v => v.choice === i); return { label, count:vs.length, share:vs.reduce((a, v) => a + share(v.unit_id), 0) }; }) }, error:null };
+      }
+      if (name === 'signup_code_ok') return { data: signupCodeOk(db, args.invite_code), error:null };
+      if (name === 'add_landlord_role'){
+        const p = db.tables.profiles.find(x => x.id === me);
+        if (!p) return { data:null, error:{ message:'Oturum açılmamış', code:'42501' } };
+        if (p.role === 'team') return { data:null, error:{ message:'Ekip hesabı mülk sahibi hesabına dönüştürülemez', code:'22023' } };
+        if (p.role !== 'landlord'){ p.role = 'landlord'; p.landlord_since = p.landlord_since || now(); persist(db); }
+        return { data:'landlord', error:null };
       }
       if (name === 'invite_preview'){
         const i = db.tables.invites.find(x => x.code === String(args.invite_code || '').trim().toUpperCase());

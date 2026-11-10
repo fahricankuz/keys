@@ -945,6 +945,22 @@ export async function invitePreview(code){
   return must(await c.rpc('invite_preview', { invite_code: code }));
 }
 
+/** Kayıt için davet kodu geçerli mi? (kiracı daveti ya da site dairesi kodu; oturumsuz sorulur) */
+export async function signupCodeOk(code){
+  const c = await client();
+  const r = await c.rpc('signup_code_ok', { invite_code: code });
+  if (!r.error) return !!r.data;
+  // Sunucuda işlev henüz yoksa (migration uygulanmadan önce) eski önizleme işlevleriyle denetlenir.
+  if (isSiteCode(code)){ const x = must(await c.rpc('site_invite_info', { invite_code: code })); return !!x && !x.used; }
+  const x = must(await c.rpc('invite_preview', { invite_code: code }));
+  return !!x && !!x.valid && (x.role || 'tenant') === 'tenant';
+}
+
+/** Hesaba mülk sahibi özelliğini ekler (sunucu: add_landlord_role). Ardından oturum yeniden açılır. */
+export async function addLandlordRole(){
+  return must(await sb().rpc('add_landlord_role'));
+}
+
 /** "Bize ulaş" talebi: kurumsal paket, toplu içe aktarma ya da genel. */
 export async function createSupportRequest({ kind, units = null, message = '', phone = '' }){
   must(await sb().from('support_requests').insert({

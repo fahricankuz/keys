@@ -1,7 +1,7 @@
 // Yönetici paneli: Genel bakışta kira ve aidat hacmi (bireysel + kurum); Büyüme, Gelir, Gider sayfaları; gider ekle, düzenle, sil;
 // dövizli gider o günün kuruyla TL; Gelir'de net (gelir − gider); her işlem İşlem kaydı'nda.
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist , pickRole } from './app-helpers.mjs';
 import { watchErrors } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -32,6 +32,7 @@ async function admin(page) {
   await page.getByLabel('E-posta').fill('admin@ornek.com');
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);
   await expect(page.getByText('Bu ay onaylı kira hacmi')).toBeVisible();
 }
 
