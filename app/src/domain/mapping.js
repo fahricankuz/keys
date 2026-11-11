@@ -166,7 +166,7 @@ const EMPTY = { pay:{}, aidatPay:{}, requests:[], msgs:[], docs:[], expenses:[],
  * Bir evin önceki ve sonraki halinden yazma işlemlerini çıkarır.
  * Rolün izin vermediği alanlar hiç gönderilmez (sunucu da ayrıca reddeder).
  *
- * @returns {{table:string, kind:'insert'|'upsert'|'update'|'delete', rows?:object[], values?:object, match?:object, onConflict?:string}[]}
+ * @returns {{table:string, kind:'insert'|'upsert'|'update'|'delete', rows?:object[], values?:object, match?:object, onConflict?:string, ignoreDuplicates?:boolean}[]}
  */
 export function diffProperty(before, after, ctx){
   const { role, meId } = ctx;
@@ -220,7 +220,9 @@ export function diffProperty(before, after, ctx){
   // Mesajlar: yalnızca yeni olanlar eklenir, düzenleme yok.
   const known = new Set((b.msgs || []).map(m => m.id));
   const newMsgs = (after.msgs || []).filter(m => m.id && !known.has(m.id) && (m.from === role || m.from === 'system'));
-  if (newMsgs.length) ops.push({ table:'messages', kind:'insert', rows:newMsgs.map(m => messageRow(pid, m, meId)) });
+  // Mesaj kimliği cihazda üretilir; eşitleme yarıda kesilip yeniden denenirse aynı mesaj ikinci kez gelir. Zaten varsa atlanır
+  // (önceden "messages_pkey" çakışmasıyla o mülkün eşitlemesi her denemede takılıyordu).
+  if (newMsgs.length) ops.push({ table:'messages', kind:'insert', ignoreDuplicates:true, rows:newMsgs.map(m => messageRow(pid, m, meId)) });
 
   // Belgeler.
   collection(ops, 'documents', b.docs, after.docs, d => d.id, d => documentRow(pid, d), true);

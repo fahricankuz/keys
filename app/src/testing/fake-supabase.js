@@ -295,6 +295,7 @@ class Query {
       out = [];
       for (const raw of this.rows){
         const existing = this.op === 'upsert' ? list.find(r => matchKey(this.t, r, raw)) : null;
+        if (existing && this.opts.ignoreDuplicates) continue;     // ON CONFLICT DO NOTHING
         if (existing){
           const before = JSON.parse(JSON.stringify(existing));
           // guard_site_budget: onaylı işletme projesinin kalemleri ve paylaştırması doğrudan değişmez.

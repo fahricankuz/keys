@@ -496,7 +496,8 @@ async function flush(){
 async function apply(op){
   const tbl = sb().from(op.table);
   let q;
-  if (op.kind === 'insert') q = tbl.insert(op.rows);
+  // ignoreDuplicates: aynı kimlik zaten varsa atla (INSERT … ON CONFLICT DO NOTHING; yalnız ekleme yetkisi gerekir).
+  if (op.kind === 'insert') q = op.ignoreDuplicates ? tbl.upsert(op.rows, { ignoreDuplicates: true }) : tbl.insert(op.rows);
   else if (op.kind === 'upsert') q = tbl.upsert(op.rows, { onConflict: op.onConflict });
   else {
     q = op.kind === 'update' ? tbl.update(op.values) : tbl.delete();
