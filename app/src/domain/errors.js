@@ -21,6 +21,9 @@ let sent = 0;
 export function reportError(err, kind = 'error'){
   try {
     if (!LIVE) return;
+    // Geliştirme modu (Expo Go / yerel Metro, __DEV__) production hata kaydına yazmaz: oradaki "Requiring unknown module" gibi
+    // geliştirme hataları gerçek kullanıcı hatalarıyla karışıyordu. Yayın derlemelerinde __DEV__ false'tur.
+    if (typeof __DEV__ !== 'undefined' && __DEV__) return;
     if (typeof window !== 'undefined' && window.location && PREVIEW_HOST.test(window.location.hostname || '')) return;
     const message = String((err && (err.message || err.reason)) || err || '').slice(0, 1000).trim();
     const stack = String((err && err.stack) || '').slice(0, 4000);
