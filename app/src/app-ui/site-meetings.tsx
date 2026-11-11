@@ -92,7 +92,7 @@ export function Meetings({ d, org, can }: { d: any; org: any; can: (p: string) =
             <View style={{ width: 120 }}><Field label={t('Saat')} value={m.v.time2} onChangeText={(v) => m.set('time2', v)} maxLength={5} /></View>
           </Row>
           <Box label={t('Gündem (her satır bir madde)')} value={m.v.agenda} onChange={(v) => m.set('agenda', v)} lines={6} />
-          <Muted>{t('Çağrı, hesabı bağlı maliklere bildirim olarak gider. Yasal bildirimi (imza karşılığı ya da taahhütlü mektup) toplantı paketiyle yap.')}</Muted>
+          <Muted>{t('Çağrı, hesabı bağlı tüm sakinlere (malik ve kiracı) bildirim olarak gider; her biri katılım durumunu bildirir. Yasal bildirimi (imza karşılığı ya da taahhütlü mektup) toplantı paketiyle yap.')}</Muted>
           <Button title={t('Çağrıyı yayınla')} style={{ alignSelf: 'flex-start' }} disabled={!m.v.date || m.v.title.trim().length < 2}
             onPress={() => run(async () => {
               await saveMeeting(org.id, { title: m.v.title, kind: m.v.kind, held_at: at(m.v.date, m.v.time), second_at: at(m.v.date2, m.v.time2), place: m.v.place, agenda: String(m.v.agenda).split('\n') });
@@ -102,14 +102,18 @@ export function Meetings({ d, org, can }: { d: any; org: any; can: (p: string) =
       ) : null}
 
       {x.meetings.length ? x.meetings.map((y: any) => {
-        const rs = x.replies.filter((r: any) => r.meeting_id === y.id);
+        // Yeter sayı malik yanıtlarıyla; kiracı yanıtları ayrıca (bilgi için).
+        const all = x.replies.filter((r: any) => r.meeting_id === y.id);
+        const rs = all.filter((r: any) => r.role !== 'kiraci');
+        const ks = all.filter((r: any) => r.role === 'kiraci');
         const n = (a: string) => rs.filter((r: any) => r.answer === a).length;
         return (
           <Card key={y.id} gap={8}>
             <Row between wrap><H2>{y.title}</H2><Chip tone={y.status === 'cagrildi' ? 'warn' : y.status === 'yapildi' ? 'ok' : 'bad'} label={y.status === 'cagrildi' ? t('Çağrıldı') : y.status === 'yapildi' ? t('Yapıldı') : t('İptal')} /></Row>
             <Muted>{when(y.held_at)}{y.place ? ' · ' + y.place : ''}{y.kind === 'olaganustu' ? ' · ' + t('Olağanüstü') : ''}</Muted>
             {(y.agenda || []).length ? <Text v="small">{y.agenda.map((a: string, i: number) => (i + 1) + '. ' + a).join('\n')}</Text> : null}
-            <Muted>{t('Katılacak {a} · Vekâlet {b} · Katılmayacak {c} · Yanıtsız {d}', { a: n('katilacak'), b: n('vekalet'), c: n('katilmayacak'), d: Math.max(0, units - rs.length) })}</Muted>
+            <Muted>{t('Malikler: katılacak {a} · vekâlet {b} · katılmayacak {c} · yanıtsız {d}', { a: n('katilacak'), b: n('vekalet'), c: n('katilmayacak'), d: Math.max(0, units - rs.length) })}</Muted>
+            {ks.length ? <Muted>{t('Kiracılar: katılacak {a} · katılmayacak {b}', { a: ks.filter((r: any) => r.answer === 'katilacak').length, b: ks.filter((r: any) => r.answer === 'katilmayacak').length })}</Muted> : null}
             {y.minutes ? <View style={{ gap: 2 }}><Text v="small" style={{ fontFamily: fonts.bodyBold }}>{t('Karar defteri notu')}</Text><Text v="small">{y.minutes}</Text></View> : null}
             <Row wrap gap={8}>
               <Button kind="ghost" title={t('Toplantı paketi')} onPress={() => openMeetingPack({ org: org.name, m: y, d, replies: x.replies })} />
@@ -179,7 +183,8 @@ export function ResidentMeetings() {
       <H2>{t('Genel kurul ve yoklamalar')}</H2>
       <Err e={err} />
       {x.meetings.map((y: any) => {
-        const mine = units.filter((u: any) => u.org_id === y.org_id && u.role === 'malik');
+        // Katılım durumu her sakine sorulur (malik ve kiracı); vekâlet yalnız malik için.
+        const mine = units.filter((u: any) => u.org_id === y.org_id);
         return (
           <Card key={y.id} gap={8}>
             <Row between wrap><Text v="body" style={{ fontFamily: fonts.bodyXBold }}>{y.title}</Text><Muted>{when(y.held_at)}</Muted></Row>
@@ -187,7 +192,8 @@ export function ResidentMeetings() {
             {(y.agenda || []).length ? <Text v="small">{y.agenda.map((a: string, i: number) => (i + 1) + '. ' + a).join('\n')}</Text> : null}
             {y.minutes ? <Muted>{t('Karar defteri notu')}: {y.minutes}</Muted> : null}
             {y.status === 'cagrildi' ? mine.map((u: any) => {
-              const r = x.replies.find((z: any) => z.meeting_id === y.id && z.unit_id === u.unit_id);
+              const role = u.role === 'kiraci' ? 'kiraci' : 'malik';
+              const r = x.replies.find((z: any) => z.meeting_id === y.id && z.unit_id === u.unit_id && (z.role || 'malik') === role);
               const key = y.id + u.unit_id;
               return (
                 <View key={u.unit_id} style={{ gap: 6 }}>
@@ -196,12 +202,12 @@ export function ResidentMeetings() {
                     <Pill label={A.katilacak} on={r?.answer === 'katilacak'} onPress={() => run(() => replyMeeting(y.id, u.unit_id, 'katilacak'))} />
                     <Pill label={A.katilmayacak} on={r?.answer === 'katilmayacak'} onPress={() => run(() => replyMeeting(y.id, u.unit_id, 'katilmayacak'))} />
                   </View>
-                  <Row wrap gap={8}>
+                  {role === 'malik' ? <Row wrap gap={8}>
                     <View style={{ flexGrow: 1, flexBasis: 200 }}><Field label={t('Vekilin adı soyadı')} value={proxy[key] ?? (r?.proxy_name || '')} onChangeText={(v) => setProxy({ ...proxy, [key]: v })} maxLength={120} /></View>
                     <Button kind="ghost" title={t('Vekâlet verdim')} style={{ alignSelf: 'flex-end' }} disabled={String(proxy[key] ?? '').trim().length < 2}
                       onPress={() => run(() => replyMeeting(y.id, u.unit_id, 'vekalet', proxy[key]))} />
-                  </Row>
-                  <Muted>{t('Vekâletname örneği toplantı paketinde; imzalı aslını vekilin toplantıya getirmesi gerekir.')}</Muted>
+                  </Row> : null}
+                  {role === 'malik' ? <Muted>{t('Vekâletname örneği toplantı paketinde; imzalı aslını vekilin toplantıya getirmesi gerekir.')}</Muted> : null}
                 </View>
               );
             }) : null}

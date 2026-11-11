@@ -55,7 +55,7 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
     // add_landlord_role → yalnız çağıranın kendi hesabı (kiracı → mülk sahibi, deneme bir kez); signup_code_ok → kodu bilen (yalnız geçerli/geçersiz döner).
     'accept_invite', 'accept_org_invite', 'accept_site_invite', 'activity_feed', 'add_landlord_role', 'admin_add_property', 'admin_audit_log', 'admin_cohorts', 'admin_cost_delete', 'admin_cost_save', 'admin_delete_message', 'admin_delete_user', 'admin_extend_trial', 'admin_kpis', 'admin_messages', 'admin_monthly',
     'admin_org_delete', 'admin_org_save', 'admin_org_set_master', 'admin_orgs', 'admin_revenue_save', 'admin_send_email',
-    'admin_set_ban', 'admin_set_cpi', 'admin_set_plan', 'admin_subscription_events', 'admin_subscriptions', 'admin_threads', 'admin_users',
+    'admin_set_ban', 'admin_set_cpi', 'admin_set_plan', 'admin_subscription_events', 'admin_subscriptions', 'admin_threads', 'admin_user_roles', 'admin_users',
     'create_rent_certificate', 'delete_my_account', 'file_in_locked_inspect', 'file_review_ok', 'has_access', 'import_properties', 'investor_report_mail', 'invite_preview', 'is_admin', 'is_banned', 'is_member',
     'is_org_master', 'is_org_member', 'is_owner', 'is_site_resident', 'link_site_unit',
     'member_can', 'member_role', 'msg_side', 'my_access', 'my_orgs', 'my_site_units',

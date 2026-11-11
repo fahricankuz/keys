@@ -26,7 +26,7 @@ const KEYS = {
   profiles:['id'], properties:['id'], property_shared:['property_id'], memberships:['property_id','user_id'],
   invites:['code'], payments:['property_id','month','kind'], rent_history:['id'], requests:['id'], messages:['id'],
   documents:['id'], expenses:['id'], notifications:['id'], push_subscriptions:['endpoint'], subscriptions:['user_id'], device_tokens:['token'],
-  site_meeting_replies:['meeting_id','unit_id'], site_votes:['poll_id','unit_id'], site_investor_notes:['org_id','period'], site_cash:['org_id'],
+  site_meeting_replies:['meeting_id','unit_id','role'], site_votes:['poll_id','unit_id'], site_investor_notes:['org_id','period'], site_cash:['org_id'],
   site_budgets:['org_id','year'], site_auto:['org_id'], site_turnovers:['unit_id','month'], legal_notes:['request_id'], user_blocks:['user_id','blocked'],
   admins:['user_id'], reviews:['kind','property_id','ref_id'], bans:['user_id'], admin_audit:['id']
 };
@@ -820,11 +820,12 @@ export function createClient(url, key, opts){
         if (name === 'site_meeting_reply'){
           const m = T.site_meetings.find(x => x.id === args.mid);
           if (!m) return { data:null, error:{ message:'Toplantı bulunamadı', code:'P0002' } };
-          if (role !== 'malik') return { data:null, error:{ message:'Yalnız dairenin maliki yanıt verebilir', code:'42501' } };
+          if (!role) return { data:null, error:{ message:'Yalnız dairenin sakini yanıt verebilir', code:'42501' } };
+          if (args.answer === 'vekalet' && role !== 'malik') return { data:null, error:{ message:'Vekâlet yalnız malik içindir', code:'22023' } };
           if (m.status !== 'cagrildi') return { data:null, error:{ message:'Toplantı kapandı', code:'22023' } };
           if (args.answer === 'vekalet' && String(args.proxy || '').trim().length < 2) return { data:null, error:{ message:'Vekilin adını yaz', code:'22023' } };
-          T.site_meeting_replies = T.site_meeting_replies.filter(x => !(x.meeting_id === m.id && x.unit_id === args.unit));
-          T.site_meeting_replies.push({ meeting_id:m.id, unit_id:args.unit, org_id:m.org_id, user_id:me, answer:args.answer, proxy_name: args.answer === 'vekalet' ? String(args.proxy).trim() : '', updated_at:now() });
+          T.site_meeting_replies = T.site_meeting_replies.filter(x => !(x.meeting_id === m.id && x.unit_id === args.unit && (x.role || 'malik') === role));
+          T.site_meeting_replies.push({ meeting_id:m.id, unit_id:args.unit, org_id:m.org_id, user_id:me, role, answer:args.answer, proxy_name: args.answer === 'vekalet' ? String(args.proxy).trim() : '', updated_at:now() });
         } else {
           const p = T.site_polls.find(x => x.id === args.pid);
           if (!p) return { data:null, error:{ message:'Yoklama bulunamadı', code:'P0002' } };
@@ -914,6 +915,21 @@ export function createClient(url, key, opts){
         return { data:r.unit_id, error:null };
       }
       if (name === 'is_admin') return { data: !!me && isAdmin(db, me), error:null };
+      // schema.sql (migration hesap_rolleri): her hesabın tüm rolleri.
+      if (name === 'admin_user_roles'){
+        if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
+        const T = db.tables, out = {};
+        const add = (uid, k, org = null) => { if (!uid) return; const o = org ? (T.organizations || []).find(x => x.id === org) : null;
+          const r = { k, org: o ? o.name : null, sector: o ? o.sector : null };
+          const l = out[uid] || (out[uid] = []); if (!l.some(x => x.k === r.k && x.org === r.org)) l.push(r); };
+        (T.admins || []).forEach(a => add(a.user_id, 'admin'));
+        T.profiles.forEach(p => { if (p.role === 'landlord' || T.properties.some(x => x.owner_id === p.id)) add(p.id, 'landlord'); if (p.role === 'team') add(p.id, 'team'); });
+        (T.memberships || []).filter(m => m.role === 'tenant').forEach(m => add(m.user_id, 'tenant'));
+        (T.site_residents || []).filter(r => r.user_id).forEach(r => add(r.user_id, r.role === 'malik' ? 'site_malik' : 'site_kiraci', r.org_id));
+        (T.org_members || []).forEach(m => add(m.user_id, 'org', m.org_id));
+        (T.team_members || []).forEach(m => add(m.member_id, 'team'));
+        return { data: out, error:null };
+      }
       if (name === 'admin_users'){
         if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
         return { data: db.tables.profiles.map(p => {
