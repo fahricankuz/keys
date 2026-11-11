@@ -2,6 +2,7 @@
 # Dakika tasarrufu: ayda bir ve her klasör için tek toplu PR. Eskiden haftalık, paket başına ayrı PR açılıyordu;
 # ana dal her değiştiğinde bu PR'lar yenilenip tam test seti her biri için yeniden çalışıyordu.
 # Güvenlik açığı güncellemeleri (Dependabot security updates) bu takvimi beklemez, ayrıca gelir.
+# Lansman dönemi: büyük sürüm geçişleri (semver-major) açılmaz; yama ve küçük sürümler gelir. Lansmandan sonra ignore satırlarını kaldırın.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -9,6 +10,9 @@ updates:
     schedule: { interval: monthly }
     open-pull-requests-limit: 2
     rebase-strategy: disabled
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
     groups:
       kok-paketler: { patterns: ['*'] }
   - package-ecosystem: npm
@@ -16,6 +20,9 @@ updates:
     schedule: { interval: monthly }
     open-pull-requests-limit: 2
     rebase-strategy: disabled
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
     groups:
       uygulama-paketleri: { patterns: ['*'] }
   - package-ecosystem: github-actions
@@ -23,5 +30,8 @@ updates:
     schedule: { interval: monthly }
     open-pull-requests-limit: 2
     rebase-strategy: disabled
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
     groups:
       is-akislari: { patterns: ['*'] }
