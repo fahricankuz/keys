@@ -32,6 +32,20 @@ test('uygunluk: anon rolü yalnız herkese açık TÜFE tablosunu okur', async (
   expect(g).toEqual([{ table_name: 'cpi_rates', privilege_type: 'SELECT' }]);
 });
 
+// Supabase anon ve authenticated rollerine yeni işlevlerde doğrudan EXECUTE verir; "revoke ... from public" bunu kaldırmaz (PGlite'ta bu
+// varsayılan yok, aşağıdaki izin listesi testi yakalayamaz). Yetkisi public'ten kaldırılan işlev ya anon/authenticated'dan da kaldırılmalı
+// ya da bilinçli olarak birine verilmeli (ör. report_error). daily_reminders/billing_reminders bu yüzden herkese açık kalmıştı.
+test('güvenlik: public’ten yetkisi kaldırılan işlev anon ve authenticated’dan da kaldırılmış (ya da bilinçli verilmiş)', () => {
+  const st = {};
+  for (const m of SCHEMA.matchAll(/(grant|revoke)\s+execute\s+on\s+function\s+public\.(\w+)\([^)]*\)\s+(?:to|from)\s+([^;]+);/gi)) {
+    const f = (st[m[2]] = st[m[2]] || { pub: false, anon: false, grant: false });
+    const who = m[3].toLowerCase();
+    if (m[1].toLowerCase() === 'revoke') { if (/\bpublic\b/.test(who)) f.pub = true; if (/\banon\b/.test(who)) f.anon = true; }
+    else f.grant = true;
+  }
+  expect(Object.entries(st).filter(([, f]) => f.pub && !f.anon && !f.grant).map(([n]) => n)).toEqual([]);
+});
+
 test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnızca izinli listede (yeni işlev eklenirse bilinçli karar gerekir)', async () => {
   const rows = await q(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.prosecdef and p.prorettype <> 'trigger'::regtype
