@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { t } from '../domain/i18n';
-import { humanError } from '../domain/backend';
+import { humanError, live } from '../domain/backend';
 import { hasModule, terms } from '../domain/org';
 import { depositKindLabel, depositTotals, dueIncreases, expiringGuarantees, importUnits, isCommercial, kindLabel, lateFee, occupancy, overdue, unitLabel, unitPlan, unpaidOf } from '../domain/site';
 import { loadRates } from '../domain/cpi';
@@ -303,7 +303,7 @@ export function Overview({ d, org, can, reload, go, ChargeRow }: {
 
   return (
     <Stack>
-      {can('units.manage') ? <SetupChecklist steps={orgSteps(d, org.modules || [])} hideKey={'setupHidden_' + org.id} onAct={(a: any) => go(a.section)} /> : null}
+      {can('units.manage') ? <SetupChecklist steps={orgSteps(d, org.modules || [], live.user?.id || null)} hideKey={'setupHidden_' + org.id} onAct={(a: any) => go(a.section)} /> : null}
       <CurrencySwitch value={pc} onChange={setPc} />
       {hero}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>{kpis.map(([a, b, s]) => <Kpi key={a} label={a} value={b} sub={s} />)}</View>

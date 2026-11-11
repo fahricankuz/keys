@@ -202,6 +202,7 @@ function UnitRow({ u, d, oid, org, can, reload, first }: { u: any; d: any; oid: 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: phone ? undefined : 1, minWidth: 0 }}>
             <Text v="body" numberOfLines={1} style={{ fontFamily: fonts.bodyXBold, flexShrink: 1 }}>{label}</Text>
             {!(Number(u.area) > 0) ? <Chip tone="warn" label={t('m² eksik')} /> : null}
+            {u.sector === 'site' && Number(u.area) > 1000 ? <Chip tone="warn" label={t('m² çok büyük, kontrol et')} /> : null}
             {shifted ? <Chip tone="warn" label={shiftLabel} /> : null}
             {phone ? <View style={{ flex: 1 }} /> : null}
             {phone ? <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{pay}</Text> : null}

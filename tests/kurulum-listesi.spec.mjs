@@ -43,6 +43,16 @@ test('site: daire, m², kişi (%80), davet (%80), otomatik aidat, duyuru; ekip a
   expect(M.orgSteps(d, []).map((x) => x.key)).toEqual(['units', 'area', 'people', 'invite']);
 });
 
+test('site: yöneticinin kendi kaydı davet sayılmaz; tek kişi (kendisi) varsa "Davetleri gönder" tamam olmaz', () => {
+  const d = { sector: 'site', units: [{ id: 'u1', area: 100 }], residents: [{ unit_id: 'u1', user_id: 'ben' }], auto: null, notes: [], charges: [] };
+  const inv = (me) => M.orgSteps(d, [], me).find((x) => x.key === 'invite');
+  expect(inv('ben').done).toBe(false);
+  expect(inv('ben').progress).toBe(0);
+  expect(inv(null).done).toBe(true);                                             // kimlik verilmezse eski davranış
+  const d2 = { ...d, residents: [...d.residents, { unit_id: 'u1', user_id: null, invited_at: '2026-11-01' }] };
+  expect(M.orgSteps(d2, [], 'ben').find((x) => x.key === 'invite').done).toBe(true);
+});
+
 test('AVM / depo / GYO: kira sözleşmesi ve ilk kira tahakkuku adımları', () => {
   const d = { sector: 'avm', units: [{ id: 'u1', area: 200, rent: 2000 }], residents: [{ unit_id: 'u1', user_id: 'x' }], charges: [{ id: 'c1' }], notes: [] };
   const s = M.orgSteps(d, ['kira']);

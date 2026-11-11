@@ -82,6 +82,33 @@ test('tek rolü olan hesapta seçici görünmez (mülk sahibi ve kiracı)', asyn
   await expect(secici(p2)).toHaveCount(0);
 });
 
+test('mülk sahibi rolündeyken Site adresi "yönetici değilsin" demez: yönetici rolüne geçiş sunar; aramada B Blok bulunur', async ({ page }) => {
+  const d = veri(true);
+  const at = new Date().toISOString();
+  d.tables.site_units = [
+    { id: 'u1', org_id: ORG, block: 'A', no: '1', area: 100, share: 1, aidat: 1500, payer: 'kiraci', created_at: at },
+    { id: 'u15', org_id: ORG, block: 'B', no: '15', area: 100, share: 1, aidat: 1500, payer: 'kiraci', created_at: at }];
+  d.tables.site_requests = [{ id: 'r1', org_id: ORG, unit_id: 'u15', cat: 'ariza', title: 'Asansör arızalı', body: '', status: 0, reply: '', created_at: at, updated_at: at }];
+  await giris(page, d, 'ev@ornek.com', '/giris/mulk-sahibi');
+  await expect(secici(page)).toBeVisible({ timeout: 15000 });
+  await secici(page).click();
+  await page.getByRole('menuitem', { name: /^Mülk sahibi,/ }).click();
+  await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
+
+  await page.goto(`http://localhost:${PORT}/uygulama/site`);
+  await expect(page.getByText('Bir site yönetiminin yöneticisi değilsin.')).toHaveCount(0);
+  await page.getByRole('button', { name: /Site yöneticisi rolüne geç/ }).click();
+  await expect(secici(page)).toHaveAccessibleName(/^Rol seç: Site yöneticisi/, { timeout: 15000 });
+
+  await page.getByRole('button', { name: 'Ara', exact: true }).click();
+  await page.getByLabel('Daire, kişi, talep ya da duyuru ara').fill('B Blok');
+  await expect(page.getByText('B Blok No 15').first()).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText('Sonuç yok.')).toHaveCount(0);
+  await page.getByLabel('Daire, kişi, talep ya da duyuru ara').fill('asansör');
+  await expect(page.getByRole('button', { name: 'Asansör arızalı B Blok No 15' })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('tek giriş: çok rollü hesap girişten sonra rolünü seçer; seçilen rolün paneli açılır', async ({ page }) => {
   errors = watchErrors(page);
   const d = veri(true);

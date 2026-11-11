@@ -23,6 +23,7 @@ import { fonts, radius, useColors } from '../ui/theme';
 import { LinkBtn, Card, DownloadLink, Empty, H2, Label, MonthStepper, Muted, Note, Row, Seg, Stack, StatusChip, Stepper } from './blocks';
 import { useBreakpoint } from '../ui/theme';
 import { ui } from '../domain/state';
+import { selectCtx } from './ctx';
 import { Overview } from './site-overview';
 import { Units } from './site-units';
 import { FileField, MoneyField } from './forms';
@@ -817,7 +818,17 @@ export function SiteAdminScreen({ section: sec = 'ozet' }: { section?: string })
     } catch (e) { setErr(humanError(e)); }
   }, [org?.id]);
   useEffect(() => { if (!(org && cache.org === org.id)) setD(null); load(); }, [load]);
-  if (!org) return <Page title={t('Site')}><Note>{t('Bir site yönetiminin yöneticisi değilsin.')}</Note></Page>;
+  if (!org) {
+    // Yönetici ama rol seçicide "Mülk sahibi"/"Kiracı" seçili: yönetici değil gibi görünmesin, yönetici rolüne geçiş sun.
+    const mine = sites[0];
+    if (mine) return (
+      <Page title={t('Site')}>
+        <Note>{t('Şu an başka bir rolde görüntülüyorsun. Site yönetimini görmek için yönetici rolüne geç.')}</Note>
+        <Button title={t('Site yöneticisi rolüne geç') + ' · ' + mine.name} onPress={() => router.replace(selectCtx('site:' + mine.id) as any)} />
+      </Page>
+    );
+    return <Page title={t('Site')}><Note>{t('Bir site yönetiminin yöneticisi değilsin.')}</Note></Page>;
+  }
   const can = (p: string) => orgCan(org, p);
   const commercial = isCommercial(org.sector);
   const sections = sectorSections(org);

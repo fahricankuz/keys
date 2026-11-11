@@ -30,10 +30,11 @@ const pct = (a, b) => (b ? a / b : 0);
 
 /** Kurum (site, AVM, depo, GYO): d = loadSiteAdmin verisi. Kişi ve davet adımları %80'de tamam sayılır.
     @returns {{ key: string, label: string, done: boolean, progress?: number, act?: any }[]} */
-export function orgSteps(d, modules = []){
+export function orgSteps(d, modules = [], myId = null){
   const site = d.sector === 'site';
-  const units = d.units || [], people = d.residents || [];
-  const withPerson = units.filter((u) => people.some((r) => r.unit_id === u.id)).length;
+  // Davet edilecek kişiler: yöneticinin kendi kaydı (kendi hesabına bağlı sakin) davet sayılmaz.
+  const units = d.units || [], everyone = d.residents || [], people = myId ? everyone.filter((r) => r.user_id !== myId) : everyone;
+  const withPerson = units.filter((u) => everyone.some((r) => r.unit_id === u.id)).length;
   const invited = people.filter((r) => r.user_id || r.invited_at).length;
   const steps = [
     { key: 'units', label: site ? t('Daireleri oluştur') : t('Birimleri oluştur'), done: units.length > 0, act: { section: 'birimler' } },

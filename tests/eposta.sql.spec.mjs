@@ -38,6 +38,17 @@ test('abonelik olayları: ödeme sorunu, iptal ve sona erme kullanıcıya bildir
   expect(await notes(ID.L2)).toHaveLength(0);
 });
 
+test('elle paket: aynı paket art arda tanımlanınca bildirim tek kalır; farklı paket yeni bildirim açar', async () => {
+  await as(ID.A);
+  await q(`select public.admin_set_plan($1, 'tek', null, 'a', 2, null)`, [ID.L]);
+  await as(ID.A);
+  await q(`select public.admin_set_plan($1, 'tek', null, 'a', 2, null)`, [ID.L]);
+  expect(await notes(ID.L, 'bill-plan-%')).toHaveLength(1);
+  await as(ID.A);
+  await q(`select public.admin_set_plan($1, 'tek', null, 'a', 3, null)`, [ID.L]);
+  expect(await notes(ID.L, 'bill-plan-%')).toHaveLength(2);
+});
+
 test('elle paket: tanımlayınca ve kaldırınca kullanıcıya bildirim; olmayan paketi kaldırmak bildirim üretmez', async () => {
   await as(ID.A);
   await q(`select public.admin_set_plan($1, 'bes', '2027-12-31T20:59:59Z', 'sözleşme', 5, null)`, [ID.X]);
