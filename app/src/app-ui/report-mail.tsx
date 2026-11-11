@@ -92,7 +92,7 @@ export function MailPreviewSheet() {
       <Title>{t('Rapor e-postası')}</Title>
       <Seg value={period} onChange={(v: any) => setPeriod(v)} options={[['month', t('Aylık')], ['year', t('Yıllık')]]} />
       <Muted>{t('Örnek, mülklerinin bu cihazdaki verisiyle hazırlandı. Gerçek e-posta sunucudaki kayıtlardan oluşur.')}</Muted>
-      <View accessibilityLabel={t('E-posta önizlemesi')} style={{ borderRadius: 26, overflow: 'hidden', borderWidth: 1, borderColor: '#E8DDD5', backgroundColor: '#FFFDFB' }}>
+      <View role="group" accessibilityLabel={t('E-posta önizlemesi')} style={{ borderRadius: 26, overflow: 'hidden', borderWidth: 1, borderColor: '#E8DDD5', backgroundColor: '#FFFDFB' }}>
         <View style={{ backgroundColor: '#C8302E', padding: 22, paddingBottom: 24 }}>
           <RNText style={{ fontFamily: fonts.siteBold, fontSize: 24, letterSpacing: -1, color: '#FAF5F0' }}>anahtar</RNText>
           <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 1, textTransform: 'uppercase', color: '#FAF5F0', opacity: 0.85, marginTop: 18 }}>

@@ -208,7 +208,7 @@ function UnitRow({ u, d, oid, org, can, reload, first }: { u: any; d: any; oid: 
             {phone ? <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{pay}</Text> : null}
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: phone ? undefined : 1.3, minWidth: 0 }}>
-            {dot ? <View accessibilityLabel={dotLabel} style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dot }} /> : null}
+            {dot ? <View role="img" accessibilityLabel={dotLabel} style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dot }} /> : null}
             <Text v="small" numberOfLines={1} color={all.length ? c.ink : c.muted} style={{ flexShrink: 1 }}>{who}</Text>
           </View>
           {!phone ? <Text v="small" numberOfLines={1} style={{ width: 120, textAlign: 'right', fontFamily: fonts.bodyBold }}>{pay}</Text> : null}

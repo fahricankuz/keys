@@ -128,7 +128,7 @@ export function OrgManage({ oid, power, selfId, onLeave }: { oid: string; power:
               <Chip tone={m.master ? 'accent' : m.role_id ? 'neutral' : 'warn'} label={m.master ? t('Master yönetici') : roleName(m.role_id)} />
             </Row>
             {!m.master && power.members ? (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }} accessibilityLabel={t('{name} için rol', { name: m.name })}>
+              <View role="group" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }} accessibilityLabel={t('{name} için rol', { name: m.name })}>
                 {d.roles.map((r: any) => (
                   <Pill key={r.id} label={r.name} on={m.role_id === r.id} onPress={() => act(() => setMemberRole(oid, m.user_id, m.role_id === r.id ? null : r.id))} />
                 ))}

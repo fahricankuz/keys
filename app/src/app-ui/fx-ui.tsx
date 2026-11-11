@@ -40,7 +40,7 @@ export function useFx(from: string, need = true) {
 
 export function CurrencySwitch({ value, onChange }: { value: Cur; onChange: (c: Cur) => void }) {
   return (
-    <View accessibilityLabel={t('Rapor para birimi')} style={{ alignSelf: 'flex-start' }}>
+    <View role="group" accessibilityLabel={t('Rapor para birimi')} style={{ alignSelf: 'flex-start' }}>
       <Seg value={value} onChange={(v: any) => onChange(v)} options={[['TRY', '₺ TL'], ['USD', '$ USD'], ['EUR', '€ EUR']]} />
     </View>
   );

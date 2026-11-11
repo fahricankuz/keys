@@ -1,6 +1,6 @@
 // Vergi hesabı birim testleri — tarayıcı gerekmez.
 import { test, expect } from '@playwright/test';
-import { progressive, estimate, ratesFor, RATES } from '../assets/js/tax.js';
+import { progressive, estimate, ratesFor, RATES } from '../app/src/domain/tax.js';
 
 test('artan oranlı tarife dilimleri doğru toplar', () => {
   const b = RATES[2025].brackets;

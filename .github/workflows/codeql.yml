@@ -1,0 +1,42 @@
+name: CodeQL
+
+# Kod güvenlik taraması (GitHub CodeQL). Depo herkese açık olduğu için ücretsizdir. Bulgular Security → Code scanning'de görünür;
+# bilinçli olarak kabul edilenler orada gerekçesiyle kapatılır (kapatılan bulgu sonraki taramalarda yeniden açılmaz).
+# Dakika tasarrufu: her PR'da değil; ana dala girişte, haftada bir ve elle.
+on:
+  push:
+    branches: [claude/github-keys-setup-uzvnzm]
+    paths: ['app/src/**', 'app/scripts/**', 'scripts/**', '.github/workflows/codeql.yml']
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          config: |
+            paths:
+              - app/src
+              - app/scripts
+              - scripts
+            paths-ignore:
+              - '**/node_modules'
+              - 'app/dist*'
+              - 'app/src/testing'
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:javascript-typescript'

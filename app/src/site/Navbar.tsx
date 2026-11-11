@@ -239,7 +239,7 @@ function LangPicker() {
   }, [open]);
   return (
     <View style={{ position: 'relative' }}>
-      <PressScale onPress={() => setOpen((x) => !x)} accessibilityRole="button" accessibilityLabel={t('Dil')} aria-expanded={open} scaleTo={0.94}
+      <PressScale onPress={() => setOpen((x) => !x)} accessibilityRole="button" accessibilityLabel={t('Dil') + ': ' + cur.toUpperCase()} aria-expanded={open} scaleTo={0.94}
         style={{ minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: c.line, backgroundColor: open ? c.surface2 : c.surface }}>
         <Icon name="globe" size={18} />
         <Text v="small" style={{ fontFamily: fonts.bodyBold, fontSize: 14 }}>{cur.toUpperCase()}</Text>

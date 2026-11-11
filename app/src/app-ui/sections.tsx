@@ -925,7 +925,7 @@ function MonthView({ props }: { props: any[] }) {
         <Text v="h3">{monthYear(month)}</Text>
         <View style={{ transform: [{ scaleX: -1 }] }}><IconBtn name="back" label={t('Sonraki ay')} onPress={() => shift(1)} /></View>
       </Row>
-      <View role="grid" aria-label={monthYear(month)}>
+      <View role="group" aria-label={monthYear(month)}>
         <View style={{ flexDirection: 'row' }}>{week.map((w) => <Text key={w} v="small" muted style={{ flex: 1, textAlign: 'center' }}>{w}</Text>)}</View>
         {Array.from({ length: cells.length / 7 }, (_, r) => (
           <View key={r} style={{ flexDirection: 'row', marginTop: 4 }}>
