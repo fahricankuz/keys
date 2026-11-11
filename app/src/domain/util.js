@@ -20,14 +20,17 @@ export function mkey(d){ d = new Date(d); return d.getFullYear()+'-'+String(d.ge
 export function between(a,b){ return Math.round((b-a)/DAY); }
 export function daysTo(s){ return between(t0(), parse(s)); }
 
-export function fmt(d){ return new Date(d).toLocaleDateString(locale(),{day:'numeric',month:'long'}); }
-export function fmtFull(d){ return new Date(d).toLocaleDateString(locale(),{day:'numeric',month:'long',year:'numeric'}); }
+/** Geçersiz ya da eksik tarih ekranda "Invalid Date" yerine "—" olarak görünür. */
+const valid = (d) => d != null && d !== '' && !isNaN(new Date(d).getTime());
+export function fmt(d){ return valid(d) ? new Date(d).toLocaleDateString(locale(),{day:'numeric',month:'long'}) : '—'; }
+export function fmtFull(d){ return valid(d) ? new Date(d).toLocaleDateString(locale(),{day:'numeric',month:'long',year:'numeric'}) : '—'; }
 export function monthName(k){
   const s = parse(k+'-01').toLocaleDateString(locale(),{month:'long'});
   return up(s);
 }
 export function monthYear(k){
   const d = parse(k+'-01');
+  if (isNaN(d.getTime())) return '—';
   return up(d.toLocaleDateString(locale(),{month:'long'})) + ' ' + d.getFullYear();
 }
 export function up(s){ s = String(s); return s.charAt(0).toLocaleUpperCase(locale()) + s.slice(1); }
@@ -57,7 +60,7 @@ export function numRaw(text, decimals = 2){
   if (!rest.length || !decimals) return i;
   return i + '.' + rest.join('').slice(0, decimals);
 }
-export function tm(ts){ return new Date(ts).toLocaleTimeString(locale(),{hour:'2-digit',minute:'2-digit'}); }
+export function tm(ts){ return valid(ts) ? new Date(ts).toLocaleTimeString(locale(),{hour:'2-digit',minute:'2-digit'}) : '—'; }
 
 /** Bugün / dün / tarih — sohbet gün ayraçları için. */
 export function dayLabel(ts){
