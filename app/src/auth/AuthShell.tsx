@@ -89,26 +89,21 @@ export default function AuthShell({ title, lead, children, side, wide, top }: {
         shadowColor: '#1D1A19', shadowOpacity: 0.06, shadowRadius: 24, shadowOffset: { width: 0, height: 10 } }}>{children}</View>
     </Animated.View>
   );
-  if (desktop) {
-    return (
-      <ScrollView style={{ flex: 1, backgroundColor: c.cream }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-        <View style={{ flexDirection: 'row', gap: 56, width: '100%', maxWidth: 1240, alignSelf: 'center', padding: 20, flexGrow: 1 }}>
-          {panel}
-          <View style={{ flex: 1, minWidth: 0, paddingTop: 8, paddingBottom: 40 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', minHeight: 40, alignItems: 'center' }}>{topLink}</View>
-            <View style={{ flexGrow: 1, justifyContent: 'center', paddingTop: 24 }}>{form}</View>
-          </View>
-        </View>
-      </ScrollView>
-    );
-  }
+  // Tek ağaç: masaüstüne geçişte yalnız sol panel eklenir, form aynı yerde kalır. (Ayrı ağaç döndürmek ilk çizimden sonra
+  // masaüstüne geçerken formu yeniden kuruyordu; o arada yazılan e-posta kayboluyordu.)
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: c.cream }} contentContainerStyle={{ flexGrow: 1, paddingHorizontal: phone ? 16 : 32, paddingTop: 18, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: phone ? 28 : 56, width: '100%', maxWidth: 640, alignSelf: 'center' }}>
-        <PressScale onPress={() => router.replace('/')} accessibilityRole="link"><Wordmark size={26} /></PressScale>
-        {topLink}
+    <ScrollView style={{ flex: 1, backgroundColor: c.cream }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+      <View style={{ flexDirection: desktop ? 'row' : 'column', gap: desktop ? 56 : 0, width: '100%', maxWidth: desktop ? 1240 : 640, alignSelf: 'center', flexGrow: 1,
+        padding: desktop ? 20 : 0, paddingHorizontal: desktop ? 20 : phone ? 16 : 32, paddingTop: desktop ? 20 : 18, paddingBottom: 40 }}>
+        {desktop ? panel : null}
+        <View style={{ flex: desktop ? 1 : undefined, flexGrow: 1, minWidth: 0, paddingTop: desktop ? 8 : 0 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: desktop ? 'flex-end' : 'space-between', gap: 12, flexWrap: 'wrap', minHeight: 40, marginBottom: desktop ? 0 : phone ? 28 : 56 }}>
+            {desktop ? null : <PressScale onPress={() => router.replace('/')} accessibilityRole="link"><Wordmark size={26} /></PressScale>}
+            {topLink}
+          </View>
+          <View style={{ flexGrow: desktop ? 1 : 0, justifyContent: desktop ? 'center' : 'flex-start', paddingTop: desktop ? 24 : 0 }}>{form}</View>
+        </View>
       </View>
-      {form}
     </ScrollView>
   );
 }
