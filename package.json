@@ -13,15 +13,15 @@
     "db:kontrol": "node scripts/db-derle.mjs --kontrol"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.10.0",
+    "@axe-core/playwright": "^4.14.0",
     "@electric-sql/pglite": "^0.2.17",
     "@playwright/test": "1.64.1",
     "esbuild": "^0.28.2",
-    "mailparser": "^3.14.1",
+    "mailparser": "^3.14.2",
     "nodemailer": "^10.3.1"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.117.0"
+    "@supabase/supabase-js": "^2.119.0"
   },
   "overrides": {
     "uuid": "^11.1.1",
