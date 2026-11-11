@@ -40,7 +40,7 @@ export const I = {
   safe:     svg('<rect x="3.5" y="5" width="17" height="14" rx="3"/><path d="M7 19v2M17 19v2"/><circle fill="{RING}" stroke="none" cx="12" cy="10.5" r="1.7"/><path fill="{RING}" stroke="none" d="M11 11.3 L10.6 14.1 H13.4 L13 11.3Z"/>'),
   meter:    svg('<path d="M4.5 17a8.5 8.5 0 1 1 15 0"/><path d="M8 17h8"/>' + R(15.2, 9.2, 1.6) + '<path d="M12 14.5l2.3-3.5"/>'),
   landlord: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/><circle fill="{RING}" stroke="none" cx="18.5" cy="5" r="1.8"/>'),
-  check:    svg('<circle cx="12" cy="12" r="9"/>' + R(7.2, 12.4, 1.2).replace('r="1.2"', 'r="1.2"') + '<path d="M10 12.5l2.2 2.2L16.5 10"/>')
+  check:    svg('<circle cx="12" cy="12" r="9"/>' + R(7.2, 12.4, 1.2) + '<path d="M10 12.5l2.2 2.2L16.5 10"/>')
 };
 
 /** Mülk tipinin ikonu. */
