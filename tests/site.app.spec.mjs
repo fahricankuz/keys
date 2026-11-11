@@ -3,7 +3,7 @@
 // "Sitem"de yalnız kendi dairesini görür, dekont yükler ve talep açar; yönetim onaylar ve yanıtlar.
 // Sunucu kuralları gerçek Postgres'te ayrıca sınanır (site.sql.spec.mjs).
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist, ID , pickRole } from './app-helpers.mjs';
 import { watchErrors, PNG } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -41,6 +41,7 @@ async function login(page, email) {
   await page.getByLabel('E-posta').fill(email);
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);
 }
 /** Tarayıcı Europe/Istanbul saatinde çalışır (playwright.config); beklenen ay ve günler de o saat dilimiyle hesaplanır. */
 const istDay = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(d);
@@ -112,7 +113,7 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await expect(page.getByLabel('Ad soyad')).toHaveValue('Mehmet Kiracı');
   await expect(page.getByLabel('E-posta')).toHaveValue('mehmet@ornek.com');
   await expect(page.getByLabel('Telefon (isteğe bağlı)')).toHaveValue('0532 123 45 67');
-  await expect(page.getByLabel('Davet kodu (isteğe bağlı)')).toHaveValue(code);
+  await expect(page.getByLabel('Davet kodu')).toHaveValue(code);
 
   // 2. Kiracı: davet bağlantısıyla bağlanır; yalnız kendi dairesini görür; dekont yükler, talep açar.
   await login(page, 'kiraci@ornek.com');
@@ -251,6 +252,7 @@ test('genel kurul: yönetim çağırır ve paketi açar, yoklama açar; malik ka
   await expect(page).toHaveURL(/\/uygulama\/site$/);
   await page.getByRole('link', { name: 'Genel kurul', exact: true }).first().click();
   await expect(page.getByText(/bağlayıcı değildir/).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Yeni genel kurul çağrısı' }).click();     // form düğmeyle açılır
   await page.getByLabel('Tarih', { exact: true }).fill(later);
   await page.getByLabel('Yer', { exact: true }).fill('Kapalı otopark');
   await page.getByRole('button', { name: 'Çağrıyı yayınla' }).click();
@@ -263,6 +265,7 @@ test('genel kurul: yönetim çağırır ve paketi açar, yoklama açar; malik ka
   await expect(pack.getByText('Kapalı otopark')).toBeVisible();
   await pack.close();
 
+  await page.getByRole('button', { name: 'Görüş yoklaması aç' }).click();
   await page.getByLabel('Soru').fill('Çatı yalıtımı yapılsın mı?');
   await page.getByLabel('Bitiş tarihi').fill(later);
   await page.getByRole('switch', { name: 'Arsa payıyla ağırlıklı sonuç' }).click();
@@ -329,6 +332,7 @@ test('yalnız site sakini: "Mülküne bağlan" yok; ana sayfa, ödemeler, talepl
   await page.goto(url('/uygulama/site/belgeler'));
   await expect(page.getByText('Sakinlerden gelenler')).toBeVisible();
   await expect(page.getByText('Kira sözleşmem')).toBeVisible();
+  await page.getByRole('button', { name: 'Belge paylaş' }).click();
   await page.getByRole('tab', { name: 'Bir daire' }).or(page.getByRole('button', { name: 'Bir daire' })).first().click();
   await page.getByLabel('Daire', { exact: true }).fill('A Blok');
   await page.getByRole('checkbox', { name: 'A Blok No 1' }).click();

@@ -26,7 +26,7 @@ const KEYS = {
   profiles:['id'], properties:['id'], property_shared:['property_id'], memberships:['property_id','user_id'],
   invites:['code'], payments:['property_id','month','kind'], rent_history:['id'], requests:['id'], messages:['id'],
   documents:['id'], expenses:['id'], notifications:['id'], push_subscriptions:['endpoint'], subscriptions:['user_id'], device_tokens:['token'],
-  site_meeting_replies:['meeting_id','unit_id'], site_votes:['poll_id','unit_id'], site_investor_notes:['org_id','period'], site_cash:['org_id'],
+  site_meeting_replies:['meeting_id','unit_id','role'], site_votes:['poll_id','unit_id'], site_investor_notes:['org_id','period'], site_cash:['org_id'],
   site_budgets:['org_id','year'], site_auto:['org_id'], site_turnovers:['unit_id','month'], legal_notes:['request_id'], user_blocks:['user_id','blocked'],
   admins:['user_id'], reviews:['kind','property_id','ref_id'], bans:['user_id'], admin_audit:['id']
 };
@@ -195,12 +195,19 @@ function decideEffects(db, r, was){
 
 /* Abonelik: schema.sql → access_state / require_access ile aynı kural. */
 const TRIAL_DAYS = 30;
+/** signup_code_ok: kullanılmamış, süresi dolmamış kiracı daveti ya da kullanılmamış site dairesi kodu. */
+function signupCodeOk(db, code){
+  const k = String(code || '').trim().toUpperCase();
+  if (k.length < 6 || k.length > 12) return false;
+  return (db.tables.invites || []).some(i => i.code === k && (i.role || 'tenant') === 'tenant' && !i.accepted_by && (!i.expires_at || new Date(i.expires_at) > new Date()))
+    || (db.tables.site_residents || []).some(r => r.code === k && !r.user_id);
+}
 function accessOf(db, uid){
   const p = db.tables.profiles.find(x => x.id === uid);
   if (!p) return { access:false };
   const s = db.tables.subscriptions.find(x => x.user_id === uid);
   const subscribed = !!(s && s.active && (!s.expires_at || Date.parse(s.expires_at) > Date.now()));
-  const trialEnds = new Date(Date.parse(p.created_at || now()) + TRIAL_DAYS * 86400000).toISOString();
+  const trialEnds = new Date(Date.parse(p.landlord_since || p.created_at || now()) + TRIAL_DAYS * 86400000).toISOString();
   const inTrial = !subscribed && Date.now() < Date.parse(trialEnds);
   const org = (db.tables.org_members || []).some(m => m.user_id === uid && (db.tables.organizations.find(o => o.id === m.org_id) || {}).status === 'active');
   // schema.sql §21 ile aynı: paket ürün kimliğinden, mülk sınırı ürün kimliğindeki adetten.
@@ -412,6 +419,9 @@ export function createClient(url, key, opts){
         const db = load();
         if (db.users.some(u => u.email === email)) return { data:{}, error:{ message:'User already registered' } };
         const meta = (options && options.data) || {};
+        // Sunucudaki kural (handle_new_user): kiracı / site sakini hesabı yalnız geçerli davet koduyla açılır.
+        if (meta.role !== 'landlord' && meta.role !== 'team' && !signupCodeOk(db, meta.invite))
+          return { data:{}, error:{ message:'Database error saving new user' } };
         const user = { id: uuid(), email };
         db.users.push({ ...user, password, meta });
         db.tables.profiles.push({ id:user.id, role: meta.role === 'landlord' ? 'landlord' : 'tenant', name: meta.name || email, phone: meta.phone || '', lang:'tr', settings:{}, created_at: now() });
@@ -492,7 +502,9 @@ export function createClient(url, key, opts){
         const inv = db.tables.invites.find(i => i.code === String(args.invite_code).toUpperCase().trim());
         if (!inv) return { data:null, error:{ message:'Davet kodu bulunamadı' } };
         const prof = db.tables.profiles.find(p => p.id === me);
-        if (prof.role !== 'tenant') return { data:null, error:{ message:'Davetler kiracı hesapları içindir' } };
+        if (inv.accepted_by) return { data:null, error:{ message:'Bu davet kullanılmış', code:'22023' } };
+        // Aynı hesap birden çok rol taşır: mülk sahibi de başka bir mülkte kiracı olabilir; kendi mülkünün davetini kullanamaz.
+        if (inv.created_by === me || db.tables.properties.some(p => p.id === inv.property_id && p.owner_id === me)) return { data:null, error:{ message:'Kendi davetini kullanamazsın', code:'22023' } };
         if (!db.tables.memberships.some(m => m.property_id === inv.property_id && m.user_id === me))
           db.tables.memberships.push({ property_id:inv.property_id, user_id:me, role:'tenant', display_name:prof.name, phone:'', email:db.session.user.email });
         inv.accepted_by = me;
@@ -808,11 +820,12 @@ export function createClient(url, key, opts){
         if (name === 'site_meeting_reply'){
           const m = T.site_meetings.find(x => x.id === args.mid);
           if (!m) return { data:null, error:{ message:'Toplantı bulunamadı', code:'P0002' } };
-          if (role !== 'malik') return { data:null, error:{ message:'Yalnız dairenin maliki yanıt verebilir', code:'42501' } };
+          if (!role) return { data:null, error:{ message:'Yalnız dairenin sakini yanıt verebilir', code:'42501' } };
+          if (args.answer === 'vekalet' && role !== 'malik') return { data:null, error:{ message:'Vekâlet yalnız malik içindir', code:'22023' } };
           if (m.status !== 'cagrildi') return { data:null, error:{ message:'Toplantı kapandı', code:'22023' } };
           if (args.answer === 'vekalet' && String(args.proxy || '').trim().length < 2) return { data:null, error:{ message:'Vekilin adını yaz', code:'22023' } };
-          T.site_meeting_replies = T.site_meeting_replies.filter(x => !(x.meeting_id === m.id && x.unit_id === args.unit));
-          T.site_meeting_replies.push({ meeting_id:m.id, unit_id:args.unit, org_id:m.org_id, user_id:me, answer:args.answer, proxy_name: args.answer === 'vekalet' ? String(args.proxy).trim() : '', updated_at:now() });
+          T.site_meeting_replies = T.site_meeting_replies.filter(x => !(x.meeting_id === m.id && x.unit_id === args.unit && (x.role || 'malik') === role));
+          T.site_meeting_replies.push({ meeting_id:m.id, unit_id:args.unit, org_id:m.org_id, user_id:me, role, answer:args.answer, proxy_name: args.answer === 'vekalet' ? String(args.proxy).trim() : '', updated_at:now() });
         } else {
           const p = T.site_polls.find(x => x.id === args.pid);
           if (!p) return { data:null, error:{ message:'Yoklama bulunamadı', code:'P0002' } };
@@ -873,6 +886,14 @@ export function createClient(url, key, opts){
           voted_share:votes.reduce((a, v) => a + share(v.unit_id), 0), closed: Date.now() >= Date.parse(p.ends_at),
           options:p.options.map((label, i) => { const vs = votes.filter(v => v.choice === i); return { label, count:vs.length, share:vs.reduce((a, v) => a + share(v.unit_id), 0) }; }) }, error:null };
       }
+      if (name === 'signup_code_ok') return { data: signupCodeOk(db, args.invite_code), error:null };
+      if (name === 'add_landlord_role'){
+        const p = db.tables.profiles.find(x => x.id === me);
+        if (!p) return { data:null, error:{ message:'Oturum açılmamış', code:'42501' } };
+        if (p.role === 'team') return { data:null, error:{ message:'Ekip hesabı mülk sahibi hesabına dönüştürülemez', code:'22023' } };
+        if (p.role !== 'landlord'){ p.role = 'landlord'; p.landlord_since = p.landlord_since || now(); persist(db); }
+        return { data:'landlord', error:null };
+      }
       if (name === 'invite_preview'){
         const i = db.tables.invites.find(x => x.code === String(args.invite_code || '').trim().toUpperCase());
         if (!i) return { data:null, error:null };
@@ -894,6 +915,21 @@ export function createClient(url, key, opts){
         return { data:r.unit_id, error:null };
       }
       if (name === 'is_admin') return { data: !!me && isAdmin(db, me), error:null };
+      // schema.sql (migration hesap_rolleri): her hesabın tüm rolleri.
+      if (name === 'admin_user_roles'){
+        if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
+        const T = db.tables, out = {};
+        const add = (uid, k, org = null) => { if (!uid) return; const o = org ? (T.organizations || []).find(x => x.id === org) : null;
+          const r = { k, org: o ? o.name : null, sector: o ? o.sector : null };
+          const l = out[uid] || (out[uid] = []); if (!l.some(x => x.k === r.k && x.org === r.org)) l.push(r); };
+        (T.admins || []).forEach(a => add(a.user_id, 'admin'));
+        T.profiles.forEach(p => { if (p.role === 'landlord' || T.properties.some(x => x.owner_id === p.id)) add(p.id, 'landlord'); if (p.role === 'team') add(p.id, 'team'); });
+        (T.memberships || []).filter(m => m.role === 'tenant').forEach(m => add(m.user_id, 'tenant'));
+        (T.site_residents || []).filter(r => r.user_id).forEach(r => add(r.user_id, r.role === 'malik' ? 'site_malik' : 'site_kiraci', r.org_id));
+        (T.org_members || []).forEach(m => add(m.user_id, 'org', m.org_id));
+        (T.team_members || []).forEach(m => add(m.member_id, 'team'));
+        return { data: out, error:null };
+      }
       if (name === 'admin_users'){
         if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
         return { data: db.tables.profiles.map(p => {

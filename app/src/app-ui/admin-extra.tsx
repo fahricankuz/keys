@@ -9,7 +9,7 @@ import { SECTORS, adminOrgs, sectorOf } from '../domain/org';
 import { ChurnAndCohorts } from './admin-churn';
 import { FinanceCard, PeriodSeg, SignupChart, YearChart, delta, periodFinance, prevLabel, useAdminFinance, usePeriod } from './admin-finance-ui';
 import { t, locale } from '../domain/i18n';
-import { tl } from '../domain/util';
+import { percent, tl } from '../domain/util';
 import { Button, Chip, Field, Text } from '../ui/kit';
 import { Loader } from '../ui/Loader';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
@@ -17,7 +17,7 @@ import { Card, Empty, H2, Hero, Label, Muted, Row, Seg, Stack } from './blocks';
 import { GroupTitle, Kpi, KpiGrid, PageHead } from './admin-ui';
 
 const day = (v: any) => (v ? new Date(v).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
-const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) + '%' : '—');
+const pct = (a: number, b: number) => (b ? percent((a / b) * 100, 0) : '—');
 
 /** Sunucudan veri yükler; reload() ile yeniden çeker. */
 function useLoad<T>(fn: () => Promise<T>, deps: any[] = []) {

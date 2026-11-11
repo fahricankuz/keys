@@ -8,7 +8,7 @@ import { adminLegal } from '../domain/legal';
 import { Image, Linking, ScrollView, Text as RNText, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../auth/auth';
-import { loadAdmin, loadSubscriptions, loadHealth, addContact, previewUrl, humanError, setBan, deleteUser, loadThreads, loadMessages, deleteMessage, loadAudit } from '../domain/admin';
+import { loadAdmin, loadSubscriptions, loadUserRoles, roleTags, loadHealth, addContact, previewUrl, humanError, setBan, deleteUser, loadThreads, loadMessages, deleteMessage, loadAudit } from '../domain/admin';
 import { t, locale } from '../domain/i18n';
 import { tl } from '../domain/util';
 import { Button, Chip, Field, PressScale, Text } from '../ui/kit';
@@ -227,9 +227,9 @@ function Health({ d }: { d: Data }) {
     <Stack>
       <Row between wrap>
         <Seg scroll value={f} onChange={setF} options={opts.filter(([k]) => k === 'all' || n(k)).map(([k, l]) => [k, l + ' ' + n(k)] as [string, string])} />
-        <Row gap={8}>
-          <View style={{ width: 220 }}><Field label={t('Ara')} value={q} onChangeText={setQ} placeholder={t('Ad, e-posta ya da telefon')} /></View>
-          <Button kind="ghost" title={t('Yeniden sırala')} onPress={load} style={{ minHeight: 44 }} />
+        <Row gap={8} wrap align="flex-end" style={{ flexGrow: 1, justifyContent: 'flex-end' }}>
+          <View style={{ flexGrow: 1, flexBasis: 220, maxWidth: 360, minWidth: 0 }}><Field label={t('Ara')} value={q} onChangeText={setQ} placeholder={t('Ad, e-posta ya da telefon')} /></View>
+          <Button kind="ghost" title={t('Yeniden sırala')} onPress={load} style={{ minHeight: 50 }} />
         </Row>
       </Row>
       {shown.length ? (
@@ -350,7 +350,8 @@ function DeleteBox({ u, reload }: { u: any; reload: () => void }) {
 function Tag({ label, tone = 'neutral', warn }: { label: string; tone?: 'neutral' | 'bad' | 'accent' | 'ok'; warn?: boolean }) {
   const c = useColors();
   const [bg, fg] = warn ? [c.warnBg, c.warnInk] : tone === 'bad' ? [c.badBg, c.badInk] : tone === 'accent' ? [c.accentSoft, c.accentText] : tone === 'ok' ? [c.okBg, c.okInk] : [c.surface2, c.muted];
-  return <View style={{ backgroundColor: bg, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, alignSelf: 'flex-start' }}><RNText style={{ color: fg, fontFamily: fonts.bodyMedium, fontSize: 11.5 }}>{label}</RNText></View>;
+  // Uzun etiket (ör. "… mülküne bağlı") tek satırda kısalır; komşu sütunun üstüne taşmaz.
+  return <View style={{ backgroundColor: bg, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, alignSelf: 'flex-start', maxWidth: '100%' }}><RNText numberOfLines={1} style={{ color: fg, fontFamily: fonts.bodyMedium, fontSize: 11.5 }}>{label}</RNText></View>;
 }
 
 /* ---------------- hesaplar: abonelik, mülkler ve kiracılar, hesap işlemleri tek listede ---------------- */
@@ -384,12 +385,20 @@ function Box({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function AccountRow({ u, s, land, homes, open, onToggle, reload }: { u: any; s?: Sub; land?: any; homes: any[]; open: boolean; onToggle: () => void; reload: () => void }) {
+function AccountRow({ u, s, land, homes, roles, open, onToggle, reload }: { u: any; s?: Sub; land?: any; homes: any[]; roles: any[]; open: boolean; onToggle: () => void; reload: () => void }) {
   const c = useColors();
   const { phone } = useBreakpoint();
   const name = u.name || u.email || '—';
   const [mail, setMail] = useState(false);
-  const role = u.is_admin ? t('Yönetici') : u.role === 'landlord' ? t('Mülk sahibi') : t('Kiracı');
+  // Bir hesabın birden çok rolü olabilir (mülk sahibi + site maliki + site yöneticisi…); satırda ilk ikisi ve "+n", açılınca hepsi.
+  const rt = roleTags(u, roles);
+  const role = rt.map((x) => x.short).join(', ');
+  const roleChips = (max: number) => (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+      {rt.slice(0, max).map((x) => <Tag key={x.long} label={x.short} tone={x.k === 'admin' ? 'accent' : 'neutral'} />)}
+      {rt.length > max ? <Tag label={'+' + (rt.length - max)} tone="neutral" /> : null}
+    </View>
+  );
   const tags = statusOf(u, s, homes);
   const counts = u.role === 'landlord'
     ? t('{a} mülk · {b} kiracı', { a: land?.props.length ?? s?.units ?? 0, b: land?.tenantCount ?? s?.tenants ?? 0 })
@@ -398,25 +407,38 @@ function AccountRow({ u, s, land, homes, open, onToggle, reload }: { u: any; s?:
     <View style={{ borderTopWidth: 1, borderTopColor: c.line, backgroundColor: open ? c.tile : 'transparent' }}>
       <PressScale onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={name + ', ' + role + ', ' + tags.map((x) => x[0]).join(', ')} scaleTo={0.997}
         style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 11, minHeight: 58 }}>
-        <View style={{ flex: phone ? 1 : 2.2, flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 }}>
+        <View style={{ flex: phone ? 1 : 2.6, flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 }}>
           <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: u.banned ? c.badBg : c.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
             <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 12, color: u.banned ? c.badInk : c.accentText }}>{initials(name)}</RNText>
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <RNText numberOfLines={1} style={{ fontFamily: fonts.bodyXBold, fontSize: 14, color: c.ink }}>{name}</RNText>
-            <RNText numberOfLines={1} style={{ fontFamily: fonts.body, fontSize: 12, color: c.muted }}>{phone ? counts || u.email : u.email + (u.phone ? ' · ' + u.phone : '')}</RNText>
+            {phone ? <RNText numberOfLines={1} style={{ fontFamily: fonts.body, fontSize: 12, color: c.muted }}>{counts || u.email}</RNText> : <>
+              <RNText numberOfLines={1} style={{ fontFamily: fonts.body, fontSize: 12, color: c.muted }}>{u.email}</RNText>
+              {u.phone ? <RNText numberOfLines={1} style={{ fontFamily: fonts.body, fontSize: 12, color: c.muted }}>{u.phone}</RNText> : null}
+            </>}
+            {/* Telefonda etiketler adın altında: yan yana sığmayıp adın üstüne biniyordu. */}
+            {phone ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+              {rt.map((x) => <Tag key={x.long} label={x.short} tone={x.k === 'admin' ? 'accent' : 'neutral'} />)}
+              {tags.map(([l, tone]) => <Tag key={l} label={l} tone={tone === 'warn' ? 'neutral' : tone} warn={tone === 'warn'} />)}
+            </View> : null}
           </View>
         </View>
-        {phone ? null : <View style={{ flex: 0.9 }}><Tag label={role} tone={u.is_admin ? 'accent' : 'neutral'} /></View>}
-        <View style={{ flex: phone ? undefined : 1.6, flexDirection: 'row', flexWrap: 'wrap', gap: 4, justifyContent: phone ? 'flex-end' : 'flex-start', maxWidth: phone ? 150 : undefined }}>
+        {phone ? null : <View style={{ flex: 1.2, minWidth: 0 }}>{roleChips(2)}</View>}
+        {phone ? null : <View style={{ flex: 1.6, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
           {tags.map(([l, tone]) => <Tag key={l} label={l} tone={tone === 'warn' ? 'neutral' : tone} warn={tone === 'warn'} />)}
-        </View>
+        </View>}
         {phone ? null : <RNText numberOfLines={1} style={{ flex: 1.1, fontFamily: fonts.body, fontSize: 12.5, color: c.ink }}>{counts}</RNText>}
         {phone ? null : <RNText style={{ flex: 0.9, fontFamily: fonts.body, fontSize: 12, color: c.muted }}>{day(u.created_at)}</RNText>}
         <RNText style={{ color: c.muted, fontSize: 11 }}>{open ? '▴' : '▾'}</RNText>
       </PressScale>
       {open ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 16, paddingBottom: 16, paddingTop: 2 }}>
+          {rt.length > 1 ? (
+            <Box title={t('Roller ({n})', { n: rt.length })}>
+              {rt.map((x) => <Muted key={x.long}>• {x.long}</Muted>)}
+            </Box>
+          ) : null}
           {u.role === 'landlord' && s ? (
             <Box title={t('Paket')}>
               <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{s.subscribed ? planLabel(s.plan) : s.in_trial ? t('1 ay ücretsiz deneme') : t('Erişim yok')}</Text>
@@ -468,7 +490,8 @@ function Accounts({ d, reload }: { d: Data; reload: () => void }) {
   const { phone } = useBreakpoint();
   const [subs, setSubs] = useState<Sub[] | null>(null);
   const [subErr, setSubErr] = useState<string | null>(null);
-  const loadSubs = useCallback(() => { loadSubscriptions().then(setSubs).catch((e) => setSubErr(humanError(e))); }, []);
+  const [roles, setRoles] = useState<Record<string, any[]>>({});
+  const loadSubs = useCallback(() => { loadSubscriptions().then(setSubs).catch((e) => setSubErr(humanError(e))); loadUserRoles().then(setRoles).catch(() => {}); }, []);
   useEffect(() => { loadSubs(); }, [loadSubs]);
   const all = useCallback(async () => { loadSubs(); await reload(); }, [loadSubs, reload]);
   const [q, setQ] = useState('');
@@ -496,8 +519,12 @@ function Accounts({ d, reload }: { d: Data; reload: () => void }) {
     ['unlinked', t('Mülke bağlanmamış kiracı'), (u) => unlinked.has(u.id), undefined]
   ];
   const kf = (KPI.find((x) => x[0] === k) || KPI[0])[2];
-  const rf = (u: any) => role === 'all' || (role === 'banned' ? u.banned : role === 'landlord' ? u.role === 'landlord' : u.role === 'tenant' && !u.is_admin);
-  const n = (r: string) => d.users.filter((u: any) => r === 'all' || (r === 'banned' ? u.banned : r === 'landlord' ? u.role === 'landlord' : u.role === 'tenant' && !u.is_admin)).length;
+  // Rol süzgeci hesabın tüm rollerine bakar (ör. hem mülk sahibi hem site maliki olan ikisinde de görünür).
+  const ks = (u: any) => new Set(roleTags(u, roles[u.id]).map((x) => x.k));
+  const has = (u: any, r: string) => r === 'all' || (r === 'banned' ? u.banned : r === 'landlord' ? ks(u).has('landlord') : r === 'tenant' ? ks(u).has('tenant')
+    : r === 'site' ? ks(u).has('site_malik') || ks(u).has('site_kiraci') : r === 'org' ? ks(u).has('org') : r === 'multi' ? roleTags(u, roles[u.id]).length > 1 : false);
+  const rf = (u: any) => has(u, role);
+  const n = (r: string) => d.users.filter((u: any) => has(u, r)).length;
   const list = d.users.filter((u: any) => kf(u) && rf(u) &&
     (!q.trim() || [u.name, u.email, u.phone].join(' ').toLocaleLowerCase('tr').includes(q.trim().toLocaleLowerCase('tr'))))
     .sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)));
@@ -520,20 +547,21 @@ function Accounts({ d, reload }: { d: Data; reload: () => void }) {
       {subErr ? <Text v="small" color={c.badInk}>{subErr}</Text> : null}
       <View style={{ flexDirection: phone ? 'column' : 'row', gap: 10, alignItems: phone ? 'stretch' : 'flex-end' }}>
         <View style={{ flex: phone ? undefined : 1 }}><Field label={t('Ara')} value={q} onChangeText={setQ} placeholder={t('Ad, e-posta ya da telefon')} autoCapitalize="none" /></View>
-        <Seg scroll value={role} onChange={setRole} options={[['all', t('Hepsi') + ' ' + n('all')], ['landlord', t('Mülk sahibi') + ' ' + n('landlord')], ['tenant', t('Kiracı') + ' ' + n('tenant')], ['banned', t('Askıda') + ' ' + n('banned')]]} />
+        <Seg scroll value={role} onChange={setRole} options={[['all', t('Hepsi') + ' ' + n('all')], ['landlord', t('Mülk sahibi') + ' ' + n('landlord')], ['tenant', t('Kiracı') + ' ' + n('tenant')],
+          ['site', t('Site sakini') + ' ' + n('site')], ['org', t('Kurum yöneticisi') + ' ' + n('org')], ['multi', t('Birden çok rol') + ' ' + n('multi')], ['banned', t('Askıda') + ' ' + n('banned')]] as [string, string][]} />
       </View>
       {list.length ? (
         <Card gap={0} style={{ padding: 0, overflow: 'hidden' }}>
           {!phone ? (
             <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: c.tile }}>
-              {[[t('Kişi'), 2.2], [t('Rol'), 0.9], [t('Paket / durum'), 1.6], [t('Mülk · kiracı'), 1.1], [t('Kayıt'), 0.9]].map(([l, f]) => (
+              {[[t('Kişi'), 2.6], [t('Roller'), 1.2], [t('Paket / durum'), 1.6], [t('Mülk · kiracı'), 1.1], [t('Kayıt'), 0.9]].map(([l, f]) => (
                 <RNText key={l as string} style={{ flex: f as number, fontFamily: fonts.bodyXBold, fontSize: 11, letterSpacing: 0.6, color: c.muted }}>{String(l).toLocaleUpperCase(locale())}</RNText>
               ))}
               <View style={{ width: 11 }} />
             </View>
           ) : null}
           <Shown list={list} step={50} render={(u: any) => (
-            <AccountRow key={u.id} u={u} s={subBy[u.id]} land={landBy[u.id]} homes={homesBy[u.id] || []} open={open === u.id}
+            <AccountRow key={u.id} u={u} s={subBy[u.id]} land={landBy[u.id]} homes={homesBy[u.id] || []} roles={roles[u.id] || []} open={open === u.id}
               onToggle={() => setOpen(open === u.id ? null : u.id)} reload={all} />
           )} />
         </Card>

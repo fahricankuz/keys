@@ -1,7 +1,7 @@
 // Düzenli gider ve sakinlere kasa özeti: yönetim düzenli gider ekler ve durdurur; şeffaflık kapalıyken sakin kasa görmez,
 // açınca Sitem'de aylık özeti ve kategori toplamlarını görür.
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist, ID , pickRole } from './app-helpers.mjs';
 import { watchErrors } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -36,6 +36,7 @@ async function login(page, email, share) {
   await page.getByLabel('E-posta').fill(email);
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);
 }
 
 test('yönetim düzenli gider ekler ve durdurur; şeffaflığı açar', async ({ page }) => {

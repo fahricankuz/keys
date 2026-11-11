@@ -1,2 +1,3 @@
 import LoginForm from '../../auth/LoginForm';
-export default function KiraciGiris() { return <LoginForm as="tenant" />; }
+/** Eski adres: tek girişle aynı form (e-postalardaki ve yer imlerindeki bağlantılar çalışmaya devam eder). */
+export default function KiraciGiris() { return <LoginForm />; }

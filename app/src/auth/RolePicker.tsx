@@ -1,68 +1,52 @@
-import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { View } from 'react-native';
 import AuthShell from './AuthShell';
 import { useAuth } from './auth';
 import SignedIn from './SignedIn';
 import { t } from '../domain/i18n';
-import { ui } from '../domain/state';
 import { PressScale, Text } from '../ui/kit';
-import { fonts, radius, useColors } from '../ui/theme';
+import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 import { Icon } from '../app-ui/blocks';
 
-/** Giriş ve kayıt için ilk adım: kiracı mı, mülk sahibi mi. */
-export default function RolePicker({ mode }: { mode: 'giris' | 'kayit' }) {
+/** Tek kayıt ekranı: kişi kendini listeden seçer; her seçenek kendi kuralıyla devam eder.
+    Kiracı ve site sakini davet koduyla, mülk sahibi kodsuz (deneme), site/portföy yöneticisi kurumsal başvuruyla, ekip kendi kaydıyla.
+    Geniş ekranda iki sütun; kartlar eşit görünür (hiçbiri seçili gibi durmaz), öne çıkan yalnız etiket. */
+export default function RolePicker() {
   const router = useRouter();
   const c = useColors();
-  const { user, ready, live } = useAuth();
-  // E-posta onay bağlantısından gelindi (/giris?dogrulandi=1). Statik çıktıda adres parametresi yoktur; hidrasyondan sonra okunur.
-  const [verified, setVerified] = useState(false);
-  useEffect(() => { if (typeof window !== 'undefined' && /[?&]dogrulandi=1/.test(window.location.search)) setVerified(true); }, []);
+  const { phone } = useBreakpoint();
+  const { user, ready } = useAuth();
   if (ready && user) return <SignedIn user={user} />;
-  const login = mode === 'giris';
-  // Marka paleti: kiracı Gül Kurusu (açık, sıcak), mülk sahibi Baca Karası (koyu, krem yazı) — soldaki koyu panel ve
-  // fiyatlardaki Profesyonel kartıyla aynı dil.
-  const cards: [string, string, string, string, boolean][] = [
-    [login ? t('Kiracı girişi') : t('Kiracı olarak kayıt ol'), t('Kiramı öder, taleplerimi takip ederim.'), login ? '/giris/kiraci' : '/kayit/kiraci', c.peach, false],
-    [login ? t('Mülk sahibi girişi') : t('Mülk sahibi olarak kayıt ol'), t('Mülklerimi ve kiracılarımı yönetirim.'), login ? '/giris/mulk-sahibi' : '/kayit/mulk-sahibi', c.deepA, true]
+  const cards: { title: string; sub: string; href: string; icon: string; tag: string; hot?: boolean }[] = [
+    { title: t('Mülk sahibiyim'), sub: t('Mülklerimi ve kiracılarımı yönetirim.'), href: '/kayit/mulk-sahibi', icon: 'landlord', tag: t('1 ay ücretsiz'), hot: true },
+    { title: t('Kiracıyım'), sub: t('Kiramı öder, taleplerimi takip ederim. Mülk sahibimin davet koduyla.'), href: '/kayit/kiraci', icon: 'home', tag: t('Davet kodu gerekir') },
+    { title: t('Sitede oturuyorum'), sub: t('Aidatımı, duyuruları ve taleplerimi izlerim. Site yönetimimin davet koduyla.'), href: '/kayit/site-sakini', icon: 'grid', tag: t('Davet kodu gerekir') },
+    { title: t('Site ya da portföy yönetiyorum'), sub: t('Site, AVM, depo ya da GYO yönetimi. Kısa bir başvuruyla kurumunu açarız.'), href: '/kurumsal', icon: 'chart', tag: t('Başvuru') },
+    { title: t('Emlakçı, muhasebeci ya da personelim'), sub: t('Bir mülk sahibinin ya da kurumun ekibinde çalışırım.'), href: '/kayit/ekip', icon: 'key', tag: t('Ücretsiz') }
   ];
   return (
-    <AuthShell title={login ? t('Giriş yap') : t('Kayıt ol')} lead={login ? t('Hesap türünü seç.') : t('Kiracılar ücretsiz. Mülk sahipleri 1 ay ücretsiz dener.')}>
-      {ui.authMsg && login ? (
-        <View accessibilityRole="alert" style={{ flexDirection: 'row', gap: 10, alignItems: 'center', backgroundColor: c.tile, borderRadius: radius.md, padding: 14 }}>
-          <Icon name="key" size={18} />
-          <Text v="small" style={{ flex: 1, fontFamily: fonts.bodyBold }}>{ui.authMsg}</Text>
-        </View>
-      ) : null}
-      {verified && login ? (
-        <View accessibilityRole="alert" style={{ flexDirection: 'row', gap: 10, alignItems: 'center', backgroundColor: c.okBg, borderRadius: radius.md, padding: 14 }}>
-          <Icon name="check" size={18} color={c.okInk} />
-          <Text v="small" color={c.okInk} style={{ flex: 1, fontFamily: fonts.bodyBold }}>{t('E-posta adresin doğrulandı. Şimdi hesap türünü seçip giriş yapabilirsin.')}</Text>
-        </View>
-      ) : null}
-      <View style={{ gap: 12 }}>
-        {cards.map(([title, sub, href, bg, dark]) => (
-          <PressScale key={href} onPress={() => router.push(href as any)} accessibilityRole="link" scaleTo={0.98} hoverScale={1.015}
-            style={{ padding: 20, borderRadius: radius.lg, backgroundColor: bg, borderWidth: 1, borderColor: dark ? c.line6 : 'transparent', flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text v="h3" color={dark ? c.heroInk : c.ink} style={{ fontFamily: fonts.siteBold }}>{title}</Text>
-              <Text v="small" color={dark ? c.heroMuted : c.ink}>{sub}</Text>
+    <AuthShell wide top={{ label: t('Hesabın var mı?'), action: t('Giriş yap'), href: '/giris' }} title={t('Kayıt ol')}
+      lead={t('Sana uyanı seç. Tek hesapla başlar, başka rollerini sonradan hesabının içinden eklersin.')}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+        {cards.map((x) => (
+          <PressScale key={x.href} onPress={() => router.push(x.href as any)} accessibilityRole="link" accessibilityLabel={x.title} scaleTo={0.98} hoverScale={1.015}
+            style={{ flexGrow: 1, flexBasis: phone ? '100%' : 260, padding: 16, borderRadius: radius.lg, backgroundColor: c.surface, borderWidth: 1.5,
+              borderColor: x.hot ? c.accent : c.line, gap: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: x.hot ? c.accent : c.accentSoft }}>
+                <Icon name={x.icon} size={18} color={x.hot ? '#FFFFFF' : c.accent} />
+              </View>
+              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: x.hot ? c.accent : c.tile }}>
+                <Text v="small" color={x.hot ? '#FFFFFF' : c.muted} style={{ fontFamily: fonts.bodyBold, fontSize: 12 }}>{x.tag}</Text>
+              </View>
             </View>
-            <View style={{ width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: dark ? c.accent : c.surface }}>
-              <View style={{ transform: [{ rotate: '180deg' }] }}><Icon name="back" size={16} color={dark ? '#fff' : c.accentText} /></View>
+            <View style={{ gap: 4 }}>
+              <Text v="body" style={{ fontFamily: fonts.siteBold }}>{x.title}</Text>
+              <Text v="small" muted>{x.sub}</Text>
             </View>
           </PressScale>
         ))}
       </View>
-      <PressScale onPress={() => router.replace(login ? '/kayit' : '/giris')} accessibilityRole="link">
-        <Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyBold }}>{login ? t('Hesabın yok mu? Kayıt ol') : t('Hesabın var mı? Giriş yap')}</Text>
-      </PressScale>
-      {!login ? (
-        <PressScale onPress={() => router.push('/kayit/ekip')} accessibilityRole="link"><Text v="small" muted>{t('Emlakçı, muhasebeci ya da personel misin? Ekip hesabı oluştur')}</Text></PressScale>
-      ) : null}
-      {login && live ? (
-        <PressScale onPress={() => router.push('/giris/yonetici')} accessibilityRole="link"><Text v="small" muted>{t('Yönetici girişi')}</Text></PressScale>
-      ) : null}
     </AuthShell>
   );
 }

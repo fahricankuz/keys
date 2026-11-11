@@ -1,7 +1,7 @@
 // Site talebine fotoğraf ve video eki (uygulama): sakin talep açarken fotoğraf ve video ekler; kendi kartında ve yönetimde görünür,
 // video sayfa içinde oynatılır; yazışmada dosyayla yanıt verilir. Sunucu kuralları gerçek Postgres'te ayrıca sınanır (site-talep-medya.sql).
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist, ID , pickRole } from './app-helpers.mjs';
 import { watchErrors, PNG } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -37,6 +37,7 @@ async function login(page, email) {
   await page.getByLabel('E-posta').fill(email);
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);
 }
 async function pick(page, buttonName, file) {
   const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: buttonName, exact: true }).click()]);

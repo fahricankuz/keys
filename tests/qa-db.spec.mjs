@@ -52,15 +52,16 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
     // file_in_locked_inspect → depo yolunun kilitli giriş tutanağında olup olmadığını sorar (dosya silme politikası; kişisel veri dönmez).
     // link_site_unit → mülk sahibi ve dairenin maliki; site_linked_tenants → kurum üyesi; site_report → Raporlar yetkisi.
     // investor_report_mail → Raporlar yetkisi ve açık yatırımcı modülü; yalnız çağıranın kendi e-postasına, saatte 10.
-    'accept_invite', 'accept_org_invite', 'accept_site_invite', 'activity_feed', 'admin_add_property', 'admin_audit_log', 'admin_cohorts', 'admin_cost_delete', 'admin_cost_save', 'admin_delete_message', 'admin_delete_user', 'admin_extend_trial', 'admin_kpis', 'admin_messages', 'admin_monthly',
+    // add_landlord_role → yalnız çağıranın kendi hesabı (kiracı → mülk sahibi, deneme bir kez); signup_code_ok → kodu bilen (yalnız geçerli/geçersiz döner).
+    'accept_invite', 'accept_org_invite', 'accept_site_invite', 'activity_feed', 'add_landlord_role', 'admin_add_property', 'admin_audit_log', 'admin_cohorts', 'admin_cost_delete', 'admin_cost_save', 'admin_delete_message', 'admin_delete_user', 'admin_extend_trial', 'admin_kpis', 'admin_messages', 'admin_monthly',
     'admin_org_delete', 'admin_org_save', 'admin_org_set_master', 'admin_orgs', 'admin_revenue_save', 'admin_send_email',
-    'admin_set_ban', 'admin_set_cpi', 'admin_set_plan', 'admin_subscription_events', 'admin_subscriptions', 'admin_threads', 'admin_users',
+    'admin_set_ban', 'admin_set_cpi', 'admin_set_plan', 'admin_subscription_events', 'admin_subscriptions', 'admin_threads', 'admin_user_roles', 'admin_users',
     'create_rent_certificate', 'delete_my_account', 'file_in_locked_inspect', 'file_review_ok', 'has_access', 'import_properties', 'investor_report_mail', 'invite_preview', 'is_admin', 'is_banned', 'is_member',
     'is_org_master', 'is_org_member', 'is_owner', 'is_site_resident', 'link_site_unit',
     'member_can', 'member_role', 'msg_side', 'my_access', 'my_orgs', 'my_site_units',
     'org_can', 'org_detail', 'org_invite_create', 'org_invite_delete', 'org_member_remove', 'org_member_set', 'org_role_delete', 'org_role_save',
     'org_transfer_master',
-    'report_error', 'review_ok', 'shares_property', 'site_cash_summary', 'site_folder_ok', 'site_invite_info', 'site_invite_mail', 'site_linked', 'site_linked_tenants', 'site_meeting_reply', 'site_poll_results', 'site_poll_vote', 'site_project_vote_close', 'site_project_vote_open', 'site_project_vote_sync', 'site_report', 'site_role', 'submit_lead', 'team_list', 'team_remove', 'team_set', 'verify_rent_certificate'
+    'report_error', 'review_ok', 'shares_property', 'signup_code_ok', 'site_cash_summary', 'site_folder_ok', 'site_invite_info', 'site_invite_mail', 'site_linked', 'site_linked_tenants', 'site_meeting_reply', 'site_poll_results', 'site_poll_vote', 'site_project_vote_close', 'site_project_vote_open', 'site_project_vote_sync', 'site_report', 'site_role', 'submit_lead', 'team_list', 'team_remove', 'team_set', 'verify_rent_certificate'
   ]);
 });
 

@@ -1,7 +1,7 @@
 // AVM'de depozito ve otomatik kira: yönetim sözleşmeye teminat mektubu girer; Özet'te toplam depozito ve süresi yaklaşan mektup;
 // kiracı Mağazam'da kendi depozitosunu görür; Kira ekranında otomatik kira ve ortak gider kartı.
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist, ID , pickRole } from './app-helpers.mjs';
 import { watchErrors } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -33,6 +33,7 @@ async function login(page, email) {
   await page.getByLabel('E-posta').fill(email);
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);
 }
 
 test('yönetim teminat mektubu girer; Özet’te depozito ve süresi yaklaşan mektup; kiracı kendi depozitosunu görür; otomatik kira kartı', async ({ page }) => {

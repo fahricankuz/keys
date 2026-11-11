@@ -47,6 +47,7 @@ import { plans as sitePlans } from '../site/content';
 import { LegalDetailSheet, LegalSheet, legalAllowed } from './legal';
 import { BlockedList, ReportSheet } from './moderation';
 import { SiteBulkInviteSheet, SitePersonSheet } from './site-people';
+import { RoleAddSheet, RoleAddTile } from './role-add';
 import { LEGAL_PRICE } from '../domain/legal';
 
 const propOf = (pid?: string) => (pid && (S as any).props[pid] ? P(pid) : P((S as any).myHome));
@@ -229,6 +230,7 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
             </PressScale>
           ) : null}
           {siteResidentOnly() ? <OtherHomeCode /> : null}
+          {LIVE && !isTeam() ? <RoleAddTile /> : null}
           <ProfileForm />
           {LIVE ? <BlockedList /> : null}
           <Button kind="ghost" block title={t('Çıkış yap')} onPress={async () => { close(); await signOut(); router.replace('/'); }} />
@@ -1014,6 +1016,7 @@ function AddPropGate({ close }: { close: () => void }) {
 export function renderSheet(name: string, p: any, close: () => void): ReactNode {
   switch (name) {
     case 'arama': return <SearchSheet close={close} />;
+    case 'rol-ekle': return <RoleAddSheet close={close} />;
     case 'bildirim': return <InboxSheet close={close} />;
     case 'ayarlar': return <SettingsBody close={close} />;
     case 'harita': return <MapSheet close={close} />;

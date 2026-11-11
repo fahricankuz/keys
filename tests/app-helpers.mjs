@@ -92,3 +92,16 @@ export function seed() {
     }
   };
 }
+
+/**
+ * Tek giriş: birden çok rolü olan hesapta "Giriş yap"tan sonra "Hangi rolle devam edeceksin?" ekranı çıkar.
+ * Verilen rolü seçer (varsayılan: kurum yöneticisi; yoksa ilk rol). Tek rollü hesapta ekran çıkmaz, bir şey yapmaz.
+ */
+export async function pickRole(page, name = /^(Site|Portföy) yöneticisi/) {
+  const ask = page.getByText('Hangi rolle devam edeceksin?');
+  await Promise.race([page.waitForURL(/\/(uygulama|admin)/, { timeout: 30_000 }), ask.waitFor({ timeout: 30_000 })]).catch(() => {});
+  if (!(await ask.isVisible().catch(() => false))) return;
+  const want = page.getByRole('menuitem', { name });
+  await ((await want.count()) ? want.first() : page.getByRole('menuitem').first()).click();
+  await page.waitForURL(/\/uygulama/, { timeout: 30_000 });
+}

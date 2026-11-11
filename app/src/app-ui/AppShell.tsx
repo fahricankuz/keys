@@ -1,5 +1,5 @@
-import { ReactNode } from 'react';
-import { Platform, ScrollView, View } from 'react-native';
+import { ReactNode, useState } from 'react';
+import { Platform, Pressable, ScrollView, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { S, ui } from '../domain/state';
 import { P, openReqs, newReqs, unreadMessages } from '../domain/logic';
@@ -9,7 +9,7 @@ import { toApp } from '../domain/nav';
 import { myOrgs, sectorSections } from '../domain/org';
 import { mySiteUnits, residentRoleLabel, siteResidentOnly } from '../domain/site';
 import { PORTFOLIO_SECTORS, currentPortfolioOrg, residentTitle, sectionPath } from './site';
-import { PanelUI, PressScale, Text } from '../ui/kit';
+import { PanelPhone, PanelUI, PressScale, Text } from '../ui/kit';
 import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
 import { Icon } from './blocks';
 import { Wordmark } from '../ui/Wordmark';
@@ -49,6 +49,16 @@ function sectorItems(org: any): { tabs: Item[]; extra: Item[]; side?: Item[] } {
   return { tabs: list.filter((x) => main.includes(x.path)), extra: [...list.filter((x) => !main.includes(x.path)), ...rest], side: [...list, ...rest] };
 }
 
+/** Sitede dairesi olan kişinin "Sitem" sekmesi alt çubukta görünür: verilen sekmenin önüne girer (yoksa sona); Diğer'den çıkar. */
+function withSitem(tabs: Item[], extra: Item[], before: string): { tabs: Item[]; extra: Item[] } {
+  const sitem = extra.find((x) => x.path === '/uygulama/sitem');
+  if (!sitem) return { tabs, extra };
+  const i = tabs.findIndex((x) => x.path === before);
+  const next = [...tabs];
+  next.splice(i < 0 ? next.length : i, 0, sitem);
+  return { tabs: next, extra: extra.filter((x) => x !== sitem) };
+}
+
 function items(): { tabs: Item[]; extra: Item[]; side?: Item[] } {
   const org = currentPortfolioOrg();
   if (org) return sectorItems(org);
@@ -65,16 +75,13 @@ function items(): { tabs: Item[]; extra: Item[]; side?: Item[] } {
   if (ui.role === 'tenant') {
     const home = P(S.myHome);
     const n = home ? openReqs(home).length : 0;
-    return {
-      tabs: [
-        { label: t('Panel'), icon: 'home', path: '/uygulama' },
-        { label: t('Ödemeler'), icon: 'card', path: '/uygulama/odemeler' },
-        { label: t('Talepler'), icon: 'wrench', path: '/uygulama/talepler', badge: n },
-        { label: t('Mesajlar'), icon: 'chat', path: '/uygulama/mesajlar', badge: unreadMessages() },
-        { label: t('Belgeler'), icon: 'doc', path: '/uygulama/belgeler' }
-      ],
-      extra: [{ label: t('Takvim'), icon: 'calendar', path: '/uygulama/takvim' }, ...orgItem()]
-    };
+    return withSitem([
+      { label: t('Panel'), icon: 'home', path: '/uygulama' },
+      { label: t('Ödemeler'), icon: 'card', path: '/uygulama/odemeler' },
+      { label: t('Talepler'), icon: 'wrench', path: '/uygulama/talepler', badge: n },
+      { label: t('Mesajlar'), icon: 'chat', path: '/uygulama/mesajlar', badge: unreadMessages() },
+      { label: t('Belgeler'), icon: 'doc', path: '/uygulama/belgeler' }
+    ], [{ label: t('Takvim'), icon: 'calendar', path: '/uygulama/takvim' }, ...orgItem()], '/uygulama/belgeler');
   }
   const n = S.order.reduce((a: number, id: string) => a + newReqs(P(id)).length, 0);
   const team = isTeam();
@@ -86,7 +93,7 @@ function items(): { tabs: Item[]; extra: Item[]; side?: Item[] } {
   if (!team || canAny(S.order, 'message')) tabs.push({ label: t('Mesajlar'), icon: 'chat', path: '/uygulama/mesajlar', badge: unreadMessages(can) });
   tabs.push({ label: t('Takvim'), icon: 'calendar', path: '/uygulama/takvim' });
   if (!team || canAny(S.order, 'expense_read')) tabs.push({ label: t('Rapor'), icon: 'chart', path: '/uygulama/rapor' });
-  return { tabs, extra: [...(team ? [] : [{ label: t('Ekip'), icon: 'landlord', path: '/uygulama/ekip' }]), ...orgItem()] };
+  return withSitem(tabs, [...(team ? [] : [{ label: t('Ekip'), icon: 'landlord', path: '/uygulama/ekip' }]), ...orgItem()], '/uygulama/rapor');
 }
 
 function useActive() {
@@ -96,25 +103,53 @@ function useActive() {
     : pathname === path || pathname.startsWith(path + '/'));
 }
 
-function TabBar({ list }: { list: Item[] }) {
+/** Alt çubuk. Çubuğa sığmayan bölümler (kurum bölümleri, Ekip, Takvim, Kurum, Ayarlar…) "Diğer" düğmesiyle açılan listede. */
+function TabBar({ list, more = [] }: { list: Item[]; more?: Item[] }) {
   const c = useColors();
   const router = useRouter();
   const active = useActive();
+  const [open, setOpen] = useState(false);
+  const all = more.length ? [...list, { label: t('Diğer'), icon: 'more', path: '#diger' }] : list;
+  const inMore = more.some((x) => active(x.path)) && !list.some((x) => active(x.path));
+  const dense = all.length > 5;
   return (
-    <View accessibilityRole="tablist" style={{ flexDirection: 'row', backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 999, marginHorizontal: 12, marginBottom: 12, marginTop: 4, paddingVertical: 4, paddingHorizontal: 6, boxShadow: shadows.soft }}>
-      {list.map((it) => {
-        const on = active(it.path);
-        return (
-          <PressScale key={it.path} onPress={() => router.push(it.path as any)} accessibilityRole="tab" accessibilityState={{ selected: on }} scaleTo={0.92} wrapStyle={{ flex: 1 }} style={{ alignItems: 'center', gap: 3, paddingVertical: 6 }}>
-            <View>
-              <Icon name={it.icon} size={22} color={on ? c.accent : c.muted} />
-              {it.badge ? <View style={{ position: 'absolute', top: -5, right: -10, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}><Text v="small" color={c.accentInk} style={{ fontSize: 10, lineHeight: 13, fontFamily: fonts.bodyXBold }}>{it.badge}</Text></View> : null}
-            </View>
-            <Text v="small" numberOfLines={1} color={on ? c.accentText : c.muted} style={{ fontSize: 11, lineHeight: 14, fontFamily: on ? fonts.bodyXBold : fonts.bodyBold }}>{it.label}</Text>
-          </PressScale>
-        );
-      })}
-    </View>
+    <>
+      {open ? (
+        <>
+          <Pressable onPress={() => setOpen(false)} accessibilityLabel={t('Kapat')} style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(29,26,25,0.35)', zIndex: 20 }} />
+          <View accessibilityRole="menu" style={{ position: 'absolute', left: 12, right: 12, bottom: 84, maxHeight: '70%', zIndex: 21, backgroundColor: c.surface, borderRadius: 26, borderWidth: 1, borderColor: c.line, boxShadow: shadows.soft, overflow: 'hidden' }}>
+            <ScrollView contentContainerStyle={{ padding: 8, gap: 2 }}>
+              {more.map((it) => {
+                const on = active(it.path);
+                return (
+                  <PressScale key={it.path} onPress={() => { setOpen(false); router.push(it.path as any); }} accessibilityRole="menuitem" accessibilityState={{ selected: on }} scaleTo={0.98}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, minHeight: 48, borderRadius: 18, backgroundColor: on ? c.accentSoft : 'transparent' }}>
+                    <Icon name={it.icon} size={19} color={on ? c.accent : c.muted} />
+                    <Text v="small" numberOfLines={1} color={on ? c.accentText : c.ink} style={{ flex: 1, fontFamily: fonts.bodyXBold, fontSize: 15 }}>{it.label}</Text>
+                    {it.badge ? <Text v="small" color={c.accent} style={{ fontFamily: fonts.bodyXBold }}>{it.badge}</Text> : null}
+                  </PressScale>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </>
+      ) : null}
+      <View accessibilityRole="tablist" style={{ flexDirection: 'row', backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 999, marginHorizontal: 12, marginBottom: 12, marginTop: 4, paddingVertical: 4, paddingHorizontal: 6, boxShadow: shadows.soft, zIndex: 22 }}>
+        {all.map((it) => {
+          const isMore = it.path === '#diger';
+          const on = isMore ? open || inMore : !open && active(it.path);
+          return (
+            <PressScale key={it.path} onPress={() => { if (isMore) setOpen(!open); else { setOpen(false); router.push(it.path as any); } }} accessibilityRole="tab" accessibilityState={{ selected: on, expanded: isMore ? open : undefined }} scaleTo={0.92} wrapStyle={{ flex: 1, minWidth: 0 }} style={{ alignItems: 'center', gap: 3, paddingVertical: 6 }}>
+              <View>
+                <Icon name={it.icon} size={22} color={on ? c.accent : c.muted} />
+                {it.badge ? <View style={{ position: 'absolute', top: -5, right: -10, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}><Text v="small" color={c.accentInk} style={{ fontSize: 10, lineHeight: 13, fontFamily: fonts.bodyXBold }}>{it.badge}</Text></View> : null}
+              </View>
+              <Text v="small" numberOfLines={1} color={on ? c.accentText : c.muted} style={{ fontSize: dense ? 10 : 11, lineHeight: 14, fontFamily: on ? fonts.bodyXBold : fonts.bodyBold }}>{it.label}</Text>
+            </PressScale>
+          );
+        })}
+      </View>
+    </>
   );
 }
 
@@ -129,7 +164,7 @@ function SideNav({ list }: { list: Item[] }) {
       Platform.OS === 'web' ? ({ position: 'sticky', top: 14, height: 'calc(100vh - 28px)', alignSelf: 'flex-start' } as any) : { alignSelf: 'stretch' }]}>
       <PressScale onPress={() => router.push('/' as any)} accessibilityRole="link" accessibilityLabel={t('Ana sayfa')} style={{ marginBottom: 18, alignSelf: 'flex-start' }}><Wordmark size={30} /></PressScale>
       <RoleSwitcher />
-      <ScrollView style={{ flex: 1, marginHorizontal: -6 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 6, paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1, marginHorizontal: -6 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 6, paddingBottom: 26 }} showsVerticalScrollIndicator={false}>
       {list.map((it) => {
         const on = active(it.path);
         return (
@@ -142,6 +177,7 @@ function SideNav({ list }: { list: Item[] }) {
         );
       })}
       </ScrollView>
+      <View pointerEvents="none" style={[{ height: 24, marginTop: -30 }, Platform.OS === 'web' ? ({ backgroundImage: `linear-gradient(to bottom, rgba(255,255,255,0), ${c.surface})` } as any) : null]} />
       {/* Hesap kartı: ad, rol ve ayarlar (kiracı, mülk sahibi ve ekip üyesi için aynı). */}
       <PressScale onPress={() => router.push('/uygulama/ayarlar' as any)} accessibilityRole="link" accessibilityLabel={t('Ayarlar')} accessibilityState={{ selected: active(SETTINGS) }} scaleTo={0.98}
         style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 20, backgroundColor: active(SETTINGS) ? c.accentSoft : c.tile }}>
@@ -161,22 +197,24 @@ function SideNav({ list }: { list: Item[] }) {
 export default function AppShell({ children }: { children: ReactNode }) {
   useStore();
   useLangTick();
-  const { desktop } = useBreakpoint();
+  const { desktop, phone } = useBreakpoint();
   const c = useColors();
   const { tabs, extra, side } = items();
   return (
     <PanelUI.Provider value={true}>
+    <PanelPhone.Provider value={phone}>
     <OverlayProvider renderSheet={renderSheet}>
       <View style={{ flex: 1, flexDirection: 'row', backgroundColor: c.bg }}>
         {desktop && <SideNav list={[...(side || [...tabs, ...extra]), { label: t('Ayarlar'), icon: 'gear', path: SETTINGS }]} />}
         <View style={{ flex: 1 }}>
           {!desktop && myContexts().length > 1 ? <View style={{ paddingHorizontal: 14, paddingTop: 10 }}><RoleSwitcher compact /></View> : null}
           <View style={{ flex: 1 }}>{children}</View>
-          {!desktop && <TabBar list={tabs} />}
+          {!desktop && <TabBar list={tabs} more={[...extra, { label: t('Ayarlar'), icon: 'gear', path: SETTINGS }]} />}
         </View>
       </View>
       <OpenSplash />
     </OverlayProvider>
+    </PanelPhone.Provider>
     </PanelUI.Provider>
   );
 }

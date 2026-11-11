@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { TextInput, View } from 'react-native';
 import { t } from '../domain/i18n';
 import { humanError, inviteLink, fileUrl } from '../domain/backend';
-import { myOrgs, orgCan, hasModule, sectorSections } from '../domain/org';
+import { myOrgs, orgCan, hasModule, sectorSections, PORTFOLIO_SECTORS } from '../domain/org';
 import {
   KINDS, MODES, kindLabel, unitLabel, distribute, unpaidOf, lateFee, loadSiteAdmin, saveUnit, deleteUnit, parseUnits, importUnits,
   saveResident, deleteResident, createCharges, deleteCharge, decideCharge, markPaid, addExpense, deleteExpense, announce, deleteAnnouncement,
@@ -16,11 +16,11 @@ import {
 } from '../domain/site';
 import { loadRates } from '../domain/cpi';
 import { terms, sectorOf } from '../domain/org';
-import { tl, monthYear, fmtFull, parse, mkey, iso } from '../domain/util';
+import { percent, tl, monthYear, fmtFull, parse, mkey, iso } from '../domain/util';
 import { Button, Chip, Field, PressScale, Text } from '../ui/kit';
 import { Loader } from '../ui/Loader';
 import { fonts, radius, useColors } from '../ui/theme';
-import { Card, DownloadLink, Empty, H2, Label, MonthStepper, Muted, Note, Row, Seg, Stack, StatusChip, Stepper } from './blocks';
+import { LinkBtn, Card, DownloadLink, Empty, H2, Label, MonthStepper, Muted, Note, Row, Seg, Stack, StatusChip, Stepper } from './blocks';
 import { useBreakpoint } from '../ui/theme';
 import { ui } from '../domain/state';
 import { selectCtx } from './ctx';
@@ -50,7 +50,7 @@ const stOf = (c: any) => (c.status === 'paid' ? 'approved' : c.status === 'open'
 const money = (n: any, cur?: string) => (!cur || cur === 'TRY' ? tl(n) : (cur === 'USD' ? '$' : '€') + Number(n || 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 }));
 const CURS: [string, string][] = [['TRY', '₺ TL'], ['USD', '$ USD'], ['EUR', '€ EUR']];
 /** Bu ekranın açıldığı kurum türleri: site yönetimi ve ticari portföy (AVM, depo, GYO). */
-export const PORTFOLIO_SECTORS = ['site', 'avm', 'depo', 'gyo'];
+export { PORTFOLIO_SECTORS };
 /** Kurum paneli bölümlerinin adresleri (/uygulama/site/<bölüm>); menü org.js → sectorSections. */
 export const SECTION_KEYS = ['ozet', 'birimler', 'tahakkuk', 'ciro', 'artis', 'giderler', 'butce', 'duyurular', 'genelkurul', 'projeler', 'belgeler', 'talepler', 'rapor', 'yatirimci'];
 export const sectionPath = (k: string) => (k === 'ozet' ? '/uygulama/site' : '/uygulama/site/' + k);
@@ -90,9 +90,9 @@ function ChargeRow({ x, unit, can, reload, row, first }: { x: any; unit: any; ca
     can('payments.approve') && ['open', 'partial', 'rejected'].includes(x.status) ? <Button key="p" kind="ghost" title={t('Ödendi işaretle')} onPress={() => act(() => markPaid(x, x.amount))} /> : null,
     can('charges.manage') && x.status === 'open' ? (askDel
       ? <Row key="s" gap={8} wrap><Muted>{t('Bu ödeme kaydı silinsin mi?')}</Muted>
-          <Text v="small" color={c.badInk} accessibilityRole="button" style={{ textDecorationLine: 'underline', fontFamily: fonts.bodyXBold, paddingHorizontal: 6 }} onPress={() => { setAskDel(false); act(() => deleteCharge(x.id)); }}>{t('Evet, sil')}</Text>
-          <Text v="small" accessibilityRole="button" style={{ textDecorationLine: 'underline', paddingHorizontal: 6 }} onPress={() => setAskDel(false)}>{t('Vazgeç')}</Text></Row>
-      : <Text key="s" v="small" color={c.badInk} accessibilityRole="button" style={{ textDecorationLine: 'underline', paddingHorizontal: 6 }} onPress={() => setAskDel(true)}>{t('Sil')}</Text>) : null
+          <LinkBtn danger label={t('Evet, sil')} onPress={() => { setAskDel(false); act(() => deleteCharge(x.id)); }} />
+          <LinkBtn label={t('Vazgeç')} onPress={() => setAskDel(false)} /></Row>
+      : <LinkBtn key="s" danger label={t('Sil')} onPress={() => setAskDel(true)} />) : null
   ].filter(Boolean);
   const body = (
     <>
@@ -585,8 +585,10 @@ function Notes({ d, oid, can, reload }: { d: any; oid: string; can: (p: string) 
   );
 }
 
-function RequestCard({ x, unit, who, can, reload }: { x: any; unit: any; who?: string; can: (p: string) => boolean; reload: () => void }) {
+/** Talep kartı: başlık satırı her zaman görünür; ayrıntı, durum, yanıt ve yazışma dokununca açılır (bekleyen ilk talepler açık gelir). */
+function RequestCard({ x, unit, who, can, reload, initialOpen = true }: { x: any; unit: any; who?: string; can: (p: string) => boolean; reload: () => void; initialOpen?: boolean }) {
   const c = useColors();
+  const [open, setOpen] = useState(initialOpen);
   const [st, setSt] = useState<number>(x.status);
   const [reply, setReply] = useState<string>(x.reply || '');
   const [err, setErr] = useState<string | null>(null);
@@ -594,13 +596,17 @@ function RequestCard({ x, unit, who, can, reload }: { x: any; unit: any; who?: s
   const dirty = st !== x.status || reply !== (x.reply || '');
   return (
     <Card gap={8}>
-      <Row between wrap>
-        <View style={{ flex: 1, minWidth: 160 }}>
+      <PressScale onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={x.title + ' · ' + REQ()[x.status]} scaleTo={0.995}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Label accent>{t(REQ_CAT[x.cat] || x.cat)}{unit ? ' · ' + unitLabel(unit) : ''}{who ? ' · ' + who : ''}</Label>
-          <Text v="body" style={{ fontFamily: fonts.bodyXBold }}>{x.title}</Text>
+          <Text v="body" numberOfLines={open ? undefined : 2} style={{ fontFamily: fonts.bodyXBold }}>{x.title}</Text>
+          <Muted>{day(x.created_at)}</Muted>
         </View>
-        <Muted>{day(x.created_at)}</Muted>
-      </Row>
+        <Chip tone={x.status === 3 ? 'ok' : x.status === 0 ? 'warn' : 'neutral'} label={REQ()[x.status]} />
+        <Text v="body" color={c.muted} style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>›</Text>
+      </PressScale>
+      {open ? <>
       {x.body ? <Text v="small">{x.body}</Text> : null}
       <MediaList paths={x.media} />
       {can('requests.manage') ? (
@@ -611,8 +617,9 @@ function RequestCard({ x, unit, who, can, reload }: { x: any; unit: any; who?: s
           {saved && !dirty ? <Text v="small" color={c.okInk}>{t('Kaydedildi; sakine bildirim gitti.')}</Text> : null}
           <Err e={err} />
         </>
-      ) : <Chip label={REQ()[x.status]} />}
+      ) : null}
       <RequestThread req={x} canWrite={can('requests.manage')} mgmt who={who || (unit ? unitLabel(unit) : undefined)} />
+      </> : null}
     </Card>
   );
 }
@@ -657,7 +664,7 @@ function Report({ d, org }: { d: any; org: string }) {
         <View style={{ gap: 2 }}><Label>{org} · {t('{n} daire', { n: r.units })}</Label><Text v="h3">{title}</Text></View>
         <Row wrap>
           <View style={{ flex: 1, minWidth: 130 }}><Muted>{t('İstenen')}</Muted><Text v="h3">{M(charged)}</Text></View>
-          <View style={{ flex: 1, minWidth: 130 }}><Muted>{t('Tahsil edilen')}</Muted><Text v="h3">{M(got)}</Text><Muted>{charged ? Math.round((got / charged) * 100) + '%' : '—'}</Muted></View>
+          <View style={{ flex: 1, minWidth: 130 }}><Muted>{t('Tahsil edilen')}</Muted><Text v="h3">{M(got)}</Text><Muted>{charged ? percent((got / charged) * 100, 0) : '—'}</Muted></View>
           <View style={{ flex: 1, minWidth: 130 }}><Muted>{t('Giderler')}</Muted><Text v="h3">{M(spent)}</Text></View>
         </Row>
         {r.charges.length ? <View><Label>{t('İstenen ve tahsil edilen')}</Label>{r.charges.map((x: any, i: number) => line(kindLabel(x.kind), M(x.collected) + ' / ' + M(x.charged), i))}
@@ -834,7 +841,7 @@ export function SiteAdminScreen({ section: sec = 'ozet' }: { section?: string })
       {sites.length > 1 ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{sites.map((o: any) => <Pill key={o.id} label={o.name} on={o.id === org.id} onPress={() => { ui.siteOrg = o.id; setD(null); }} />)}</View> : null}
       {org.status !== 'active' ? <Note warn>{t('Kurum askıda. Yeniden etkinleşene kadar değişiklik yapılamaz; anahtar ile iletişime geç.')}</Note> : null}
       {/* Telefonda menü alt çubuğa sığmaz: bölümler kaydırılabilir şeritte. */}
-      {!desktop ? <Seg scroll value={cur.key} onChange={go} options={sections.map((x) => [x.key, x.label] as [string, string])} /> : null}
+      {/* Telefonda bölümler alt çubukta: dört ana bölüm ve "Diğer" listesi (AppShell → TabBar). */}
       {err ? <Note warn>{err}</Note> : null}
       {!d ? (err ? null : <Spin />) : (
         <>
@@ -856,7 +863,7 @@ export function SiteAdminScreen({ section: sec = 'ozet' }: { section?: string })
           {cur.key === 'genelkurul' && <Meetings d={d} org={org} can={can} />}
           {cur.key === 'projeler' && <SiteProjects oid={org.id} can={can} d={d} reloadAll={load} />}
           {cur.key === 'belgeler' && <SiteDocs d={d} oid={org.id} can={can} reload={load} />}
-          {cur.key === 'talepler' && (d.requests.length ? d.requests.map((x: any) => <RequestCard key={x.id} x={x} unit={unitBy[x.unit_id]} who={(d.residents.find((r: any) => r.user_id && r.user_id === x.user_id) || {}).name} can={can} reload={load} />) : <Empty>{t('Talep yok.')}</Empty>)}
+          {cur.key === 'talepler' && (d.requests.length ? d.requests.map((x: any, i: number) => <RequestCard key={x.id} initialOpen={x.status < 3 && i < 3} x={x} unit={unitBy[x.unit_id]} who={(d.residents.find((r: any) => r.user_id && r.user_id === x.user_id) || {}).name} can={can} reload={load} />) : <Empty>{t('Talep yok.')}</Empty>)}
         </>
       )}
     </Page>
@@ -1175,7 +1182,7 @@ function ResidentDocs({ units, titled }: { units: any[]; titled?: boolean }) {
           <Card key={x.id} gap={4}>
             <Row between wrap><Text v="small" style={{ fontFamily: fonts.bodyXBold, flexShrink: 1 }}>{x.title}</Text><Muted>{day(x.created_at)}</Muted></Row>
             <Row wrap gap={12}><DownloadLink path={x.path} label={x.name || x.title} />
-              <Text v="small" color={c.badInk} accessibilityRole="button" style={{ textDecorationLine: 'underline' }} onPress={async () => { try { await deleteSiteDoc(x.id); load(); } catch (e) { setErr(humanError(e)); } }}>{t('Sil')}</Text></Row>
+              <LinkBtn danger label={t('Sil')} onPress={async () => { try { await deleteSiteDoc(x.id); load(); } catch (e) { setErr(humanError(e)); } }} /></Row>
           </Card>
         ))}
       </Stack> : null}
@@ -1190,6 +1197,7 @@ export function SiteDocs({ d, oid, can, reload }: { d: any; oid: string; can: (p
   const [title, setTitle] = useState('');
   const [files, setFiles] = useState<Picked[]>([]);
   const [scope, setScope] = useState<'herkes' | 'daire'>('herkes');
+  const [adding, setAdding] = useState(false);   // önce liste; form düğmeyle açılır
   const [q, setQ] = useState('');
   const [unitId, setUnitId] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1205,16 +1213,17 @@ export function SiteDocs({ d, oid, can, reload }: { d: any; oid: string; can: (p
       <Row between wrap><Text v="body" style={{ fontFamily: fonts.bodyXBold, flexShrink: 1 }}>{x.title}</Text><Muted>{day(x.created_at)}</Muted></Row>
       <Muted>{from ? (unitBy[x.unit_id] ? unitLabel(unitBy[x.unit_id]) : '') : x.audience === 'daire' ? (unitBy[x.unit_id] ? unitLabel(unitBy[x.unit_id]) : '') : commercial ? t('Bütün kiracılar') : t('Bütün site')}</Muted>
       <Row wrap gap={12}><DownloadLink path={x.path} label={x.name || x.title} />
-        {manage ? <Text v="small" color={c.badInk} accessibilityRole="button" style={{ textDecorationLine: 'underline' }} onPress={async () => {
+        {manage ? <LinkBtn danger label={t('Sil')} onPress={async () => {
           if (await host.ask({ title: t('Belge silinsin mi?'), body: x.title, ok: t('Sil'), danger: true })) { try { await deleteSiteDoc(x.id); reload(); } catch (e) { setErr(humanError(e)); } }
-        }}>{t('Sil')}</Text> : null}</Row>
+        }} /> : null}</Row>
     </Card>
   );
   return (
     <Stack>
-      {manage ? (
+      {manage && !adding ? <Button title={t('Belge paylaş')} onPress={() => setAdding(true)} /> : null}
+      {manage && adding ? (
         <Card gap={10}>
-          <H2>{t('Belge paylaş')}</H2>
+          <Row between><H2>{t('Belge paylaş')}</H2><Button kind="quiet" title={t('Kapat')} onPress={() => setAdding(false)} /></Row>
           <Seg value={scope} onChange={(v) => setScope(v as any)} options={[['herkes', commercial ? t('Bütün kiracılar') : t('Bütün site')], ['daire', commercial ? t('Bir birim') : t('Bir daire')]]} />
           {scope === 'daire' ? (
             <View style={{ gap: 6 }}>
@@ -1227,7 +1236,7 @@ export function SiteDocs({ d, oid, can, reload }: { d: any; oid: string; can: (p
           <Muted>{scope === 'herkes' ? (commercial ? t('Bütün kiracılar görür ve bildirim alır.') : t('Sitenin bütün sakinleri görür ve bildirim alır.')) : t('Yalnız seçtiğin dairenin sakinleri görür.')}</Muted>
           <Button title={t('Paylaş')} loading={busy} disabled={title.trim().length < 2 || !files.length || (scope === 'daire' && !unitId)} style={{ alignSelf: 'flex-start' }} onPress={async () => {
             setBusy(true); setErr(null);
-            try { await uploadSiteDoc(oid, { title, file: files[0], audience: scope, unitId: (scope === 'daire' ? unitId : null) as any }); setTitle(''); setFiles([]); setUnitId(''); reload(); }
+            try { await uploadSiteDoc(oid, { title, file: files[0], audience: scope, unitId: (scope === 'daire' ? unitId : null) as any }); setTitle(''); setFiles([]); setUnitId(''); setAdding(false); reload(); }
             catch (e) { setErr(humanError(e)); }
             setBusy(false);
           }} />

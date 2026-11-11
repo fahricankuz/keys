@@ -6,11 +6,10 @@ import { t } from '../domain/i18n';
 import { live } from '../domain/backend';
 import { access, trialDaysLeft } from '../domain/billing';
 import { planLabel, unitsText } from '../domain/plans';
-import { myOrgs } from '../domain/org';
+import { myOrgs, PORTFOLIO_SECTORS } from '../domain/org';
 import { storage } from '../domain/storage';
 import { P } from '../domain/logic';
 import { isTeam, roleLabel, memberRole } from '../domain/team';
-import { PORTFOLIO_SECTORS } from './site';
 
 export type Ctx = { key: string; label: string; sub: string; icon: string };
 

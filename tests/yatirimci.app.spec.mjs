@@ -1,7 +1,7 @@
 // Yatırımcı raporu ekranı: GYO menüsünde, dönem göstergeleri, yönetimin notu, "Mailime gönder"; açılan belge üç A4 sayfası
 // ve hiçbir sayfada taşma ya da kesilme yok (uzun kurum adı ve çok kiracıyla). AVM'de modül kapalıyken görünmez; gider türü seçilir.
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist, ID , pickRole } from './app-helpers.mjs';
 import { watchErrors } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -50,6 +50,7 @@ async function login(page, d) {
   await page.getByLabel('E-posta').fill('ev@ornek.com');
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);
   await expect(page).toHaveURL(/\/uygulama\/site$/);
 }
 

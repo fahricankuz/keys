@@ -1,7 +1,7 @@
 // Anahtar ekibi müşteri adına mülk ekler (Kurumlar ve Kullanıcılar bölümlerinden); kurumun sözleşme adedi dolunca uyarır.
 // Sunucu kuralları gerçek Postgres'te ayrıca sınanır (org-mulk.sql.spec.mjs).
 import { test, expect } from '@playwright/test';
-import { serveDist, seed, PW, ensureDist, ID } from './app-helpers.mjs';
+import { serveDist, seed, PW, ensureDist, ID , pickRole } from './app-helpers.mjs';
 import { watchErrors } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
@@ -37,6 +37,7 @@ async function adminLogin(page) {
   await page.getByLabel('E-posta').fill('admin@ornek.com');
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await pickRole(page);
   await expect(page).toHaveURL(/\/admin/);
 }
 

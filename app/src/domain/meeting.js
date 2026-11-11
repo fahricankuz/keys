@@ -99,7 +99,8 @@ const when = (v) => { const d = new Date(v); return fmtFull(d) + ' ' + d.toLocal
 export function meetingPackHtml({ org, m, d, replies = [], now = new Date() }){
   const units = [...d.units].sort(sortUnits);
   const owners = (uid) => d.residents.filter((r) => r.unit_id === uid && r.role === 'malik').map((r) => r.name).filter(Boolean).join(', ');
-  const rep = Object.fromEntries(replies.filter((r) => r.meeting_id === m.id).map((r) => [r.unit_id, r]));
+  // Hazirun malik yanıtlarıyla (kiracı yanıtları bilgi içindir).
+  const rep = Object.fromEntries(replies.filter((r) => r.meeting_id === m.id && r.role !== 'kiraci').map((r) => [r.unit_id, r]));
   const held = new Date(m.held_at);
   const ref = held.getMonth() < 6 ? (held.getFullYear() - 1) + '-12' : held.getFullYear() + '-' + String(held.getMonth() + 1).padStart(2, '0');
   const rpt = siteReport(d, 'year', ref);
