@@ -8,7 +8,7 @@
 @font-face{font-family:'Inter Display';src:url(/fonts/intertight-700.woff2) format('woff2');font-weight:700;font-display:swap}
 @font-face{font-family:'Inter Display';src:url(/fonts/intertight-800.woff2) format('woff2');font-weight:800 900;font-display:swap}
 :root{
-  --bg:#FAF5F0; --surface:#FFFDFB; --tile:#F3ECE5; --ink:#1D1A19; --muted:#5C4F4A; --soft:#8A7E78; --line:#E8DDD5;
+  --bg:#FAF5F0; --surface:#FFFDFB; --tile:#F3ECE5; --ink:#1D1A19; --muted:#5C4F4A; --soft:#74685F; --line:#E8DDD5;
   --accent:#C8302E; --accent-text:#A8231F; --accent-soft:#F7E4DF; --mark:#F0CFC8; --mark-ink:#A8231F;
   --deep:#1D1A19; --deep-ink:#FAF5F0; --deep-muted:#BDB1AB;
   --gul:#F0CFC8; --gul-ink:#A8231F; --bal:#F7DDB0; --bal-ink:#6B4A00; --fes:#D5EBD7; --fes-ink:#2A6B3A; --kil:#E8DDD5; --kil-ink:#5C4F4A;
@@ -108,7 +108,7 @@ details[open] summary::after{transform:rotate(45deg)}
 details p{margin:0 0 18px;color:var(--muted)}
 .contact{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:20px;background:var(--accent);color:#FAF5F0;border-radius:28px;padding:32px clamp(22px,4vw,44px);margin:56px 0 0}
 .contact h2{margin:0 0 4px;color:#FAF5F0}
-.contact p{margin:0;color:#FAF5F0;opacity:.88}
+.contact p{margin:0;color:#FAF5F0}
 
 /* ---- alt bilgi ---- */
 .foot{border-top:1px solid var(--line);margin-top:72px}
@@ -178,7 +178,7 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:v
 .side-cta .btn{padding:10px 16px;font-size:14.5px}
 .cta-band{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center;background:var(--accent);color:#FAF5F0;border-radius:28px;padding:30px clamp(22px,4vw,40px);margin:48px 0 0}
 .cta-band h2{margin:0 0 6px;color:#FAF5F0;font-size:24px}
-.cta-band p{margin:0;color:#FAF5F0;opacity:.88}
+.cta-band p{margin:0;color:#FAF5F0}
 @media (max-width:640px){ .cta-band{grid-template-columns:1fr} }
 .disclaimer{color:var(--soft);font-size:14px;border-top:1px solid var(--line);margin-top:36px;padding-top:16px}
 .related h2{margin-top:64px}

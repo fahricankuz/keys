@@ -1,6 +1,6 @@
 // Sunucu satırları ↔ uygulama verisi eşlemesinin birim testleri.
 import { test, expect } from '@playwright/test';
-import { buildProperty, diffProperty, pendingMedia, storedPaths } from '../assets/js/mapping.js';
+import { buildProperty, diffProperty, pendingMedia, storedPaths } from '../app/src/domain/mapping.js';
 
 const L = 'user-l', T = 'user-t';
 

@@ -412,7 +412,7 @@ export function MonthTiles({ months }: { months: { key: string; label: string; f
       {months.map((m) => {
         const kind = TILE_OF[m.status || ''] || 'upcoming', st = style(kind);
         return (
-          <View key={m.key} accessible accessibilityLabel={m.full + ': ' + t(TILE_NAME[kind])}
+          <View key={m.key} accessible role="img" accessibilityLabel={m.full + ': ' + t(TILE_NAME[kind])}
             style={{ flex: 1, minWidth: 0, height: 40, borderRadius: 8, backgroundColor: st.bg, borderWidth: 1.5, borderColor: st.border, borderStyle: st.dashed ? 'dashed' : 'solid', alignItems: 'center', justifyContent: 'center' }}>
             <Text v="small" color={st.ink} style={{ fontSize: 11, lineHeight: 13 }}>{m.label}</Text>
             <Text v="small" color={st.ink} style={{ fontFamily: fonts.bodyXBold, fontSize: 12, lineHeight: 14 }}>{TILE_MARK[kind]}</Text>
@@ -439,7 +439,7 @@ export function YearTiles({ p, onDark }: { p: any; onDark?: boolean }) {
   const tile = (m: (typeof months)[number]) => {
     const st = style(m.kind);
     return (
-      <View key={m.key} accessible accessibilityLabel={m.full + ': ' + (m.before ? t('Sözleşme öncesi') : t(TILE_NAME[m.kind]))}
+      <View key={m.key} accessible role="img" accessibilityLabel={m.full + ': ' + (m.before ? t('Sözleşme öncesi') : t(TILE_NAME[m.kind]))}
         style={{ flex: 1, minWidth: 0, height: 46, borderRadius: 10, backgroundColor: st.bg, borderWidth: m.current ? 2.5 : 1.5,
           borderColor: m.current ? (onDark ? '#fff' : c.ink) : st.border, borderStyle: st.dashed && !m.current ? 'dashed' : 'solid',
           alignItems: 'center', justifyContent: 'center', opacity: m.before ? 0.6 : 1 }}>

@@ -56,10 +56,12 @@ const FLOW: any = Platform.OS === 'web' ? StyleSheet.create({
   } as any
 }) : null;
 
-function FlowCard({ s, go }: { s: Segment; go: (p: string) => void }) {
+/** copy: kayan şeridin kesintisiz dönmesi için eklenen ikinci kopya; ekran okuyucudan gizli ve klavyeyle odaklanmaz. */
+function FlowCard({ s, go, copy }: { s: Segment; go: (p: string) => void; copy?: boolean }) {
   const c = useColors();
   return (
     <PressScale onPress={() => go('/cozumler/' + s.slug)} accessibilityRole="link" accessibilityLabel={s.name + ' · ' + s.sub} scaleTo={0.97} hoverScale={1.03}
+      focusable={!copy} {...(copy ? ({ tabIndex: -1 } as any) : {})}
       style={{ width: 300, flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: c.surface, borderRadius: 24, borderWidth: 1, borderColor: c.line, paddingVertical: 14, paddingLeft: 14, paddingRight: 18, boxShadow: '0 1px 0 rgba(29,26,25,0.03), 0 12px 32px -18px rgba(29,26,25,0.28)' } as any}>
       <View style={{ width: 46, height: 46, borderRadius: 15, backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
         <Icon name={s.icon} size={21} color={c.accentText} />
@@ -91,7 +93,7 @@ export function SegmentFlow({ go, except }: { go: (p: string) => void; except?: 
       <View style={[{ flexDirection: 'row', width: 'max-content' as any }, FLOW.track, { animationPlayState: hover ? 'paused' : 'running' } as any]}>
         {[0, 1].map((k) => (
           <View key={k} aria-hidden={k === 1} style={{ flexDirection: 'row', gap: 14, paddingRight: 14 }}>
-            {list.map((s) => <FlowCard key={s.slug} s={s} go={go} />)}
+            {list.map((s) => <FlowCard key={s.slug} s={s} go={go} copy={k === 1} />)}
           </View>
         ))}
       </View>

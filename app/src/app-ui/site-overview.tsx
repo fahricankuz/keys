@@ -220,7 +220,7 @@ export function Overview({ d, org, can, reload, go, ChargeRow }: {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
         {d.units.map((u: any) => {
           const empty = occ.vacant.some((x: any) => x.id === u.id), isLate = lateUnits.has(u.id);
-          return <View key={u.id} accessibilityLabel={unitLabel(u) + ' · ' + (empty ? t('Boş') : isLate ? t('Kirası gecikmiş') : t('Dolu'))}
+          return <View key={u.id} role="img" accessibilityLabel={unitLabel(u) + ' · ' + (empty ? t('Boş') : isLate ? t('Kirası gecikmiş') : t('Dolu'))}
             style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: empty ? c.tile : isLate ? c.badBg : c.okBg, borderWidth: empty ? 1 : 0, borderStyle: 'dashed', borderColor: c.muted }} />;
         })}
       </View>
