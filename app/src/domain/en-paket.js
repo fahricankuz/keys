@@ -1210,5 +1210,19 @@ export const EN_PAKET = {
   "Bu aşamada kimse yok.": "No one at this stage.",
   "Henüz yazışma yok. Kiracın bağlanınca buradan yazışırsınız.": "No conversations yet. You'll chat here once your tenant joins.",
   "{n} mülkte kiracı yok; kiracı eklenince yazışma burada görünür.": "{n} properties have no tenant; the chat appears here once one is added.",
-  "İlk kişiyi ekle": "Add the first lead"
+  "İlk kişiyi ekle": "Add the first lead",
+    "Kira takibi, sözleşme, tahsilat ve rapor tek yerde.": "Rent tracking, contracts, collection and reports in one place.",
+  "Kiranı öde, dekont yükle, talebini takip et. Ücretsiz.": "Pay rent, upload receipts, track requests. Free.",
+  "Site ve portföy": "Sites and portfolios",
+  "Aidat, gider, genel kurul ve sakin iletişimi.": "Dues, expenses, general meetings and resident communication.",
+  "Malikler: katılacak {a} · vekâlet {b} · katılmayacak {c} · yanıtsız {d}": "Owners: attending {a} · proxy {b} · not attending {c} · no reply {d}",
+  "Kiracılar: katılacak {a} · katılmayacak {b}": "Tenants: attending {a} · not attending {b}",
+  "Çağrı, hesabı bağlı tüm sakinlere (malik ve kiracı) bildirim olarak gider; her biri katılım durumunu bildirir. Yasal bildirimi (imza karşılığı ya da taahhütlü mektup) toplantı paketiyle yap.": "The call goes as a notification to all residents with linked accounts (owners and tenants); each reports whether they will attend. Make the legal notice (by signature or registered mail) with the meeting pack.",
+  "Site maliki": "Site owner",
+  "Site kiracısı": "Site tenant",
+  "Kurum üyesi": "Organisation member",
+  "Roller ({n})": "Roles ({n})",
+  "Site sakini": "Site resident",
+  "Kurum yöneticisi": "Organisation manager",
+  "Birden çok rol": "Multiple roles"
 };

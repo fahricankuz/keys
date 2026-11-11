@@ -915,6 +915,21 @@ export function createClient(url, key, opts){
         return { data:r.unit_id, error:null };
       }
       if (name === 'is_admin') return { data: !!me && isAdmin(db, me), error:null };
+      // schema.sql (migration hesap_rolleri): her hesabın tüm rolleri.
+      if (name === 'admin_user_roles'){
+        if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
+        const T = db.tables, out = {};
+        const add = (uid, k, org = null) => { if (!uid) return; const o = org ? (T.organizations || []).find(x => x.id === org) : null;
+          const r = { k, org: o ? o.name : null, sector: o ? o.sector : null };
+          const l = out[uid] || (out[uid] = []); if (!l.some(x => x.k === r.k && x.org === r.org)) l.push(r); };
+        (T.admins || []).forEach(a => add(a.user_id, 'admin'));
+        T.profiles.forEach(p => { if (p.role === 'landlord' || T.properties.some(x => x.owner_id === p.id)) add(p.id, 'landlord'); if (p.role === 'team') add(p.id, 'team'); });
+        (T.memberships || []).filter(m => m.role === 'tenant').forEach(m => add(m.user_id, 'tenant'));
+        (T.site_residents || []).filter(r => r.user_id).forEach(r => add(r.user_id, r.role === 'malik' ? 'site_malik' : 'site_kiraci', r.org_id));
+        (T.org_members || []).forEach(m => add(m.user_id, 'org', m.org_id));
+        (T.team_members || []).forEach(m => add(m.member_id, 'team'));
+        return { data: out, error:null };
+      }
       if (name === 'admin_users'){
         if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
         return { data: db.tables.profiles.map(p => {

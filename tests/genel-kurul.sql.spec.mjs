@@ -28,31 +28,34 @@ test.beforeAll(async () => {
   await as(ID.T); await q(`select public.accept_site_invite($1)`, [ct]);
 });
 
-test('yönetim çağrı yapar, maliklere bildirim gider; duyuru yetkisi olmayan çağıramaz', async () => {
+test('yönetim çağrı yapar, tüm sakinlere (malik ve kiracı) bildirim gider; duyuru yetkisi olmayan çağıramaz', async () => {
   await as(Y);
   expect(await tryCall(db, `insert into public.site_meetings (org_id, held_at) values ($1, now() + interval '20 days')`, [org])).toMatch(/row-level security/);
   await as(M);
   [{ id: mid }] = await q(`insert into public.site_meetings (org_id, held_at, place, agenda) values ($1, now() + interval '20 days', 'Kapalı otopark',
     array['Açılış ve divan seçimi','Yönetim kurulu raporu']) returning id`, [org]);
   await as(null);
-  expect((await q(`select user_id from public.notifications where title like 'Genel kurul çağrısı%'`)).map((r) => r.user_id)).toEqual([ID.L]);
+  expect((await q(`select user_id from public.notifications where title like 'Genel kurul çağrısı%' order by user_id`)).map((r) => r.user_id)).toEqual([ID.L, ID.T].sort());
   await as(ID.T);
   expect((await q(`select agenda from public.site_meetings`))[0].agenda).toHaveLength(2);   // sakin gündemi görür
   await as(ID.X);
   expect(await q(`select id from public.site_meetings`)).toEqual([]);
 });
 
-test('malik vekâlet bildirir; kiracı ve yabancı bildiremez; vekil adı gerekir', async () => {
+test('her sakin katılım bildirir (malik ve kiracı ayrı kayıt); vekâlet yalnız malikte; başka daire için yanıt yok; vekil adı gerekir', async () => {
   await as(ID.L);
   expect(await tryCall(db, `select public.site_meeting_reply($1, $2, 'vekalet', '')`, [mid, a1])).toMatch(/Vekilin adını/);
   await q(`select public.site_meeting_reply($1, $2, 'vekalet', 'Ayşe Yılmaz')`, [mid, a1]);
   await q(`select public.site_meeting_reply($1, $2, 'katilacak')`, [mid, a1]);         // değiştirilebilir
   await as(ID.T);
-  expect(await tryCall(db, `select public.site_meeting_reply($1, $2, 'katilacak')`, [mid, a2])).toMatch(/Yalnız dairenin maliki/);
+  expect(await tryCall(db, `select public.site_meeting_reply($1, $2, 'vekalet', 'Biri')`, [mid, a2])).toMatch(/Vekâlet yalnız malik/);
+  await q(`select public.site_meeting_reply($1, $2, 'katilmayacak')`, [mid, a2]);       // kiracı kendi dairesi için bildirir
+  expect(await tryCall(db, `select public.site_meeting_reply($1, $2, 'katilacak')`, [mid, a1])).toMatch(/Yalnız dairenin sakini/);
   await as(ID.L);
-  expect(await tryCall(db, `select public.site_meeting_reply($1, $2, 'katilacak')`, [mid, a2])).toMatch(/Yalnız dairenin maliki/);
+  expect(await tryCall(db, `select public.site_meeting_reply($1, $2, 'katilacak')`, [mid, a2])).toMatch(/Yalnız dairenin sakini/);
   await as(M);
-  expect(await q(`select answer, proxy_name from public.site_meeting_replies`)).toEqual([{ answer: 'katilacak', proxy_name: '' }]);
+  expect(await q(`select role, answer, proxy_name from public.site_meeting_replies order by role`)).toEqual([
+    { role: 'kiraci', answer: 'katilmayacak', proxy_name: '' }, { role: 'malik', answer: 'katilacak', proxy_name: '' }]);
 });
 
 test('yoklama: daire başına tek oy, arsa payıyla sonuç; malik yoklamasında kiracı oy veremez', async () => {

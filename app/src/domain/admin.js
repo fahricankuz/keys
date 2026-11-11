@@ -1,3 +1,4 @@
+import { t } from './i18n.js';
 /* Yönetici paneli verisi (Supabase). Yönetici satır kuralları gereği tüm kayıtları okur
    (supabase/schema.sql → admin_* politikaları). Bu modül ham satırları panel için birleştirir. */
 
@@ -88,6 +89,30 @@ export async function loadKpis(days = 30){
 }
 
 /** Mülk sahiplerinin deneme / paket durumu. */
+/** Her hesabın tüm rolleri: { userId: [{k, org, sector}] } (admin_user_roles). Sunucuda yoksa boş (eski kurulum). */
+export async function loadUserRoles(){
+  const c = await client();
+  const r = await c.rpc('admin_user_roles');
+  return r.error ? {} : (r.data || {});
+}
+
+/** Rol listesi → ekranda gösterilen etiketler (kısa ad ve kurumlu uzun ad). Rol bilgisi yoksa profildeki tek rol.
+    @param {any} u @param {any[]} [list] @returns {{k: string, short: string, long: string}[]} */
+export function roleTags(u, list){
+  const PORT = ['avm', 'gyo', 'depo'];
+  const one = (x) => {
+    const short = x.k === 'admin' ? t('Yönetici') : x.k === 'landlord' ? t('Mülk sahibi') : x.k === 'tenant' ? t('Kiracı')
+      : x.k === 'site_malik' ? t('Site maliki') : x.k === 'site_kiraci' ? t('Site kiracısı') : x.k === 'team' ? t('Ekip')
+      : x.sector === 'site' ? t('Site yöneticisi') : PORT.includes(x.sector) ? t('Portföy yöneticisi') : t('Kurum üyesi');
+    return { k: x.k, short, long: x.org ? short + ' · ' + x.org : short };
+  };
+  if (list && list.length){
+    const seen = new Set();
+    return list.map(one).filter((x) => { const key = x.long; if (seen.has(key)) return false; seen.add(key); return true; });
+  }
+  return [one({ k: u.is_admin ? 'admin' : u.role === 'landlord' ? 'landlord' : u.role === 'team' ? 'team' : 'tenant' })];
+}
+
 export async function loadSubscriptions(){
   const c = await client();
   return must(await c.rpc('admin_subscriptions')) || [];
