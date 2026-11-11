@@ -469,7 +469,7 @@ test('İngilizce: üst menüden dil değişir; fiyatlar dolar; site, uygulama ve
   test.setTimeout(120_000);
   // Türkçe ana sayfada küre düğmesi seçiciyi açar; "EN" ile İngilizceye geçilir.
   await page.goto(url('/'));
-  await page.getByRole('button', { name: 'Dil', exact: true }).first().click();
+  await page.getByRole('button', { name: /^Dil: (TR|EN)$/ }).first().click();
   await expect(page.getByLabel('Türkçe', { exact: true })).toBeVisible();
   await page.getByLabel('English', { exact: true }).click();
   await expect(page.getByText('to renting.').first()).toBeVisible();
