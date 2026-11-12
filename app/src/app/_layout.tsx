@@ -40,6 +40,13 @@ export default function Root() {
   const [fontsOk] = useFonts(FONT_FILES);
   const [stored, setStored] = useState(false);
   useEffect(() => { installErrorReporting(); installStaleRecovery(); }, []);
+  // www.anahtar.io → anahtar.io: Hostinger CDN isteği sunucuya www'siz ilettiği için .htaccess kuralı www'yi görmüyor;
+  // tarayıcıda aynı sayfaya ana adreste geçilir (oturum ve çerez tek alan adında kalsın). Canonical etiketi zaten anahtar.io.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const h = window.location.hostname;
+    if (/^www\./i.test(h)) window.location.replace(window.location.href.replace('//' + h, '//' + h.slice(4)));
+  }, []);
   useEffect(() => {
     // Web'de sunucu HTML'i Türkçe üretilir; kayıtlı dil, hidrasyon bittikten sonra uygulanır
     // (aksi halde metinler sunucu çıktısıyla uyuşmaz).
