@@ -1,6 +1,0 @@
-User-agent: *
-Disallow: /uygulama
-Disallow: /admin
-Allow: /
-
-Sitemap: https://anahtar.io/sitemap.xml
