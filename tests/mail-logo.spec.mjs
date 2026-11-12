@@ -9,7 +9,6 @@ import { renderNotice } from '../supabase/functions/push/template.ts';
 
 const BASE = 'https://anahtar.io/mail/anahtar-logo-mail-';
 const LOGO = BASE + 'koyu.png';        // koyu zeminli logo: koyu başlık bantlarında
-const RED = BASE + 'kirmizi.png';     // kırmızı zeminli logo: kırmızı başlıklarda
 const root = (p) => new URL('../' + p, import.meta.url).pathname;
 const img = new RegExp(`<img src="${LOGO.replace(/[.]/g, '\\.')}"[^>]*alt="anahtar"`);
 
@@ -28,9 +27,10 @@ test('rapor ve talep e-postaları da logoyu kullanır (şablon kaynağı)', () =
   for (const f of ['report/template.ts', 'report/site-template.ts']) {
     const src = readFileSync(root('supabase/functions/' + f), 'utf8');
     expect(src).toContain('<img src="${LOGO_URL}"');
-    expect(src).toContain(`const LOGO_URL = '${RED}'`);                       // kırmızı başlıkta kırmızı zeminli logo
+    expect(src).toContain(`const LOGO_URL = '${LOGO}'`);                      // koyu başlıkta koyu zeminli logo
+    expect(src).not.toContain('bgcolor="#C8302E"');
   }
-  expect(readFileSync(root('supabase/functions/lead-mail/index.ts'), 'utf8')).toContain(`<img src="${RED}"`);
+  expect(readFileSync(root('supabase/functions/lead-mail/index.ts'), 'utf8')).toContain(`<img src="${LOGO}"`);
 });
 
 test('logo dosyaları: beş sürüm depoda; boyutlar, zemin türü ve başka sitelerden yüklenebilirlik', () => {
@@ -60,10 +60,11 @@ test('koyu mod: e-postalar açık tasarımda kalır (color-scheme) ve logo her z
   metaOk(renderTenantInvite({ code: 'AB12CD34', appUrl: 'https://anahtar.io' }).html, 'invite-mail');
   metaOk(renderNotice({ title: 'a', body: 'b' }).html, 'push');
   for (const f of readdirSync(root('supabase/email-templates')).filter((x) => x.endsWith('.html'))) metaOk(readFileSync(root('supabase/email-templates/' + f), 'utf8'), f);
-  // Logo, kendi zemin rengiyle aynı bir hücrenin içinde: koyu logo koyu bantta (#1D1A19), kırmızı logo kırmızı başlıkta (#C8302E).
+  // Logo, kendi zemin rengiyle aynı bir hücrenin içinde: bütün e-postalarda koyu logo koyu bantta (#1D1A19).
   expect(renderWelcome({ kind: 'tek', appUrl: 'https://anahtar.io' }).html).toMatch(/bgcolor="#1D1A19"[^>]*>\s*<img src="[^"]*koyu\.png"/);
   const rec = readFileSync(root('supabase/email-templates/recovery.html'), 'utf8');
-  expect(rec).toMatch(/bgcolor="#C8302E"[^>]*>\s*<img src="[^"]*kirmizi\.png"/);
+  expect(rec).toMatch(/bgcolor="#1D1A19"[^>]*>\s*<img src="[^"]*koyu\.png"/);
+  expect(renderTenantInvite({ code: 'AB12CD34', property: 'Moda Dairesi', appUrl: 'https://anahtar.io' }).html).toMatch(/bgcolor="#1D1A19"[^>]*>\s*<img src="[^"]*koyu\.png"/);
   expect(rec).not.toContain('seffaf');                                         // şeffaf logo koyu modda okunmaz; e-postalarda kullanılmaz
 });
 
@@ -71,7 +72,11 @@ test('Supabase giriş e-postası şablonları: logo, değişkenler ve kullanım 
   const dir = root('supabase/email-templates');
   const files = readdirSync(dir).filter((f) => f.endsWith('.html')).sort();
   expect(files).toEqual(['confirmation.html', 'email_change.html', 'invite.html', 'magic_link.html', 'reauthentication.html', 'recovery.html']);
-  for (const f of files) expect(readFileSync(dir + '/' + f, 'utf8'), f).toContain(`src="${RED}"`);
+  for (const f of files) {
+    const h = readFileSync(dir + '/' + f, 'utf8');
+    expect(h, f).toContain(`src="${LOGO}"`);
+    if (h.includes('href="{{ .ConfirmationURL }}" style')) expect(h, f).toMatch(/href="\{\{ \.ConfirmationURL \}\}" style="[^"]*border-radius:999px/);   // düğme yuvarlak (hap), öteki e-postalardaki gibi
+  }
   const rec = readFileSync(dir + '/recovery.html', 'utf8');
   expect(rec).toContain('{{ .ConfirmationURL }}');
   expect(rec).toContain('Şifremi yenile');

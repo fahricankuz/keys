@@ -4,14 +4,15 @@ import { renderOutbox } from '../supabase/functions/mail-send/template.ts';
 
 const app = 'https://anahtar.io';
 
-test('hesap silindi: kendisi sildi ve yönetici sildi (gerekçeyle) metinleri; destek adresi; kırmızı bantta kırmızı logo', () => {
+test('hesap silindi: kendisi sildi ve yönetici sildi (gerekçeyle) metinleri; destek adresi; koyu bantta koyu logo', () => {
   const self = renderOutbox({ kind: 'account_deleted', data: { name: 'Ayşe Yılmaz', by: 'self' } }, app);
   expect(self.subject).toBe('anahtar hesabın silindi');
   expect(self.html).toContain('Merhaba Ayşe,');
   expect(self.html).toContain('Talebin üzerine anahtar hesabın silindi.');
   expect(self.html).not.toContain('Gerekçe');
   expect(self.html).toContain('info@anahtar.io');
-  expect(self.html).toContain('anahtar-logo-mail-kirmizi.png');
+  expect(self.html).toContain('anahtar-logo-mail-koyu.png');
+  expect(self.html).toMatch(/bgcolor="#1D1A19"[^>]*>\s*<img src="[^"]*koyu\.png"/);
   const adm = renderOutbox({ kind: 'account_deleted', data: { name: 'Ali', by: 'admin', reason: 'Sahte hesap' } }, app);
   expect(adm.html).toContain('askıya alındıktan sonra silindi');
   expect(adm.html).toContain('Gerekçe');

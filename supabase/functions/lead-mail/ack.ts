@@ -1,10 +1,10 @@
 // anahtar — müşteriye giden "talebini aldık" e-postası (kurumsal teklif, Bize ulaş, paket yükseltme, içe aktarma, hukuki destek).
 // Saf işlev (Deno ve Node'da çalışır; testler önizleme üretir). Tablo düzeni ve satır içi stil: e-posta istemcileri için.
-// Kırmızı başlık bandı kırmızı zeminli logoyla (anahtar-logo-mail-kirmizi.png) aynı renkte olmalı; karanlık modda da bozulmaz.
+// Koyu başlık bandı koyu zeminli logoyla (anahtar-logo-mail-koyu.png) aynı renkte olmalı; karanlık modda da bozulmaz.
 
 const C = { tugla: '#C8302E', kirec: '#FAF5F0', kart: '#FFFDFB', baca: '#1D1A19', kahve: '#5C4F4A', duman: '#8A807B', kil: '#E8DDD5', krem: '#F3ECE5' };
 const FONT = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`;
-const LOGO = 'https://anahtar.io/mail/anahtar-logo-mail-kirmizi.png';
+const LOGO = 'https://anahtar.io/mail/anahtar-logo-mail-koyu.png';
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
 export type AckKind = 'kurumsal' | 'import' | 'upgrade' | 'genel' | 'hukuki';
@@ -69,8 +69,8 @@ export function renderAck(o: AckInput): { subject: string; html: string; text: s
   const html = `<!doctype html><html lang="${en ? 'en' : 'tr'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(c.subject)}</title></head>
 <body style="margin:0;padding:0;background:${C.kirec}"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.kirec}"><tr><td align="center" style="padding:24px 12px">
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:${C.kart};border:1px solid ${C.kil};border-radius:24px;overflow:hidden">
-<tr><td bgcolor="${C.tugla}" style="background:${C.tugla};padding:22px 28px"><img src="${LOGO}" width="168" height="31" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none">
-<div style="font:800 24px/1.25 ${FONT};color:${C.kirec};margin-top:12px">${esc(c.title)}</div>${ref}</td></tr>
+<tr><td bgcolor="#1D1A19" style="background:${C.baca};padding:26px 28px 28px"><img src="${LOGO}" width="168" height="31" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none">
+<div style="font:800 28px/1.15 ${FONT};color:#FFF3EA;letter-spacing:-.6px;margin-top:20px">${esc(c.title)}</div>${ref}</td></tr>
 <tr><td style="padding:24px 28px 8px"><div style="font:400 16px/1.6 ${FONT};color:${C.baca}">${esc(hello)}</div>
 <div style="font:400 16px/1.6 ${FONT};color:${C.kahve};margin-top:8px">${esc(c.lead)}</div></td></tr>
 ${table}${msg}

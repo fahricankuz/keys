@@ -1,5 +1,5 @@
 // anahtar — kiracı davet e-postasının HTML'i. Saf işlev (Deno ve Node'da çalışır; testler önizleme üretir).
-// E-posta istemcileri için: tablo düzeni, satır içi stil, görsel yok, sistem yazı tipi (welcome/template.ts ile aynı dil).
+// E-posta istemcileri için: tablo düzeni, satır içi stil, sistem yazı tipi. Koyu başlık bandı, koyu zeminli logo (welcome/template.ts ile aynı dil).
 
 export type InviteInput = { code: string; name?: string; email?: string; owner?: string; property?: string; lang?: string; appUrl: string; expires?: string | null };
 
@@ -15,6 +15,7 @@ const TXT = {
     hi: (n: string) => (n ? `Merhaba ${n},` : 'Merhaba,'),
     lead: (o: string, p: string) => `${o || 'Mülk sahibin'}, ${p ? `<b>${p}</b> için ` : ''}seni anahtar’a davet etti. Kira ödemeleri, arıza talepleri, belgeler ve yazışmalar tek yerde; kiracı hesabı her zaman ücretsiz.`,
     leadText: (o: string, p: string) => `${o || 'Mülk sahibin'}, ${p ? p + ' için ' : ''}seni anahtar’a davet etti.`,
+    badge: 'Kiracı daveti · ücretsiz', title: (p: string) => (p ? `${p} için davet edildin.` : 'anahtar’a davet edildin.'),
     codeLabel: 'Davet kodun', cta: 'Hesabımı oluştur', note: 'Bağlantı ad, e-posta ve davet kodunu senin için doldurur; yalnızca şifre belirlemen yeterli.',
     expires: (d: string) => `Kod ${d} tarihine kadar geçerli.`, ifNot: 'Bu daveti beklemiyorsan e-postayı yok sayabilirsin.',
     foot: 'anahtar · Kira işinin anahtarı · anahtar.io', date: (d: Date) => d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Istanbul' })
@@ -24,6 +25,7 @@ const TXT = {
     hi: (n: string) => (n ? `Hi ${n},` : 'Hi,'),
     lead: (o: string, p: string) => `${o || 'Your landlord'} invited you to anahtar${p ? ` for <b>${p}</b>` : ''}. Rent payments, repair requests, documents and messages in one place; a tenant account is always free.`,
     leadText: (o: string, p: string) => `${o || 'Your landlord'} invited you to anahtar${p ? ' for ' + p : ''}.`,
+    badge: 'Tenant invite · free', title: (p: string) => (p ? `You’re invited to ${p}.` : 'You’re invited to anahtar.'),
     codeLabel: 'Your invite code', cta: 'Create my account', note: 'The link fills in your name, email and invite code; you only need to choose a password.',
     expires: (d: string) => `The code is valid until ${d}.`, ifNot: 'If you were not expecting this invitation, you can ignore this email.',
     foot: 'anahtar · anahtar.io', date: (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Istanbul' })
@@ -49,10 +51,12 @@ export function renderInvite(o: InviteInput): { subject: string; html: string; t
   const html = `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(subject)}</title></head>
 <body style="margin:0;padding:0;background:${C.kirec}"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.kirec}"><tr><td align="center" style="padding:28px 12px">
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%">
-<tr><td style="padding:0 4px 16px"><img src="${LOGO_URL}" width="168" height="31" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none;border-radius:8px;background:#1D1A19"></td></tr>
-<tr><td style="background:${C.kart};border:1px solid ${C.kil};border-radius:20px;padding:30px 28px">
-<div style="font:800 24px/1.2 ${FONT};color:${C.baca}">${esc(L.hi(first))}</div>
-<div style="font:400 16px/1.55 ${FONT};color:${C.kahve};margin-top:12px">${L.lead(esc(owner), esc(prop))}</div>
+<tr><td bgcolor="#1D1A19" style="background:#1D1A19;border-radius:24px 24px 0 0;padding:26px 28px 28px"><img src="${LOGO_URL}" width="168" height="31" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none">
+<div style="display:inline-block;margin-top:22px;background:#F2B544;color:#1D1A19;font:700 12px ${FONT};padding:5px 12px;border-radius:999px">${esc(L.badge)}</div>
+<div style="font:800 28px/1.15 ${FONT};color:#FFF3EA;letter-spacing:-.6px;margin-top:12px">${esc(L.title(prop))}</div></td></tr>
+<tr><td style="background:${C.kart};border:1px solid ${C.kil};border-top:0;border-radius:0 0 24px 24px;padding:26px 28px 30px">
+<div style="font:400 16px/1.55 ${FONT};color:${C.baca}">${esc(L.hi(first))}</div>
+<div style="font:400 16px/1.55 ${FONT};color:${C.kahve};margin-top:8px">${L.lead(esc(owner), esc(prop))}</div>
 <div style="background:${C.zemin};border-radius:14px;padding:16px;margin:22px 0;text-align:center"><div style="font:600 12px ${FONT};color:${C.kahve};letter-spacing:.6px;text-transform:uppercase">${esc(L.codeLabel)}</div>
 <div style="font:800 30px ${FONT};color:${C.baca};letter-spacing:6px;margin-top:6px">${esc(o.code)}</div></div>
 <div style="text-align:center"><a href="${esc(url)}" style="display:inline-block;background:${C.tugla};color:#fff;text-decoration:none;font:700 16px ${FONT};padding:14px 30px;border-radius:999px">${esc(L.cta)}</a></div>

@@ -11,7 +11,7 @@ test('kurumsal teklif: teşekkür, ekibin dönüşü, talep özeti ve referans',
   expect(m.html).toContain('Örnek AVM');
   expect(m.html).toContain('Teklif istiyoruz');
   expect(m.html).toContain('info@anahtar.io');
-  expect(m.html).toContain('anahtar-logo-mail-kirmizi.png');            // kırmızı bantta kırmızı zeminli logo
+  expect(m.html).toContain('anahtar-logo-mail-koyu.png');               // koyu bantta koyu zeminli logo
   expect(m.text).toContain('Referans: T-AB12CD');
 });
 
