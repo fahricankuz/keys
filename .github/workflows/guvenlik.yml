@@ -27,7 +27,7 @@ jobs:
       - name: Semgrep (JavaScript / TypeScript kuralları)
         run: >-
           semgrep scan --config p/javascript --config p/typescript --metrics=off --error
-          --exclude node_modules --exclude dist --exclude www --exclude hostinger/site --exclude android --exclude ios
+          --exclude node_modules --exclude dist --exclude www --exclude android --exclude ios
 
   gizli-anahtar:
     runs-on: ubuntu-latest
