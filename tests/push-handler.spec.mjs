@@ -54,7 +54,7 @@ test('Web Push: izin listesi dışındaki uç nokta atlanır (istek atılmaz, ka
 });
 
 test('iOS: bildirim verisi yükün kökündeki body anahtarında (expo-notifications), eski url alanı da durur; APNs isteği zaman aşımlıdır', async () => {
-  const state = { tables: { push_subscriptions: [], device_tokens: [{ user_id: U, token: 'abcdef0123456789', platform: 'ios' }], profiles: [{ id: U, settings: { email: false }, phone: '' }] } };
+  const state = { tables: { push_subscriptions: [], device_tokens: [{ user_id: U, token: 'test-ios-device-token', platform: 'ios' }], profiles: [{ id: U, settings: { email: false }, phone: '' }] } };
   const calls = [];
   const db = fakeSupabase(state);
   await withEdge('push/index.ts', {
@@ -65,7 +65,7 @@ test('iOS: bildirim verisi yükün kökündeki body anahtarında (expo-notificat
     expect(await res.json()).toMatchObject({ sent: 1 });
   });
   const apns = calls.find((c) => c.u.startsWith('https://api.push.apple.com/3/device/'));
-  expect(apns.u).toBe('https://api.push.apple.com/3/device/abcdef0123456789');
+  expect(apns.u).toBe('https://api.push.apple.com/3/device/test-ios-device-token');
   expect(apns.o.signal).toBeInstanceOf(AbortSignal);
   expect(apns.o.headers['apns-topic']).toBe('io.anahtar.app');
   const payload = JSON.parse(apns.o.body);
@@ -100,7 +100,7 @@ test('Android: FCM verisi data.url olarak sürer; token alma ve gönderme istekl
 });
 
 test('APNs zaman aşımı / ağ hatası bildirimi durdurmaz: hata loglanır, yanıt yine 200', async () => {
-  const state = { tables: { push_subscriptions: [], device_tokens: [{ user_id: U, token: 'abcdef0123456789', platform: 'ios' }], profiles: [{ id: U, settings: {}, phone: '' }] } };
+  const state = { tables: { push_subscriptions: [], device_tokens: [{ user_id: U, token: 'test-ios-device-token', platform: 'ios' }], profiles: [{ id: U, settings: {}, phone: '' }] } };
   const posted = [];
   const db = fakeSupabase(state);
   await withEdge('push/index.ts', {
