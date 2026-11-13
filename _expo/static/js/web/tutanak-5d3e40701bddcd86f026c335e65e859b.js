@@ -1,0 +1,3 @@
+var _sentryDebugIds,_sentryDebugIdIdentifier;void 0===_sentryDebugIds&&(_sentryDebugIds={});try{var stack=(new Error).stack;stack&&(_sentryDebugIds[stack]="f8808749-0691-4eb7-8aa8-bf9056d1edb0",_sentryDebugIdIdentifier="sentry-dbid-f8808749-0691-4eb7-8aa8-bf9056d1edb0")}catch(e){}
+__d(function(g,r,i,a,m,e,d){"use strict";Object.defineProperty(e,'__esModule',{value:!0}),Object.defineProperty(e,"default",{enumerable:!0,get:function(){return o}});var t=r(d[0]),n=r(d[1]),u=r(d[2]),c=r(d[3]);function o(){return'tenant'===n.ui.role?(0,c.jsx)(u.TenantScreen,{tab:"docs",sub:"tutanak"}):(0,c.jsx)(t.Redirect,{href:"/uygulama"})}},786,[830,833,914,6]);
+//# debugId=f8808749-0691-4eb7-8aa8-bf9056d1edb0

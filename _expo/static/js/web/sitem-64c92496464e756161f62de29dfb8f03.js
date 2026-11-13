@@ -1,0 +1,3 @@
+var _sentryDebugIds,_sentryDebugIdIdentifier;void 0===_sentryDebugIds&&(_sentryDebugIds={});try{var stack=(new Error).stack;stack&&(_sentryDebugIds[stack]="2640a1d0-4424-44cd-855b-993b0e4c0df9",_sentryDebugIdIdentifier="sentry-dbid-2640a1d0-4424-44cd-855b-993b0e4c0df9")}catch(e){}
+__d(function(g,r,i,a,m,e,d){"use strict";Object.defineProperty(e,'__esModule',{value:!0}),Object.defineProperty(e,"default",{enumerable:!0,get:function(){return f}});var t=r(d[0]),n=r(d[1]),u=r(d[2]),s=r(d[3]),c=r(d[4]);function f(){return(0,s.useStore)(),(0,u.siteResidentOnly)()?(0,c.jsx)(t.Redirect,{href:"/uygulama"}):(0,c.jsx)(n.ResidentSiteScreen,{})}},797,[830,911,891,906,6]);
+//# debugId=2640a1d0-4424-44cd-855b-993b0e4c0df9

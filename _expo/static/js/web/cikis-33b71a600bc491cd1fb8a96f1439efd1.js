@@ -1,0 +1,3 @@
+var _sentryDebugIds,_sentryDebugIdIdentifier;void 0===_sentryDebugIds&&(_sentryDebugIds={});try{var stack=(new Error).stack;stack&&(_sentryDebugIds[stack]="5134cc26-998f-4ad5-8858-b4e9ff33e4db",_sentryDebugIdIdentifier="sentry-dbid-5134cc26-998f-4ad5-8858-b4e9ff33e4db")}catch(e){}
+__d(function(g,r,i,a,m,e,d){"use strict";Object.defineProperty(e,'__esModule',{value:!0}),Object.defineProperty(e,"default",{enumerable:!0,get:function(){return o}});var t=r(d[0]),n=r(d[1]),u=r(d[2]),c=r(d[3]);function o(){return'tenant'===n.ui.role?(0,c.jsx)(u.TenantScreen,{tab:"docs",sub:"cikis"}):(0,c.jsx)(t.Redirect,{href:"/uygulama"})}},784,[830,833,914,6]);
+//# debugId=5134cc26-998f-4ad5-8858-b4e9ff33e4db

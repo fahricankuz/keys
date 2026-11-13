@@ -1,0 +1,4 @@
+{
+  "_": "Sunucusuz kurulumda kira artış hesaplayıcısının yedek oran listesi. Canlı sitede oranlar Supabase public.cpi_rates tablosundan okunur (tufe-sync ya da yönetici paneli). Anahtar: verinin ait olduğu ay (YYYY-AA), değer: TÜFE 12 aylık ortalamalara göre değişim (%).",
+  "rates": {}
+}

@@ -1,0 +1,4 @@
+Contact: mailto:info@anahtar.io
+Preferred-Languages: tr, en
+Canonical: https://anahtar.io/.well-known/security.txt
+Expires: 2027-10-25T00:00:00.000Z
