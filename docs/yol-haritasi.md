@@ -132,4 +132,4 @@ paketleri yönetici panelinden elle verebilirsiniz.
 - Depoda eski "Kiracım" PWA'sı (kök `index.html`, `assets/js`, Capacitor `android/ios`) ve testleri duruyor; yayına çıkan ürün
   `app/` klasöründeki anahtar uygulaması. Eski kod kaldırılmalı ya da arşivlenmeli (CI süresi ve karışıklık).
 - GitHub Actions'taki `actions/*@v4` sürümleri Node 20 uyarısı veriyor; güncellenmeli (Dependabot PR'ları açık).
-- `claude/github-keys-setup-uzvnzm` dalı şu an varsayılan dal; `main` adıyla düzenli bir dal yapısına geçilmesi önerilir.
+- [x] Varsayılan dal `claude/github-keys-setup-uzvnzm` adından `main` adına taşındı (13 Kasım 2026); kullanılmayan Supabase gizli değerleri silindi.

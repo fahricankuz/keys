@@ -7,8 +7,7 @@ name: Mobil uygulama (Expo)
 # Dakika tasarrufu: her dal gönderiminde değil, uygulamaya dokunan PR'da ve ana dala girişte.
 on:
   push:
-    # Varsayılan dal `main` olacak; depo sahibi eski dalı yeniden adlandırınca ikinci ad buradan silinir.
-    branches: [main, claude/github-keys-setup-uzvnzm]
+    branches: [main]
     paths: ['app/**', '.github/workflows/expo-mobile.yml']
   pull_request:
     paths: ['app/**', '.github/workflows/expo-mobile.yml']
