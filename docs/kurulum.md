@@ -110,14 +110,9 @@ npx supabase functions deploy push --no-verify-jwt
 
 ### 5.3 Veritabanını fonksiyona bağla
 
-**Database → Webhooks → Create a new hook**
-
-| Alan | Değer |
-| --- | --- |
-| Table | `notifications` |
-| Events | `Insert` |
-| Type | Supabase Edge Functions → `push` |
-| HTTP Headers | `x-evim-secret`: 5.2'deki `WEBHOOK_SECRET` |
+Elle Database Webhook oluşturmana gerek yok. Webhook tetikleyicileri ve zamanlanmış işler (`pg_cron`, `pg_net`) `kasa_sirlari` migration'ıyla
+kurulur; gizli değerleri Supabase **Vault**'tan okur. Önce Vault'a `WEBHOOK_SECRET` değerini (5.2'dekiyle aynı) ekle, sonra migration'ı
+[migrations.md](migrations.md) sırasıyla uygula (staging, sonra production). Kayıt eksikse migration hiçbir şeyi değiştirmeden hata verir.
 
 ### 5.4 Dene
 
@@ -129,7 +124,7 @@ gönderince bildirim gelmeli.
   Ekle**, sonra uygulamayı ana ekrandan açıp bildirimleri aç. Apple, ana ekrana
   eklenmemiş sitelere bildirim izni vermiyor.
 - **Mağaza uygulaması (iOS/Android)**: APNs ve Firebase anahtarları gerekir;
-  bkz. [mobil.md → Anlık bildirimler](mobil.md#4-anlık-bildirimler).
+  bkz. [magaza.md → Telefona anlık bildirim](magaza.md#8-telefona-anlık-bildirim).
 
 ### 5.5 E-posta bildirimleri (isteğe bağlı)
 
@@ -148,32 +143,11 @@ RevenueCat kurulumu ile `billing` fonksiyonu için: [abonelik.md](abonelik.md).
 Abonelik kurulmadan da uygulama çalışır: her mülk sahibi 1 aylık (30 gün) denemeyle
 başlar.
 
-## 7. GitHub Pages ve anahtar.io
+## 7. Site ve anahtar.io
 
-1. Depo → **Settings → Pages → Source: GitHub Actions**.
-2. Alan adını aldığın firmanın DNS panelinde şu kayıtları ekle:
-
-| Tür | Ad | Değer |
-| --- | --- | --- |
-| A | `@` | `185.199.108.153` |
-| A | `@` | `185.199.109.153` |
-| A | `@` | `185.199.110.153` |
-| A | `@` | `185.199.111.153` |
-| AAAA | `@` | `2606:50c0:8000::153` |
-| AAAA | `@` | `2606:50c0:8001::153` |
-| AAAA | `@` | `2606:50c0:8002::153` |
-| AAAA | `@` | `2606:50c0:8003::153` |
-| CNAME | `www` | `fahricankuz.github.io` |
-
-3. Settings → Pages → **Custom domain**: `anahtar.io` → Save. DNS yayılınca
-   (birkaç dakika–birkaç saat) **Enforce HTTPS** kutusunu işaretle.
-4. Güvenlik için alan adını GitHub hesabına da doğrula: profil → Settings →
-   Pages → *Add a domain* (verilen TXT kaydını DNS'e ekle). Bu, başkasının
-   alan adını kendi sitesine bağlamasını engeller.
-
-Bundan sonra varsayılan dala her gönderimde site `https://anahtar.io/`
-adresinde güncellenir. Telefon uygulamasının bağlantıları da bu alan adıyla
-çalışır: [mobil.md](mobil.md#3-bağlantıların-uygulamayı-açması).
+Site, Hostinger'da statik olarak yayınlanır. GitHub Actions siteyi derler ve `site` dalına yazar; Hostinger bu dalı Git ile çeker.
+Hosting paketi, alan adı ve DNS adımları için [hostinger.md](hostinger.md) dosyasına bak. Telefon uygulamasının bağlantıları da
+`anahtar.io` ile çalışır: [magaza.md → Evrensel bağlantılar](magaza.md#9-evrensel-bağlantılar-davet-doğrulama-şifre-sıfırlama).
 
 ## Uygulama (React Native) ve yönetici paneli
 
@@ -260,21 +234,17 @@ yönetici verebilir (`tests/admin.sql.spec.mjs`).
 
 ---
 
-## Yayına alma (GitHub Pages, otomatik güncellenen)
+## Yayına alma (Hostinger, `site` dalından)
 
-`.github/workflows/pages.yml` uygulamayı (`app/`) her push'ta derler ve yayınlar. Bir kez yapılacaklar:
+`.github/workflows/hostinger.yml` uygulamayı (`app/`) derler ve `site` dalına yazar; Hostinger bu dalı dağıtır ([hostinger.md](hostinger.md)). Bir kez yapılacaklar:
 
 1. **Supabase**: yukarıdaki 1-3. bölümleri yap. *Project Settings → API* sayfasından **Project URL** ve **anon public** anahtarını kopyala (`service_role` anahtarını hiçbir yere yazma).
-2. **GitHub → Settings → Secrets and variables → Actions → Variables** altına iki değişken ekle:
-   - `SUPABASE_URL` = Project URL
-   - `SUPABASE_ANON_KEY` = anon public anahtar
-   - (isteğe bağlı) `CUSTOM_DOMAIN` = `anahtar.io`
-3. **GitHub → Settings → Pages → Source: "GitHub Actions"** seç.
-4. Değişiklikler **varsayılan dala** birleşince site yayınlanır (Actions sekmesinde "GitHub Pages" çalışması yeşil olur). Adres: `https://<kullanıcı>.github.io/project_evim/` ya da `CUSTOM_DOMAIN` verdiysen o alan adı.
-5. Supabase **Authentication → URL Configuration** altına bu adresi **Site URL** ve **Redirect URL** olarak ekle.
-6. Uygulamadan bir hesap aç, sonra yukarıdaki SQL ile kendini yönetici yap.
+2. **GitHub → Settings → Secrets and variables → Actions → Variables** altına `SUPABASE_URL` (Project URL) ve `SUPABASE_ANON_KEY` (anon public anahtar) değişkenlerini ekle.
+3. Hostinger'ı `site` dalına bağla ([hostinger.md](hostinger.md)). Değişiklikler ana dala birleşince site yayınlanır.
+4. Supabase **Authentication → URL Configuration** altına `https://anahtar.io/` adresini **Site URL** ve **Redirect URL** olarak ekle.
+5. Uygulamadan bir hesap aç, sonra yukarıdaki SQL ile kendini yönetici yap.
 
-Bundan sonra varsayılan dala her birleşmede site kendiliğinden güncellenir. Değişkenler boşsa site yerel hesap moduyla yayınlanır (veri yalnızca o tarayıcıda).
+Bundan sonra ana dala her birleşmede site kendiliğinden güncellenir. Değişkenler boşsa site yerel hesap moduyla yayınlanır (veri yalnızca o tarayıcıda).
 
 ---
 

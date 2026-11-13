@@ -39,6 +39,7 @@ Node/Apache `cleanUrls`; `npx serve dist` bunu kendisi yapar).
 | Yönetici paneli | Yok | `/admin` (yalnızca `admins` tablosundaki hesaplar) |
 
 Gerçek hesap kurulumu ve yönetici ekleme: [`docs/kurulum.md`](../docs/kurulum.md) → *Uygulama (React Native) ve yönetici paneli*.
+Telefon uygulaması, mağaza yayını ve abonelik: [`docs/mobil.md`](../docs/mobil.md), [`docs/magaza.md`](../docs/magaza.md), [`docs/abonelik.md`](../docs/abonelik.md); hata izleme: [`docs/loglar.md`](../docs/loglar.md).
 Uçtan uca test: `npx playwright test tests/app-admin.spec.mjs` (sahte Supabase ile; gerçek sunucu kuralları `tests/admin.sql.spec.mjs` ve `tests/sql.spec.mjs` içinde gerçek Postgres'e karşı sınanır).
 
 ## Dizin
@@ -60,11 +61,8 @@ uygulamayla aynı modüllerdir (`tax.js`, `logic.js`).
 ## Yapılmayanlar (bu aşamada)
 
 - Gerçek Supabase projesine karşı deneme (bu ortamdan erişilemedi; istemci sahte sunucuyla, kurallar PGlite ile sınandı)
-- Telefona anlık bildirim (push) ve şifre sıfırlama bağlantısının yeni şifre ekranı
-- App Store / Google Play satın alma (RevenueCat); abonelik ekranı durumu gösterir
 - Biyometrik kilit, rehberli tur, PWA kurulum ipucu
-- iOS/Android derlemeleri yalnızca JS paketi olarak doğrulandı (`expo export`);
-  mağaza derlemesi için EAS ya da `expo prebuild` gerekir
+- Mağaza derlemesi ve gönderimi CI'da otomatik değildir: her değişiklikte yalnızca iOS/Android JS paketleri doğrulanır
+  (`expo export`); mağaza derlemesi EAS ile elle başlatılır (`docs/mobil.md`, `docs/magaza.md`)
 
-Eski vanilla JS uygulaması (`/assets`, `/index.html`, Capacitor `/ios`, `/android`)
-değiştirilmedi.
+Eski vanilla JS uygulaması ve Capacitor kabuğu (`/assets`, `/index.html`, `/ios`, `/android`) depodan kaldırılmıştır.

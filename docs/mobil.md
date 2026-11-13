@@ -1,217 +1,48 @@
 # iOS ve Android uygulaması
 
-> **Güncel yol (Ekim 2026):** Mağaza sürümü bugünkü uygulamadan (`app/`, Expo) EAS ile derlenir: `docs/magaza.md`.
-> Aşağıda anlatılan Capacitor kabuğu (kökteki `ios/`, `android/`, `assets/js`) eski uygulamayı paketler ve **kullanım dışıdır**;
-> iş akışı yalnız elle çalıştırılabilir (`.github/workflows/mobile.yml`). Yerel özellikler (anlık bildirim, Face ID, mağaza
-> ödemesi) Expo uygulamasına taşınınca bu bölüm kaldırılacak.
+anahtar'ın telefon uygulaması, web sitesiyle **aynı koddan** üretilir: `app/` klasöründeki Expo + React Native uygulaması
+web'de statik site, iPhone ve Android'de yerel uygulama olur. Mağaza sürümü **EAS** (Expo'nun derleme hizmeti) ile derlenir.
+Eski Capacitor kabuğu (kökteki `ios/`, `android/`) kaldırılmıştır; Xcode ya da Android Studio projesi elle yönetilmez.
 
-
-anahtar'ın telefon uygulaması, web sürümüyle **aynı koddan** üretilir:
-[Capacitor](https://capacitorjs.com) web uygulamasını yerel bir iOS/Android
-kabuğunun içinde çalıştırır ve telefonun yeteneklerine (bildirim, Face ID,
-kamera, mağaza ödemesi) erişim verir. Web sürümü GitHub Pages'te aynen
-yayınlanmaya devam eder.
+## Akış (kısaca)
 
 ```
-assets/, index.html ──► scripts/build.mjs ──► www/ ──► cap sync ──► ios/  (Xcode)
-                           (+ native/entry.js)                  └─► android/ (Android Studio)
+app/ (Expo)  ──►  eas build  ──►  .ipa / .aab  ──►  eas submit  ──►  TestFlight / Play iç test  ──►  mağaza incelemesi
 ```
 
-| Klasör | İçerik |
+| Adım | Nasıl |
 | --- | --- |
-| `native/entry.js` | Yerel eklentilerin listesi (tek pakette derlenir) |
-| `assets/js/native.js` | Eklentileri uygulamaya bağlar; web'de hiçbir şey yapmaz |
-| `ios/`, `android/` | Yerel projeler (Xcode / Android Studio ile açılır) |
-| `resources/` | Uygulama ikonu ve açılış ekranı kaynakları |
-| `capacitor.config.json` | Uygulama kimliği, ad, eklenti ayarları |
+| Geliştirme | `cd app`, `npm install`, `npx expo start` (telefonda Expo Go ya da geliştirme derlemesi); `npm run typecheck` |
+| Derleme | `eas build --profile production --platform all` ya da GitHub → Actions → **Mobil uygulama (Expo)** → Run workflow |
+| Gönderme | `eas submit --platform ios` / `--platform android` (saklı App Store Connect API anahtarı ve Play hizmet hesabıyla) |
+| Sürüm numarası | EAS tutar, her mağaza derlemesinde kendiliğinden artar |
+| Güncelleme | Web sitesi her yayında kendiliğinden güncellenir. Telefon uygulamasındaki değişiklik **yeni mağaza sürümüyle** ulaşır |
+
+Profiller, EAS ortam değişkenlerinin adları, gönderme ayarları, evrensel bağlantılar, anlık bildirim anahtarları, gizlilik
+formları ve mağazaya çıkmadan önce kalan işlerin listesi **[magaza.md](magaza.md)** belgesindedir. Abonelik (mağaza içi
+satın alma) için [abonelik.md](abonelik.md).
 
 ## Telefonda neler farklı
 
-- **Anlık bildirim** — iPhone'da APNs, Android'de Firebase (FCM). Ana ekrana
-  ekleme gerekmez.
-- **Uygulama kilidi** — Ayarlar → Güvenlik: Face ID / Touch ID / parmak izi.
-- **Güvenli oturum** — oturum anahtarı Keychain (iOS) / Keystore (Android)
-  içinde saklanır.
+- **Anlık bildirim** — iPhone'da APNs, Android'de Firebase (FCM). İzin, girişten hemen sonra değil kısa bir açıklamadan sonra sorulur.
+- **Güvenli oturum** — oturum anahtarı iOS Keychain / Android Keystore içinde saklanır (`expo-secure-store`); eski sürümdeki
+  oturum bir kez taşınıp silinir.
+- **Bot koruması** — giriş, kayıt ve şifre sıfırlamada Cloudflare Turnstile, sitenin `/turnstile/` sayfası bir WebView içinde açılarak çalışır.
 - **Kamera** — dekont ve talep formunda "Kamerayla çek".
-- **Bağlantılar** — davet, e-posta doğrulama ve şifre sıfırlama bağlantıları
-  doğrudan uygulamayı açar.
-- **Android geri tuşu** — önce açık pencereyi, sonra önceki ekranı kapatır;
-  ana ekranda uygulamayı arka plana alır.
-- **Abonelik** — App Store / Google Play'in kendi ödeme ekranı
-  (bkz. [abonelik.md](abonelik.md)).
-- Service worker ve "uygulamayı yükle" önerisi telefonda kapalıdır; dosyalar
-  zaten cihazdadır.
+- **Bağlantılar** — davet, e-posta doğrulama ve şifre sıfırlama bağlantıları (`https://anahtar.io/…`) uygulamayı doğrudan açar.
+- **Abonelik** — App Store / Google Play'in kendi ödeme ekranı.
+- **Hata izleme** — Sentry (AB bölgesi); kişisel veri gönderilmez ([loglar.md](loglar.md)).
+- **Excel dışa aktarma** — dosya olarak kaydedilir ve paylaşım penceresiyle açılır.
+- Yalnız **iPhone** desteklenir (iPad yok); Android'de telefon.
 
----
+## Uygulama kimliği
 
-## 1. Geliştirme ortamı
+Uygulama kimliği `io.anahtar.app` (alan adının tersi) ve mağazaya **ilk yüklemeden sonra değiştirilemez**. Tanımlandığı yerler:
+`app/app.json` (iOS `bundleIdentifier`, Android `package`), Apple'da tanımlayıcı (Push, Associated Domains, In-App Purchase),
+Firebase uygulaması, RevenueCat uygulamaları ve APNs anahtarının kısıtı. Başka bir kimlik gerekirse ilk yüklemeden önce hepsi birlikte değişir.
 
-| | Gerekli |
-| --- | --- |
-| Her ikisi | Node.js 22, `npm ci` |
-| iOS | Mac + Xcode 16 veya üstü |
-| Android | Android Studio (JDK 21 ve Android SDK birlikte gelir) |
+## Gerçek cihaz denemesi
 
-```bash
-npm ci
-npm run android   # www/ üretir, eşitler, Android Studio'yu açar
-npm run ios       # www/ üretir, eşitler, Xcode'u açar
-```
-
-Android Studio'da ▶ ile emülatörde ya da USB ile bağlı telefonda çalıştır.
-Xcode'da önce **Signing & Capabilities → Team** seç (Apple hesabın), sonra ▶.
-
-Kodu değiştirdikten sonra `npm run build:native` yeterli; yerel projeyi
-yeniden açmak gerekmez.
-
-> Mac'in yoksa: her gönderimde GitHub Actions iki platformu da derler
-> (`.github/workflows/mobile.yml`) ve Android için kurulabilir bir APK
-> üretir: **Actions → Mobil derleme → son çalıştırma → Artifacts**.
-
-## 2. Uygulama kimliği
-
-Uygulama kimliği `io.anahtar.app` (alan adının tersi). Mağazaya **ilk
-yüklemeden sonra değiştirilemez**; başka bir kimlik gerekirse ilk yüklemeden
-önce şu yerlerde değiştirilir:
-
-- `capacitor.config.json` → `appId`
-- `android/app/build.gradle` → `namespace` ve `applicationId`
-  (ve `android/app/src/main/java/online/evim/app/` klasör yolu)
-- Xcode → App hedefi → *Bundle Identifier*
-- `assets/js/config.js` → `billing.androidPackage`
-
-## 3. Bağlantıların uygulamayı açması
-
-Davet ve e-posta bağlantıları `https://anahtar.io/…` biçiminde üretilir ve
-telefonda doğrudan uygulamayı açar. Alan adı koda işlendi
-(`config.js` → `publicUrl`, `android/gradle.properties` → `evimHost`,
-`ios/App/App/App.entitlements`). Senin yapacakların:
-
-1. Sitenin `anahtar.io` adresinde yayında olması
-   ([kurulum.md → 7](kurulum.md#7-github-pages-ve-kiracimonline)).
-2. GitHub → Settings → Secrets and variables → Actions → **Variables**:
-   - `APPLE_TEAM_ID` — developer.apple.com → Membership → Team ID
-   - `ANDROID_SHA256` — Play Console → Test and release → App integrity →
-     *App signing key certificate* → SHA-256
-   Bunlar girilince site doğrulama dosyalarını (`.well-known/…`) kendisi yayınlar.
-3. Supabase → Authentication → URL Configuration:
-   - **Site URL**: `https://anahtar.io/`
-   - **Redirect URLs**: `https://anahtar.io/auth`, `https://anahtar.io/` ve `evim://auth`
-4. Doğrulama: yayından sonra
-   `https://app-site-association.cdn-apple.com/a/v1/anahtar.io` adresi
-   Apple'ın dosyayı gördüğünü, Play Console → *Deep links* sayfası Android'in
-   doğruladığını gösterir.
-
-## 4. Anlık bildirimler
-
-### iPhone (APNs)
-
-1. developer.apple.com → Certificates, IDs & Profiles → **Keys** → "+" →
-   *Apple Push Notifications service (APNs)* → .p8 dosyasını indir.
-2. Supabase gizli değişkenleri:
-
-```bash
-supabase secrets set APNS_KEY="$(cat AuthKey_XXXXXXXXXX.p8)"
-supabase secrets set APNS_KEY_ID=XXXXXXXXXX APNS_TEAM_ID=YYYYYYYYYY APNS_BUNDLE_ID=io.anahtar.app
-# Xcode'dan doğrudan kurulan geliştirme sürümüyle denerken:
-supabase secrets set APNS_SANDBOX=1
-```
-
-Xcode'da *Push Notifications* yeteneği `App.entitlements` ile zaten açık.
-
-### Android (Firebase Cloud Messaging)
-
-1. console.firebase.google.com → proje oluştur → **Android uygulaması ekle**
-   (paket adı `io.anahtar.app`) → `google-services.json` dosyasını
-   `android/app/` klasörüne koy.
-2. Firebase → Project settings → **Service accounts** → *Generate new
-   private key* (JSON).
-
-```bash
-supabase secrets set FCM_SERVICE_ACCOUNT="$(cat evim-firebase-adminsdk.json)"
-```
-
-Sonra push fonksiyonunu yeniden yükle:
-
-```bash
-supabase functions deploy push --no-verify-jwt
-```
-
-Uygulamada: Hesap → *Anlık bildirimleri aç*.
-
-## 5. Mağaza sürümü
-
-### Google Play
-
-1. Bir kez yükleme anahtarı oluştur ve **güvenli yerde sakla** (kaybolursa
-   güncelleme yüklenemez):
-
-```bash
-keytool -genkey -v -keystore evim-upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias evim
-```
-
-2. Paket (.aab):
-
-```bash
-npm run build:native
-cd android
-EVIM_KEYSTORE=/yol/evim-upload.jks EVIM_KEYSTORE_PASSWORD=… EVIM_KEY_ALIAS=evim EVIM_KEY_PASSWORD=… \
-  ./gradlew bundleRelease -PevimVersionCode=2 -PevimVersionName=1.0.1
-# → android/app/build/outputs/bundle/release/app-release.aab
-```
-
-3. Play Console → uygulama oluştur → **Test and release → Closed testing** →
-   .aab dosyasını yükle. Hesap **şirket (organization) hesabı** olarak açıldığı
-   için kişisel hesaplardaki "12 test kullanıcısı, 14 gün" şartı uygulanmaz;
-   yine de birkaç gerçek kullanıcıyla kısa bir kapalı test önerilir.
-4. Her yeni sürümde `evimVersionCode` bir artmalı.
-
-### App Store
-
-1. App Store Connect → **Apps → "+"** → Bundle ID `io.anahtar.app`.
-2. Xcode → üst menü **Product → Archive** → *Distribute App* → *App Store
-   Connect*. Sürüm: App hedefi → General → *Version* ve *Build*.
-3. Önce **TestFlight** ile kendin ve birkaç kişiyle dene, sonra incelemeye
-   gönder.
-
-### İnceleme için hazırlık
-
-- **Test hesabı**: bir mülk sahibi ve bir kiracı hesabı; mülk sahibinde örnek
-  mülkler olsun. İnceleme notuna e-posta/şifreleri yaz.
-- **Gizlilik**: App Store *App Privacy* ve Play *Data safety* formları.
-  Toplanan veriler: ad, e-posta, telefon (hesap); fotoğraf ve belgeler
-  (kullanıcı içeriği); satın alma geçmişi (abonelik). Veriler reklam ya da
-  izleme için kullanılmaz.
-- **Yasal sayfalar** sitede hazır (`site/` klasörü); mağaza formlarına bu adresleri gir:
-
-  | Mağaza alanı | Adres |
-  | --- | --- |
-  | Gizlilik politikası (Apple, Google) | `https://anahtar.io/gizlilik/` |
-  | Kullanım koşulları / EULA (Apple, abonelik için) | `https://anahtar.io/kosullar/` |
-  | Destek adresi (Apple) | `https://anahtar.io/destek/` |
-  | Hesap silme adresi (Google *Data safety*) | `https://anahtar.io/hesap-silme/` |
-  | İletişim e-postası | `info@anahtar.io` |
-
-  Sayfalar şu an **taslak**: şirket unvanı, adres, MERSİS ve vergi bilgisi
-  `site/*/index.html` içinde işaretli alanlarda doldurulmalı, metinler bir
-  hukukçuya gösterilmeli; sonra her sayfadaki "Taslak" kutusu ve
-  `<meta name="robots" content="noindex">` satırı kaldırılır.
-- **Hesap silme** uygulama içinde: Ayarlar → Hesap ve bildirim ayarları →
-  *Hesabı sil*.
-- **Ekran görüntüleri**: iPhone 6.9", Android telefon; Türkçe ve İngilizce.
-
-## 6. Güncellemeler
-
-Web sitesi her gönderimde kendiliğinden güncellenir. Telefon uygulamasında
-değişiklikler **yeni mağaza sürümüyle** kullanıcıya ulaşır (sürüm numarasını
-artırıp yeniden yükle). İleride sık güncelleme gerekirse mağaza kurallarına
-uygun "canlı güncelleme" hizmetleri (ör. Capgo) eklenebilir.
-
-## İkon ve açılış ekranı
-
-Kaynaklar `resources/` klasöründe. Değiştirirsen:
-
-```bash
-npx @capacitor/assets generate --assetPath resources --ios --android \
-  --iconBackgroundColor '#A8492A' --splashBackgroundColor '#F7F1E8' --splashBackgroundColorDark '#171512'
-```
+`preview` profiliyle derlenen test paketi (iPhone için ad hoc, Android için APK) ya da `production` profiliyle TestFlight / Play
+iç test paketi gerçek cihazda denenir; deneme listesi [magaza.md](magaza.md) bölüm 10'dadır. Web sitesi için cihaz listesi:
+[gercek-cihaz-kontrol.md](gercek-cihaz-kontrol.md).
