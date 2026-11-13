@@ -44,7 +44,7 @@ Hostinger → **Websites → Website ekle → Node.js uygulaması / GitHub'dan i
 | Alan | Değer | Neden |
 | --- | --- | --- |
 | Depo | **`fahricankuz/keys`** | Kaynak kod (`app/` klasörü) bu depodadır. |
-| Dal | `main` (varsayılan dal; yeniden adlandırılana kadar `claude/github-keys-setup-uzvnzm`) | `app/` klasörünü içeren dal. |
+| Dal | `main` (varsayılan dal) | `app/` klasörünü içeren dal. |
 | Framework ön ayarı | **Other** | Listede Expo yok; çıktı düz statik dosyadır. |
 | Düğüm sürümü | **22.x** | Uygulama Node 22 ile test edildi (20.x de çalışır). |
 | Kök dizin | **`app`** | Uygulama bu klasördedir (kökte eski site var). |
