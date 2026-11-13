@@ -28,6 +28,14 @@ npm run db:derle                     # supabase/schema.sql'i migration'lardan ye
 
 Uygulamayı yerelde çalıştırmak ve sahte sunucuyla derlemek için `app/` klasöründeki `npm` betiklerine bakın.
 
+## Belgeler
+
+- **[docs/HANDOVER.md](docs/HANDOVER.md)**: güncel durum ve devir notu; yeni bir yapay zekâ ajanına önce bunu verin (İngilizce).
+- **[AGENTS.md](AGENTS.md)**: yapay zekâ ajanları için tek ve tam rehber (kurallar, test, yayın akışı, onay matrisi, raporlama). İngilizcedir; Claude Code ayrıca [CLAUDE.md](CLAUDE.md) dosyasını okur.
+- **[docs/README.md](docs/README.md)**: bütün belgelerin dizini.
+- Depo sahipleri için: [docs/ai-ile-calisma.md](docs/ai-ile-calisma.md) (yapay zekâ ile güvenli çalışma, neyi onaylamalı, neyi asla yapıştırmamalı, bir şey bozulursa ne yapmalı).
+- Altyapı haritası: [docs/infrastructure.md](docs/infrastructure.md). Yayın, migration, OTA ve geri alma adımları: [docs/release-and-ota.md](docs/release-and-ota.md).
+
 ## Çalışma kuralları
 
 Veritabanı değişikliği her zaman yeni bir migration'dır; `schema.sql` elle düzenlenmez. Migration'lar yalnız GitHub Actions →
