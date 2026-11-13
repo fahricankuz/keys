@@ -183,6 +183,7 @@ cd app && npx eas-cli update:list --branch production --limit 3  # OTA updates (
 ```
 Store state from the API (read-only; needs the Apple key / Play service account env, see README): `npm run magaza:durum --prefix app`; all store scripts: `app/scripts/magaza/README.md`.
 Sentry: `https://anahtar.sentry.io` (projects `anahtar-web`, `anahtar-mobile`, `anahtar-edge`). Store states: App Store Connect / Play Console (humans).
+End-to-end test accounts (production, seeded data, notification e-mails off): `test-mulk@`, `test-kiraci@`, `test-yeni@`, `test-yonetici@`, `test-sakin@anahtar.io`; the password is only in Erdem's local secrets folder. Create, refresh or check them with `app/scripts/test-hesaplari.mjs` (`--kuru` dry run, `--dogrula` sign-in counts); details in the script header.
 
 ---
 
