@@ -1,5 +1,6 @@
 /* Tarih, biçimlendirme ve küçük yardımcılar. */
 
+import { randomBytes } from './random';
 import { locale, t } from './i18n.js';
 
 export const DAY = 864e5;
@@ -97,12 +98,6 @@ export function match(hay, q){ return norm(hay).includes(norm(q)); }
 /** Ekran okuyucu bildirimi: RN'de erişilebilirlik katmanı üstlenir. */
 export function announce(){}
 
-/** Güvenli rastgele baytlar: tarayıcıda Web Crypto, Hermes'te (Web Crypto yok) expo-crypto. Math.random kimlik ya da jeton üretmez. */
-function randomBytes(n){
-  const c = globalThis.crypto;
-  if (c && c.getRandomValues) return c.getRandomValues(new Uint8Array(n));
-  return require('expo-crypto').getRandomBytes(n);
-}
 
 /** Çakışmasız kimlik: sunucuda birincil anahtar olarak da kullanılır (UUID v4 biçimi, kriptografik rastgelelik). */
 export function uid(prefix = ''){
