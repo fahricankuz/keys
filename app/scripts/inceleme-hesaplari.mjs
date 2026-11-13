@@ -21,7 +21,7 @@ const PEOPLE = [
   { email: 'inceleme-kiraci@anahtar.io', name: 'Demo Kiracı', role: 'tenant' }
 ];
 
-async function ensureUser(p) {
+async function ensureUser(p, invite) {
   // Hesap varsa şifresi güncellenir; yoksa e-postası onaylı olarak açılır (profil, kayıt tetikleyicisiyle oluşur).
   for (let page = 1; page < 50; page++) {
     const { users } = must(await sb.auth.admin.listUsers({ page, perPage: 200 }), 'kullanıcı listesi');
@@ -29,7 +29,7 @@ async function ensureUser(p) {
     if (u) { must(await sb.auth.admin.updateUserById(u.id, { password: PASSWORD, email_confirm: true }), 'şifre'); return u.id; }
     if (users.length < 200) break;
   }
-  const { user } = must(await sb.auth.admin.createUser({ email: p.email, password: PASSWORD, email_confirm: true, user_metadata: { name: p.name, role: p.role } }), 'hesap');
+  const { user } = must(await sb.auth.admin.createUser({ email: p.email, password: PASSWORD, email_confirm: true, user_metadata: { name: p.name, role: p.role, ...(invite ? { invite } : {}) } }), 'hesap');
   return user.id;
 }
 
@@ -37,11 +37,9 @@ const ym = (d) => d.toISOString().slice(0, 7);
 const day = (d) => d.toISOString().slice(0, 10);
 
 async function main() {
-  const [L, T] = [await ensureUser(PEOPLE[0]), await ensureUser(PEOPLE[1])];
+  const L = await ensureUser(PEOPLE[0]);
   // Mülk sahibinin paketi süresiz açık olsun (inceleme deneme süresine takılmasın).
   must(await sb.from('subscriptions').upsert({ user_id: L, product_id: 'bes_3_aylik', store: 'admin', period_type: 'normal', active: true, will_renew: false, expires_at: null }), 'paket');
-  // Hoş geldin e-postası demo hesaplara gitmesin.
-  await sb.from('welcome_mail').upsert([{ user_id: L, kind: 'skip' }, { user_id: T, kind: 'skip' }]);
 
   const pid = 'demo-inceleme';
   await sb.from('properties').delete().eq('id', pid);
@@ -50,6 +48,11 @@ async function main() {
   const end = new Date(now.getFullYear() + 1, now.getMonth() - 5, 1);
   must(await sb.from('properties').insert({ id: pid, owner_id: L, name: 'Moda Dairesi (demo)', addr: 'Kadıköy, İstanbul', rent: 25000, due_day: 5,
     deposit: 50000, start_date: day(start), contract_end: day(end), prop_type: 'Konut', aidat: 1500, aidat_payer: 'Kiracı' }), 'mülk');
+  // Kiracı hesabı geçerli bir davet koduyla açılır (handle_new_user: signup_code_ok); kod bu mülke ait yeni bir davettir.
+  const inv = must(await sb.from('invites').insert({ property_id: pid, created_by: L, name: PEOPLE[1].name, email: PEOPLE[1].email }).select('code').single(), 'davet');
+  const T = await ensureUser(PEOPLE[1], inv.code);
+  // Hoş geldin e-postası demo hesaplara gitmesin.
+  await sb.from('welcome_mail').upsert([{ user_id: L, kind: 'skip' }, { user_id: T, kind: 'skip' }]);
   must(await sb.from('memberships').upsert({ property_id: pid, user_id: T, role: 'tenant', display_name: PEOPLE[1].name, email: PEOPLE[1].email }), 'kiracı üyeliği');
 
   // Son 4 ayın kirası ödenmiş ve onaylı; bu ay bekliyor.
