@@ -268,6 +268,9 @@
         "projectId": "033b708c-b12b-455e-9c8e-10d12531d9f5"
       }
     },
-    "owner": "anahtar_io"
+    "owner": "anahtar_io",
+    "updates": {
+      "url": "https://u.expo.dev/033b708c-b12b-455e-9c8e-10d12531d9f5"
+    }
   }
 }
