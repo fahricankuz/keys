@@ -256,7 +256,7 @@ test('ana sayfa: duyuru şeridi, açılır özellik menüsü, yüzen kartlar, fi
   // Fiyatlar: aylık / yıllık seçimi fiyatı değiştirir; paket düğmesi "Paketi seç".
   await expect(page.getByText('₺99,99').first()).toBeVisible();
   await page.getByRole('tab', { name: /Yıllık/ }).click();
-  await expect(page.getByText('₺999,90').first()).toBeVisible();
+  await expect(page.getByText('₺999,99').first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Paketi seç' }).first()).toBeVisible();
   // SSS: soru basınca açılır, yeniden basınca kapanır.
   const q = page.getByRole('button', { name: 'Kiracı için ücretli mi?' });
@@ -285,7 +285,7 @@ test('güvenlik: her sayfada CSP var ve satır içi betiklerin hepsi özetle izi
     const csp = (html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/) || [])[1];
     expect(csp, f).toBeTruthy();
     expect(csp).toContain("object-src 'none'");
-    expect(csp).toContain("base-uri 'self'");
+    expect(csp).toMatch(/base-uri '(self|none)'/);
     expect(csp).not.toMatch(/script-src[^;]*'unsafe-(inline|eval)'/);
     // JSON-LD gibi veri blokları çalıştırılmaz; CSP yalnız çalıştırılabilir satır içi betiklere uygulanır.
     for (const m of html.matchAll(/<script(?![^>]*\ssrc=)(?![^>]*type="application\/ld\+json")[^>]*>([\s\S]*?)<\/script>/g)) {

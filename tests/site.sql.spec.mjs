@@ -28,9 +28,9 @@ test('yönetim daire ve sakin ekler; davet koduyla kiracı ve malik dairesine ba
   await as(M);
   [{ id: a1 }] = await q(`insert into public.site_units (org_id, block, no, area, share, aidat) values ($1, 'A', '1', 120, 2, 1500) returning id`, [org]);
   [{ id: a2 }] = await q(`insert into public.site_units (org_id, block, no, area, share, aidat, payer) values ($1, 'A', '2', 80, 1, 1000, 'malik') returning id`, [org]);
-  [{ code: codeT }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'kiraci', 'Kiracı') returning code`, [org, a1]);
-  [{ code: codeL }] = await q(`insert into public.site_residents (org_id, unit_id, role, name, lives_here) values ($1, $2, 'malik', 'Ev Sahibi', false) returning code`, [org, a1]);
-  expect(codeT).toMatch(/^S[0-9A-F]{7}$/);
+  [{ code: codeT }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'kiraci', 'Kiracı') returning id`, [org, a1]).then(([{ id }]) => q(`select public.site_resident_code($1) code`, [id]));
+  [{ code: codeL }] = await q(`insert into public.site_residents (org_id, unit_id, role, name, lives_here) values ($1, $2, 'malik', 'Ev Sahibi', false) returning id`, [org, a1]).then(([{ id }]) => q(`select public.site_resident_code($1) code`, [id]));
+  expect(codeT).toMatch(/^S[0-9A-HJKMNP-TV-Z]{16}$/);   // yeni sakin kodu: S + 16 karakter (80 bit)
   // Yetkisi olmayan (muhasebe) daire ekleyemez; kurum dışı hiç göremez.
   await as(Y);
   expect(await tryCall(db, `insert into public.site_units (org_id, no) values ($1, '9')`, [org])).toMatch(/row-level security/);
@@ -41,7 +41,7 @@ test('yönetim daire ve sakin ekler; davet koduyla kiracı ve malik dairesine ba
   await q(`select public.accept_site_invite($1)`, [codeT.toLowerCase()]);
   await as(ID.L);
   await q(`select public.accept_site_invite($1)`, [codeL]);
-  expect(await tryCall(db, `select public.accept_site_invite($1)`, [codeT])).toMatch(/kullanılmış/);
+  expect((await q(`select public.accept_site_invite($1) r`, [codeT]))[0].r).toBeNull();   // başkasının kullandığı kod: tek biçimli ret
   await as(ID.T);
   const [{ u }] = await q(`select public.my_site_units() u`);
   expect(u).toEqual([expect.objectContaining({ org: 'Atakum Sitesi', block: 'A', no: '1', role: 'kiraci', payer: 'kiraci' })]);

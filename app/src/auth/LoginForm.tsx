@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import SignedIn from './SignedIn';
 import AuthShell from './AuthShell';
@@ -28,7 +28,7 @@ export default function LoginForm({ as = 'user' }: { as?: Entry }) {
   const [roles, setRoles] = useState<Ctx[] | null>(null);
   // E-posta onay bağlantısından gelindi (/giris?dogrulandi=1). Statik çıktıda adres parametresi yoktur; hidrasyondan sonra okunur.
   const [verified, setVerified] = useState(false);
-  useEffect(() => { if (typeof window !== 'undefined' && /[?&]dogrulandi=1/.test(window.location.search)) setVerified(true); }, []);
+  useEffect(() => { if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location && /[?&]dogrulandi=1/.test(window.location.search)) setVerified(true); }, []);
   if (ready && user && !sent) return <SignedIn user={user} />;
   const submit = async () => {
     setBusy(true); setErr(null); setSent(true);
@@ -79,7 +79,7 @@ export default function LoginForm({ as = 'user' }: { as?: Entry }) {
       <Button kind="primary" block title={t('Giriş yap')} onPress={submit} loading={busy} />
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         <PressScale onPress={() => router.push('/sifre')} accessibilityRole="link"><Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('Şifremi unuttum')}</Text></PressScale>
-        {!admin && live ? (
+        {!admin && live && Platform.OS === 'web' ? (
           <PressScale onPress={() => router.push('/giris/yonetici')} accessibilityRole="link"><Text v="small" muted>{t('Yönetici girişi')}</Text></PressScale>
         ) : null}
       </View>

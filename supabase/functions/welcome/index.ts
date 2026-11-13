@@ -6,14 +6,15 @@
 //
 // Kurulum: supabase functions deploy welcome
 // Gizli değişkenler (rapor e-postasıyla aynı): SMTP_HOST/SMTP_USER/SMTP_PASS (Hostinger) ya da RESEND_API_KEY, EMAIL_FROM. İsteğe bağlı: APP_URL (varsayılan https://anahtar.io).
-// SUPABASE_URL, SUPABASE_ANON_KEY ve SUPABASE_SERVICE_ROLE_KEY Supabase tarafından otomatik sağlanır.
+// SUPABASE_URL ve SUPABASE_SECRET_KEYS (yoksa SUPABASE_SERVICE_ROLE_KEY) Supabase tarafından otomatik sağlanır.
 
-import { createClient } from 'npm:@supabase/supabase-js@2';
 import { renderWelcome, type WelcomeKind } from './template.ts';
+import { serviceClient } from '../_shared/keys.ts';
 import { mailConfigured, mailMissing, sendMail } from '../_shared/mail.ts';
+import { sentryServe } from '../_shared/sentry.ts';
 
 const env = (k: string) => Deno.env.get(k) ?? '';
-const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
+const admin = serviceClient();
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'authorization, x-client-info, apikey, content-type',
@@ -21,7 +22,7 @@ const CORS = {
 };
 const json = (b: unknown, status = 200) => Response.json(b, { status, headers: CORS });
 
-Deno.serve(async (req) => {
+sentryServe('welcome', async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'method' }, 405);
   const jwt = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');

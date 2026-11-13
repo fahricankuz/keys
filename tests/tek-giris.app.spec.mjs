@@ -137,7 +137,7 @@ test('rol ekle: mülk sahibi hesabı site kodunu girerek sitesine sakin olarak b
   await expect(page.getByRole('button', { name: 'Mülk sahibi özelliğini ekle' })).toHaveCount(0);
   await page.getByLabel('Davet kodu').fill('YOKYOK12');
   await page.getByRole('button', { name: 'Kodla bağlan' }).click();
-  await expect(page.getByText(/Davet kodu bulunamadı/)).toBeVisible();
+  await expect(page.getByText(/Bu davet kodu geçerli değil/)).toBeVisible();
   await page.getByLabel('Davet kodu').fill('s1234567');
   await page.getByRole('button', { name: 'Kodla bağlan' }).click();
   await expect(page.getByText(/Bağlandın\./)).toBeVisible();

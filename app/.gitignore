@@ -6,3 +6,16 @@ dist/
 dist-fake/
 dist-fake.lock/
 google-services.json
+
+# Gizli dosyalar (kökteki .gitignore ile aynı; app/ içinden çalışan araçlar için)
+.env
+.env.*
+!.env.example
+*.p8
+*.p12
+*.jks
+*.keystore
+*.mobileprovision
+GoogleService-Info.plist
+credentials.json
+.mcp.json

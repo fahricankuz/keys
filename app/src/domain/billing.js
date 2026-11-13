@@ -11,6 +11,7 @@ import { CONFIG, LIVE } from './config.js';
 import { S, ui, save } from './state.js';
 import { storage } from './storage.js';
 import { live } from './backend.js';
+import { billingPaused } from './app-config.js';
 import { tiers, FEATURES, maxUnits } from './plans.js';
 
 export { PLAN_LABEL, planLabel, tiers, tierOf, unitsText, rangeText, priceText, monthlyEquivalent, totalPrice, totalText, productId, parseProduct, maxUnits, tierPoints, FEATURES } from './plans.js';
@@ -46,8 +47,8 @@ export function canWrite(){
   return ui.role !== 'landlord' || access().access !== false;
 }
 
-/** Satın alma kapalı mı (fiyatlar henüz tanımlı değil). */
-export function paused(){ return !!CONFIG.billing.paused; }
+/** Satın alma kapalı mı. Değer sunucudadır (public.app_config → billing_paused, app-config.js); okunamazsa config.js yedeği. */
+export function paused(){ return billingPaused(); }
 
 /** Paketin mülk sınırı; null = sınırsız. */
 export function unitLimit(a = access()){ return a && a.units !== undefined ? a.units : null; }

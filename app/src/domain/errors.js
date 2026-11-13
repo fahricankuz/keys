@@ -8,6 +8,7 @@ import Constants from 'expo-constants';
 import { CONFIG, LIVE } from './config.js';
 import { live, client } from './backend.js';
 import { setLogSink } from './logs.js';
+import { captureError } from './sentry';
 
 const FAKE = process.env.EXPO_PUBLIC_SUPABASE_URL === 'fake:';
 // Hostinger'ın geçici adresi HTML'deki alan adını kendininkiyle değiştirir; bu yüzden orada React #418 (metin uyuşmazlığı) çıkar.
@@ -31,6 +32,7 @@ export function reportError(err, kind = 'error'){
     const key = kind + ':' + message;
     if (seen.has(key) || sent >= 20) return;
     seen.add(key); sent++;
+    if (kind === 'render' || kind === 'caught') captureError(err, kind);   // yakalanmamış hata ve söz reddini Sentry kendi kancasıyla alır (çift kayıt olmasın)
     const p = {
       message, stack, kind,
       route: typeof window !== 'undefined' && window.location ? window.location.pathname : '',

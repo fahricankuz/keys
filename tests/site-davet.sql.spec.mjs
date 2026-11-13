@@ -18,21 +18,25 @@ test.beforeAll(async () => {
   [{ id: u1 }] = await q(`insert into public.site_units (org_id, block, no, area, aidat) values ($1, 'A', '1', 100, 1500) returning id`, [org]);
   [{ id: u2 }] = await q(`insert into public.site_units (org_id, block, no, area) values ($1, 'A', '2', 90) returning id`, [org]);
   [{ id: villa }] = await q(`insert into public.site_units (org_id, block, no, area, aidat) values ($1, '', 'Villa 3', 250, 4000) returning id`, [org]);
-  [{ id: rid, code }] = await q(`insert into public.site_residents (org_id, unit_id, role, name, phone, email) values ($1, $2, 'kiraci', 'Ayşe Kiracı', '05321112233', 'ayse@ornek.com') returning id, code`, [org, u1]);
+  [{ id: rid, code }] = await q(`insert into public.site_residents (org_id, unit_id, role, name, phone, email) values ($1, $2, 'kiraci', 'Ayşe Kiracı', '05321112233', 'ayse@ornek.com') returning id`, [org, u1]).then(async ([{ id }]) => [{ id, code: (await q(`select public.site_resident_code($1) code`, [id]))[0].code }]);
 });
 
-test('davet bilgisi: oturumsuz kodla ad, telefon ve e-posta; kullanılınca kişisel bilgi yok; villada "No" yok', async () => {
+test('davet bilgisi: oturumsuz kodla yalnız maskeli ad (telefon ve e-posta yok); kullanılınca hiçbir bilgi yok; villada "No" yok', async () => {
   await as(null, true);
   const [{ i }] = await q(`select public.site_invite_info($1) i`, [code.toLowerCase()]);
-  expect(i).toMatchObject({ org: 'Dalyan Sitesi', unit: 'A Blok No 1', role: 'kiraci', name: 'Ayşe Kiracı', phone: '05321112233', email: 'ayse@ornek.com', used: false });
+  expect(i).toEqual({ org: 'Dalyan Sitesi', sector: 'site', unit: 'A Blok No 1', role: 'kiraci', name: 'A*** K***', email_bound: true, used: false });
+  expect(JSON.stringify(i)).not.toMatch(/05321112233|ayse@ornek\.com|Ayşe/);
   expect((await q(`select public.site_invite_info('SXXXXXXX') i`))[0].i).toBeNull();
   await as(null);
   expect((await q(`select public.unit_label($1) v`, [villa]))[0].v).toBe('Villa 3');
+  await as(ID.T);                                                                    // davet ayse@ornek.com'a bağlı: başka e-postalı hesap kabul edemez
+  expect((await q(`select public.accept_site_invite($1) r`, [code]))[0].r).toBeNull();
+  await as(null);
+  await db.query(`update auth.users set email = 'ayse@ornek.com' where id = $1`, [ID.T]);
   await as(ID.T);
   await q(`select public.accept_site_invite($1)`, [code]);
   await as(null, true);
-  const [{ i: used }] = await q(`select public.site_invite_info($1) i`, [code]);
-  expect(used).toEqual({ org: 'Dalyan Sitesi', unit: 'A Blok No 1', used: true });
+  expect((await q(`select public.site_invite_info($1) i`, [code]))[0].i).toBeNull();   // kullanılmış kod: ad ve daire dahil hiçbir bilgi yok
 });
 
 test('davet e-postası içeriği yalnız yetkili yöneticiye; katılmış kişiye ve e-postasıza gönderilmez', async () => {

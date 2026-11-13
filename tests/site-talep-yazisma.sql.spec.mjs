@@ -27,8 +27,8 @@ test.beforeAll(async () => {
   await as(M);
   [{ id: a1 }] = await q(`insert into public.site_units (org_id, block, no) values ($1, 'A', '1') returning id`, [org]);
   [{ id: a2 }] = await q(`insert into public.site_units (org_id, block, no) values ($1, 'A', '2') returning id`, [org]);
-  const [{ code: ct }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'kiraci', 'Kiracı') returning code`, [org, a1]);
-  const [{ code: cl }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'malik', 'Komşu') returning code`, [org, a2]);
+  const [{ code: ct }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'kiraci', 'Kiracı') returning id`, [org, a1]).then(([{ id }]) => q(`select public.site_resident_code($1) code`, [id]));
+  const [{ code: cl }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'malik', 'Komşu') returning id`, [org, a2]).then(([{ id }]) => q(`select public.site_resident_code($1) code`, [id]));
   await as(ID.T); await q(`select public.accept_site_invite($1)`, [ct]);
   await as(ID.L); await q(`select public.accept_site_invite($1)`, [cl]);
   await as(ID.T);

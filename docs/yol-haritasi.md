@@ -19,7 +19,7 @@ Test ya da yapılacaklar sorulduğunda bu liste hatırlatılır; yapılan madde 
 - [ ] Mağaza içi satın alma: Paid Apps sözleşmesi, 36 App Store / 18 Google Play aboneliği, RevenueCat projesi, webhook ve
       anahtarlar (`docs/magaza.md` bölüm 7).
 - [ ] Telefona anlık bildirim: APNs anahtarı ve Firebase (`docs/magaza.md` bölüm 8).
-- [ ] Telefon uygulamasında Turnstile yok: Supabase'te CAPTCHA açılırsa uygulamadan giriş çalışmaz (`docs/magaza.md` bölüm 6).
+- [x] Telefon uygulamasında Turnstile var (WebView'de `/turnstile/` sayfası); kalan iş: telefon derlemesine `EXPO_PUBLIC_TURNSTILE_SITE_KEY` verip Supabase CAPTCHA'yı en son açmak (`docs/canliya-alma.md`, `docs/magaza.md` bölüm 6).
 - [ ] Her yıl Ocak başı: yeni yılın gelir vergisi dilimleri, konut kira istisnası ve beyan sınırı açıklanınca
       `app/src/domain/tax.js` → `RATES`'e yılı ekletmek (2026 eklendi; 2027 için Aralık 2026 sonundaki tebliği bekle).
 

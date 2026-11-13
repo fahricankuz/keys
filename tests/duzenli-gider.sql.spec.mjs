@@ -14,7 +14,7 @@ test.beforeAll(async () => {
   await q(`select public.admin_org_set_master($1, 'yonetim@dalyan.com')`, [org]);
   await as(M);
   [{ id: unit }] = await q(`insert into public.site_units (org_id, block, no, area) values ($1, 'A', '1', 100) returning id`, [org]);
-  const [{ code }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'malik', 'Ayşe') returning code`, [org, unit]);
+  const [{ code }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'malik', 'Ayşe') returning id`, [org, unit]).then(([{ id }]) => q(`select public.site_resident_code($1) code`, [id]));
   await as(ID.T); await q(`select public.accept_site_invite($1)`, [code]);
   await as(M);
   await q(`insert into public.site_cash (org_id, opening, opening_on) values ($1, 10000, '2026-10-01')`, [org]);

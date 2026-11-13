@@ -8,17 +8,18 @@
 //   Supabase → Database → Webhooks → yeni webhook: tablo public.mail_outbox, olay INSERT, tür "Supabase Edge Functions" → mail-send,
 //   başlık x-anahtar-secret: <MAIL_SECRET>.
 // Gizli değişkenler: MAIL_SECRET, SMTP_HOST/SMTP_USER/SMTP_PASS ya da RESEND_API_KEY, EMAIL_FROM; isteğe bağlı LEAD_TO (ekip adresi, varsayılan info@anahtar.io), APP_URL.
-// SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY Supabase tarafından otomatik sağlanır.
+// SUPABASE_URL ve SUPABASE_SECRET_KEYS (yoksa SUPABASE_SERVICE_ROLE_KEY) Supabase tarafından otomatik sağlanır.
 
-import { createClient } from 'npm:@supabase/supabase-js@2';
 import { renderOutbox } from './template.ts';
 import { mailConfigured, mailMissing, sendMail } from '../_shared/mail.ts';
+import { serviceClient } from '../_shared/keys.ts';
 import { logger } from '../_shared/log.ts';
+import { sentryServe } from '../_shared/sentry.ts';
 
 const log = logger('mail-send');
 
 const env = (k: string) => Deno.env.get(k) ?? '';
-const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
+const admin = serviceClient();
 
 function safeEqual(a: string, b: string): boolean {
   const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
@@ -42,7 +43,7 @@ async function sendOne(id: number): Promise<'sent' | 'skipped' | 'failed'> {
   return 'sent';
 }
 
-Deno.serve(async (req) => {
+sentryServe('mail-send', async (req) => {
   if (req.method !== 'POST') return new Response('method', { status: 405 });
   const secret = env('MAIL_SECRET');
   if (!secret || !safeEqual(req.headers.get('x-anahtar-secret') ?? '', secret)) return new Response('unauthorized', { status: 401 });

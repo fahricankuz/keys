@@ -25,10 +25,10 @@ test('tahmini gelir: paket fiyatı × mülk adedi; yıllık paket ayda 1/12; Kur
   const r = M.revenueEstimate([
     { plan: 'bes', yearly: true, owners: 1, units: 5 }, { plan: 'tek', yearly: false, owners: 2, units: 3 }, { plan: 'kurumsal', yearly: false, owners: 1, units: 40 }
   ]);
-  expect(r.rows[0].monthly).toBeCloseTo((1999.90 * 5) / 12, 2);
+  expect(r.rows[0].monthly).toBeCloseTo((1999.99 * 5) / 12, 2);
   expect(r.rows[1].monthly).toBeCloseTo(99.99 * 3, 2);
   expect(r.rows[2].monthly).toBe(null);
-  expect(r.mrr).toBeCloseTo((1999.90 * 5) / 12 + 99.99 * 3, 2);
+  expect(r.mrr).toBeCloseTo((1999.99 * 5) / 12 + 99.99 * 3, 2);
   expect(r.arr).toBeCloseTo(r.mrr * 12, 1);
   expect(r.unpriced).toBe(1);
 });

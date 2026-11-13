@@ -5,19 +5,25 @@
 
 import { t } from './i18n.js';
 import { logCaught } from './logs.js';
-import { client, live, storeFile, inviteLink } from './backend.js';
+import { client, live, storeFile, inviteLink, inviteRejected } from './backend.js';
 import { waLink } from './wa.js';
 import { storedPath } from './mapping.js';
 import { emit, S, ui } from './state.js';
 import { iso, mkey, match } from './util.js';
 import { CONFIG } from './config.js';
 import { amountIn, chargeIn } from './fx-report.js';
+import { normalizeInviteCode, isSiteInviteCode } from './invite-code.js';
+import { rpcOr } from './rpc-missing.js';
 
 function must(res){
   if (res.error) throw res.error;
   return res.data;
 }
 const db = async () => client();
+
+/** site_residents okuma ve yazmada kullanılan sütunlar: kod (code) yok, onun için residentCode() vardır (follow-up migration'ından sonra sütun istemciye kapalı olur).
+    Yalnız migration'lardan ÖNCEKİ şemada da bulunan sütunlar yazılır (site migration'dan önce yayına çıkar): mailed_at gibi yeni sütunlar eklenmez. */
+export const RESIDENT_COLS = 'id, org_id, unit_id, user_id, role, name, phone, email, lives_here, created_at, invited_at';
 
 /** Sitede mi, ticari portföyde mi (AVM, depo, GYO)? Ticari kurumda birimin kira sözleşmesi vardır. */
 export const isCommercial = (sector) => !!sector && sector !== 'site';
@@ -209,7 +215,7 @@ export async function loadSiteAdmin(oid){
   const since = (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 12); return mkey(d); })();
   const [units, residents, charges, expenses, notes, requests, budgets, linked, turnovers, rentChanges, orgRow, auto, documents, cash, recurring] = await Promise.all([
     c.from('site_units').select('*').eq('org_id', oid),
-    c.from('site_residents').select('*').eq('org_id', oid),
+    c.from('site_residents').select(RESIDENT_COLS).eq('org_id', oid),
     c.from('site_charges').select('*').eq('org_id', oid),
     c.from('site_expenses').select('*').eq('org_id', oid),
     c.from('site_announcements').select('*').eq('org_id', oid),
@@ -329,7 +335,7 @@ export async function saveResident(oid, r){
   const row = { org_id: oid, unit_id: r.unit_id, role: r.role === 'malik' ? 'malik' : 'kiraci', name: String(r.name || '').trim(),
     phone: String(r.phone || '').trim(), email: String(r.email || '').trim().toLowerCase(), lives_here: r.lives_here !== false };
   if (r.id) return must(await c.from('site_residents').update(row).eq('id', r.id));
-  return must(await c.from('site_residents').insert(row).select().single());
+  return must(await c.from('site_residents').insert(row).select(RESIDENT_COLS).single());
 }
 export async function deleteResident(id){ must(await (await db()).from('site_residents').delete().eq('id', id)); }
 
@@ -341,15 +347,31 @@ export function inviteText(org, unit, code, commercial = false){
   if (commercial) return t('{org} yönetimi seni {unit} için anahtar’a davet etti. Kiranı, faturalarını ve taleplerini buradan izleyeceksin. Ücretsiz hesabını aç: {url} (davet kodu: {code})', { org, unit, url: inviteLink(code), code });
   return t('{org} sitesindeki {unit} dairen için anahtar daveti. Bağlantıdan ücretsiz hesabını aç: {url} (davet kodu: {code})', { org, unit, url: inviteLink(code), code });
 }
-export const inviteWa = (r, org, unit, commercial = false) => waLink(r.phone, inviteText(org, unit, r.code, commercial));
-/** Davet e-postası (e-posta girildiyse) gönderilir ve davet "gönderildi" olarak işaretlenir. E-posta gönderilemezse WhatsApp yine çalışır. */
+/** Sakinin davet kodu: yalnız "Malik ve kiracılar" yetkisi olan sunucu işleviyle okunur (site_resident_code). Yetki yoksa boş döner.
+    İşlev sunucuda yoksa (site migration'dan önce yayına çıkar) eski şemadaki yola düşülür: kod sütunu doğrudan seçilir. */
+export async function residentCode(id){
+  try {
+    const c = await db();
+    const res = await rpcOr(c, 'site_resident_code', { p_resident: id }, async () => c.from('site_residents').select('code').eq('id', id).maybeSingle());
+    const v = must(res);
+    return (v && typeof v === 'object' ? v.code : v) || '';
+  } catch(e){ logCaught('Davet kodu okunamadı', e); return ''; }
+}
+export async function inviteWa(r, org, unit, commercial = false){
+  const code = r.code || await residentCode(r.id);
+  return waLink(r.phone, inviteText(org, unit, code, commercial));
+}
+/** Davet e-postası (e-posta girildiyse) gönderilir ve davet "gönderildi" olarak işaretlenir. E-posta gönderilemezse WhatsApp yine çalışır.
+    Dönen: true (gönderildi) | false (gönderilemedi ya da e-posta yok) | 'throttled' (aynı kişiye az önce gönderilmiş; gönderilmedi). */
 export async function sendSiteInvite(r){
   const c = await db();
   let mailed = false;
   if (r.email){
     try {
       const res = await c.functions.invoke('site-invite', { body: { resident: r.id } });
-      mailed = !res.error;
+      // Sunucu aynı kişiye 2 dakikada bir e-posta gönderir: {ok:true, sent:false, reason:'throttled'} gönderilmedi demektir (kısa süre önce gitmiş).
+      const d = res.data;
+      mailed = res.error ? false : (d && d.reason === 'throttled') ? 'throttled' : !(d && d.sent === false);
     } catch(e){ logCaught('Davet e-postası gönderilemedi', e); }
   }
   await markInvited(r.id);
@@ -358,9 +380,9 @@ export async function sendSiteInvite(r){
 export async function markInvited(id){
   try { await (await db()).from('site_residents').update({ invited_at: new Date().toISOString() }).eq('id', id); } catch(e){}
 }
-/** /katil sayfası: kodun sitesi ve dairesi; kullanılmamışsa yönetimin girdiği ad, telefon ve e-posta (kayıt formunu doldurmak için). */
+/** /katil sayfası: kodun sitesi, dairesi ve rolü; ad yalnız maskeli gelir (telefon ve e-posta sunucudan çıkmaz), email_bound davetin e-postaya bağlı olduğunu söyler. */
 export async function siteInviteInfo(code){
-  return must(await (await db()).rpc('site_invite_info', { invite_code: String(code || '').trim().toUpperCase() }));
+  return must(await (await db()).rpc('site_invite_info', { invite_code: normalizeInviteCode(code) }));
 }
 
 /* ---- Otomatik aidat (schema.sql 29. bölüm → site_auto_run) -------- */
@@ -452,8 +474,8 @@ export async function answerRequest(id, status, reply){
 
 /* ---- Sakin (malik ya da kiracı) ----------------------------------- */
 
-/** Site davet kodu "S" ile başlar (mülk kodları 0-9 ve A-F; kurum kodları "K"). */
-export const isSiteCode = (code) => /^S[0-9A-F]{7}$/.test(String(code || '').trim().toUpperCase());
+/** Site davet kodu "S" ile başlar: eski kod S + 7 onaltılık hane, yeni kod S + 16 karakter (bkz. invite-code.js). */
+export const isSiteCode = isSiteInviteCode;
 
 export const mySiteUnits = () => live.siteUnits || [];
 /** Yalnız site (ya da AVM/depo) sakini, mülke bağlı kiracı değil: uygulamanın sekmeleri site ekranlarıdır, "Mülküne bağlan" gösterilmez. */
@@ -470,7 +492,8 @@ export async function refreshSiteUnits(redraw = true){
   return live.siteUnits || [];
 }
 export async function acceptSiteInvite(code){
-  const unit = must(await (await db()).rpc('accept_site_invite', { invite_code: String(code).trim().toUpperCase() }));
+  const unit = must(await (await db()).rpc('accept_site_invite', { invite_code: normalizeInviteCode(code) }));
+  if (!unit) throw inviteRejected();      // sunucu her başarısızlığı (yanlış, kullanılmış, süresi dolmuş, başka e-posta, sınır) NULL ile bildirir
   await refreshSiteUnits();
   return unit;
 }

@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import AuthShell from '../auth/AuthShell';
-import { dropInvite, keepInvite, keepPrefill, useAuth } from '../auth/auth';
+import { dropInvite, keepInvite, useAuth } from '../auth/auth';
 import { t } from '../domain/i18n';
 import { invitePreview } from '../domain/backend';
-import { isOrgCode } from '../domain/org';
-import { isSiteCode, siteInviteInfo } from '../domain/site';
+import { isOrgInviteCode, isSiteInviteCode, inviteCodeFromInput, normalizeInviteCode } from '../domain/invite-code';
+import { siteInviteInfo } from '../domain/site';
 import { roleLabel } from '../domain/team';
 import { Button, Text } from '../ui/kit';
 import { View } from 'react-native';
 import { useColors, fonts } from '../ui/theme';
 
-type Preview = { role: string; scope?: string; owner?: string; property?: string; valid?: boolean };
+type Preview = { role: string; scope?: string; owner?: string; property?: string; valid?: boolean; email_bound?: boolean };
 
 /** Davet bağlantısı: kod saklanır, hesap açıldıktan / giriş yapıldıktan sonra mülke ya da ekibe katılınır. */
 export default function Katil() {
@@ -27,25 +27,22 @@ export default function Katil() {
   const [missing, setMissing] = useState(false);
   const noInvite = (x: unknown) => { if (!x) { setMissing(true); dropInvite(); } };
   useEffect(() => setMounted(true), []);
-  const code = mounted ? String(Array.isArray(kod) ? kod[0] : kod || '').toUpperCase() : '';
+  const given = mounted ? normalizeInviteCode(Array.isArray(kod) ? kod[0] : kod) : '';
+  const code = inviteCodeFromInput(given);            // kod olamayacak kadar kısa ya da uzun değerler kod sayılmaz
   useEffect(() => {
     if (!mounted) return;
-    if (!code) { router.replace('/giris'); return; }
+    if (!code) { if (given) setMissing(true); else router.replace('/giris'); return; }
     keepInvite(code);
-    if (live && !isOrgCode(code) && !isSiteCode(code)) invitePreview(code).then((x) => { setInfo(x); noInvite(x); }).catch(() => {});
-    // Site daveti: yönetimin girdiği ad, telefon ve e-posta kayıt formunu doldurur.
-    if (live && isSiteCode(code) && !user) siteInviteInfo(code).then((x) => {
-      setSiteInfo(x);
-      noInvite(x);
-      if (x && !x.used) keepPrefill({ code, name: x.name || '', phone: x.phone || '', email: x.email || '' });
-    }).catch(() => {});
+    if (live && !isOrgInviteCode(code) && !isSiteInviteCode(code)) invitePreview(code).then((x) => { setInfo(x); noInvite(x); }).catch(() => {});
+    // Site daveti: sunucu yalnız site, daire, rol ve maskeli ad döndürür (telefon ve e-posta yok); kayıt formu önceden doldurulmaz.
+    if (live && isSiteInviteCode(code) && !user) siteInviteInfo(code).then((x) => { setSiteInfo(x); noInvite(x); }).catch(() => {});
     if (ready && live && user && !user.admin) join(code).then(() => router.replace('/uygulama'));
-  }, [mounted, code, ready, live, user, join, router]);
+  }, [mounted, code, given, ready, live, user, join, router]);
 
   // Kurum yöneticisi daveti ("K" ile başlayan kod): ücretsiz ekip hesabıyla ya da mevcut hesapla katılınır.
-  const org = isOrgCode(code);
+  const org = isOrgInviteCode(code);
   // Site dairesi daveti ("S" ile başlar): malik ya da kiracı ücretsiz hesapla katılır.
-  const site = isSiteCode(code);
+  const site = isSiteInviteCode(code);
   const team = org || (!!info && info.role !== 'tenant');
   const title = missing ? t('Davet bulunamadı') : site ? t('Sitene davet edildin') : org ? t('Kurum yöneticisi olarak davet edildin') : team ? t('Ekibe davet edildin') : t('Kiraladığın mülke davet edildin');
   const lead = missing
@@ -64,6 +61,8 @@ export default function Katil() {
         <View style={{ backgroundColor: c.cream, borderRadius: 20, padding: 16, alignItems: 'center', gap: 4 }}>
           <Text v="h2" selectable style={{ letterSpacing: 4, fontFamily: fonts.siteBold }}>{code}</Text>
           {siteInfo ? <Text v="small" muted>{[siteInfo.org, siteInfo.unit].filter(Boolean).join(' · ')}</Text> : null}
+          {siteInfo && siteInfo.name ? <Text v="small" muted>{siteInfo.name}</Text> : null}
+          {(siteInfo && siteInfo.email_bound) || (info && info.email_bound) ? <Text v="small" muted>{t('Bu davet bir e-posta adresine özel: davet edilen e-postayla kayıt ol ya da giriş yap.')}</Text> : null}
           {siteInfo && siteInfo.used ? <Text v="small" color={c.badInk}>{t('Bu davet kullanılmış. Yönetiminden yeni davet iste.')}</Text> : null}
           {info ? <Text v="small" muted>{info.property}{team ? ' · ' + (info.scope === 'portfolio' ? t('tüm portföy') : t('tek mülk')) : ''}</Text> : null}
           {info && !info.valid ? <Text v="small" color={c.badInk}>{t('Bu davet kullanılmış ya da süresi dolmuş. Mülk sahibinden yeni kod iste.')}</Text> : null}

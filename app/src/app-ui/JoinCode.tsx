@@ -3,6 +3,7 @@ import { Linking, TextInput, View } from 'react-native';
 import AuthShell from '../auth/AuthShell';
 import { useAuth } from '../auth/auth';
 import { CONFIG } from '../domain/config';
+import { INVITE_INPUT_MAX, normalizeInviteCode } from '../domain/invite-code';
 import { t } from '../domain/i18n';
 import { Button, Field, PressScale, Text } from '../ui/kit';
 import { fonts, radius, useColors } from '../ui/theme';
@@ -27,7 +28,7 @@ export default function JoinCode({ team = false }: { team?: boolean }) {
         ? t('Mülk sahibinden ya da kurumundan aldığın davet kodunu gir. Kodu mülk sahibi “Ekip”, kurum yöneticisi “Kurum” ekranından oluşturur.')
         : t('Mülk sahibinden aldığın davet kodunu gir. Kodu mülk sahibin anahtar’da “Kiracı ekle” ile oluşturur.')}>
       <Text v="small" muted>{user?.name ? t('Merhaba') + ' ' + user.name : t('Hoş geldin')}</Text>
-      <Field label={t('Davet kodu')} value={code} onChangeText={(v) => setCode(v.toUpperCase())} autoCapitalize="characters" maxLength={12} onSubmitEditing={submit} error={err} />
+      <Field label={t('Davet kodu')} value={code} onChangeText={(v) => setCode(normalizeInviteCode(v))} autoCapitalize="characters" autoCorrect={false} maxLength={INVITE_INPUT_MAX} onSubmitEditing={submit} error={err} />
       <Button block title={team ? t('Ekibe katıl') : t('Mülke bağlan')} onPress={submit} loading={busy} />
       <View style={{ gap: 8, backgroundColor: c.tile, borderRadius: 16, padding: 14 }}>
         <Text v="small" style={{ fontWeight: '700' }}>{t('Kodun yok mu?')}</Text>
@@ -64,9 +65,9 @@ export function JoinBanner() {
       </View>
       <View style={{ padding: 20, paddingTop: 16, gap: 12 }}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-          <TextInput value={code} onChangeText={(v) => { setCode(v.toUpperCase()); setErr(null); }} onSubmitEditing={submit}
+          <TextInput value={code} onChangeText={(v) => { setCode(normalizeInviteCode(v)); setErr(null); }} onSubmitEditing={submit}
             accessibilityLabel={t('Davet kodu')} placeholder={t('Davet kodu') + ' · ABCD1234'} placeholderTextColor={c.muted}
-            autoCapitalize="characters" autoCorrect={false} maxLength={12}
+            autoCapitalize="characters" autoCorrect={false} maxLength={INVITE_INPUT_MAX}
             style={{ flexGrow: 1, flexBasis: 200, minHeight: 52, borderRadius: radius.pill, paddingHorizontal: 20, backgroundColor: c.bg, color: c.ink,
               borderWidth: 1.5, borderColor: err ? c.badInk : c.line, fontFamily: code ? fonts.bodyBold : fonts.body, fontSize: 16, letterSpacing: code ? 2 : 0 }} />
           <Button kind="dark" title={t('Mülke bağlan')} onPress={submit} loading={busy} style={{ minHeight: 52, paddingHorizontal: 26 }} />

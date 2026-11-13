@@ -34,7 +34,7 @@ test('kayıtlı olmayan master için davet kodu üretilir; kod hangi hesap tür�
   await as(ID.A);
   const [{ admin_org_set_master: r }] = await q(`select public.admin_org_set_master($1, 'mudur@atakum.com')`, [org]);
   expect(r.status).toBe('invited');
-  expect(r.code).toMatch(/^K[0-9A-F]{7}$/);
+  expect(r.code).toMatch(/^K[0-9A-HJKMNP-TV-Z]{16}$/);   // yeni kurum davet kodu: K + 16 karakter (80 bit)
 
   await as(null);
   await db.query(`insert into auth.users (id, email, raw_user_meta_data) values ($1, 'mudur@atakum.com', '{"name":"Site Müdürü","role":"tenant"}'),
@@ -136,8 +136,9 @@ test('kullanılmış ya da süresi dolmuş davet reddedilir; yönetici başka ku
   await as(null);
   await db.query(`update public.org_invites set expires_at = now() - interval '1 day' where code = $1`, [code]);
   await as(ID.T);
-  expect(await tryCall(db, `select public.accept_org_invite($1)`, [code])).toMatch(/süresi dolmuş/);
-  expect(await tryCall(db, `select public.accept_org_invite('KYOKYOK1')`)).toMatch(/bulunamadı/);
+  // Süresi dolmuş ve olmayan kod tek biçimde (NULL) reddedilir; ayırt edici ileti yok (bkz. davet-kodlari.sql.spec.mjs).
+  expect((await q(`select public.accept_org_invite($1) r`, [code]))[0].r).toBeNull();
+  expect((await q(`select public.accept_org_invite('KYOKYOK1') r`))[0].r).toBeNull();
   await as(ID.A);
   const [{ o: list }] = await q(`select public.admin_orgs() o`);
   expect(list.map(o => o.name).sort()).toEqual(['Atakum Sitesi', 'Merkez AVM']);

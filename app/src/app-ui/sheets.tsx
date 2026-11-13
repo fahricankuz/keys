@@ -12,9 +12,10 @@ import {
 import { P, period, statusOf, remaining, ST, reminders, rentAt, expectedAt, moveOutSummary, search, otherPerson, payMap, statusFor, dueOf, aidatByTenant, METHOD } from '../domain/logic';
 import { t, LANGS, getLang } from '../domain/i18n';
 import { CONFIG, LIVE } from '../domain/config';
-import { inviteLink, mediaSrc, sendInviteMail } from '../domain/backend';
+import { inviteLink, mediaSrc, sendInviteMail, humanError } from '../domain/backend';
 import { act, submit } from '../domain/services';
-import { access, trialDaysLeft, planLabel, unitsText, unitLimit, hasFeature, maxUnits, ownedCount, roomFor, paused } from '../domain/billing';
+import { access, trialDaysLeft, planLabel, unitsText, unitLimit, hasFeature, maxUnits, ownedCount, roomFor } from '../domain/billing';
+import { useBillingPaused } from '../domain/app-config';
 import { can, isTeam, memberRole, roleLabel } from '../domain/team';
 import { TeamInviteSheet, TeamShareSheet, TeamMemberSheet } from './team';
 import { toApp } from '../domain/nav';
@@ -34,7 +35,8 @@ import { MailPreviewSheet, MailReportSettings } from './report-mail';
 import { JoinBanner } from './JoinCode';
 import { residentRoleLabel, siteResidentOnly } from '../domain/site';
 import { StorePurchaseSheet } from './store-purchase';
-import { storeAvailable, restoreStore, manageStore } from '../domain/iap';
+import { storeAvailable, storeReady, restoreStore, manageStore } from '../domain/iap';
+import { pushPermission, enableDevicePush } from '../domain/native-push';
 
 const NATIVE = Platform.OS === 'ios' || Platform.OS === 'android';
 import { DevicePush } from './device-push';
@@ -168,6 +170,74 @@ function ProfileForm() {
   );
 }
 
+/** Yenilenen etkin bir App Store / Google Play aboneliği varsa mağazanın adı, yoksa null (hesap silme uyarısı için). */
+function storeSubscription(): string | null {
+  const a: any = access();
+  if (!a.subscribed || a.willRenew === false) return null;
+  return a.store === 'app_store' ? 'App Store' : a.store === 'play_store' ? 'Google Play' : null;
+}
+
+/** Hesap silme onayı ve silme. auth.tsx → deleteAccount() hata metni (başarıda null) döner ve başarısızlıkta oturumu açık tutar:
+    hata gösterilir, ekrandan çıkılmaz. */
+async function confirmAndDeleteAccount(deleteAccount: () => Promise<string | null>, router: any, close: () => void) {
+  if (!await host.ask({ title: t('Hesabın silinsin mi?'), body: t('Hesabın ve tüm verilerin kalıcı olarak silinir. Önce verini Yardım sekmesinden indirebilirsin.'), ok: t('Hesabı sil'), danger: true })) return;
+  let e: string | null = null;
+  try { e = await deleteAccount(); } catch (x) { e = humanError(x); }
+  if (e) { host.notify({ title: t('Hesap silinemedi'), body: e, icon: 'bell' }); return; }
+  close(); router.replace('/');
+}
+
+/** Etkin mağaza aboneliği varken hesap silme: önce aboneliğin mağazadan iptal edilmesi gerektiğini söyler (Apple 5.1.1). */
+function DeleteAccountSheet({ close }: { close: () => void }) {
+  const { deleteAccount } = useAuth();
+  const router = useRouter();
+  const store = storeSubscription() || (Platform.OS === 'ios' ? 'App Store' : 'Google Play');
+  const canManage = NATIVE && storeAvailable();
+  return (
+    <Stack>
+      <Title>{t('Hesabın silinsin mi?')}</Title>
+      <Note warn>{t('Aktif bir {store} aboneliğin var. Hesabı silmek aboneliği iptal etmez; iptal etmezsen ücret alınmaya devam eder. Önce aboneliği {store} ayarlarından iptal et, sonra hesabını sil.', { store })}</Note>
+      {canManage ? <Button block title={t('Aboneliği yönet')} onPress={() => { manageStore().catch(() => {}); }} /> : null}
+      <Button kind="ghost" block title={t('Aboneliği iptal ettim, hesabı sil')} onPress={() => confirmAndDeleteAccount(deleteAccount, router, close)} />
+      <Button kind="quiet" block title={t('Vazgeç')} onPress={close} />
+    </Stack>
+  );
+}
+
+/** Ayarlar → Bildirimler (telefon): bu cihazda anlık bildirimi açma. İzin yalnızca "Aç"a basınca sorulur; reddedilmişse ayarlara yönlendirir. */
+function NativePushRow() {
+  const [st, setSt] = useState<string>('off');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (NATIVE) pushPermission().then(setSt).catch(() => setSt('off')); }, []);
+  if (!NATIVE || st === 'off') return null;
+  const hint = st === 'on' ? t('Bu cihaza anlık bildirim geliyor.')
+    : st === 'denied' ? t('Bildirim izni telefon ayarlarında kapalı. Ayarlardan anahtar için bildirimlere izin ver.')
+    : t('Kira, talep ve duyurular bu cihaza anında gelsin.');
+  return (
+    <View testID="native-push" style={{ gap: 6, paddingVertical: 6 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <Text v="small" style={{ flex: 1, fontFamily: fonts.bodyBold }}>{t('Bu cihazda anlık bildirim')}</Text>
+        {st === 'ask' ? <Button title={t('Aç')} loading={busy} onPress={async () => { setBusy(true); setSt(await enableDevicePush()); setBusy(false); }} /> : null}
+        {st === 'denied' ? <Button kind="ghost" title={t('Ayarları aç')} onPress={() => { Linking.openSettings().catch(() => {}); }} /> : null}
+      </View>
+      <Muted>{hint}</Muted>
+    </View>
+  );
+}
+
+/** Bildirim izninden önce kısa açıklama (ikinci oturumdan itibaren, bkz. uygulama/_layout.tsx → PushPrimer). Sistem penceresi yalnızca "Bildirimleri aç" ile çıkar. */
+function PushPrimeSheet({ close }: { close: () => void }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <Stack>
+      <Title>{t('Bildirimler açılsın mı?')}</Title>
+      <Muted>{t('Kira günü, ödeme, talep ve mesajlar telefonuna anında gelsin. Sonraki adımda telefonun bildirim izni soracak. İstediğin zaman Ayarlar → Bildirimler’den kapatabilirsin.')}</Muted>
+      <Button block title={t('Bildirimleri aç')} loading={busy} onPress={async () => { setBusy(true); await enableDevicePush(); setBusy(false); close(); }} />
+      <Button kind="quiet" block title={t('Şimdi değil')} onPress={close} />
+    </Stack>
+  );
+}
+
 /** Ayarlar: dört sekme, her sekmede yalnız gerekli seçenekler. Gün eşikleri "Hatırlatma zamanları" altında gizli.
     Hem yan menüdeki Ayarlar sayfasında (`page`) hem de eski bağlantılar için sayfa olarak açılır. */
 export function SettingsBody({ close, page }: { close: () => void; page?: boolean }) {
@@ -234,9 +304,10 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
           <ProfileForm />
           {LIVE ? <BlockedList /> : null}
           <Button kind="ghost" block title={t('Çıkış yap')} onPress={async () => { close(); await signOut(); router.replace('/'); }} />
-          <Button kind="quiet" block title={t('Hesabı sil')} onPress={async () => {
-            if (!await host.ask({ title: t('Hesabın silinsin mi?'), body: t('Hesabın ve tüm verilerin kalıcı olarak silinir. Önce verini Yardım sekmesinden indirebilirsin.'), ok: t('Hesabı sil'), danger: true })) return;
-            close(); await deleteAccount(); router.replace('/');
+          <Button kind="quiet" block title={t('Hesabı sil')} onPress={() => {
+            // Etkin bir mağaza aboneliği varsa önce uyarı: hesabı silmek mağaza aboneliğini iptal etmez.
+            if (storeSubscription()) open('hesap-sil');
+            else confirmAndDeleteAccount(deleteAccount, router, close);
           }} />
         </Stack>
       ) : null}
@@ -279,6 +350,7 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
           <Card gap={4}>
             <OnOff label={t('Telefon ve tarayıcı bildirimi')} k="push" />
             <DevicePush />
+            <NativePushRow />
             <OnOff label={t('E-posta')} k="email" />
             {hasFeature('sms')
               ? <OnOff label={smsLabel} k="sms" />
@@ -870,12 +942,42 @@ function pickTier(id: string, units: number | null, open: (n: string, p?: any) =
   }
 }
 
+/** Fiyatsız paket tanıtımı (telefonda mağaza kullanılamıyorken): ad, mülk aralığı ve maddeler; satın alma düğmesi yok. */
+function PlanInfo({ p, mine }: { p: any; mine: boolean }) {
+  const c = useColors();
+  return (
+    <Card gap={8}>
+      <Row between align="flex-start">
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text v="label" color={c.muted}>{p.units}</Text>
+          <Text v="h3">{p.name}</Text>
+        </View>
+        {mine ? <Chip tone="ok" label={t('Paketin')} /> : null}
+      </Row>
+      {p.points.map((x: string) => (
+        <Row key={x} gap={8} align="flex-start"><Icon name="check" size={16} color={c.okInk} /><Muted style={{ flex: 1 }}>{x}</Muted></Row>
+      ))}
+    </Card>
+  );
+}
+
 /** Paketler: ana sayfadaki fiyat kartlarının aynısı; aylık / yıllık seçimi, mevcut paket işaretli. */
 function SubscriptionSheet() {
   useStore();
   const { open } = useSheet();
   const c = useColors();
+  const paused = useBillingPaused();
   const [yearly, setYearly] = useState(false);
+  // Telefon: mağaza gerçekten satış yapabiliyor mu (anahtar var, ürünler tanımlı, ağ açık)? Yapamıyorsa fiyat ve satın alma düğmeleri gizlenir.
+  const hasStore = NATIVE && storeAvailable();
+  const [store, setStore] = useState<'wait' | 'ok' | 'fail'>(hasStore ? 'wait' : 'ok');
+  useEffect(() => {
+    if (!hasStore) return;
+    let on = true;
+    storeReady().then((ok: boolean) => { if (on) setStore(ok ? 'ok' : 'fail'); }).catch(() => { if (on) setStore('fail'); });
+    return () => { on = false; };
+  }, [hasStore]);
+  const storeDown = NATIVE && (!hasStore || store === 'fail');
   const a: any = access();
   const limit = unitLimit(a);
   const mine = a.subscribed ? a.plan : undefined;
@@ -883,11 +985,7 @@ function SubscriptionSheet() {
   const days = trialDaysLeft(a);
   const total = a.trialDays || 30;
   const status = a.subscribed
-    ? a.trialPeriod
-      ? { title: t('Ücretsiz ay · {plan} paketi', { plan: planLabel(a.plan || a.productId) }), body: unitsText(limit) + (a.expiresAt ? ' · ' + t('{date} tarihinde ilk ödemen alınır; iptal etmezsen abonelik başlar', { date: fmtFull(new Date(a.expiresAt)) }) : ''), chip: <Chip tone="ok" label={t('Aktif')} />, pct: null as number | null }
-      : { title: t('{plan} paketi', { plan: planLabel(a.plan || a.productId) }), body: unitsText(limit) + (a.expiresAt ? ' · ' + t('{date} tarihinde yenilenir', { date: fmtFull(new Date(a.expiresAt)) }) : ''), chip: <Chip tone="ok" label={t('Aktif')} />, pct: null as number | null }
-    : a.cardTrial && !a.inTrial
-      ? { title: t('Ücretsiz ayını başlat'), body: t('Kart bilgin ya da App Store / Google Play hesabınla abone ol; ilk ay ücretsiz. Başlayana kadar kayıtların salt okunurdur.'), chip: <Chip tone="warn" label={t('Abonelik gerekli')} />, pct: 0 }
+    ? { title: t('{plan} paketi', { plan: planLabel(a.plan || a.productId) }), body: unitsText(limit) + (a.expiresAt ? ' · ' + (a.willRenew === false ? t('{date} tarihine kadar geçerli, yenilenmeyecek.', { date: fmtFull(new Date(a.expiresAt)) }) : t('{date} tarihinde yenilenir', { date: fmtFull(new Date(a.expiresAt)) })) : ''), chip: <Chip tone="ok" label={t('Aktif')} />, pct: null as number | null }
     : a.inTrial
       ? { title: t('Ücretsiz deneme · {n} gün kaldı', { n: days }), body: t('Denemede {units} mülke kadar ekleyebilirsin. Deneme bitince kayıtların silinmez; abone olana kadar salt okunur olur.', { units: limit ?? CONFIG.billing.trialUnits ?? 5 }), chip: <Chip tone="warn" label={t('Deneme')} />, pct: Math.max(0, Math.min(100, (days / total) * 100)) }
       : { title: t('Deneme süren bitti'), body: t('Kayıtların duruyor; okuyabilir ve mesajlaşabilirsin. Değiştirmek için abone ol.'), chip: <Chip tone="bad" label={t('Salt okunur')} />, pct: 0 };
@@ -909,10 +1007,12 @@ function SubscriptionSheet() {
         {status.pct != null ? <View style={{ height: 6, borderRadius: 3, backgroundColor: 'rgba(250,245,240,0.14)', overflow: 'hidden' }}><View style={{ width: status.pct + '%' as any, height: 6, backgroundColor: c.lemon }} /></View> : null}
         <Text v="small" color={c.heroMuted}>{status.body}</Text>
       </View>
-      {paused() && !(NATIVE && storeAvailable()) ? (
+      {storeDown || (paused && !hasStore) ? (
         <Row gap={10} align="flex-start" style={{ paddingHorizontal: 4 }}>
           <Icon name="bell" size={16} color={c.muted} />
-          <Muted style={{ flex: 1 }}>{t('Ödeme sistemimizi güncelliyoruz. Paket satın alma kısa süre içinde açılacak; fiyatlar kesinleşince burada görünür.')}</Muted>
+          <Muted style={{ flex: 1 }}>{paused && !hasStore ? t('Ödeme sistemimizi güncelliyoruz. Paket satın alma kısa süre içinde açılacak; fiyatlar kesinleşince burada görünür.')
+            : !hasStore ? t('Mağaza içi satın alma bu cihazda henüz açık değil.')
+            : t('Mağazaya şu an ulaşılamıyor ya da paketler henüz tanımlı değil. Biraz sonra yeniden dene.')}</Muted>
         </Row>
       ) : null}
       <View accessibilityRole="tablist" style={{ alignSelf: 'center', flexDirection: 'row', backgroundColor: c.surface, borderRadius: radius.pill, padding: 4, borderWidth: 1, borderColor: c.line }}>
@@ -926,17 +1026,24 @@ function SubscriptionSheet() {
           );
         })}
       </View>
-      {list.map((p) => (
-        <PlanCard key={p.id} p={p} compact cta={cta(p.id)}
+      {list.map((p) => (storeDown && p.id !== 'kurumsal'
+        // Mağaza kullanılamıyorsa fiyat ve satın alma düğmesi gösterilmez; paket yalnızca tanıtılır.
+        ? <PlanInfo key={p.id} p={p} mine={mine === p.id} />
+        : <PlanCard key={p.id} p={p} compact cta={cta(p.id)}
           badge={mine === p.id ? <Chip tone="ok" label={t('Paketin')} /> : undefined} />
       ))}
       <Row gap={8} align="flex-start" style={{ paddingHorizontal: 4 }}>
         <Icon name="check" size={16} color={c.okInk} />
-        <Muted style={{ flex: 1 }}>{t('Kiracıların ve ekip üyelerin her zaman ücretsiz. Her paket 1 ay ücretsiz denemeyle başlar.')}</Muted>
+        <Muted style={{ flex: 1 }}>{t('Kiracıların ve ekip üyelerin her zaman ücretsiz. Ücretsiz deneme, hesabını açtığın günden 30 gün sürer.')}</Muted>
       </Row>
-      {NATIVE && storeAvailable() ? (
+      {hasStore ? (
         <Row wrap gap={8} style={{ justifyContent: 'center' }}>
-          <Button kind="ghost" title={t('Satın alımları geri yükle')} onPress={() => { restoreStore().catch(() => {}); }} />
+          <Button kind="ghost" title={t('Satın alımları geri yükle')} onPress={async () => {
+            try {
+              const ok = await restoreStore();
+              host.notify({ title: ok ? t('Aboneliğin geri yüklendi.') : t('Etkin abonelik bulunamadı'), body: ok ? '' : t('Bu mağaza hesabında etkin abonelik bulunamadı.'), icon: 'key' });
+            } catch (e) { host.notify({ title: t('Geri yüklenemedi'), body: humanError(e), icon: 'bell' }); }
+          }} />
           {['app_store', 'play_store'].includes(String(a.store)) ? <Button kind="quiet" title={t('Aboneliği yönet')} onPress={() => { manageStore().catch(() => {}); }} /> : null}
         </Row>
       ) : null}
@@ -1044,6 +1151,8 @@ export function renderSheet(name: string, p: any, close: () => void): ReactNode 
     case 'kurumsal-basvuru': return <EnterpriseSheet close={close} />;
     case 'magaza-satin-al': return <StorePurchaseSheet plan={p.plan} yearly={p.yearly} units={p.units} close={close} />;
     case 'paket': return <UpgradeSheet need={p.need} suggest={p.suggest} />;
+    case 'hesap-sil': return <DeleteAccountSheet close={close} />;
+    case 'bildirim-izni': return <PushPrimeSheet close={close} />;
     case 'destek-talebi': return <SupportSheet kind={p.kind} units={p.units} message={p.message} close={close} />;
     case 'sikayet': return <ReportSheet pid={p.pid} kind={p.kind} ref={p.ref} user={p.user} name={p.name} snapshot={p.snapshot} close={close} />;
     case 'hukuki': return <LegalSheet pid={p.pid} topic={p.topic} close={close} />;

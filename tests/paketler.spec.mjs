@@ -51,10 +51,10 @@ test('ana sayfa fiyatları: mülk başına, KDV dahil, Başlangıç ve Profesyon
   expect(await page.getByText('SMS hatırlatmaları', { exact: true }).count()).toBe(1);
   // Yıllık: aylığın 10 katı ve mülk başına aylık karşılığı.
   await page.getByRole('tab', { name: /Yıllık/ }).click();
-  await expect(page.getByText('₺999,90').first()).toBeVisible();
-  await expect(page.getByText('₺1.999,90').first()).toBeVisible();
+  await expect(page.getByText('₺999,99').first()).toBeVisible();
+  await expect(page.getByText('₺1.999,99').first()).toBeVisible();
   await expect(page.getByText('mülk başına aylık ₺83,33’ye denk gelir')).toBeVisible();
-  await expect(page.getByText('mülk başına aylık ₺166,66’ye denk gelir')).toBeVisible();
+  await expect(page.getByText('mülk başına aylık ₺166,67’ye denk gelir')).toBeVisible();
 });
 
 test('"Paketi seç" satın alma sayfasını açar; mülk adedi +/− ile 1-9 arasında değişir, toplam anında güncellenir', async ({ page }) => {
@@ -71,10 +71,10 @@ test('"Paketi seç" satın alma sayfasını açar; mülk adedi +/− ile 1-9 ara
   await total('₺899,91');                                    // 9 × 99,99
   await expect(page.getByRole('button', { name: 'Mülk sayısını artır' })).toBeDisabled();
   await expect(page.getByText(/9 mülk bu paketlerde en fazla/)).toBeVisible();
-  // Yıllık dönem: 9 × 999,90
+  // Yıllık dönem: 9 × 999,99
   await page.getByRole('radio', { name: /^Yıllık/ }).click();
-  await total('₺8.999,10');
-  await expect(page.getByText('Yıllık ödemeyle ₺1.799,82 tasarruf ediyorsun')).toBeVisible();   // 9 × 99,99 × 12 − 8.999,10
+  await total('₺8.999,91');
+  await expect(page.getByText('Yıllık ödemeyle ₺1.799,01 tasarruf ediyorsun')).toBeVisible();   // 9 × 99,99 × 12 − 8.999,91
   // 10+ için Kurumsal bağlantısı.
   await page.getByRole('link', { name: 'bize ulaşın' }).click();
   await expect(page).toHaveURL(/\/kurumsal/);
@@ -100,8 +100,8 @@ test('abonelik başlatma: çıkış yapmışsa mülk sahibi kaydına gider ve se
   await page.goto(url('/satin-al?plan=bes&adet=4'));
   await expect(page.getByText('Profesyonel', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Bugün ödeme yok · İstediğin zaman iptal')).toBeVisible();
-  await expect(page.getByText('E-posta ve bildirimle hatırlatırız')).toBeVisible();
-  await expect(page.getByText('İptal etmezsen ilk ödeme alınır')).toBeVisible();
+  await expect(page.getByText('Deneme biter; abone olmazsan kayıtların silinmez, salt okunur olur')).toBeVisible();
+  await expect(page.getByText('Uygulamadan; ücret abone olduğun an mağaza hesabından alınır')).toBeVisible();
   await expect(page.getByText('BUGÜN ÖDENECEK')).toBeVisible();
   await page.getByRole('button', { name: '1 ay ücretsiz başla' }).click();
   await expect(page).toHaveURL(/\/kayit\/mulk-sahibi/);

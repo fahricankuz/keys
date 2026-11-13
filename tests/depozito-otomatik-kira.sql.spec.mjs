@@ -61,7 +61,7 @@ test('depozito: yönetim girer, kiracı kendi depozitosunu görür; hatalı tür
            deposit_bank = 'Garanti BBVA', deposit_until = '2026-12-31' where id = $1`, [u1]);
   expect(await tryCall(db, `update public.site_units set deposit_kind = 'cek' where id = $1`, [u1])).toMatch(/check/);
   expect(await tryCall(db, `update public.site_units set deposit_currency = 'GBP' where id = $1`, [u1])).toMatch(/check/);
-  const [{ code }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'kiraci', 'Moda Giyim') returning code`, [org, u1]);
+  const [{ code }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'kiraci', 'Moda Giyim') returning id`, [org, u1]).then(([{ id }]) => q(`select public.site_resident_code($1) code`, [id]));
   await as(ID.T);
   await q(`select public.accept_site_invite($1)`, [code]);
   const [{ u }] = await q(`select public.my_site_units() u`);

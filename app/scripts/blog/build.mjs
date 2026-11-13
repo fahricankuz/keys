@@ -198,12 +198,12 @@ function sitemap() {
   const last = [...POSTS].map((p) => p.updated || p.date).sort().pop();
   const lines = [
     ...keep,
-    `  <url><loc>${SITE}/kira-artis-hesaplama</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod><changefreq>monthly</changefreq></url>`,
-    `  <url><loc>${SITE}/kurumsal</loc></url>`,
-    `  <url><loc>${SITE}/cozumler</loc></url>`,
-    ...SEGMENTS.map((x) => `  <url><loc>${SITE}/cozumler/${x}</loc></url>`),
+    `  <url><loc>${SITE}/kira-artis-hesaplama/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod><changefreq>monthly</changefreq></url>`,
+    `  <url><loc>${SITE}/kurumsal/</loc></url>`,
+    `  <url><loc>${SITE}/cozumler/</loc></url>`,
+    ...SEGMENTS.map((x) => `  <url><loc>${SITE}/cozumler/${x}/</loc></url>`),
     `  <url><loc>${SITE}/blog/</loc><lastmod>${last}</lastmod></url>`,
-    ...POSTS.map((p) => `  <url><loc>${SITE}/blog/${p.slug}</loc><lastmod>${p.updated || p.date}</lastmod></url>`),
+    ...POSTS.map((p) => `  <url><loc>${SITE}/blog/${p.slug}/</loc><lastmod>${p.updated || p.date}</lastmod></url>`),
 
   ];
   writeFileSync(file, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${lines.join('\n')}\n</urlset>\n`);

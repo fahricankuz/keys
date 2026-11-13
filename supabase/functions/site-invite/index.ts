@@ -7,9 +7,10 @@
 // Kurulum: supabase functions deploy site-invite
 // Gizli değişkenler (hoş geldin e-postasıyla aynı): SMTP_HOST/SMTP_USER/SMTP_PASS (Hostinger) ya da RESEND_API_KEY, EMAIL_FROM. İsteğe bağlı: APP_URL (varsayılan https://anahtar.io).
 
-import { createClient } from 'npm:@supabase/supabase-js@2';
 import { renderInvite } from './template.ts';
+import { userClient } from '../_shared/keys.ts';
 import { mailConfigured, mailMissing, sendMail } from '../_shared/mail.ts';
+import { sentryServe } from '../_shared/sentry.ts';
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 const CORS = {
@@ -19,7 +20,7 @@ const CORS = {
 };
 const json = (b: unknown, status = 200) => Response.json(b, { status, headers: CORS });
 
-Deno.serve(async (req) => {
+sentryServe('site-invite', async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'method' }, 405);
   const auth = req.headers.get('authorization') ?? '';
@@ -28,9 +29,10 @@ Deno.serve(async (req) => {
   if (!resident || typeof resident !== 'string') return json({ error: 'resident' }, 400);
 
   // Yöneticinin kendi oturumuyla: yetki denetimi veritabanında (RLS ve site_invite_mail).
-  const db = createClient(env('SUPABASE_URL'), env('SUPABASE_ANON_KEY'), { global: { headers: { authorization: auth } }, auth: { persistSession: false } });
+  const db = userClient(auth);
   const { data: info, error } = await db.rpc('site_invite_mail', { rid: resident });
   if (error || !info) return json({ error: error?.message ?? 'davet yok' }, 403);
+  if (info.throttled) return json({ ok: true, sent: false, reason: 'throttled' });   // aynı davet kısa süre içinde yeniden gönderilmez (veritabanı karar verir)
   if (!mailConfigured()) return json({ error: mailMissing() }, 500);
 
   const mail = renderInvite({ ...info, appUrl: env('APP_URL') || 'https://anahtar.io' });

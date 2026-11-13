@@ -58,7 +58,7 @@ test('kayıt: site dairesi koduyla sakin hesabı açılır; kural veritabanı ay
   await as(null);
   const [{ id: oid }] = await q(`insert into public.organizations (name, sector) values ('Test Sitesi', 'site') returning id`);
   const [{ id: uid }] = await q(`insert into public.site_units (org_id, block, no) values ($1, 'A', '1') returning id`, [oid]);
-  const [{ code }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'malik', 'Sakin') returning code`, [oid, uid]);
+  const [{ code }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'malik', 'Sakin') returning code`, [oid, uid]);   // yönetici (superuser) sütunu doğrudan okur
   expect(await signup(NEW(4), { name: 'Sakin', role: 'tenant', invite: code })).toBe('ok');
   await as(null);
   await db.exec(`select set_config('anahtar.signup_code', 'off', false)`);

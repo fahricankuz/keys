@@ -13,6 +13,10 @@ import { installErrorReporting, installStaleRecovery, isStaleError, recoverStale
 import { t } from '../domain/i18n';
 import { Button, Text } from '../ui/kit';
 import { fonts } from '../ui/theme';
+import { initSentry, wrapRoot } from '../domain/sentry';
+
+// Hata izleme (Sentry): modül yüklenir yüklenmez başlar ki açılış hataları da yakalansın. DSN yoksa ya da geliştirme derlemesinde hiçbir şey yapmaz.
+initSentry();
 
 /** Beklenmeyen ekran hatası: boş ekran yerine açıklama ve yeniden deneme; hata sunucuya kaydedilir (yönetici → Hatalar). */
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
@@ -36,14 +40,14 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   );
 }
 
-export default function Root() {
+function Root() {
   const [fontsOk] = useFonts(FONT_FILES);
   const [stored, setStored] = useState(false);
   useEffect(() => { installErrorReporting(); installStaleRecovery(); }, []);
   // www.anahtar.io → anahtar.io: Hostinger CDN isteği sunucuya www'siz ilettiği için .htaccess kuralı www'yi görmüyor;
   // tarayıcıda aynı sayfaya ana adreste geçilir (oturum ve çerez tek alan adında kalsın). Canonical etiketi zaten anahtar.io.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || !window.location) return;     // telefonda window.location yoktur
     const h = window.location.hostname;
     if (/^www\./i.test(h)) window.location.replace(window.location.href.replace('//' + h, '//' + h.slice(4)));
   }, []);
@@ -65,13 +69,13 @@ export default function Root() {
       wait();
     });
   }, []);
-  // E-posta onay bağlantısı eskiden ana sayfaya dönüyordu (#access_token=…&type=signup): /dogrula sayfasına aktarılır,
-  // oturum açılıp kişi paneline geçer. Yeni kayıtlarda bağlantı zaten /dogrula adresine gelir.
+  // Adres parçasındaki oturum jetonları (#access_token=…, eski e-posta bağlantıları) hiçbir yerde kullanılmaz: oturum yalnızca PKCE koduyla
+  // (/dogrula ve /yeni-sifre sayfaları) açılır. Jeton adreste (geçmişte, ekran görüntüsünde) kalmasın diye adresten silinir.
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
-    const h = window.location.hash;
-    if (/access_token=/.test(h) && /type=(signup|email|email_change|invite|magiclink)/.test(h) && !/^\/dogrula/.test(window.location.pathname))
-      window.location.replace('/dogrula' + h);
+    if (/(^|[#&])(access_token|refresh_token)=/.test(window.location.hash)) {
+      try { window.history.replaceState(null, '', window.location.pathname + window.location.search); } catch { /* yoksay */ }
+    }
   }, []);
   // Eski uygulamanın servis çalışıcısı ve önbelleği telefonlarda kalmış olabilir ("bazen eski uygulama açılıyor"):
   // bulunursa kaldırılır ve eski önbellek silinir. Yeni sitenin tek çalışıcısı anlık bildirimindir (bildirim-sw.js); o kalır.
@@ -108,3 +112,5 @@ export default function Root() {
     </AuthProvider>
   );
 }
+
+export default wrapRoot(Root);

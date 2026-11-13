@@ -10,18 +10,19 @@
 //   REPORT_SECRET    — x-anahtar-secret başlığıyla aynı değer
 //   RESEND_API_KEY, EMAIL_FROM (ör. "anahtar <rapor@anahtar.io>")
 // İsteğe bağlı: APP_URL (varsayılan https://anahtar.io)
-// SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY Supabase tarafından otomatik sağlanır.
+// SUPABASE_URL ve SUPABASE_SECRET_KEYS (yoksa SUPABASE_SERVICE_ROLE_KEY) Supabase tarafından otomatik sağlanır.
 
-import { createClient } from 'npm:@supabase/supabase-js@2';
 import { renderReport, type Report } from './template.ts';
 import { renderSiteReport, type SiteReport } from './site-template.ts';
 import { mailConfigured, mailMissing, sendMail } from '../_shared/mail.ts';
+import { serviceClient } from '../_shared/keys.ts';
 import { logger } from '../_shared/log.ts';
+import { sentryServe } from '../_shared/sentry.ts';
 
 const log = logger('report');
 
 const env = (k: string) => Deno.env.get(k) ?? '';
-const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
+const admin = serviceClient();
 
 function safeEqual(a: string, b: string): boolean {
   const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
@@ -38,7 +39,7 @@ function defaultRef(period: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-Deno.serve(async (req) => {
+sentryServe('report', async (req) => {
   if (req.method !== 'POST') return new Response('method', { status: 405 });
   const secret = env('REPORT_SECRET');
   if (!secret || !safeEqual(req.headers.get('x-anahtar-secret') ?? '', secret)) return new Response('unauthorized', { status: 401 });

@@ -55,7 +55,7 @@ test('kiracı fatura ekler; masraf ve kararı yine değiştiremez; mülk sahibin
 test('mesaj bir talebe bağlanabilir (req_id); sistem mesajı da', async () => {
   await as(ID.T);
   await q(`insert into public.messages (id, property_id, from_role, body, req_id) values ('m1', 'p1', 'tenant', 'Bu talep hakkında yazıyorum.', 'r1')`);
-  await q(`insert into public.messages (id, property_id, from_role, body, req_id) values ('m2', 'p1', 'system', 'Yeni usta teklifi', 'r1')`);
+  await q(`select public.post_system_message('p1', 'quote_added', $1::jsonb)`, [JSON.stringify({ id: 'm2', text: 'Yeni usta teklifi: Usta Ali (₺1.200,00) · Musluk', req: 'r1' })]);
   await as(ID.L);
   expect((await q(`select id, req_id from public.messages where req_id = 'r1' order by id`))).toEqual([{ id: 'm1', req_id: 'r1' }, { id: 'm2', req_id: 'r1' }]);
 });

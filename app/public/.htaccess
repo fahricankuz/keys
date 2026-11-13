@@ -7,6 +7,10 @@ ErrorDocument 404 /404.html
 <IfModule mod_rewrite.c>
 RewriteEngine On
 
+# Evrensel bağlantı doğrulama dosyaları (iOS apple-app-site-association, Android assetlinks.json) hiçbir yönlendirme olmadan sunulur:
+# Apple ve Google bu dosyalarda yönlendirmeyi kabul etmez. Dosyalar derlemede yazılır (scripts/well-known.mjs).
+RewriteRule ^\.well-known/(apple-app-site-association|assetlinks\.json)$ - [L]
+
 # www.anahtar.io → anahtar.io (tek adres: aynı içerik iki adreste açılmasın; SEO ve oturum çerezi tek alan adında)
 RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
 RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
@@ -17,7 +21,7 @@ RewriteCond %{HTTP:X-Forwarded-Proto} !=https
 RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
 # Kaldırılan sayfa: iki "Mülk sahibi" çözümü tek sayfada birleşti.
-RewriteRule ^cozumler/portfoy/?$ /cozumler/mulk-sahibi [L,R=301]
+RewriteRule ^cozumler/portfoy/?$ /cozumler/mulk-sahibi/ [L,R=301]
 
 # Temiz adresler: /giris/kiraci -> /giris/kiraci.html (uygulama sayfaları ayrı .html dosyalarıdır)
 RewriteCond %{REQUEST_FILENAME} !-f
@@ -66,6 +70,10 @@ Header always set Content-Security-Policy "frame-ancestors 'none'"
 <FilesMatch "^sw\.js$">
   Header set Cache-Control "no-cache, max-age=0"
 </FilesMatch>
+# Turnstile sayfasının betiği (telefon uygulamasındaki WebView) dosya adında özet taşımaz: 1 yıllık "immutable" olmasın, her seferinde doğrulansın.
+<FilesMatch "^turnstile\.js$">
+  Header set Cache-Control "no-cache"
+</FilesMatch>
 <FilesMatch "^(manifest\.webmanifest|security\.txt)$">
   Header set Cache-Control "public, max-age=86400"
 </FilesMatch>
@@ -80,5 +88,11 @@ AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml application
 </IfModule>
 
 AddType application/manifest+json .webmanifest
+# Uzantısız apple-app-site-association dosyası JSON olarak sunulur (iOS bunu bekler).
+<IfModule mod_mime.c>
+<Files "apple-app-site-association">
+  ForceType application/json
+</Files>
+</IfModule>
 AddType font/ttf .ttf
 AddType font/woff2 .woff2

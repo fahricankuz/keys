@@ -29,7 +29,7 @@ test('sıfırlama e-postası yeni-sifre adresine yönlendirir', async ({ page })
 });
 
 test('geçerli bağlantı: yeni şifre kaydedilir, oturum kapanır, giriş sayfasına yönlendirir', async ({ page }) => {
-  await page.goto(url('/yeni-sifre#access_token=tok123&refresh_token=r&type=recovery'));
+  await page.goto(url('/yeni-sifre?code=tok123&sb_flow_id=f1'));
   await expect(page.getByRole('heading', { name: 'Yeni şifre belirle' }).or(page.getByText('Yeni şifre belirle').first())).toBeVisible();
   await page.getByLabel('Yeni şifre').fill('kisa');
   await page.getByLabel('Şifre (tekrar)').fill('kisa');
@@ -52,6 +52,22 @@ test('geçerli bağlantı: yeni şifre kaydedilir, oturum kapanır, giriş sayfa
 test('süresi dolmuş bağlantı: açıklama ve yeni bağlantı isteme', async ({ page }) => {
   await page.goto(url('/yeni-sifre#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired'));
   await expect(page.getByText('Bağlantı geçersiz')).toBeVisible();
+  await page.getByRole('button', { name: 'Yeni bağlantı iste' }).click();
+  await expect(page).toHaveURL(/\/sifre/);
+});
+
+test('adres parçasındaki oturum jetonu yok sayılır: form açılmaz, jeton adresten silinir', async ({ page }) => {
+  await page.goto(url('/yeni-sifre#access_token=tok123&refresh_token=r&type=recovery'));
+  await expect(page.getByText('Bağlantı geçersiz')).toBeVisible();
+  await expect(page.getByLabel('Yeni şifre')).toHaveCount(0);
+  await expect.poll(() => page.url()).not.toContain('access_token');
+  expect((await db(page)).session).toBeNull();
+});
+
+test('bağlantı başka cihazda açıldıysa (PKCE doğrulayıcı yok) açıklama gösterilir, form açılmaz', async ({ page }) => {
+  await page.goto(url('/yeni-sifre?code=noverifier'));
+  await expect(page.getByText('Bağlantıyı başka cihazda açtın')).toBeVisible();
+  await expect(page.getByLabel('Yeni şifre')).toHaveCount(0);
   await page.getByRole('button', { name: 'Yeni bağlantı iste' }).click();
   await expect(page).toHaveURL(/\/sifre/);
 });

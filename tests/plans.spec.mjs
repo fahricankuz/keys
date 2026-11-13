@@ -15,22 +15,23 @@ test.beforeAll(async () => {
   buildSync({
     stdin: { contents: `export * from '${D}plans.js'; export { roomFor } from '${D}billing.js'; export * as i18n from '${D}i18n.js'; export { CONFIG } from '${D}config.js';`, resolveDir: D, loader: 'js' },
     bundle: true, format: 'esm', platform: 'node', outfile: out, logLevel: 'silent',
-    alias: { 'react-native': STUBS + 'react-native.js', '@react-native-async-storage/async-storage': STUBS + 'async-storage.js' }
+    alias: { 'react-native': STUBS + 'react-native.js', '@react-native-async-storage/async-storage': STUBS + 'async-storage.js' },
+    external: ['expo', 'expo-*', '@supabase/supabase-js']   // billing.js → backend.js → errors.js zincirindeki yerel modüller bu testte çalışmaz
   });
   M = await import(pathToFileURL(out).href);
 });
 
 const tek = () => M.tierOf('tek'), bes = () => M.tierOf('bes'), kur = () => M.tierOf('kurumsal');
 
-test('fiyatlar mülk başına: Başlangıç 99,99, Profesyonel 199,99; yıllık aylığın 10 katı; Kurumsal teklif', () => {
+test('fiyatlar mülk başına: Başlangıç 99,99 / 999,99, Profesyonel 199,99 / 1.999,99 (mağaza fiyat basamakları); yıllık aylığın yaklaşık 10 katı; Kurumsal teklif', () => {
   M.i18n.setLang('tr');
   expect(M.priceText(tek())).toBe('₺99,99');
   expect(M.priceText(bes())).toBe('₺199,99');
-  expect(M.priceText(tek(), true)).toBe('₺999,90');
-  expect(M.priceText(bes(), true)).toBe('₺1.999,90');
+  expect(M.priceText(tek(), true)).toBe('₺999,99');
+  expect(M.priceText(bes(), true)).toBe('₺1.999,99');
   expect(M.priceText(kur())).toBe('Teklif alın');
-  expect(tek().yearly).toBeCloseTo(tek().price * 10, 2);
-  expect(bes().yearly).toBeCloseTo(bes().price * 10, 2);
+  expect(Math.abs(tek().yearly - tek().price * 10)).toBeLessThan(0.11);      // mağaza ,99 basamağına hizalı: 999,99 (999,90 değil)
+  expect(Math.abs(bes().yearly - bes().price * 10)).toBeLessThan(0.11);
 });
 
 test('yıllık kartta aylığa denk gelen mülk başı tutar yazılır', () => {
@@ -38,7 +39,7 @@ test('yıllık kartta aylığa denk gelen mülk başı tutar yazılır', () => {
   const eq = (tr) => M.monthlyEquivalent({ ...tr });
   // aylık denk gelen: yearly / 12
   expect(Math.round((tek().yearly / 12) * 100) / 100).toBe(83.33);
-  expect(Math.round((bes().yearly / 12) * 100) / 100).toBe(166.66);
+  expect(Math.round((bes().yearly / 12) * 100) / 100).toBe(166.67);
   expect(eq(tek())).toBe('₺83,33');
 });
 
@@ -59,8 +60,8 @@ test('toplam: mülk adedi × mülk başı fiyat; kuruş hatası yok; fiyatsız p
   expect(M.totalPrice(tek(), 1)).toBe(99.99);
   expect(M.totalPrice(tek(), 3)).toBe(299.97);
   expect(M.totalPrice(bes(), 9)).toBe(1799.91);
-  expect(M.totalPrice(tek(), 9, true)).toBe(8999.1);
-  expect(M.totalPrice(bes(), 5, true)).toBe(9999.5);
+  expect(M.totalPrice(tek(), 9, true)).toBe(8999.91);
+  expect(M.totalPrice(bes(), 5, true)).toBe(9999.95);
   expect(M.totalPrice(kur(), 12)).toBeNull();
   expect(M.totalText(bes(), 3)).toBe('₺599,97');
   expect(M.totalText(kur(), 12)).toBe('Teklif alın');

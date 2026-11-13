@@ -6,6 +6,7 @@
 // Kur: public.fx_rates (döviz alış ve satış). İlk çalışmada 2020'den bugüne doldurur, sonra son 10 günü yeniler (fx.ts).
 // TÜFE ve kur birbirinden bağımsızdır: biri başarısız olsa da diğeri yazılır; hata yanıtta ve Sunucu kayıtlarında görünür.
 // Gizli değişkenler: TUFE_SECRET, EVDS_KEY (evds3.tcmb.gov.tr → üye ol → profil → API anahtarı).
+// Sentry açıksa (SENTRY_DSN) her çalışma Sentry cron izlemesine (monitor "tufe-sync", "0 13 * * *", UTC) işaretlenir; ikisinden biri başarısızsa error.
 // İsteğe bağlı: EVDS_URL (varsayılan https://evds3.tcmb.gov.tr/igmevdsms-dis; eski evds2 servisi 2025 sonunda kapandı ve artık
 // JSON yerine sitenin HTML sayfasını döndürüyor), EVDS_SERIES (varsayılan TP.TUKFIY2025.GENEL, TÜFE 2025=100;
 // TÜİK Ocak 2026'da temel yılı değiştirdi, eski TP.FG.J0 (2003=100) serisi Ocak 2026'da bitti. Yeni seri 2005'ten başlayan tek
@@ -13,14 +14,15 @@
 //
 // Oran endeks serisinden hesaplanır: son 12 ayın ortalaması ÷ önceki 12 ayın ortalaması − 1. TÜİK yuvarlanmış endeksten
 // yayımladığı için sonuç ±0,01 puan farklı olabilir; yöneticinin elle girdiği ("manual") aylar hiçbir zaman ezilmez.
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { serviceClient } from '../_shared/keys.ts';
 import { logger } from '../_shared/log.ts';
+import { cronCheckIn, sentryServe } from '../_shared/sentry.ts';
 import { fxRanges, fxUrl, parseFx } from './fx.ts';
 
 const log = logger('tufe-sync');
 
 const env = (k: string) => Deno.env.get(k) ?? '';
-const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
+const admin = serviceClient();
 
 function safeEqual(a: string, b: string): boolean {
   const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
@@ -137,11 +139,15 @@ async function syncFx(): Promise<Step> {
   return { ok: true, days: new Set(put.map((x) => x.day)).size, latest: latest || null, usd: put.findLast((x) => x.currency === 'USD' && x.day === latest)?.sell ?? null };
 }
 
-Deno.serve(async (req) => {
+sentryServe('tufe-sync', async (req) => {
   if (req.method !== 'POST') return new Response('method', { status: 405 });
   const secret = env('TUFE_SECRET');
   if (!secret || !safeEqual(req.headers.get('x-anahtar-secret') ?? '', secret)) return new Response('unauthorized', { status: 401 });
-  if (!env('EVDS_KEY')) return Response.json({ error: 'EVDS_KEY eksik' }, { status: 500 });
+  const checkIn = cronCheckIn('tufe-sync', '0 13 * * *');   // Sentry cron izleme (UTC; DSN yoksa boş iş)
+  if (!env('EVDS_KEY')) {
+    await checkIn.done(false);
+    return Response.json({ error: 'EVDS_KEY eksik' }, { status: 500 });
+  }
 
   // Her adımın hatası açık bir mesajla döner (Logs'ta ve yanıtta görünür); "Internal Server Error" yerine nedenini söyler.
   const run = async (f: () => Promise<Step>): Promise<Step> => {
@@ -151,6 +157,7 @@ Deno.serve(async (req) => {
     }
   };
   const cpi = await run(syncCpi), fx = await run(syncFx);
+  await checkIn.done(cpi.ok && fx.ok);
   const strip = (s: Step) => { const { ok: _ok, status: _st, ...rest } = s as Record<string, unknown>; return rest; };
   // Eski yanıt biçimi korunur (months, latest); kur sonucu "fx" altında. İkisi de başarısızsa hata durumu döner.
   const out = { ...strip(cpi), fx: strip(fx) };

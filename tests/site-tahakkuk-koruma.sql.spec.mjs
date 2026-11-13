@@ -16,7 +16,7 @@ test.beforeAll(async () => {
   await as(M);
   [{ id: a1 }] = await q(`insert into public.site_units (org_id, block, no, aidat) values ($1, 'A', '1', 500) returning id`, [org]);
   [{ id: a2 }] = await q(`insert into public.site_units (org_id, block, no, aidat) values ($1, 'A', '2', 500) returning id`, [org]);
-  const [{ code }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'kiraci', 'Kiracı') returning code`, [org, a1]);
+  const [{ code }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'kiraci', 'Kiracı') returning id`, [org, a1]).then(([{ id }]) => q(`select public.site_resident_code($1) code`, [id]));
   await as(ID.T); await q(`select public.accept_site_invite($1)`, [code]);
 });
 

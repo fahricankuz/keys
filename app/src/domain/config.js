@@ -27,21 +27,29 @@ export const CONFIG = {
         yerine "web'den yönet" bilgisi gösterilmez, paketler yalnız görüntülenir. Web'deki sanal POS bundan etkilenmez. */
     revenuecatIosKey: process.env.EXPO_PUBLIC_RC_IOS_KEY || '',
     revenuecatAndroidKey: process.env.EXPO_PUBLIC_RC_ANDROID_KEY || '',
-    /** Fiyatlar tanımlanana kadar satın alma kapalıdır; herkes deneme ya da yöneticinin verdiği paketle kullanır. */
+    /** Satın alma kapalı mı. Gerçek değer sunucudadır (public.app_config → billing_paused; app-config.js okur ve önbelleğe alır);
+        bu değer yalnızca sunucu okunamazken kullanılan yedektir. Mağazalar onaylayınca sunucudaki satır false yapılır. */
     paused: true,
-    /** Mülk sahibi paketleri: fiyat MÜLK BAŞINA ve KDV dahildir (aylık ve yıllık; yıllık = aylığın 10 katı, 2 ay bedava).
+    /** Mülk sahibi paketleri: fiyat MÜLK BAŞINA ve KDV dahildir. Fiyatlar mağaza fiyat basamaklarına (",99") hizalıdır:
+        Başlangıç ₺99,99 / ay ve ₺999,99 / yıl; Profesyonel ₺199,99 / ay ve ₺1.999,99 / yıl. Telefonda fiyat mağazadan okunur;
+        web bu değerleri gösterir. Mağazada girilecek tam fiyat tablosu: node app/scripts/magaza-fiyatlari.mjs
+        (kural store-ids.js → storePricePoint: mülk başı fiyat × adet, en yakın ",99" basamağı).
         Başlangıç ve Profesyonel 1–9 mülk içindir (units = en çok satın alınabilecek mülk, maxUnits); 10 ve üstü Kurumsal (teklif).
-        İngilizce sitede dolar fiyatları (usd, usdYearly) gösterilir. Her paket 1 ay ücretsiz denemeyle başlar. */
+        İngilizce sitede dolar fiyatları (usd, usdYearly) gösterilir. Deneme mağazada değil sunucudadır: hesap açılınca 30 gün. */
     tiers: [
-      { id:'tek', units:9, price:99.99, yearly:999.90, usd:2.00, usdYearly:20.00 },
-      { id:'bes', units:9, price:199.99, yearly:1999.90, usd:4.00, usdYearly:40.00 },
+      { id:'tek', units:9, price:99.99, yearly:999.99, usd:2.00, usdYearly:20.00 },
+      { id:'bes', units:9, price:199.99, yearly:1999.99, usd:4.00, usdYearly:40.00 },
       { id:'kurumsal', units:null, minUnits:10, price:null, yearly:null, usd:null, usdYearly:null }
     ],
     /** Kendi kendine satın alınabilecek en çok mülk; üstü Kurumsal. */
     maxUnits: 9,
-    /** Kartsız deneme kapatıldığında (sunucuda anahtar.card_trial) deneme yalnızca mağaza / ödeme aboneliğinin
-        ücretsiz ayıdır; uygulama metinleri buna göre değişir. Ödeme açılana kadar false kalır. */
+    /** Mağaza deneme (introductory) teklifi kullanılmaz; deneme yalnızca sunucudaki 30 günlük hesap denemesidir (karar D12).
+        Bu yüzden false kalır; true yapmak sunucudaki card_trial_from kesimiyle birlikte ayrı bir karardır. */
     cardTrial: false,
+    /** Uygulama mağazası sayfaları (web satın alma sayfası "uygulamadan abone ol" derken bağlantı verir); boşsa düğme çıkmaz.
+        Mağaza yayınlanınca derleme değişkenleri doldurulur (EXPO_PUBLIC_APP_STORE_URL / EXPO_PUBLIC_PLAY_STORE_URL). */
+    appStoreUrl: process.env.EXPO_PUBLIC_APP_STORE_URL || '',
+    playStoreUrl: process.env.EXPO_PUBLIC_PLAY_STORE_URL || '',
     /** Deneme süresince eklenebilecek mülk sayısı. */
     trialUnits: 5,
     /** Toplu içe aktarmada tek seferde en fazla satır. */

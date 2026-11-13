@@ -10,7 +10,7 @@
 
 import { Platform } from 'react-native';
 import { logCaught } from './logs.js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authStorage, migrateAuthStorage } from './secure-storage';
 import { t } from './i18n.js';
 import { CONFIG, LIVE } from './config.js';
 import { S, ui, VERSION, useStorageKey, replaceState, saveLocal, hooks, emit } from './state.js';
@@ -18,8 +18,13 @@ import { buildProperty, diffProperty, pendingMedia, storedPath, isStored, SB, me
 import { host } from './host.js';
 import { storage } from './storage.js';
 import { uid } from './util.js';
-import { refreshOrgs, isOrgCode, acceptOrgInvite } from './org.js';
-import { refreshSiteUnits, isSiteCode, acceptSiteInvite } from './site.js';
+import { refreshOrgs, acceptOrgInvite } from './org.js';
+import { refreshSiteUnits, acceptSiteInvite } from './site.js';
+import { normalizeInviteCode, isOrgInviteCode, isSiteInviteCode } from './invite-code.js';
+import { writeSystemMessages } from './system-message.js';
+
+/** supabase-js oturum anahtarı (varsayılanı: sb-<proje>-auth-token); güvenli depodaki ve eski AsyncStorage kaydı bu anahtardadır. */
+function authKey(){ return 'sb-' + new URL(CONFIG.supabaseUrl).hostname.split('.')[0] + '-auth-token'; }
 
 /** @type {any} */
 export const live = {
@@ -86,8 +91,13 @@ export async function client(){
     live.client = createClient();
   } else {
     const { createClient } = await import('@supabase/supabase-js');
+    // Telefonda eski AsyncStorage oturumu önce güvenli depoya taşınır (bir kez); başarısızsa kişi yeniden giriş yapar.
+    try { await migrateAuthStorage(authKey()); } catch(e){}
+    // PKCE: e-posta bağlantıları (şifre sıfırlama, e-posta değişikliği, onay) tek kullanımlık bir kod taşır ve yalnızca isteği
+    // yapan cihazda oturuma çevrilir; bağlantıdaki hazır jetonla oturum açılmaz. Adresten oturum alma kapalıdır (dogrula ve
+    // yeni-sifre sayfaları kodu kendileri değiştirir).
     live.client = createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey, {
-      auth: { storage: AsyncStorage, autoRefreshToken: true, persistSession: true, detectSessionInUrl: false }
+      auth: { storage: authStorage, flowType: 'pkce', autoRefreshToken: true, persistSession: true, detectSessionInUrl: false }
     });
   }
   if (typeof window !== 'undefined' && window.addEventListener){
@@ -115,9 +125,20 @@ function setStatus(s){
 export async function hasStoredSession(){
   if (process.env.EXPO_PUBLIC_SUPABASE_URL === 'fake:') return true;
   try {
-    const ref = new URL(CONFIG.supabaseUrl).hostname.split('.')[0];
-    return !!(await AsyncStorage.getItem('sb-' + ref + '-auth-token'));
+    const key = authKey();
+    await migrateAuthStorage(key);
+    return !!(await authStorage.getItem(key));
   } catch(e){ return true; }
+}
+
+/** E-posta bağlantısındaki tek kullanımlık kodu oturuma çevirir (PKCE). flowId: bağlantıdaki sb_flow_id (varsa).
+    Dönüş: 'ok' | 'device' (bağlantı isteğin yapıldığı cihazda açılmadı: doğrulayıcı bu cihazda yok) | 'invalid' (süresi dolmuş,
+    kullanılmış ya da bozuk). */
+export async function exchangeAuthCode(code, flowId){
+  const c = await client();
+  const { error } = await c.auth.exchangeCodeForSession(code, flowId ? { flowId } : undefined);
+  if (!error) return 'ok';
+  return error.name === 'AuthPKCECodeVerifierMissingError' || /code verifier/i.test(String(error.message || '')) ? 'device' : 'invalid';
 }
 
 /** Hoş geldin e-postası (supabase/functions/welcome): hesap başına bir kez istenir; sunucu da ikinci gönderimi engeller.
@@ -494,6 +515,10 @@ async function flush(){
 }
 
 async function apply(op){
+  if (op.kind === 'rpc'){          // sistem mesajları: post_system_message (sunucu üyelik, tür ve metin kalıbını denetler; aynı kimlik ikinci kez eklenmez).
+    await writeSystemMessages(sb(), op);   // İşlev sunucuda yoksa (migration henüz uygulanmamış) önceki doğrudan insert yoluna düşer.
+    return;
+  }
   const tbl = sb().from(op.table);
   let q;
   // ignoreDuplicates: aynı kimlik zaten varsa atla (INSERT … ON CONFLICT DO NOTHING; yalnız ekleme yetkisi gerekir).
@@ -517,6 +542,7 @@ export function humanError(e){
   if (/User already registered/i.test(m)) return t('Bu e-posta ile bir hesap zaten var. Giriş yapmayı dene.');
   if (/validate email|email address .*invalid/i.test(m)) return t('Geçerli bir e-posta adresi yaz.');
   if (/Password should be at least/i.test(m)) return t('Şifre en az 8 karakter olmalı.');
+  if (/Günlük başvuru sınırı/.test(m)) return t('Günlük başvuru sınırına ulaştın. Yarın yeniden dene.');     // support_requests günlük sınırı (guard_support_request, 54000)
   if (/rate limit/i.test(m)) return t('Çok fazla deneme yapıldı. Biraz sonra tekrar dene.');
   if (/Failed to fetch|NetworkError|network/i.test(m)) return t('Sunucuya ulaşılamadı. Bağlantını kontrol et.');
   if (e?.code === '42501' || /row-level security|permission/i.test(m)) return m && !/row-level/.test(m) ? m : t('Bu işlem için yetkin yok.');
@@ -577,8 +603,8 @@ export async function storeFile(pid, file){
     }
     if (file.uri){
       const video = /^video\//.test(file.mime || '');
-      if (file.size && file.size > (video ? 40 : 10) * 1024 * 1024){
-        host.notify({ title:t(video ? 'Video çok büyük' : 'Dosya çok büyük'), body:t(video ? 'En fazla 40 MB yüklenebilir. Daha kısa bir video çek.' : 'En fazla 10 MB yüklenebilir.'), icon:'doc' });
+      if (file.size && file.size > 10 * 1024 * 1024){       // evim kovasının sunucu sınırı (10 MB) fotoğraf, belge ve video için aynıdır
+        host.notify({ title:t(video ? 'Video çok büyük' : 'Dosya çok büyük'), body:t(video ? 'En fazla 10 MB yüklenebilir. Daha kısa bir video çek.' : 'En fazla 10 MB yüklenebilir.'), icon:'doc' });
         return null;
       }
       const res = await fetch(file.uri);
@@ -648,11 +674,11 @@ export function resolveMedia(paths){
 
 /** Dosyayı yeni sekmede / sistem görüntüleyicide açmak için imzalı adres. */
 export async function fileUrl(v){
-  if (!isStored(v)) return v;
+  if (!isStored(v)) return safeFileUrl(v);
   const path = storedPath(v);
-  if (ui.media[path] && !ui.media[path].startsWith('data:')) return ui.media[path];
+  if (ui.media[path] && !ui.media[path].startsWith('data:')) return safeFileUrl(ui.media[path]);
   const res = await sb().storage.from('evim').createSignedUrl(path, 60 * 60);
-  return res.data?.signedUrl || null;
+  return safeFileUrl(res.data?.signedUrl || null);
 }
 
 /** İndirilecek dosyanın adı: kullanıcının gördüğü ad, uzantısı depodaki dosyanınki (görseller yüklenirken webp/jpg'ye çevrilir). */
@@ -660,6 +686,21 @@ export function downloadName(v, label){
   const ext = (String(storedPath(v) || '').match(/\.([a-z0-9]{2,5})$/i) || String(v || '').match(/^data:[a-z]+\/([a-z0-9]+)/i) || [])[1];
   const base = String(label || 'dosya').replace(/[\\/:*?"<>|]+/g, '-').replace(/\.[a-z0-9]{2,5}$/i, '').trim() || 'dosya';
   return ext ? base + '.' + ext.toLowerCase().replace('jpeg', 'jpg') : base;
+}
+
+/** Açılacak ya da indirilecek dosya adresi yalnız güvenli biçimlerdedir: sunucunun (depo) ya da sitenin kendi kaynağından https/blob adresi,
+    ya da görsel / PDF / video data adresi. "javascript:" gibi şemalar ve başka sitelere yönlendiren adresler reddedilir (null döner);
+    adres, sunucuya yazılmış bir belge kaydından da gelebileceği için kullanıcı verisi gibi ele alınır. */
+export function safeFileUrl(u){
+  const s = String(u || '');
+  if (/^data:/i.test(s)) return /^data:(?:image\/(?:png|jpe?g|webp|gif)|application\/pdf|video\/(?:mp4|webm|quicktime|x-m4v))[;,]/i.test(s) ? s : null;
+  let x;
+  try { x = new URL(s); } catch(e){ return null; }
+  if (!/^(https?|blob):$/.test(x.protocol)) return null;
+  const ok = new Set();
+  try { ok.add(new URL(CONFIG.supabaseUrl).origin); } catch(e){}
+  if (typeof location !== 'undefined' && location.origin && location.origin !== 'null') ok.add(location.origin);
+  return ok.has(x.origin) ? x.href : null;
 }
 
 /** Dosyayı cihaza indirir (dekont, belge, fatura). Depodaki dosya için imzalı adres "indir" olarak istenir
@@ -672,6 +713,7 @@ export async function downloadFile(v, label){
     const res = await sb().storage.from('evim').createSignedUrl(storedPath(v), 60 * 10, { download: name });
     url = res.data?.signedUrl || null;
   }
+  url = safeFileUrl(url);
   if (!url){ host.notify({ title:t('İndirilemedi'), body:t('Dosyaya şu an ulaşılamıyor. Biraz sonra yeniden dene.'), icon:'doc' }); return false; }
   if (Platform.OS === 'web' && typeof document !== 'undefined'){
     const a = document.createElement('a');
@@ -897,12 +939,33 @@ export async function removeMember(pid, userId){
 }
 
 export async function acceptInvite(code){
-  if (isOrgCode(code)) return acceptOrgInvite(code);       // kurum yöneticisi daveti
-  if (isSiteCode(code)) return acceptSiteInvite(code);     // site dairesi (malik ya da kiracı) daveti
-  const pid = must(await sb().rpc('accept_invite', { invite_code: code }));
-  await loadAll();
-  subscribe();
-  return pid;
+  code = normalizeInviteCode(code);
+  try {
+    if (isOrgInviteCode(code)) return await acceptOrgInvite(code);       // kurum yöneticisi daveti
+    if (isSiteInviteCode(code)) return await acceptSiteInvite(code);     // site dairesi (malik ya da kiracı) daveti
+    const pid = must(await sb().rpc('accept_invite', { invite_code: code }));
+    if (!pid) throw inviteRejected();      // sunucu her başarısızlığı (yanlış, kullanılmış, süresi dolmuş, başka e-posta, sınır) NULL ile bildirir
+    await loadAll();
+    subscribe();
+    return pid;
+  } catch(e){ throw inviteError(e); }
+}
+
+/** Davet kabulündeki sunucu hataları tek, ayırt etmeyen bir iletiye indirilir: kod yanlış, kullanılmış, süresi dolmuş, başka
+    e-postaya ait ya da çok fazla deneme: hepsi aynı görünür (kod avcılığına ipucu vermez). Ağ hatası ve oturum hatası ayrı kalır. */
+export function inviteRejected(){
+  const u = new Error(t('Bu davet kodu geçerli değil: yanlış yazılmış, kullanılmış ya da süresi dolmuş olabilir. Davet edenden yeni kod iste.'));
+  u.code = 'INVITE';
+  return u;
+}
+export function inviteError(e){
+  // Ağ ve kütüphane hataları (kod taşımaz) ile oturum hataları olduğu gibi kalır.
+  if (!e || e.banned !== undefined || typeof e.code !== 'string' || /^PGRST3/.test(e.code) || /JWT/i.test(String(e.message || ''))) return e;
+  // Kodun geçerliliğiyle ilgisi olmayan, ayırt edici sunucu hataları kendi (Türkçe) iletisiyle geçer: 42501 (oturum yok, hesap askıda) ve
+  // 22023 (kendi davetini kullanamazsın, hesap türüne uymayan davet). Eski şema "kullanılmış" ve "süresi dolmuş" daveti de 22023 ile bildirir; onlar tek iletiye iner.
+  if ((e.code === '42501' || e.code === '22023') && !/kullanılmış|süresi dolmuş/i.test(String(e.message || ''))) return e;
+  // Kod yok, kullanılmış, süresi dolmuş, başka e-postaya ait ya da deneme sınırı: hepsi tek iletidir.
+  return inviteRejected();
 }
 
 /* ------------------------------------------------------------------ */
@@ -943,16 +1006,17 @@ export async function activityFeed(lim = 200, pid = null){
 /** Davet kodunun kime ait olduğunu oturum açmadan gösterir (/katil sayfası). Kod yoksa null; sunucuya ulaşılamazsa hata fırlatır. */
 export async function invitePreview(code){
   const c = await client();
-  return must(await c.rpc('invite_preview', { invite_code: code }));
+  return must(await c.rpc('invite_preview', { invite_code: normalizeInviteCode(code) }));
 }
 
 /** Kayıt için davet kodu geçerli mi? (kiracı daveti ya da site dairesi kodu; oturumsuz sorulur) */
 export async function signupCodeOk(code){
+  code = normalizeInviteCode(code);
   const c = await client();
   const r = await c.rpc('signup_code_ok', { invite_code: code });
   if (!r.error) return !!r.data;
   // Sunucuda işlev henüz yoksa (migration uygulanmadan önce) eski önizleme işlevleriyle denetlenir.
-  if (isSiteCode(code)){ const x = must(await c.rpc('site_invite_info', { invite_code: code })); return !!x && !x.used; }
+  if (isSiteInviteCode(code)){ const x = must(await c.rpc('site_invite_info', { invite_code: code })); return !!x && !x.used; }
   const x = must(await c.rpc('invite_preview', { invite_code: code }));
   return !!x && !!x.valid && (x.role || 'tenant') === 'tenant';
 }

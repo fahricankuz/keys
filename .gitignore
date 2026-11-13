@@ -11,3 +11,17 @@ hostinger-site/
 dist/
 supabase/.temp/
 magaza-ekranlari/
+
+# Gizli dosyalar: depoya hiçbir zaman girmez (imzalama anahtarları, Firebase/Apple kimlik dosyaları, yerel ortam değişkenleri, MCP ayarı)
+.env
+.env.*
+!.env.example
+*.p8
+*.p12
+*.jks
+*.keystore
+*.mobileprovision
+GoogleService-Info.plist
+google-services.json
+credentials.json
+.mcp.json

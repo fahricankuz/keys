@@ -12,6 +12,9 @@ import { account, adoptPlanChoice, PLAN_CHOICE } from '../domain/billing';
 import * as backend from '../domain/backend';
 import { playOnNextOpen } from '../app-ui/OpenSplash';
 import { refreshBlocks } from '../domain/moderation';
+import { setSentryUser } from '../domain/sentry';
+import { host } from '../domain/host';
+import { normalizeInviteCode } from '../domain/invite-code';
 
 export type Role = 'tenant' | 'landlord' | 'team';
 /** Giriş türü: 'user' tek giriş (kiracı, mülk sahibi, ekip, site); 'admin' yönetici girişi. Eski 'tenant'/'landlord' değerleri 'user' gibi davranır. */
@@ -44,7 +47,8 @@ type Ctx = {
   /** E-posta onay bağlantısıyla açılan oturumu benimser (panel açılırken giriş geçişi oynar). */
   adopt(): Promise<User | null>;
   signOut(): Promise<void>;
-  deleteAccount(): Promise<void>;
+  /** Hesabı siler. Başarısızlıkta hata iletisi döner (oturum açık kalır, kişiye bildirim gösterilir); başarıda null. */
+  deleteAccount(): Promise<string | null>;
   /** Davet koduyla mülke bağlan (gerçek hesap, kiracı). */
   join(code: string): Promise<string | null>;
   /** Ayarlar: ad ve telefon. */
@@ -82,7 +86,7 @@ async function watchSession() {
 }
 
 /** Bekleyen davet kodu (/katil bağlantısından gelir); giriş sonrası kabul edilir. */
-export const keepInvite = (code: string) => { try { storage.setItem(INVITE, code.trim().toUpperCase()); } catch {} };
+export const keepInvite = (code: string) => { try { storage.setItem(INVITE, normalizeInviteCode(code)); } catch {} };
 export const dropInvite = () => { try { storage.removeItem(INVITE); } catch {} };
 /** Site davetinde yönetimin girdiği ad, telefon ve e-posta (kayıt formu bunlarla dolu açılır). */
 const PREFILL = 'anahtar-davet-bilgi';
@@ -129,6 +133,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  // Hata izlemede kişi yalnızca UUID ile tanınır (e-posta, ad, telefon gönderilmez); yerel hesap kimliği gönderilmez.
+  useEffect(() => { setSentryUser(LIVE && user ? user.id : null); }, [user]);
+
   useEffect(() => {
     (async () => {
       try {
@@ -158,8 +165,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (LIVE) {
         if (captchaPending()) return t('Güvenlik doğrulaması bitsin, sonra tekrar dene.');
         const c = await backend.client();
-        const { data, error } = await c.auth.signInWithPassword({ email, password, options: { captchaToken: captchaToken() ?? undefined } });
-        captchaSpent();
+        let res;
+        try { res = await c.auth.signInWithPassword({ email, password, options: { captchaToken: captchaToken() ?? undefined } }); }
+        finally { captchaSpent(); }       // jeton tek kullanımlık: sonuç ne olursa olsun yenisi istenir
+        const { data, error } = res;
         if (error) return backend.humanError(error);
         const u = await enterLive(data.user);
         const wrong = as && wrongEntry(u, as);
@@ -179,7 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = useCallback(async ({ name, email, password, role, phone = '', invite = '' }: { name: string; email: string; password: string; role: Role; phone?: string; invite?: string }) => {
-    email = email.trim().toLowerCase(); name = name.trim(); phone = phone.trim().slice(0, 30); invite = invite.trim().toUpperCase();
+    email = email.trim().toLowerCase(); name = name.trim(); phone = phone.trim().slice(0, 30); invite = normalizeInviteCode(invite);
     if (!name || !email || password.length < 8) return t('Adını, e-postanı ve en az 8 karakterli bir şifre gir.');
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return t('Geçerli bir e-posta adresi yaz.');
     try {
@@ -196,9 +205,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Mülk sahibinin seçtiği paket hesap bilgisine de yazılır: onayı başka cihazda yapsa da hoş geldin e-postası doğru paketi anlatır.
         let plan: string | undefined;
         try { const pc = JSON.parse(storage.getItem(PLAN_CHOICE) || 'null'); if (role === 'landlord' && pc && ['tek', 'bes'].includes(pc.plan)) plan = pc.plan; } catch {}
-        const { data, error } = await c.auth.signUp({ email, password, options: { data: { name, role, lang: getLang(), ...(plan ? { plan } : {}), ...(phone ? { phone } : {}), ...(role === 'tenant' && invite ? { invite } : {}) }, captchaToken: captchaToken() ?? undefined,
-          emailRedirectTo: CONFIG.publicUrl.replace(/\/?$/, '/') + 'dogrula' } });
-        captchaSpent();
+        let res;
+        try {
+          res = await c.auth.signUp({ email, password, options: { data: { name, role, lang: getLang(), ...(plan ? { plan } : {}), ...(phone ? { phone } : {}), ...(role === 'tenant' && invite ? { invite } : {}) }, captchaToken: captchaToken() ?? undefined,
+            emailRedirectTo: CONFIG.publicUrl.replace(/\/?$/, '/') + 'dogrula' } });
+        } finally { captchaSpent(); }
+        const { data, error } = res;
         if (error) return t('Hesap oluşturulamadı: {m}', { m: backend.humanError(error) });
         if (!data.session) return 'CONFIRM';
         playOnNextOpen(); setUser(await enterLive(data.user!)); watchSession(); return null;
@@ -235,8 +247,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       if (captchaPending()) return t('Güvenlik doğrulaması bitsin, sonra tekrar dene.');
       const c = await backend.client();
-      const { error } = await c.auth.resetPasswordForEmail(email, { redirectTo: CONFIG.publicUrl + 'yeni-sifre', captchaToken: captchaToken() ?? undefined });
-      captchaSpent();
+      let res;
+      try { res = await c.auth.resetPasswordForEmail(email, { redirectTo: CONFIG.publicUrl.replace(/\/?$/, '/') + 'yeni-sifre', captchaToken: captchaToken() ?? undefined }); }
+      finally { captchaSpent(); }
+      const { error } = res;
       return error ? t('Bağlantı gönderilemedi.') : null;
     } catch { return t('Bağlantı kurulamadı. Biraz sonra yeniden dene.'); }
   }, []);
@@ -254,16 +268,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /** Hesabı ve bu cihazdaki verisini siler (mağaza kuralı: uygulama içinden hesap silme). */
   const deleteAccount = useCallback(async () => {
     const id = user?.id;
-    if (LIVE) { leaving = true; try { await backend.deleteAccount(); } catch {} leaving = false; storage.removeItem(SESSION); closeLocal(); leave(); setUser(null); return; }
+    if (LIVE) {
+      leaving = true;
+      try { await backend.deleteAccount(); }
+      catch (e) {
+        // Sunucu silmediyse hesap duruyor: hata gösterilir, oturum açık kalır, yerel veri silinmez.
+        leaving = false;
+        const m = backend.humanError(e);
+        host.notify({ title: t('Hesap silinemedi'), body: m, icon: 'bell' });
+        return m;
+      }
+      leaving = false; storage.removeItem(SESSION); closeLocal(); leave(); setUser(null); return null;
+    }
     if (id) {
       storage.setItem(ACCOUNTS, JSON.stringify(readAccounts().filter((x) => x.id !== id)));
       storage.removeItem('kiracim-veri-' + id);
     }
     await signOut();
+    return null;
   }, [user, signOut]);
 
   const join = useCallback(async (code: string) => {
-    code = code.trim().toUpperCase();
+    code = normalizeInviteCode(code);
     if (!code) return t('Davet kodunu gir.');
     if (!LIVE) return t('Davet kodları sunucuya bağlı kurulumda çalışır. Site sunucuya bağlanınca kodunla mülküne bağlanabilirsin.');
     try { await backend.acceptInvite(code); storage.removeItem(INVITE); return null; } catch (e) { return backend.humanError(e); }
@@ -305,7 +331,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       if (LIVE) {
         const c = await backend.client();
-        const { error } = await c.auth.updateUser({ email }, { emailRedirectTo: CONFIG.publicUrl });
+        const { error } = await c.auth.updateUser({ email }, { emailRedirectTo: CONFIG.publicUrl.replace(/\/?$/, '/') + 'dogrula' });
         return error ? backend.humanError(error) : 'CONFIRM';
       }
       if (readAccounts().some((x) => x.email === email && x.id !== user.id)) return t('Bu e-posta ile bir hesap zaten var.');

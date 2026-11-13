@@ -14,6 +14,8 @@ import { logger } from '../_shared/log.ts';
 const log = logger('push');
 
 const env = (k: string) => Deno.env.get(k) ?? '';
+/** Her dış isteğin üst süresi: yanıt vermeyen sunucu fonksiyonu (ve webhook'u) asılı bırakmasın. */
+const TIMEOUT_MS = 10_000;
 
 export type Note = { title: string; body: string; url: string; tag?: string | null };
 /** Gönderim sonucu: 'ok', 'gone' (anahtar geçersiz, silinmeli) ya da hata. */
@@ -39,8 +41,9 @@ async function apnsToken(): Promise<string> {
 export async function sendApns(deviceToken: string, n: Note): Promise<Result> {
   if (!env('APNS_KEY')) return 'skipped';
   const host = env('APNS_SANDBOX') === '1' ? 'api.sandbox.push.apple.com' : 'api.push.apple.com';
-  const res = await fetch(`https://${host}/3/device/${deviceToken}`, {
+  const res = await fetch(`https://${host}/3/device/${encodeURIComponent(deviceToken)}`, {
     method: 'POST',
+    signal: AbortSignal.timeout(TIMEOUT_MS),
     headers: {
       authorization: 'bearer ' + await apnsToken(),
       'apns-topic': env('APNS_BUNDLE_ID') || 'io.anahtar.app',
@@ -48,8 +51,11 @@ export async function sendApns(deviceToken: string, n: Note): Promise<Result> {
       'apns-priority': '10',
       ...(n.tag ? { 'apns-collapse-id': n.tag.slice(0, 64) } : {}),
     },
+    // expo-notifications iOS'ta bildirimin verisini (content.data) yükün kökündeki `body` anahtarından okur; bağlantı orada olmalı.
+    // Kökteki `url` eski okuyucular içindir.
     body: JSON.stringify({
       aps: { alert: { title: n.title, body: n.body }, sound: 'default', 'thread-id': n.tag ?? 'evim' },
+      body: { url: n.url },
       url: n.url,
     }),
   });
@@ -79,6 +85,7 @@ async function fcmAccess(): Promise<{ token: string; project: string }> {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) throw new Error('FCM oturumu alınamadı: ' + res.status);
   const j = await res.json();
@@ -89,8 +96,9 @@ async function fcmAccess(): Promise<{ token: string; project: string }> {
 export async function sendFcm(deviceToken: string, n: Note): Promise<Result> {
   if (!env('FCM_SERVICE_ACCOUNT')) return 'skipped';
   const { token, project } = await fcmAccess();
-  const res = await fetch(`https://fcm.googleapis.com/v1/projects/${project}/messages:send`, {
+  const res = await fetch(`https://fcm.googleapis.com/v1/projects/${encodeURIComponent(project)}/messages:send`, {
     method: 'POST',
+    signal: AbortSignal.timeout(TIMEOUT_MS),
     headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
     body: JSON.stringify({
       message: {
