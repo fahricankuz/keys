@@ -181,6 +181,7 @@ curl -sI https://anahtar.io/ | head -3                           # site up
 cd app && npx eas-cli build:list --limit 5 --non-interactive     # builds (needs Expo login)
 cd app && npx eas-cli update:list --branch production --limit 3  # OTA updates (needs Expo login)
 ```
+Store state from the API (read-only; needs the Apple key / Play service account env, see README): `npm run magaza:durum --prefix app`; all store scripts: `app/scripts/magaza/README.md`.
 Sentry: `https://anahtar.sentry.io` (projects `anahtar-web`, `anahtar-mobile`, `anahtar-edge`). Store states: App Store Connect / Play Console (humans).
 
 ---

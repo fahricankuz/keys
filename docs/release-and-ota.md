@@ -179,6 +179,8 @@ npx eas-cli submit --platform android --profile production --latest
 **Check on a real device** ([gercek-cihaz-kontrol.md](gercek-cihaz-kontrol.md), [magaza.md](magaza.md) section 10): sign-in, universal links (`/katil`, `/dogrula`, `/yeni-sifre`), push, photo upload, sandbox purchase + restore + plan change
 (Erdem asks; sandbox only), account deletion, a Sentry test event in `anahtar-mobile` (release shows the app version). Note the build number you tested.
 
+Scripted store checks and uploads (read-only or dry-run by default; `--apply` needs Erdem's approval): `app/scripts/magaza/README.md` (`npm run magaza:durum --prefix app` shows builds, TestFlight, subscription prices; `magaza:play-yukle` sends an `.aab` to Play internal).
+
 **Rollback:** a build cannot be recalled. Stop distribution instead: TestFlight → expire the build or remove it from the groups; Play → halt the rollout or replace the draft. Ship the fix as a **new** build (version codes only go up) or, if it is JavaScript-only, as an OTA (section 7).
 
 ## 6. Store review submission and manual release
