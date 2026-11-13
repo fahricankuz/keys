@@ -78,7 +78,7 @@
 | **App Review** (iOS 1.0.0 (5) + 36 subscriptions) | `WAITING_FOR_REVIEW` | Apple answers in ~1–3 days. If rejected: read the reason in App Store Connect → App Review, fix, resubmit (Erdem). After approval press **Release** (manual) |
 | **Google review** (production 1.0.0 (4)) | Sent 2026-11-14 ~00:12 with managed publishing ON | Usually up to 7 days. After approval: Play Console → Publishing overview → **Publish** (manual) |
 | TestFlight external beta (build 2) | Waiting for Apple | Public link `https://testflight.apple.com/join/zhpWEbFX` after approval; add build (5) to the "Dış test" group then |
-| Play API write access for `eas-submit@anahtario` | Still 403 on writes (`convertRegionPrices`, subscription PATCH). Reads work | Only needed for future catalog changes by script: give it "View financial data" + "Manage orders and subscriptions" in Play Console → Users and permissions (owner), then re-test `npm run magaza:play-abonelik --prefix app` dry run |
+| Play API write access for `eas-submit@anahtario` | **Fixed 2026-11-14 00:25**: "View financial data" + "Manage orders and subscriptions" added on app anahtar; `pricing:convertRegionPrices` now 200 | Repo scripts can change the Play catalog again (dry run first, owner approval for `--apply`) |
 | Test accounts for end-to-end testing | 5 accounts seeded in production (`test-mulk`, `test-kiraci`, `test-yeni`, `test-yonetici`, `test-sakin` @anahtar.io); emails/notifications off for them | Password only in Erdem's local secrets folder. Re-seed: `app/scripts/test-hesaplari.mjs` |
 
 Until both stores approve, still **no** new store builds, submissions or OTA without Erdem.
@@ -202,3 +202,4 @@ End-to-end test accounts (production, seeded data, notification e-mails off): `t
 |---|---|
 | 2026-11-13 22:45 | First version: launch-day state, in-flight release steps, critical items (SEO, security, store), traps, ownership |
 | 2026-11-14 00:15 | Handover back to owners: iOS + 36 subscriptions in App Review; Android 1.0.0 (4) in Google review with managed publishing; Play catalog (36 plans) + RevenueCat (72 products) done; store scripts (#120) and test accounts (#121) |
+| 2026-11-14 00:30 | Play API write permission for `eas-submit` fixed (convertRegionPrices 200) |
