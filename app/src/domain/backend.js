@@ -13,7 +13,7 @@ import { logCaught } from './logs.js';
 import { authStorage, migrateAuthStorage } from './secure-storage';
 import { t } from './i18n.js';
 import { CONFIG, LIVE } from './config.js';
-import { S, ui, VERSION, useStorageKey, replaceState, saveLocal, hooks, emit } from './state.js';
+import { S, ui, VERSION, useStorageKey, replaceState, savedLang, saveLocal, hooks, emit } from './state.js';
 import { buildProperty, diffProperty, pendingMedia, storedPath, isStored, SB, messageFromRow } from './mapping.js';
 import { host } from './host.js';
 import { storage } from './storage.js';
@@ -252,7 +252,7 @@ export async function deleteAccount(){
 
 function emptyState(){
   return {
-    v: VERSION, lang: S.lang || 'tr', theme: S.theme || 'system', seenHint: true, tourDone: true,
+    v: VERSION, lang: savedLang() || S.lang || 'tr', theme: S.theme || 'system', seenHint: true, tourDone: true,
     myHome: null, props: {}, order: [], settings: Object.assign({}, DEFAULT_SETTINGS), inbox: []
   };
 }
@@ -354,7 +354,7 @@ export async function loadAll(opts = {}){
     built.sort((a, b) => String(a.created).localeCompare(String(b.created)));
 
     const next = emptyState();
-    next.lang = S.lang || live.profile.lang || 'tr';
+    next.lang = savedLang() || live.profile.lang || 'tr';
     next.theme = S.theme || 'system';
     next.settings = Object.assign({}, DEFAULT_SETTINGS, live.profile.settings || {});
     next.inbox = notes.reverse().map(noteToInbox);

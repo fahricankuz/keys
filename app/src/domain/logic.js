@@ -8,13 +8,14 @@ import { t0, iso, add, addM, mkey, between, daysTo, parse, fmt, fmtFull, monthNa
 export function P(id){ return S.props[id]; }
 export function role(){ return ui.role; }
 
+/* Alıcılar t()'yi her okumada çağırır (getter): modül yüklenirken değil, dil belirlendikten sonra çevrilir. */
 export const ST = {
-  approved:[t('Ödendi'),'ok'],
-  review:[t('Onay bekliyor'),'wait'],
-  partial:[t('Kısmi ödeme'),'wait'],
-  rejected:[t('Dekont reddedildi'),'bad'],
-  pending:[t('Bekliyor'),''],
-  late:[t('Gecikti'),'bad']
+  get approved(){ return [t('Ödendi'),'ok']; },
+  get review(){ return [t('Onay bekliyor'),'wait']; },
+  get partial(){ return [t('Kısmi ödeme'),'wait']; },
+  get rejected(){ return [t('Dekont reddedildi'),'bad']; },
+  get pending(){ return [t('Bekliyor'),'']; },
+  get late(){ return [t('Gecikti'),'bad']; }
 };
 
 export function chip(st){

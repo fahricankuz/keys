@@ -5,6 +5,7 @@ import { logCaught } from './logs.js';
 import { VERSION, LEGACY_KEYS, migrate } from './migrate.js';
 import { LIVE } from './config.js';
 import { storage } from './storage.js';
+import { onLang } from './i18n.js';
 
 export { VERSION };
 export const KEY = 'evim';
@@ -336,6 +337,15 @@ export function emptyState(){
   };
 }
 
+/** Cihazda kayıtlı dil (evim-tercih). Depo hazır olmadan okunursa null döner. */
+export function savedLang(){
+  try { const pref = JSON.parse(storage.getItem('evim-tercih')); return (pref && pref.lang) || null; } catch(e){ return null; }
+}
+/** Tercih dosyası, yalnızca depodan okunan değerle başladıktan sonra yazılır; yoksa hazır olmayan varsayılan
+    ('tr') kayıtlı İngilizce seçimin üstüne yazılıp dili Türkçeye sıfırlardı. */
+let prefReady = false;
+onLang(l => { S.lang = l; });
+
 function initial(){
   const s = emptyState();
   // Tema ve dil tercihi oturumdan bağımsızdır.
@@ -360,6 +370,7 @@ export function openLocal(key, role){
   if (!next){ next = emptyState(); }
   const pref = initial();
   next.theme = pref.theme; next.lang = pref.lang;
+  prefReady = true;
   S = next;
   ui.role = role || ui.role;
   saveLocal();
@@ -374,7 +385,7 @@ export function closeLocal(){
 
 export let S = emptyState();
 /** Depo hazır olunca bir kez çağrılır. */
-export function boot(){ if (!storageKey) S = initial(); applyTheme(); }
+export function boot(){ if (!storageKey) S = initial(); prefReady = true; applyTheme(); }
 export function isReadOnly(){ return readOnly; }
 
 /** Kayıt anahtarı: demo 'evim', gerçek hesapta kullanıcıya özel. */
@@ -396,7 +407,7 @@ export function save(){
 
 /** Yalnızca cihaza yazar. Kota dolarsa fotoğrafları atıp yeniden dener. */
 export function saveLocal(){
-  try { storage.setItem('evim-tercih', JSON.stringify({ theme:S.theme, lang:S.lang })); } catch(e){}
+  if (prefReady){ try { storage.setItem('evim-tercih', JSON.stringify({ theme:S.theme, lang:S.lang })); } catch(e){} }
   if (readOnly || !storageKey) return false;
   try {
     storage.setItem(storageKey, JSON.stringify(S));

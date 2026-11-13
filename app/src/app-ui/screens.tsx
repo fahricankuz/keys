@@ -277,7 +277,7 @@ export function Portfolio() {
   );
 }
 
-const PROP_SUBS: [string, string][] = [['ozet', t('Özet')], ['odeme', t('Ödemeler')], ['talep', t('Talepler')], ['mesaj', t('Mesajlar')], ['belge', t('Belgeler')], ['tutanak', t('Tutanak')], ['gider', t('Giderler')], ['rapor', t('Rapor')]];
+const PROP_SUBS = (): [string, string][] => [['ozet', t('Özet')], ['odeme', t('Ödemeler')], ['talep', t('Talepler')], ['mesaj', t('Mesajlar')], ['belge', t('Belgeler')], ['tutanak', t('Tutanak')], ['gider', t('Giderler')], ['rapor', t('Rapor')]];
 
 /** Yazışmalar: son mesaja göre yeniden eskiye (ekip üyesi yalnız mesaj yetkisi olan mülkleri görür). */
 function threadIds() {
@@ -370,7 +370,7 @@ export function PropDetail({ pid, sub = 'ozet' }: { pid: string; sub?: string })
   if (!p) return <Redirect href="/uygulama" />;
   // Ekip üyesi rolünün göremediği sekmeler gizlenir (muhasebeci mesaj, personel gider ve rapor).
   const hidden = (k: string) => (k === 'mesaj' && !can(pid, 'message')) || ((k === 'gider' || k === 'rapor') && !can(pid, 'expense_read'));
-  const subs = PROP_SUBS.filter(([k]) => !hidden(k));
+  const subs = PROP_SUBS().filter(([k]) => !hidden(k));
   if (hidden(sub)) sub = 'ozet';
   const depText = p.depositKind === 'Teminat mektubu' ? t('Teminat mektubu') : tl(p.deposit);
   let body: ReactNode = null;
