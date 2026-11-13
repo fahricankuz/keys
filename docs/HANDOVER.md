@@ -1,13 +1,14 @@
 # HANDOVER: anahtar, state after the 2026-11-13 launch day
 
 > **Living document.** It is updated whenever the release moves forward; the change log at the bottom says what changed and when.
-> Last updated: **2026-11-13 22:45 (Istanbul, UTC+3)**.
-> Audience: an AI coding agent (Claude Code, Codex, others) with **no prior context**, working for the repo owners.
+> Last updated: **2026-11-14 00:15 (Istanbul, UTC+3)**.
+> Audience: the repo owners and their AI agents. This is a **handover back**: on 2026-11-13 Erdem (DevirVentures) hardened,
+> extended and prepared this repo for the stores; this file says what changed, what is live, what is still in review and what is left.
 > The repo is **public**: this file contains IDs and names, never secret values. Do not add any.
 
 ---
 
-## 0. Read this first (for the agent)
+## 0. Read this first (for the owners' agent)
 
 1. Read in this order: **this file** → [`AGENTS.md`](../AGENTS.md) (rules, how to run and test, approval matrix) →
    [`CLAUDE.md`](../CLAUDE.md) (owners' Turkish rules: migrations, release, commits) → [`docs/README.md`](README.md) (index of every doc).
@@ -29,11 +30,11 @@
 | Backend (Supabase production `nfpefnrgtnwvclwbriaw`, Frankfurt) | **Live**: 51 migrations, 9 Edge Functions, Vault-based cron/webhooks | 21 real users. Compute Micro. Daily backups |
 | Payments | **On** (`app_config.billing_paused = false` since 18:17 UTC) | In-app purchase via RevenueCat, phones only. Web points to the app |
 | Monitoring | **On**: Sentry EU org `anahtar` (web, mobile, edge) | Alerts, error-spike and crash-rate monitors, uptime on `https://anahtar.io/` |
-| iOS | TestFlight: build **(2)** waiting for external beta review, build **(4)** in internal testing | App Store version **1.0.0: PREPARE_FOR_SUBMISSION**, release type **MANUAL** |
-| Android | Play **internal testing**: builds (2), (3) | Production release not yet submitted |
-| Store subscriptions | App Store: 36 products in group `anahtar`, attached to RevenueCat `pro`; worldwide prices being written (section 4) | Play: **not created yet** (Google API permission still 403, section 4) |
-| OTA updates | `expo-updates` merged (#117). First builds that can receive OTA: iOS **(5)**, Android **(4)** (not built yet) | EAS env variables for OTA fixed 2026-11-13 (section 5.6) |
-| Repo | `main` = #112, #113, #114, #116, #117 merged; #115 closed | Open: native-fix PR (in progress), docs PR (this file), Dependabot #105 #106 #108 |
+| iOS | **In App Review** since 2026-11-13 ~23:55: version **1.0.0 build (5)** + all **36 subscriptions** = `WAITING_FOR_REVIEW`, release **MANUAL** | TestFlight: build (5) for group "Ekip"; build (2) in external beta review |
+| Android | **In Google review** since 2026-11-14 00:12: production **1.0.0 (4)**, **managed publishing ON** (nothing goes live until someone presses Publish) | Internal testing: build (4) live for testers |
+| Store subscriptions | App Store: 36 products, all 175 territories priced, in review with the app | Play: `tek` + `bes`, 36 base plans **ACTIVE**, 174 regions (created in the Console UI); RevenueCat `pro` has all **72** products (36 iOS + 36 Android) |
+| OTA updates | `expo-updates` merged (#117). iOS **(5)** and Android **(4)** are the first builds that can receive OTA | EAS env variables for OTA fixed 2026-11-13 (section 5.6); first OTA must be tested on `preview` |
+| Repo | `main` = #112–#114, #116–#121 merged; #115 closed | Open: Dependabot #105 #106 #108 |
 
 ---
 
@@ -70,19 +71,17 @@
 
 ---
 
-## 4. In flight right now (Erdem's session; do not duplicate)
+## 4. In flight right now
 
-| Step | State | Next |
+| Step | State | Next (who) |
 |---|---|---|
-| Native fix PR (Turnstile removal + safe area) | Being finished on branch `fix/native-turnstile-safearea`; simulator check + tests | Erdem merges it as soon as it is open |
-| Builds iOS **1.0.0 (5)** and Android **1.0.0 (4)** from `main` | Waiting for the merge above | `eas build --profile production`; iOS auto-submits to TestFlight; Android goes to Play internal |
-| App Store prices for all 36 subscriptions in 175 territories | Script running on Erdem's Mac (descending; at `tek_7` at 22:29, ~5 min per product) | Expected to finish ~23:35 Istanbul time |
-| **App Review submission** | After build (5) is processed and prices are done | Version 1.0.0 + 36 subscriptions, manual release |
-| **Play production release** | After build (4) | Managed publishing; **do not publish until Play subscriptions exist and are attached to RevenueCat** (otherwise the Android paywall is empty) |
-| Play subscriptions `tek` / `bes` (18 base plans each, `N-aylik` / `N-yillik`) | Retry every 15 min from Erdem's Mac; Google API returns **403 PERMISSION_DENIED** on `pricing:convertRegionPrices` for service account `eas-submit@anahtario` since ~21:51 | Usually permission propagation (up to ~24–36 h). If still 403 on **2026-11-15**, check that account's app permissions in Play Console → Users and permissions (it must be allowed to manage subscriptions/products), then add the 36 Play products to RevenueCat entitlement `pro` |
-| TestFlight external beta review (build 2) | Waiting for Apple | Public link `https://testflight.apple.com/join/zhpWEbFX` works after approval |
+| **App Review** (iOS 1.0.0 (5) + 36 subscriptions) | `WAITING_FOR_REVIEW` | Apple answers in ~1–3 days. If rejected: read the reason in App Store Connect → App Review, fix, resubmit (Erdem). After approval press **Release** (manual) |
+| **Google review** (production 1.0.0 (4)) | Sent 2026-11-14 ~00:12 with managed publishing ON | Usually up to 7 days. After approval: Play Console → Publishing overview → **Publish** (manual) |
+| TestFlight external beta (build 2) | Waiting for Apple | Public link `https://testflight.apple.com/join/zhpWEbFX` after approval; add build (5) to the "Dış test" group then |
+| Play API write access for `eas-submit@anahtario` | Still 403 on writes (`convertRegionPrices`, subscription PATCH). Reads work | Only needed for future catalog changes by script: give it "View financial data" + "Manage orders and subscriptions" in Play Console → Users and permissions (owner), then re-test `npm run magaza:play-abonelik --prefix app` dry run |
+| Test accounts for end-to-end testing | 5 accounts seeded in production (`test-mulk`, `test-kiraci`, `test-yeni`, `test-yonetici`, `test-sakin` @anahtar.io); emails/notifications off for them | Password only in Erdem's local secrets folder. Re-seed: `app/scripts/test-hesaplari.mjs` |
 
-When these are done, this section is rewritten and section 1 updated.
+Until both stores approve, still **no** new store builds, submissions or OTA without Erdem.
 
 ---
 
@@ -202,3 +201,4 @@ End-to-end test accounts (production, seeded data, notification e-mails off): `t
 | When (Istanbul) | Change |
 |---|---|
 | 2026-11-13 22:45 | First version: launch-day state, in-flight release steps, critical items (SEO, security, store), traps, ownership |
+| 2026-11-14 00:15 | Handover back to owners: iOS + 36 subscriptions in App Review; Android 1.0.0 (4) in Google review with managed publishing; Play catalog (36 plans) + RevenueCat (72 products) done; store scripts (#120) and test accounts (#121) |
