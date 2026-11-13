@@ -5,8 +5,7 @@ name: CodeQL
 # Dakika tasarrufu: her PR'da değil; ana dala girişte, haftada bir ve elle.
 on:
   push:
-    # Varsayılan dal `main` olacak; depo sahibi eski dalı yeniden adlandırınca ikinci ad buradan silinir.
-    branches: [main, claude/github-keys-setup-uzvnzm]
+    branches: [main]
     paths: ['app/src/**', 'app/scripts/**', 'scripts/**', '.github/workflows/codeql.yml']
   schedule:
     - cron: '23 4 * * 1'
