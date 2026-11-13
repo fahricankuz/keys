@@ -6,7 +6,10 @@ name: Hostinger paketi
 #  2) aynı dosyaları `anahtar-hostinger.zip` olarak indirilebilir paket (artifact) bırakır.
 # Varsayılan dala her push'ta ve elle (Actions → Hostinger paketi → Run workflow) çalışır.
 # Değişkenler (Settings → Secrets and variables → Actions → Variables): SUPABASE_URL (boşsa projenin adresi kullanılır), SUPABASE_ANON_KEY (boşsa projenin herkese açık "publishable" anahtarı kullanılır; gizli/secret anahtar asla girilmez),
-# TURNSTILE_SITE_KEY (isteğe bağlı).
+# TURNSTILE_SITE_KEY (isteğe bağlı), SENTRY_DSN_WEB (Sentry web DSN'i; herkese açık istemci anahtarı), SENTRY_ORG / SENTRY_PROJECT / SENTRY_URL
+# (boşsa anahtar / anahtar-web / https://de.sentry.io/), APPLE_TEAM_ID ve ANDROID_SHA256 (evrensel bağlantı dosyaları; app/scripts/well-known.mjs).
+# Gizli bilgi (Secrets): SENTRY_AUTH_TOKEN (kaynak haritası yükleme; yoksa harita yüklenmeden silinir).
+# Paketleme ve `site` dalına yazma yalnız varsayılan daldan çalışır (elle çalıştırmada başka dal seçilse bile paketlenmez).
 on:
   push:
     paths-ignore: ['docs/**', '**.md']        # yalnız belge değişikliği siteyi yeniden derlemez (dakika tasarrufu)
@@ -17,8 +20,9 @@ on:
         type: boolean
         default: false
 
+# Varsayılan salt okunur; yalnız `site` dalına yazan iş (package) contents: write alır.
 permissions:
-  contents: write
+  contents: read
 
 # Dal başına ayrı grup: yan dallardaki (ör. Dependabot) çalışmalar ana daldaki uzun testli yayını iptal etmesin.
 # Aynı daldaki art arda push'larda eskisi iptal edilir, son hali yayınlanır.
@@ -34,10 +38,15 @@ jobs:
 
   package:
     needs: test
-    if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') && (github.event_name == 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) }}
+    if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
+      # Kimlik bilgisi saklanmaz: `site` dalına gönderim aşağıda belirteçle (github.token) ayrı bir git deposundan yapılır.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -63,6 +72,14 @@ jobs:
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || 'sb_publishable_7FOuGjt9lHI94rQI9iWHZA_KpSmfh-N' }}
           EXPO_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
           EXPO_PUBLIC_VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
+          EXPO_PUBLIC_SENTRY_DSN_WEB: ${{ vars.SENTRY_DSN_WEB }}
+          EXPO_PUBLIC_SENTRY_RELEASE: ${{ github.sha }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG || 'anahtar' }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT || 'anahtar-web' }}
+          SENTRY_URL: ${{ vars.SENTRY_URL || 'https://de.sentry.io/' }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          ANDROID_SHA256: ${{ vars.ANDROID_SHA256 }}
         run: EXPO_PUBLIC_BUILD_ISO=$(date -u +%Y-%m-%dT%H:%M:%SZ) npm run build:hostinger
       - name: Zip paketi
         run: |

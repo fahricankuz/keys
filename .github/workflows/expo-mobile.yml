@@ -7,7 +7,8 @@ name: Mobil uygulama (Expo)
 # Dakika tasarrufu: her dal gönderiminde değil, uygulamaya dokunan PR'da ve ana dala girişte.
 on:
   push:
-    branches: [claude/github-keys-setup-uzvnzm]
+    # Varsayılan dal `main` olacak; depo sahibi eski dalı yeniden adlandırınca ikinci ad buradan silinir.
+    branches: [main, claude/github-keys-setup-uzvnzm]
     paths: ['app/**', '.github/workflows/expo-mobile.yml']
   pull_request:
     paths: ['app/**', '.github/workflows/expo-mobile.yml']
@@ -29,6 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -49,6 +52,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -56,7 +61,7 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - uses: expo/expo-github-action@v8
         with:
-          eas-version: latest
+          eas-version: 27.9.0
           token: ${{ secrets.EXPO_TOKEN }}
       - working-directory: app
         run: npm ci

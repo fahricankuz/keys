@@ -4,7 +4,8 @@ name: Güvenlik taraması
 # Her çekme isteğinde, ana dala girişte ve haftada bir çalışır (dal gönderimi PR'da zaten taranır; iki kez dakika harcamaz).
 on:
   push:
-    branches: [claude/github-keys-setup-uzvnzm]
+    # Varsayılan dal `main` olacak; depo sahibi eski dalı yeniden adlandırınca ikinci ad buradan silinir.
+    branches: [main, claude/github-keys-setup-uzvnzm]
   pull_request:
   schedule:
     - cron: '17 5 * * 1'
