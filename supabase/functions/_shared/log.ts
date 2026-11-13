@@ -2,9 +2,19 @@
 // warn ve error ayrıca public.function_logs tablosuna yazılır (yönetici paneli → Hatalar, 90 gün saklanır).
 // Kullanım: const log = logger('mail-send'); await log.error('gönderilemedi', { id, error });
 // Kişisel veri ve sırlar yazılmadan temizlenir. Kayıt hiçbir zaman hata fırlatmaz, işi durdurmaz. Ayrıntı: docs/loglar.md
+// Bu dosya npm: içe aktarması yapmaz (testler platform "neutral" ile derler); Sentry gibi dış alıcılar setLogHook ile bağlanır.
+
+import { apiKeyHeaders, secretKey } from './key-env.ts';
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 type Level = 'info' | 'warn' | 'error';
+
+/** warn ve error kaydı için dış alıcıya (Sentry) giden olay. message ve detail temizlenmiş metindir; raw özgün ayrıntıdır
+    (ör. Error nesnesi) ve alıcı tarafından yine temizlenmeden gönderilmemelidir. */
+export type LogEvent = { fn: string; level: 'warn' | 'error'; message: string; detail: string; raw: unknown };
+let hook: ((e: LogEvent) => void) | null = null;
+/** warn ve error kayıtlarını ek olarak bir alıcıya iletir (en fazla bir alıcı; null kaldırır). Alıcı hata fırlatsa da kayıt sürer. */
+export function setLogHook(fn: ((e: LogEvent) => void) | null): void { hook = fn; }
 
 /** public.log_redact ile aynı kurallar (tests/loglar.sql.spec.mjs ikisini karşılaştırır). */
 export function redact(s: string): string {
@@ -36,11 +46,11 @@ function allowed(): boolean {
 }
 
 async function persist(fn: string, level: Level, message: string, detail: string): Promise<void> {
-  const url = env('SUPABASE_URL'), key = env('SUPABASE_SERVICE_ROLE_KEY');
+  const url = env('SUPABASE_URL'), key = secretKey();
   if (!url || !key || !allowed()) return;
   const res = await fetch(`${url.replace(/\/$/, '')}/rest/v1/function_logs`, {
     method: 'POST',
-    headers: { apikey: key, authorization: `Bearer ${key}`, 'content-type': 'application/json', prefer: 'return=minimal' },
+    headers: { ...apiKeyHeaders(key), 'content-type': 'application/json', prefer: 'return=minimal' },
     body: JSON.stringify({ fn, level, message, detail }),
     signal: AbortSignal.timeout(3000)
   });
@@ -54,7 +64,10 @@ async function write(fn: string, level: Level, message: string, d?: unknown): Pr
     if (level === 'error') console.error(line);
     else if (level === 'warn') console.warn(line);
     else console.log(line);
-    if (level !== 'info') await persist(fn, level, msg, detail);
+    if (level !== 'info') {
+      try { hook?.({ fn, level, message: msg, detail, raw: d }); } catch { /* alıcı hatası kaydı durdurmaz */ }
+      await persist(fn, level, msg, detail);
+    }
   } catch (e) {
     try { console.error('log yazılamadı', (e as Error)?.message); } catch { /* kayıt işi asla durdurmaz */ }
   }

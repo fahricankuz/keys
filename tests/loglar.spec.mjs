@@ -80,6 +80,50 @@ test('hata seli: dakikada en çok 30 tablo kaydı; konsola yazmaya devam eder', 
   } finally { s.restore(); }
 });
 
+test('log kancası (setLogHook): warn ve error temizlenmiş metinle iletilir, info iletilmez; kanca hata fırlatsa da kayıt sürer; null kaldırır', async () => {
+  const { logger, setLogHook } = await load();
+  const s = setup(ENV);
+  try {
+    const got = [];
+    setLogHook((e) => got.push(e));
+    const err = new Error('patladı a@b.co');
+    await logger('push').info('başladı');
+    await logger('push').warn('yavaş 0532 111 22 33', { code: 5 });
+    await logger('billing').error('hata', err);
+    expect(got.map((e) => [e.fn, e.level, e.message])).toEqual([['push', 'warn', 'yavaş [telefon]'], ['billing', 'error', 'hata']]);
+    expect(got[0].detail).toBe('{"code":5}');
+    expect(got[1].raw).toBe(err);                                           // özgün Error nesnesi alıcıya verilir (alıcı temizler)
+    expect(got[1].detail).toContain('[e-posta]');                           // detail metni temizlenmiştir
+    expect(s.calls.length).toBe(2);                                         // tabloya yazma kancadan bağımsız sürer
+    setLogHook(() => { throw new Error('kanca bozuk'); });
+    await expect(logger('a').error('x')).resolves.toBeUndefined();
+    expect(s.calls.length).toBe(3);
+    setLogHook(null);
+    got.length = 0;
+    await logger('a').error('y');
+    expect(got).toEqual([]);
+  } finally { s.restore(); }
+});
+
+test('anahtar: SUPABASE_SECRET_KEYS (JSON) kullanılır; sb_ anahtarı yalnız apikey başlığında gider; eski SUPABASE_SERVICE_ROLE_KEY geri dönüşü sürer', async () => {
+  const { logger } = await load();
+  let s = setup({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SECRET_KEYS: '{"default":"sb_secret_yeni"}', SUPABASE_SERVICE_ROLE_KEY: 'eyJeski.a.b' });
+  try {
+    await logger('a').error('x');
+    expect(s.calls[0].headers).toEqual({ apikey: 'sb_secret_yeni', 'content-type': 'application/json', prefer: 'return=minimal' });
+  } finally { s.restore(); }
+  s = setup({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SECRET_KEYS: '{"default":"eyJyeni.a.b"}' });
+  try {
+    await logger('a').error('x');
+    expect(s.calls[0].headers).toMatchObject({ apikey: 'eyJyeni.a.b', authorization: 'Bearer eyJyeni.a.b' });
+  } finally { s.restore(); }
+  s = setup({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'eyJeski.a.b' });
+  try {
+    await logger('a').error('x');
+    expect(s.calls[0].headers.apikey).toBe('eyJeski.a.b');
+  } finally { s.restore(); }
+});
+
 test('fonksiyonlarda doğrudan console kullanılmaz: her kayıt ortak logdan geçer', () => {
   const walk = (d) => readdirSync(d).flatMap((f) => (statSync(d + f).isDirectory() ? walk(d + f + '/') : [d + f]));
   const bad = walk(ROOT).filter((f) => f.endsWith('.ts') && !f.endsWith('_shared/log.ts') && /console\.(log|warn|error|info|debug)/.test(readFileSync(f, 'utf8')));

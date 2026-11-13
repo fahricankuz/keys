@@ -13,15 +13,18 @@
 //   RESEND_API_KEY, EMAIL_FROM — e-posta bildirimleri için
 //   SMS_PROVIDER ve sağlayıcı bilgileri — tarihli hatırlatmalar için SMS (ayrıntı sms.ts)
 //   APP_URL          — bildirim bağlantılarının açılacağı adres (ör. https://kullanici.github.io/project_evim/)
-// SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY Supabase tarafından otomatik sağlanır.
+// SUPABASE_URL ve SUPABASE_SECRET_KEYS (yoksa SUPABASE_SERVICE_ROLE_KEY) Supabase tarafından otomatik sağlanır.
+// Her dış istek (Web Push, APNs, FCM, SMS, Resend) zaman aşımıyla çalışır; Web Push uç noktası yalnız bilinen push servislerinde olabilir (endpoint.ts).
 
 import webpush from 'npm:web-push@3.6.7';
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { allowedPushEndpoint } from './endpoint.ts';
 import { sendApns, sendFcm } from './native.ts';
 import { sendSms, smsEnabled } from './sms.ts';
 import { renderNotice } from './template.ts';
 import { mailConfigured, mailMissing, sendMail } from '../_shared/mail.ts';
+import { serviceClient } from '../_shared/keys.ts';
 import { logger } from '../_shared/log.ts';
+import { sentryServe } from '../_shared/sentry.ts';
 
 const log = logger('push');
 
@@ -33,9 +36,7 @@ const env = (k: string) => Deno.env.get(k) ?? '';
 
 if (env('VAPID_PUBLIC_KEY')) webpush.setVapidDetails(env('VAPID_SUBJECT') || 'mailto:admin@example.com', env('VAPID_PUBLIC_KEY'), env('VAPID_PRIVATE_KEY'));
 
-const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), {
-  auth: { persistSession: false }
-});
+const admin = serviceClient();
 
 // Gizli değer karşılaştırması sabit sürede yapılır (zamanlama farkından değer sezdirmez).
 function safeEqual(a: string, b: string): boolean {
@@ -56,7 +57,7 @@ function panelPath(url: string): string {
   return '/uygulama';
 }
 
-Deno.serve(async (req) => {
+sentryServe('push', async (req) => {
   if (req.method !== 'POST') return new Response('Yalnızca POST', { status: 405 });
 
   const secret = env('WEBHOOK_SECRET');
@@ -77,11 +78,16 @@ Deno.serve(async (req) => {
   const { data: subs } = await admin.from('push_subscriptions').select('endpoint, keys').eq('user_id', n.user_id);
   let sent = 0;
   for (const s of subs ?? []) {
+    // Bilinmeyen servise istek atılmaz (kayıt silinmez: izin verilen listeye sonradan eklenen bir servis olabilir).
+    if (!allowedPushEndpoint(s.endpoint)) {
+      await log.warn('web push uç noktası izin verilen servisler dışında; atlandı', { host: String(s.endpoint ?? '').slice(0, 60).replace(/^(https?:\/\/[^/?#]*).*$/, '$1') });
+      continue;
+    }
     try {
       await webpush.sendNotification(
         { endpoint: s.endpoint, keys: s.keys },
         JSON.stringify({ title: n.title, body: n.body, url: panelPath(n.url), tag: n.tag ?? undefined }),
-        { TTL: 60 * 60 * 24 }
+        { TTL: 60 * 60 * 24, timeout: 10_000 }
       );
       sent++;
     } catch (e) {

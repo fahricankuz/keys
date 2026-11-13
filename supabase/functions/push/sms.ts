@@ -6,6 +6,8 @@ import { logger } from '../_shared/log.ts';
 
 const log = logger('push');
 const env = (k: string) => Deno.env.get(k) ?? '';
+/** Dış isteğin üst süresi: yanıt vermeyen sağlayıcı fonksiyonu asılı bırakmasın. */
+const TIMEOUT_MS = 10_000;
 
 /** Türkiye numaralarını 905XXXXXXXXX biçimine getirir; geçersizse null. */
 export function normalizeTr(phone: string): string | null {
@@ -27,7 +29,8 @@ export async function sendSms(phone: string, text: string): Promise<boolean> {
     const res = await fetch('https://api.netgsm.com.tr/sms/rest/v2/send', {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: 'Basic ' + btoa(env('NETGSM_USER') + ':' + env('NETGSM_PASS')) },
-      body: JSON.stringify({ msgheader: env('NETGSM_HEADER'), encoding: 'TR', iysfilter: '0', messages: [{ msg, no: to }] })
+      body: JSON.stringify({ msgheader: env('NETGSM_HEADER'), encoding: 'TR', iysfilter: '0', messages: [{ msg, no: to }] }),
+      signal: AbortSignal.timeout(TIMEOUT_MS)
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok || String(body.code ?? '00') !== '00') { await log.error('netgsm hatası', { status: res.status, body }); return false; }
@@ -38,7 +41,8 @@ export async function sendSms(phone: string, text: string): Promise<boolean> {
     const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
       method: 'POST',
       headers: { authorization: 'Basic ' + btoa(sid + ':' + env('TWILIO_TOKEN')), 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ To: '+' + to, From: env('TWILIO_FROM'), Body: msg })
+      body: new URLSearchParams({ To: '+' + to, From: env('TWILIO_FROM'), Body: msg }),
+      signal: AbortSignal.timeout(TIMEOUT_MS)
     });
     if (!res.ok) { await log.error('twilio hatası', { status: res.status, body: await res.text() }); return false; }
     return true;

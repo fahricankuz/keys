@@ -47,7 +47,8 @@ export async function sendMail(m: Mail): Promise<SendResult> {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { authorization: `Bearer ${env('RESEND_API_KEY')}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ from: env('EMAIL_FROM'), to, subject, html: m.html, text: m.text, reply_to: replyTo })
+      body: JSON.stringify({ from: env('EMAIL_FROM'), to, subject, html: m.html, text: m.text, reply_to: replyTo }),
+      signal: AbortSignal.timeout(15000)
     });
     return res.ok ? { ok: true } : { ok: false, error: `Resend ${res.status}: ${await res.text()}` };
   } catch (e) {

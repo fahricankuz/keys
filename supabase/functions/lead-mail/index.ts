@@ -5,10 +5,16 @@
 // tür "Supabase Edge Functions" → lead-mail, başlık x-anahtar-secret: <LEAD_SECRET>.
 // Hukuki destek için aynı ayarlarla ikinci bir webhook: tablo public.legal_requests, olay INSERT.
 // Gizli değişkenler: LEAD_SECRET, SMTP_HOST/SMTP_USER/SMTP_PASS ya da RESEND_API_KEY, EMAIL_FROM; isteğe bağlı LEAD_TO (varsayılan info@anahtar.io), APP_URL.
+// Müşteriye "talebini aldık" e-postası yalnız talepteki adres, talebi açan hesabın (user_id) e-postasıyla aynıysa gider;
+// başkasının adresi yazılarak bu fonksiyon üzerinden e-posta gönderilemez. Hesapsız (anonim web formu) taleplerde müşteriye e-posta
+// GİTMEZ (yazılan adres doğrulanamaz); ekibe bildirim (info@) her zaman gider.
+// SUPABASE_URL ve SUPABASE_SECRET_KEYS (yoksa SUPABASE_SERVICE_ROLE_KEY) hesabı aramak için kullanılır.
 
 import { renderAck } from './ack.ts';
+import { serviceClient } from '../_shared/keys.ts';
 import { mailConfigured, mailMissing, sendMail } from '../_shared/mail.ts';
 import { logger } from '../_shared/log.ts';
+import { sentryServe } from '../_shared/sentry.ts';
 
 const log = logger('lead-mail');
 
@@ -39,7 +45,25 @@ function legalRecord(x: any) {
   };
 }
 
-Deno.serve(async (req) => {
+const sameEmail = (a: unknown, b: unknown) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase() && String(a ?? '').trim() !== '';
+
+/** Teşekkür e-postası bu adrese gidebilir mi? Yalnız talebi açan hesabın e-postasına: adres hesabın e-postası olmalı; hesapsız (anonim) talepte
+    ve hesap okunamazsa gönderilmez. */
+async function ackAllowed(userId: unknown, to: string): Promise<boolean> {
+  if (!userId) return false;                         // hesapsız talep (anonim web formu): yazılan adres kanıtlanamaz, teşekkür gönderilmez
+  try {
+    const { data, error } = await serviceClient().auth.admin.getUserById(String(userId));
+    if (error || !data?.user) { await log.warn('teşekkür e-postası: hesap okunamadı, gönderilmedi', error?.message); return false; }
+    if (sameEmail(data.user.email, to)) return true;
+    await log.info('teşekkür e-postası gönderilmedi: talepteki adres hesabın e-postası değil');
+    return false;
+  } catch (e) {
+    await log.warn('teşekkür e-postası: hesap okunamadı, gönderilmedi', e);
+    return false;
+  }
+}
+
+sentryServe('lead-mail', async (req) => {
   if (req.method !== 'POST') return new Response('method', { status: 405 });
   const secret = env('LEAD_SECRET');
   if (!secret || !safeEqual(req.headers.get('x-anahtar-secret') ?? '', secret)) return new Response('unauthorized', { status: 401 });
@@ -74,7 +98,7 @@ ${r.message ? `<div style="margin-top:12px;padding:14px;background:#F3ECE5;borde
   // (ekibe ikinci bildirim gitmesin) diye hata yutulur ve yanıtta bildirilir. Yanıt, müşterinin adresine gider (reply_to: info@).
   let ack = false;
   const to = String(r.email ?? '').trim();
-  if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) {
+  if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to) && await ackAllowed(body.record?.user_id, to)) {
     try {
       const m = renderAck({
         kind: legal ? 'hukuki' : r.kind, name: r.name, lang: d.lang ?? r.lang, appUrl: env('APP_URL'), contact: env('LEAD_TO') || 'info@anahtar.io',
