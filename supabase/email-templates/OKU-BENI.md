@@ -1,7 +1,7 @@
 # Supabase giriş e-postaları (kayıt onayı, şifre sıfırlama…)
 
 Bu e-postaların metni kodda değil, **Supabase panelinde** durur. Buradaki şablonlar anahtar logosunu ve marka renklerini içerir
-(logo `https://anahtar.io/mail/anahtar-logo-mail-kirmizi.png` adresinden yüklenir; siteyi yayına aldıktan sonra görünür).
+(logo `https://anahtar.io/mail/anahtar-logo-mail-koyu.png` adresinden yüklenir; siteyi yayına aldıktan sonra görünür).
 
 ## Nasıl uygulanır
 
@@ -24,13 +24,13 @@ Depoda `app/public/marka/` altında tam boyutlu beş logo sürümü var, `app/pu
 
 | Sürüm | Dosya (e-posta boyutu) | Ne zaman |
 | --- | --- | --- |
-| Kırmızı zeminli (krem yazı) | `anahtar-logo-mail-kirmizi.png` | Kırmızı başlıklarda: Supabase giriş e-postaları, rapor ve talep e-postaları |
-| Koyu zeminli (krem yazı) | `anahtar-logo-mail-koyu.png` | Koyu bantlarda: hoş geldin, site daveti, kiracı daveti, bildirim e-postaları |
+| Kırmızı zeminli (krem yazı) | `anahtar-logo-mail-kirmizi.png` | Şu an e-postalarda kullanılmıyor (kırmızı başlıklı eski tasarım) |
+| Koyu zeminli (krem yazı) | `anahtar-logo-mail-koyu.png` | Bütün e-postalar: koyu başlık bandı (giriş, hoş geldin, davet, bildirim, rapor, talep) |
 | Krem zeminli (koyu yazı) | `anahtar-logo-mail-krem.png` | Krem/açık zeminde (kullanılabilir) |
 | Şeffaf, koyu yazı / şeffaf, beyaz yazı | `…-seffaf-koyu.png`, `…-seffaf-beyaz.png` | Web ve basılı işler. **E-postalarda kullanılmaz** |
 
 Neden: Gmail ve bazı uygulamalar koyu modda arka plan ve yazı renklerini kendileri çevirir; şeffaf logonun yazısı koyu zeminde kaybolur.
-Bu yüzden e-postalarda logo her zaman **kendi zemin rengiyle aynı bir hücrenin içinde** durur (koyu logo koyu bantta, kırmızı logo kırmızı başlıkta);
+Bu yüzden e-postalarda logo her zaman **kendi zemin rengiyle aynı bir hücrenin içinde** durur (koyu logo koyu bantta);
 ayrıca şablonlar `color-scheme: light` ile Apple Mail ve Outlook'a "koyu moda çevirme" der.
 
 ## Logoyu değiştirmek istersen
@@ -40,5 +40,5 @@ ve `supabase/functions/*/template.ts` ile bu klasördeki adresleri güncelle; ay
 ## Kontrol
 1. Giriş sayfasında "Şifremi unuttum" ile kendine bir e-posta iste.
 2. Logo üstte görünmeli, düğme `https://anahtar.io/yeni-sifre` sayfasına götürmeli.
-3. Logo görünmüyorsa: siteyi yayına aldığından, `https://anahtar.io/mail/anahtar-logo-mail-kirmizi.png` adresinin tarayıcıda açıldığından emin ol.
+3. Logo görünmüyorsa: siteyi yayına aldığından, `https://anahtar.io/mail/anahtar-logo-mail-koyu.png` adresinin tarayıcıda açıldığından emin ol.
    Bazı e-posta uygulamaları görselleri ilk seferde kapalı getirir ("Görselleri göster" demek gerekebilir).

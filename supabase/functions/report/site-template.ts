@@ -16,8 +16,8 @@ export type SiteReport = {
 const C = { tugla: '#C8302E', kirec: '#FAF5F0', kart: '#FFFDFB', baca: '#1D1A19', kahve: '#5C4F4A', duman: '#A39A95',
             kil: '#E8DDD5', fes: '#D5EBD7', fesKoyu: '#2A6B3A', bal: '#F2B544', gul: '#F0CFC8', gulKoyu: '#A8231F' };
 const FONT = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`;
-/** Marka logosu (kenarlıksız, koyu zeminli; anahtar.io/mail altında yayında durur). */
-const LOGO_URL = 'https://anahtar.io/mail/anahtar-logo-mail-kirmizi.png';
+/** Marka logosu (koyu zeminli; koyu başlık bandında durur, anahtar.io/mail altında yayında). */
+const LOGO_URL = 'https://anahtar.io/mail/anahtar-logo-mail-koyu.png';
 const KIND: Record<string, string> = { aidat: 'Aidat', yakit: 'Yakıt', demirbas: 'Demirbaş', ozel: 'Özel toplama',
   kira: 'Kira', ortak_gider: 'Ortak alan gideri', ciro: 'Ciro farkı' };
 const esc = (s: string) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
@@ -61,18 +61,18 @@ export function renderSiteReport(r: SiteReport, o: { name?: string; appUrl: stri
 <body style="margin:0;padding:0;background:${C.kirec}">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.kirec}"><tr><td align="center" style="padding:28px 14px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px">
-  <tr><td bgcolor="#C8302E" style="background:${C.tugla};border-radius:28px 28px 0 0;padding:28px 30px 30px">
+  <tr><td bgcolor="#1D1A19" style="background:${C.baca};border-radius:28px 28px 0 0;padding:28px 30px 30px">
     <img src="${LOGO_URL}" width="168" height="31" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none">
     <div style="font:600 13px ${FONT};color:${C.kirec};opacity:.85;margin-top:22px;text-transform:uppercase;letter-spacing:1.2px">${esc(r.org)} · ${r.units} ${site ? 'daire' : 'birim'}</div>
     <div style="font:800 32px/1.1 ${FONT};color:${C.kirec};letter-spacing:-1.2px;margin-top:6px">${esc(title.charAt(0).toUpperCase() + title.slice(1))}</div>
   </td></tr>
   <tr><td style="background:${C.kart};border:1px solid ${C.kil};border-top:0;border-radius:0 0 28px 28px;padding:28px 24px 30px">
     <div style="font:500 16px/1.5 ${FONT};color:${C.baca};padding:0 6px">${o.name ? `Merhaba ${esc(o.name)},` : 'Merhaba,'}<br>${site ? 'Sitenin' : 'Portföyün'} tahakkuk, tahsilat, gider ve talep özetini hazırladık.</div>
-    <div style="background:${C.baca};border-radius:22px;padding:22px;margin:22px 0 8px">
-      <div style="font:600 13px ${FONT};color:${C.duman}">Tahsilat oranı</div>
-      <div style="font:800 44px/1.1 ${FONT};color:${C.kirec};letter-spacing:-1.5px;margin-top:4px">%${pct}</div>
-      <div style="background:#3A3330;border-radius:999px;height:10px;margin-top:14px;overflow:hidden"><div style="background:${C.bal};width:${pct}%;height:10px"></div></div>
-      <div style="font:500 13px ${FONT};color:${C.duman};margin-top:10px">${money(charged)} tahakkukun ${money(collected)} tutarı tahsil edildi · giderler ${money(spent)}</div>
+    <div style="background:#F3ECE5;border-radius:22px;padding:22px;margin:22px 0 8px">
+      <div style="font:600 13px ${FONT};color:${C.kahve}">Tahsilat oranı</div>
+      <div style="font:800 44px/1.1 ${FONT};color:${C.baca};letter-spacing:-1.5px;margin-top:4px">%${pct}</div>
+      <div style="background:${C.kil};border-radius:999px;height:10px;margin-top:14px;overflow:hidden"><div style="background:${C.tugla};width:${pct}%;height:10px"></div></div>
+      <div style="font:500 13px ${FONT};color:${C.kahve};margin-top:10px">${money(charged)} tahakkukun ${money(collected)} tutarı tahsil edildi · giderler ${money(spent)}</div>
       ${u ? `<div style="font:600 13px ${FONT};color:${C.kirec};margin-top:6px">≈ ${usd(u.charged)} istenen · ${usd(u.collected)} tahsil edildi</div>` : ''}
     </div>
     ${r.charges.length ? section('Tahakkuk ve tahsilat', r.charges.map((x, i) => row(KIND[x.kind] || esc(x.kind), `${money(x.collected)} / ${money(x.charged)}`, i)).join('')
@@ -83,7 +83,7 @@ export function renderSiteReport(r: SiteReport, o: { name?: string; appUrl: stri
     ${r.debtors.length ? section(site ? 'Borçlu daireler' : 'Borçlu birimler', r.debtors.map((x, i) => row(esc(x.unit), money(x.unpaid), i, C.gulKoyu)).join('')) : ''}
     <div style="border:1px solid ${C.kil};border-radius:20px;padding:16px 18px;margin-top:18px;font:500 14px ${FONT};color:${C.kahve}">
       Talepler: <b style="color:${C.baca}">${r.requests.opened}</b> açıldı · <b style="color:${C.baca}">${r.requests.open}</b> açık bekliyor</div>
-    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:26px auto 0"><tr><td style="background:${C.baca};border-radius:999px">
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:26px auto 0"><tr><td style="background:${C.tugla};border-radius:999px">
       <a href="${esc(url)}" style="display:inline-block;padding:15px 28px;font:700 15px ${FONT};color:${C.kirec};text-decoration:none">${site ? 'Site' : 'Portföy'} panelini aç →</a></td></tr></table>
   </td></tr>
   <tr><td style="padding:22px 20px 0;text-align:center;font:500 12.5px/1.6 ${FONT};color:${C.duman}">Bu e-postayı ${site ? 'site yönetiminde' : 'kurumunda'} “Raporlar” yetkin olduğu için alıyorsun.<br>Ayarlar → Bildirimler bölümünden kapatabilirsin.<br>anahtar · anahtar.io</td></tr>

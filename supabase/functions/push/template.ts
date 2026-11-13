@@ -12,9 +12,8 @@ export function renderNotice(o: { title: string; body: string; link?: string }):
   const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(o.title)}</title></head>
 <body style="margin:0;padding:0;background:${C.kirec}"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.kirec}"><tr><td align="center" style="padding:24px 12px">
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:${C.kart};border:1px solid ${C.kil};border-radius:24px;overflow:hidden">
-<tr><td bgcolor="#1D1A19" style="background:${C.baca};padding:22px 28px"><img src="${LOGO_URL}" width="168" height="31" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none"></td></tr>
-<tr><td style="padding:28px 28px 8px"><div style="font:800 22px/1.25 ${FONT};color:${C.baca}">${esc(o.title)}</div>
-<div style="font:400 16px/1.55 ${FONT};color:${C.kahve};margin-top:10px;white-space:pre-line">${esc(o.body)}</div></td></tr>
+<tr><td bgcolor="#1D1A19" style="background:${C.baca};padding:26px 28px 28px"><img src="${LOGO_URL}" width="168" height="31" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none"><div style="font:800 26px/1.15 ${FONT};color:#FFF3EA;letter-spacing:-.5px;margin-top:20px">${esc(o.title)}</div></td></tr>
+<tr><td style="padding:24px 28px 8px"><div style="font:400 16px/1.55 ${FONT};color:${C.kahve};white-space:pre-line">${esc(o.body)}</div></td></tr>
 ${link ? `<tr><td style="padding:18px 28px 28px"><a href="${esc(link)}" style="display:inline-block;background:${C.tugla};color:#fff;text-decoration:none;font:700 15px ${FONT};padding:13px 26px;border-radius:999px">Aç</a></td></tr>` : '<tr><td style="padding:0 0 20px"></td></tr>'}
 </table>
 <div style="font:400 12px/1.5 ${FONT};color:${C.duman};margin-top:14px;text-align:center">anahtar · Kira işinin anahtarı · anahtar.io</div>

@@ -1,11 +1,11 @@
 // anahtar — gönderim kuyruğundaki e-postaların (mail_outbox) HTML'i: hesap silindi, ekibe paket seçimi, kurum yöneticisi daveti,
 // yatırımcı raporu özeti ("Mailime gönder"), yönetici panelinden yazılan ileti (admin_message).
 // Saf işlev (Deno ve Node'da çalışır; testler önizleme üretir). E-posta istemcileri için: tablo düzeni, satır içi stil, sistem yazı tipi.
-// Müşteriye giden iletiler kırmızı bantta kırmızı zeminli logoyla (anahtar-logo-mail-kirmizi.png) gelir; karanlık modda da bozulmaz.
+// Bütün e-postalar koyu başlık bandında koyu zeminli logoyla (anahtar-logo-mail-koyu.png) gelir; karanlık modda da bozulmaz.
 
 const C = { tugla: '#C8302E', kirec: '#FAF5F0', kart: '#FFFDFB', baca: '#1D1A19', kahve: '#5C4F4A', duman: '#8A807B', kil: '#E8DDD5', krem: '#F3ECE5' };
 const FONT = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`;
-const LOGO = 'https://anahtar.io/mail/anahtar-logo-mail-kirmizi.png';
+const LOGO = 'https://anahtar.io/mail/anahtar-logo-mail-koyu.png';
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 const trimUrl = (u?: string) => (u || 'https://anahtar.io').replace(/\/+$/, '');
 
@@ -18,8 +18,8 @@ function layout(o: Layout): string {
   return `<!doctype html><html lang="${o.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(o.title)}</title></head>
 <body style="margin:0;padding:0;background:${C.kirec}"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.kirec}"><tr><td align="center" style="padding:24px 12px">
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:${C.kart};border:1px solid ${C.kil};border-radius:24px;overflow:hidden">
-<tr><td bgcolor="${C.tugla}" style="background:${C.tugla};padding:22px 28px"><img src="${LOGO}" width="168" height="31" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none">
-<div style="font:800 24px/1.25 ${FONT};color:${C.kirec};margin-top:12px">${esc(o.title)}</div></td></tr>
+<tr><td bgcolor="#1D1A19" style="background:${C.baca};padding:26px 28px 28px"><img src="${LOGO}" width="168" height="31" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none">
+<div style="font:800 28px/1.15 ${FONT};color:#FFF3EA;letter-spacing:-.6px;margin-top:20px">${esc(o.title)}</div></td></tr>
 <tr><td style="padding:24px 28px 8px">${o.lead.map((p, i) => `<div style="font:400 16px/1.6 ${FONT};color:${i === 0 ? C.baca : C.kahve};margin-top:${i ? 8 : 0}px;white-space:pre-line">${esc(p)}</div>`).join('')}</td></tr>
 ${rows.length ? `<tr><td style="padding:8px 28px 0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font:400 15px/1.5 ${FONT}">${rows.map(([k, v]) =>
     `<tr><td style="padding:5px 0;color:${C.kahve};width:38%;vertical-align:top">${esc(k)}</td><td style="padding:5px 0;color:${C.baca};font-weight:600">${esc(v)}</td></tr>`).join('')}</table></td></tr>` : ''}
