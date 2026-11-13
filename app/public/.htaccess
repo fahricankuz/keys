@@ -70,10 +70,6 @@ Header always set Content-Security-Policy "frame-ancestors 'none'"
 <FilesMatch "^sw\.js$">
   Header set Cache-Control "no-cache, max-age=0"
 </FilesMatch>
-# Turnstile sayfasının betiği (telefon uygulamasındaki WebView) dosya adında özet taşımaz: 1 yıllık "immutable" olmasın, her seferinde doğrulansın.
-<FilesMatch "^turnstile\.js$">
-  Header set Cache-Control "no-cache"
-</FilesMatch>
 <FilesMatch "^(manifest\.webmanifest|security\.txt)$">
   Header set Cache-Control "public, max-age=86400"
 </FilesMatch>

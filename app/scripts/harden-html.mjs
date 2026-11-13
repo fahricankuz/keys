@@ -8,9 +8,6 @@
 // Ortam: EXPO_PUBLIC_SUPABASE_URL (API ve gerçek zamanlı bağlantı kaynağı), EXPO_PUBLIC_TURNSTILE_SITE_KEY
 // (varsa Cloudflare Turnstile için gerekli kaynaklar), EXPO_PUBLIC_SENTRY_DSN_WEB (varsa Sentry alım adresinin kaynağı connect-src'ye
 // eklenir; DSN'deki anahtar ve yol atılır), EXPO_BASE_URL (GitHub Pages proje yolu).
-// /turnstile/ sayfası (telefon uygulamasındaki WebView'in yüklediği Turnstile sayfası) site anahtarı değişkeni olmasa da
-// challenges.cloudflare.com'a betik, çerçeve ve bağlantı izni alır; arama motorlarına kapatılır; başlık, canonical, manifest ve
-// site kabuğu etiketleri eklenmez (yalnız CSP, çerçeve koruması, robots ve referrer).
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -25,8 +22,6 @@ const ws = api ? api.replace(/^http/, 'ws') : '';
 const CHALLENGES = 'https://challenges.cloudflare.com';
 const turnstile = process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY ? CHALLENGES : '';
 const sentry = origin(process.env.EXPO_PUBLIC_SENTRY_DSN_WEB);       // yalnız kaynak (https://o123.ingest.de.sentry.io); anahtar CSP'ye girmez
-/** Yalnız Turnstile'ı barındıran yardımcı sayfa: sitenin sayfası değildir. */
-const isTurnstilePage = (key) => /^turnstile(\/|$)/.test(key);
 const pageKey = (file) => relative(out, file).replace(/\.html$/, '').replace(/(^|\/)index$/, '');
 /** Adresler tek biçimde, sondaki eğik çizgiyle yazılır: sunucu /x → /x/ yönlendirir (klasör kopyası), canonical yönlendirmeye gitmesin. */
 const slash = (p) => (p === '' || p.endsWith('/') || /\.[A-Za-z0-9]+$/.test(p.split('/').pop()) ? p : p + '/');
@@ -45,8 +40,8 @@ const fontCss = () => '<style>' + FONT_FACES.map(([fam, file]) =>
 const sha = (s) => `'sha256-${createHash('sha256').update(s).digest('base64')}'`;
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 
-function csp(hashes, key = '') {
-  const ts = isTurnstilePage(key) ? CHALLENGES : turnstile;
+function csp(hashes) {
+  const ts = turnstile;
   return [
     "default-src 'self'",
     `script-src 'self' ${hashes.join(' ')} ${ts}`.trim(),
@@ -115,11 +110,9 @@ for (const file of walk(out)) {
   const desc = typeof entry === 'string' ? DESC : (entry.desc || DESC);
   // Elle yazılmış sayfalar (destek, yasal metinler) kendi başlık ve açıklamasını taşır; onlara yenisi eklenmez.
   const key = pageKey(file);
-  const util = isTurnstilePage(key);
-  const own = util || /<title>/.test(html);
+  const own = /<title>/.test(html);
   const head = [
-    `<meta http-equiv="Content-Security-Policy" content="${esc(csp(hashes, key))}"/>`,
-    ...(util ? ['<meta name="robots" content="noindex,nofollow"/>'] : []),
+    `<meta http-equiv="Content-Security-Policy" content="${esc(csp(hashes))}"/>`,
     ...(own ? [] : [
       `<title>${title}</title>`,
       `<meta name="description" content="${esc(desc)}"/>`,
@@ -128,16 +121,13 @@ for (const file of walk(out)) {
       `<meta property="og:description" content="${esc(desc)}"/>`
     ]),
     '<meta name="referrer" content="strict-origin-when-cross-origin"/>',
-    // Site kabuğu (dil, tema rengi, ana ekran simgesi, manifest): WebView'in yüklediği yardımcı sayfada gereksiz.
-    ...(util ? [] : [
-      '<meta property="og:locale" content="tr_TR"/>',
-      '<meta name="theme-color" content="#FAF5F0"/>',
-      '<meta name="apple-mobile-web-app-capable" content="yes"/>',
-      '<meta name="apple-mobile-web-app-title" content="anahtar"/>',
-      '<meta name="apple-mobile-web-app-status-bar-style" content="default"/>',
-      `<link rel="manifest" href="${base}/manifest.webmanifest"/>`,
-      `<link rel="apple-touch-icon" href="${base}/apple-touch-icon.png"/>`
-    ])
+    '<meta property="og:locale" content="tr_TR"/>',
+    '<meta name="theme-color" content="#FAF5F0"/>',
+    '<meta name="apple-mobile-web-app-capable" content="yes"/>',
+    '<meta name="apple-mobile-web-app-title" content="anahtar"/>',
+    '<meta name="apple-mobile-web-app-status-bar-style" content="default"/>',
+    `<link rel="manifest" href="${base}/manifest.webmanifest"/>`,
+    `<link rel="apple-touch-icon" href="${base}/apple-touch-icon.png"/>`
   ].join('');
   // CSP en başta olmalı ki sonraki kaynaklara da uygulansın; çerçeve koruması hemen ardından.
   html = html.replace('<head>', `<head>${head}${guard}${preconnect(file)}${own ? '' : fontCss()}`);

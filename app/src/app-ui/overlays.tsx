@@ -1,13 +1,14 @@
 /* Bildirim şeridi, onay penceresi ve alt sayfa (sheet) kabuğu.
    host.* kancalarını bağlar; alan mantığı ekranı bilmeden bunları çağırır. */
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Modal, Platform, Pressable, ScrollView, Share, View, useWindowDimensions } from 'react-native';
+import { KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, Share, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeInUp, FadeOut, SlideInDown } from 'react-native-reanimated';
 import { t } from '../domain/i18n';
 import { fallbackAsk, host } from '../domain/host';
 import { Button, PressScale, Text } from '../ui/kit';
 import { fonts, radius, shadows, useColors } from '../ui/theme';
+import { useInsets } from '../ui/safe-area';
 import { Icon } from './blocks';
 import { CelebrateBurst } from '../ui/motion';
 
@@ -102,6 +103,8 @@ export function OverlayProvider({ children, renderSheet }: { children: ReactNode
       {children}
 
       <Modal visible={!!sheet} transparent animationType="none" onRequestClose={close} statusBarTranslucent>
+        {/* iPhone: klavye açılınca alt sayfa klavyenin üstüne çıkar (alan yazılırken kapanmaz, düğmeler klavyenin altında kalmaz). */}
+        <SheetKeyboard>
         <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(120)} style={{ flex: 1, backgroundColor: 'rgba(20,19,17,0.5)', justifyContent: wide ? 'center' : 'flex-end', alignItems: 'center' }}>
           <Pressable accessibilityLabel={t('Kapat')} onPress={close} style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }} />
           {sheet && (
@@ -117,6 +120,7 @@ export function OverlayProvider({ children, renderSheet }: { children: ReactNode
           {cel && <CelebrateBurst key={cel.id} title={cel.title} />}
           <ConfirmLayer confirm={confirm} done={(v) => { confirm?.resolve(v); setConfirm(null); }} />
         </Animated.View>
+        </SheetKeyboard>
       </Modal>
 
       {!sheet && <ToastLayer toasts={toasts} dismiss={dismiss} />}
@@ -126,11 +130,18 @@ export function OverlayProvider({ children, renderSheet }: { children: ReactNode
   );
 }
 
+/** Alt sayfa penceresinin gövdesi: iPhone'da klavyeye göre yukarı kayar; web ve Android'de olduğu gibi bırakır. */
+function SheetKeyboard({ children }: { children: ReactNode }) {
+  if (Platform.OS !== 'ios') return <>{children}</>;
+  return <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>{children}</KeyboardAvoidingView>;
+}
+
 function ToastLayer({ toasts, dismiss, inModal }: { toasts: Toast[]; dismiss: (id: number) => void; inModal?: boolean }) {
   const c = useColors();
+  const insets = useInsets();      // bildirim durum çubuğunun / Dynamic Island'ın altından başlar
   if (!toasts.length) return null;
   return (
-    <View pointerEvents="box-none" style={{ position: 'absolute', top: 12, left: 12, right: 12, alignItems: 'center', gap: 8, zIndex: 100 }}>
+    <View pointerEvents="box-none" style={{ position: 'absolute', top: 12 + insets.top, left: 12, right: 12, alignItems: 'center', gap: 8, zIndex: 100 }}>
       {toasts.map((n) => (
         <Animated.View key={n.id} entering={FadeInUp.springify().damping(20)} exiting={FadeOut} accessibilityRole="alert"
           style={{ width: '100%', maxWidth: 460, flexDirection: 'row', gap: 12, backgroundColor: c.surface, borderRadius: radius.lg, padding: 14, borderWidth: 1, borderColor: c.line, boxShadow: shadows.lift }}>

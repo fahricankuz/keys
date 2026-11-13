@@ -1,5 +1,5 @@
 import { ReactNode, useEffect } from 'react';
-import { ScrollView, useWindowDimensions, View } from 'react-native';
+import { Platform, ScrollView, useWindowDimensions, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { t } from '../domain/i18n';
@@ -10,6 +10,7 @@ import { Wordmark } from '../ui/Wordmark';
 import { Grain } from '../ui/Grain';
 import { Icon } from '../app-ui/blocks';
 import { fonts, useBreakpoint, useColors } from '../ui/theme';
+import { useInsets } from '../ui/safe-area';
 
 type Side = { title: string; lead: string; points?: string[]; groups?: { title: string; items: string[] }[]; foot?: string };
 
@@ -34,6 +35,8 @@ export default function AuthShell({ title, lead, children, side, wide, top }: {
   const router = useRouter();
   const { desktop, phone } = useBreakpoint();
   const { height } = useWindowDimensions();
+  // Telefon: üstte durum çubuğu / Dynamic Island, altta ana ekran çubuğu kadar boşluk (webde 0).
+  const insets = useInsets();
   // Giriş, kayıt ve şifre sayfaları sunucu kütüphanesini açılır açılmaz arka planda hazırlar (gönder'e basınca beklenmesin).
   useEffect(() => { if (LIVE) client().catch(() => {}); }, []);
   const topLink = top ? (
@@ -92,9 +95,10 @@ export default function AuthShell({ title, lead, children, side, wide, top }: {
   // Tek ağaç: masaüstüne geçişte yalnız sol panel eklenir, form aynı yerde kalır. (Ayrı ağaç döndürmek ilk çizimden sonra
   // masaüstüne geçerken formu yeniden kuruyordu; o arada yazılan e-posta kayboluyordu.)
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: c.cream }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+    <ScrollView style={{ flex: 1, backgroundColor: c.cream }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled"
+      {...(Platform.OS === 'ios' ? { automaticallyAdjustKeyboardInsets: true } : null)}>
       <View style={{ flexDirection: desktop ? 'row' : 'column', gap: desktop ? 56 : 0, width: '100%', maxWidth: desktop ? 1240 : 640, alignSelf: 'center', flexGrow: 1,
-        padding: desktop ? 20 : 0, paddingHorizontal: desktop ? 20 : phone ? 16 : 32, paddingTop: desktop ? 20 : 18, paddingBottom: 40 }}>
+        padding: desktop ? 20 : 0, paddingHorizontal: desktop ? 20 : phone ? 16 : 32, paddingTop: (desktop ? 20 : 18) + insets.top, paddingBottom: 40 + insets.bottom }}>
         {desktop ? panel : null}
         <View style={{ flex: desktop ? 1 : undefined, flexGrow: 1, minWidth: 0, paddingTop: desktop ? 8 : 0 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: desktop ? 'flex-end' : 'space-between', gap: 12, flexWrap: 'wrap', minHeight: 40, marginBottom: desktop ? 0 : phone ? 28 : 56 }}>

@@ -2,8 +2,7 @@
 // davet hatasının tek iletiye indirilmesi, uid() rastgeleliği, giriş tutanağı kaynak denetimi. Tarayıcı gerekmez.
 import { test, expect } from '@playwright/test';
 import { buildSync } from 'esbuild';
-import { mkdtempSync, readFileSync } from 'node:fs';
-import vm from 'node:vm';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -183,59 +182,4 @@ test('giriş tutanağı: kaynak adresi ve fotoğraf adresi doğrulanır (stil bl
   expect(html).toContain('src="https://anahtar.io/f.jpg"');
   expect(html).toContain("url(/fonts/inter-400.woff2)");          // geçersiz kaynak boş sayılır
   expect(H.inspectHtml(d, { origin: 'https://anahtar.io/' })).toContain('url(https://anahtar.io/fonts/inter-400.woff2)');
-});
-
-/* ---------------------------------------------------------------- telefon Turnstile sayfası (public/turnstile) */
-const TS = new URL('../app/public/turnstile/', import.meta.url).pathname;
-
-test('Turnstile sayfası: satır içi betik ve olay özniteliği yok, CSP betiğe yalnız kendi kaynağı ve Cloudflare\'e izin verir', () => {
-  const html = readFileSync(TS + 'index.html', 'utf8');
-  expect([...html.matchAll(/<script\b[^>]*>/gi)].every((m) => /\ssrc="turnstile\.js"/.test(m[0]))).toBe(true);
-  expect(html).not.toMatch(/\son[a-z]+\s*=/i);
-  const csp = /http-equiv="Content-Security-Policy"\s+content="([^"]+)"/.exec(html)[1];
-  const script = /script-src ([^;]+)/.exec(csp)[1];
-  expect(script).toBe("'self' https://challenges.cloudflare.com");
-  expect(csp).toContain('frame-src https://challenges.cloudflare.com');
-  expect(csp).toContain("default-src 'none'");
-  expect(html).toContain('noindex');
-});
-
-/** turnstile.js'i sahte pencere ve belgeyle çalıştırır; uygulamaya giden iletileri toplar. */
-function runBridge(search, { turnstile = true, bridge = true } = {}) {
-  const sent = [], widget = { opts: null, resets: 0 };
-  const win = {
-    location: { search },
-    turnstile: turnstile ? { render: (_sel, opts) => { widget.opts = opts; return 'w1'; }, reset: () => { widget.resets++; } } : undefined,
-    ...(bridge ? { ReactNativeWebView: { postMessage: (m) => sent.push(JSON.parse(m)) } } : {})
-  };
-  const el = {};
-  const doc = { createElement: () => el, head: { appendChild: (e) => { e.onload && e.onload(); } } };
-  const timers = [];
-  vm.runInNewContext(readFileSync(TS + 'turnstile.js', 'utf8'), { window: win, document: doc, URLSearchParams, JSON, setTimeout: (f) => timers.push(f) });
-  return { sent, widget, win, el, timers };
-}
-
-test('Turnstile köprüsü: jeton, süre dolumu, hata ve sıfırlama iletileri uygulamaya gider', () => {
-  const r = runBridge('?k=1x00000000000000000000AA&lang=en');
-  expect(r.el.src).toBe('https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit');
-  expect(r.widget.opts.sitekey).toBe('1x00000000000000000000AA');
-  expect(r.widget.opts.language).toBe('en');
-  expect(r.sent).toEqual([{ type: 'ready', token: '' }]);
-  r.widget.opts.callback('TOKEN123');
-  r.widget.opts['expired-callback']();
-  r.widget.opts['error-callback']();
-  expect(r.sent.slice(1)).toEqual([{ type: 'token', token: 'TOKEN123' }, { type: 'expired', token: '' }, { type: 'error', token: '' }]);
-  r.win.resetTurnstile();
-  expect(r.widget.resets).toBe(1);
-  expect(runBridge('?k=1x00000000000000000000AA&lang=xx').widget.opts.language).toBe('tr');   // bilinmeyen dil Türkçe
-});
-
-test('Turnstile köprüsü: geçersiz anahtar, yüklenemeyen betik ve zaman aşımı sessiz kalmaz (hata iletisi)', () => {
-  expect(runBridge('?k=<script>').sent).toEqual([{ type: 'error', token: '' }]);
-  expect(runBridge('').sent).toEqual([{ type: 'error', token: '' }]);
-  const fail = runBridge('?k=1x00000000000000000000AA', { turnstile: false });
-  expect(fail.sent).toEqual([{ type: 'error', token: '' }]);                                    // betik yüklendi ama turnstile yok
-  const slow = runBridge('?k=1x00000000000000000000AA');
-  slow.sent.length = 0; slow.timers.forEach((f) => f());                                         // yüklendi: zaman aşımı hata vermez
-  expect(slow.sent).toEqual([]);
 });

@@ -14,6 +14,7 @@ import { useAuth } from '../auth/auth';
 import { Button, Container, PressScale, Text } from '../ui/kit';
 import { Wordmark } from '../ui/Wordmark';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
+import { useInsets } from '../ui/safe-area';
 import { Icon } from '../app-ui/blocks';
 
 type Plan = 'tek' | 'bes';
@@ -118,6 +119,7 @@ function Dot({ filled }: { filled: boolean }) {
 
 export default function Purchase() {
   const c = useColors();
+  const insets = useInsets();
   const router = useRouter();
   const { phone, desktop } = useBreakpoint();
   const { user } = useAuth();
@@ -162,8 +164,8 @@ export default function Purchase() {
   const storeLinks = !paused && !!((CONFIG as any).billing.appStoreUrl || (CONFIG as any).billing.playStoreUrl);
   const card = { backgroundColor: c.surface, borderRadius: 28, borderWidth: 1, borderColor: c.line } as const;
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: c.cream }} contentContainerStyle={{ paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
-      <Container style={{ paddingTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+    <ScrollView style={{ flex: 1, backgroundColor: c.cream }} contentContainerStyle={{ paddingBottom: 60 + insets.bottom }} keyboardShouldPersistTaps="handled">
+      <Container style={{ paddingTop: 18 + insets.top, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <PressScale onPress={() => router.replace('/')} accessibilityRole="link" accessibilityLabel={t('Ana sayfa')}><Wordmark size={phone ? 22 : 30} /></PressScale>
         <Button kind="ghost" title={user ? t('Panele git') : t('Giriş yap')} onPress={() => router.push((user ? '/uygulama' : '/giris') as any)} style={{ minHeight: 44, paddingHorizontal: 20 }} />
       </Container>

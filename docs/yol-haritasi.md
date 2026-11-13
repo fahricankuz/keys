@@ -19,7 +19,7 @@ Test ya da yapılacaklar sorulduğunda bu liste hatırlatılır; yapılan madde 
 - [ ] Mağaza içi satın alma: Paid Apps sözleşmesi, 36 App Store / 18 Google Play aboneliği, RevenueCat projesi, webhook ve
       anahtarlar (`docs/magaza.md` bölüm 7).
 - [ ] Telefona anlık bildirim: APNs anahtarı ve Firebase (`docs/magaza.md` bölüm 8).
-- [x] Telefon uygulamasında Turnstile var (WebView'de `/turnstile/` sayfası); kalan iş: telefon derlemesine `EXPO_PUBLIC_TURNSTILE_SITE_KEY` verip Supabase CAPTCHA'yı en son açmak (`docs/canliya-alma.md`, `docs/magaza.md` bölüm 6).
+- [x] Telefon uygulamasında CAPTCHA yoktur (WebView'deki Turnstile sistem tarayıcısını açtığı için kaldırıldı); Supabase CAPTCHA zorunluluğu kapalı kalır, kötüye kullanımı Supabase hız sınırları sınırlar (`docs/guvenlik.md` bölüm 4).
 - [ ] Her yıl Ocak başı: yeni yılın gelir vergisi dilimleri, konut kira istisnası ve beyan sınırı açıklanınca
       `app/src/domain/tax.js` → `RATES`'e yılı ekletmek (2026 eklendi; 2027 için Aralık 2026 sonundaki tebliği bekle).
 
@@ -88,7 +88,7 @@ Sahip: 👤 = sizin yapmanız gereken (hesap, sözleşme, karar) · 🤖 = kodda
       veriler yurt dışında (Supabase, AB/Frankfurt) tutulduğu için KVKK md. 9 kapsamında yurt dışı aktarım şartlarını (standart sözleşme + bildirim) yerine getirin.
 - [ ] 👤 Kullanım koşulları, mesafeli satış sözleşmesi ve ön bilgilendirme formu (abonelik satışı için zorunlu).
 - [ ] 🤖 Statik sayfaların İngilizcesi: gizlilik, koşullar, destek, hesap silme ve blog şu an yalnız Türkçe (uygulama ve ana sayfa İngilizce).
-- [ ] 👤/🤖 **Bot koruması**: Cloudflare Turnstile anahtarını `TURNSTILE_SITE_KEY` olarak ekleyin, Supabase'te CAPTCHA'yı açın (`docs/guvenlik.md` §4).
+- [ ] 👤/🤖 **Bot koruması (yalnız web, isteğe bağlı)**: Cloudflare Turnstile anahtarını `TURNSTILE_SITE_KEY` olarak ekleyin. Supabase'te CAPTCHA zorunluluğunu **açmayın** (telefon uygulamasında CAPTCHA yok); hız sınırlarını gözden geçirin (`docs/guvenlik.md` §4).
 - [ ] 👤 Supabase Auth: sızdırılmış parola koruması, oran sınırları; yönetici hesaplarında **2 adımlı doğrulama**.
 - [ ] 👤 Alan adının önüne **Cloudflare** (WAF, DDoS, önbellek) — önerilir (`docs/guvenlik.md` §3).
 

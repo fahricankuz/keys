@@ -36,7 +36,7 @@ tutulur ve her mağaza derlemesinde kendiliğinden artar (`eas.json` → `appVer
 | --- | --- |
 | `EXPO_PUBLIC_SENTRY_DSN_MOBILE` | Telefon hata izleme adresi (Sentry `anahtar-mobile` projesi). Boşsa hata izleme kapalıdır |
 | `EXPO_PUBLIC_RC_IOS_KEY`, `EXPO_PUBLIC_RC_ANDROID_KEY` | RevenueCat herkese açık SDK anahtarları. Tanımlı değilse satın alma kapalı kalır |
-| `EXPO_PUBLIC_TURNSTILE_SITE_KEY` | Bot koruması (Cloudflare Turnstile) site anahtarı. Boşsa kutu çıkmaz |
+| `EXPO_PUBLIC_TURNSTILE_SITE_KEY` | Yalnız web derlemesi içindir (Cloudflare Turnstile site anahtarı). Telefon derlemesinde kullanılmaz: telefonda CAPTCHA yoktur, EAS'e girmeyin |
 | `SENTRY_AUTH_TOKEN` (gizli), `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_URL` | Derleme sırasında hata ayıklama dosyalarını Sentry'ye (AB bölgesi) yükler |
 | `GOOGLE_SERVICES_JSON` (dosya türünde) | Android anlık bildirimi için Firebase dosyası; yoksa uygulama bildirimsiz derlenir |
 
@@ -146,10 +146,9 @@ Kart bilgisi uygulamada işlenmez (ödeme mağazada yapılır). Oturum tekrarı 
 
 - Supabase → Authentication → **SMTP**: özel SMTP tanımla (yerleşik e-posta servisi üretim için çok düşük sınırla çalışır;
   şifre sıfırlama e-postaları yoğunlukta ulaşmaz).
-- **Bot koruması (Turnstile):** web ve telefon uygulaması birlikte çalışır. Telefonda doğrulama, sitenin `/turnstile/`
-  sayfasını bir WebView içinde açar; site anahtarı EAS'te `EXPO_PUBLIC_TURNSTILE_SITE_KEY`, web'de GitHub'da `TURNSTILE_SITE_KEY`
-  olarak girilir. **Sıra:** önce web ve ilk mağaza derlemesi anahtarı taşısın, **sonra** Supabase → Attack Protection → CAPTCHA
-  zorunlu yapılsın; aksi halde anahtarsız sürüm giriş yapamaz.
+- **Bot koruması (Turnstile):** yalnız webde (GitHub'da `TURNSTILE_SITE_KEY`). **Telefon uygulamasında CAPTCHA yoktur**; Supabase →
+  Attack Protection → CAPTCHA zorunluluğu **kapalı kalır** (açılırsa telefondan kimse giriş yapamaz). Telefonda kötüye kullanımı Supabase hız
+  sınırları sınırlar ([guvenlik.md](guvenlik.md) bölüm 4).
 - **Evrensel bağlantılar:** bölüm 9.
 
 ## 7. Mağaza içi satın alma (RevenueCat)

@@ -10,10 +10,12 @@ import { Button, Text } from '../ui/kit';
 import { Wordmark } from '../ui/Wordmark';
 import { Loader } from '../ui/Loader';
 import { radius, useColors } from '../ui/theme';
+import { useInsets } from '../ui/safe-area';
 import { CertificateBody } from '../app-ui/certificate';
 
 export default function Belge() {
   const c = useColors();
+  const insets = useInsets();
   const { kod } = useLocalSearchParams<{ kod?: string }>();
   // Statik çıktıda adres parametresi yoktur; hidrasyon uyuşsun diye kod bağlandıktan sonra okunur.
   const [mounted, setMounted] = useState(false);
@@ -27,7 +29,7 @@ export default function Belge() {
     verifyCertificate(code).then((x) => { setD(x); setState(x ? 'ok' : 'bad'); }).catch(() => setState('bad'));
   }, [mounted, code]);
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: c.bg }} contentContainerStyle={{ padding: 20, alignItems: 'center' }}>
+    <ScrollView style={{ flex: 1, backgroundColor: c.bg }} contentContainerStyle={{ padding: 20, paddingTop: 20 + insets.top, paddingBottom: 20 + insets.bottom, alignItems: 'center' }}>
       <View style={{ width: '100%', maxWidth: 760, gap: 16 }}>
         <Wordmark size={26} />
         <View style={{ backgroundColor: c.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: c.line, padding: 20, gap: 14 }}>

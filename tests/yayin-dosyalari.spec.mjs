@@ -1,8 +1,7 @@
-// Yayın hazırlığı dosyaları (mağaza + web): CSP'de Sentry kaynağı, Turnstile sayfası, canonical/site haritası, evrensel bağlantı dosyaları,
+// Yayın hazırlığı dosyaları (mağaza + web): CSP'de Sentry ve Turnstile kaynakları, canonical/site haritası, evrensel bağlantı dosyaları,
 // kaynak haritası temizliği, uygulama simgeleri, app.json / eas.json, .htaccess, iş akışları ve .gitignore. Tarayıcı gerekmez.
 import { test, expect } from '@playwright/test';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -23,11 +22,9 @@ test.describe.configure({ mode: 'serial' });
 function fixture() {
   const d = tmp();
   const page = (extra = '', body = '<script>window.__a=1</script>') => `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/>${extra}</head><body>${body}</body></html>`;
-  mkdirSync(join(d, 'turnstile'), { recursive: true });
   mkdirSync(join(d, 'blog'), { recursive: true });
   writeFileSync(join(d, 'index.html'), page());
   writeFileSync(join(d, 'giris.html'), page());
-  writeFileSync(join(d, 'turnstile/index.html'), page('', '<div id="w"></div><script>window.__t=1</script><script src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script>'));
   writeFileSync(join(d, 'blog/yazi.html'), page('<title>Yazı</title><link rel="canonical" href="https://anahtar.io/blog/yazi"/><meta property="og:url" content="https://anahtar.io/blog/yazi"/><link rel="canonical" href="https://anahtar.io/blog/"/>'));
   return d;
 }
@@ -51,39 +48,25 @@ test('CSP: Sentry DSN verilince connect-src yalnız alım adresinin kaynağını
   expect(csp(d3, 'index.html')['connect-src'].join(' ')).not.toMatch(/sentry|geçersiz/);
 });
 
-test('/turnstile/ sayfası: site anahtarı değişkeni olmasa da challenges.cloudflare.com\'a betik, çerçeve ve bağlantı izni; arama motorlarına kapalı; başlık ve canonical eklenmez', () => {
-  const d = fixture();
-  harden(d, { EXPO_PUBLIC_SENTRY_DSN_WEB: DSN });
-  const c = csp(d, 'turnstile/index.html');
+test('CSP (web): Turnstile site anahtarı verilince challenges.cloudflare.com\'a betik, çerçeve ve bağlantı izni; verilmezse hiçbir Cloudflare izni yok', () => {
   const CF = 'https://challenges.cloudflare.com';
+  const d = fixture();
+  harden(d, { EXPO_PUBLIC_TURNSTILE_SITE_KEY: '0x4AAAAAAAAAAAAAAAAAAAAA' });
+  const c = csp(d, 'giris.html');
   expect(c['script-src']).toContain(CF);
   expect(c['frame-src']).toEqual([CF]);
   expect(c['connect-src']).toContain(CF);
   expect(c['script-src'].join(' ')).not.toContain("'unsafe-inline'");
-  const html = readFileSync(join(d, 'turnstile/index.html'), 'utf8');
-  expect(html).toContain('<meta name="robots" content="noindex,nofollow"/>');
-  expect(html).not.toMatch(/<title>|rel="canonical"|og:|rel="manifest"|apple-touch-icon|theme-color/);
-  // Satır içi betiklerin ikisi de özetle izinli.
-  for (const m of html.matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)) {
-    const hash = `'sha256-${createHash('sha256').update(m[1]).digest('base64')}'`;
-    expect(c['script-src'], m[1].slice(0, 40)).toContain(hash);
-  }
-  // Sitenin öbür sayfaları Turnstile anahtarı yokken çerçeve izni almaz.
-  expect(csp(d, 'index.html')['frame-src']).toEqual(["'none'"]);
-  expect(csp(d, 'index.html')['script-src'].join(' ')).not.toContain('cloudflare');
+  const d2 = fixture();
+  harden(d2);
+  expect(csp(d2, 'giris.html')['frame-src']).toEqual(["'none'"]);
+  expect(csp(d2, 'giris.html')['script-src'].join(' ')).not.toContain('cloudflare');
 });
 
-test('gerçek /turnstile/ sayfası (app/public/turnstile/index.html): satır içi olay niteliği ve javascript: bağlantısı yok, CSP ile çalışır', () => {
-  const file = root('app/public/turnstile/index.html');
-  test.skip(!existsSync(file), 'sayfa henüz yok');
-  const d = tmp();
-  mkdirSync(join(d, 'turnstile'));
-  writeFileSync(join(d, 'turnstile/index.html'), readFileSync(file));
-  harden(d);
-  const html = readFileSync(join(d, 'turnstile/index.html'), 'utf8');
-  expect(html).not.toMatch(/\son[a-z]+\s*=\s*["']/i);      // onload="…" gibi nitelikler CSP'ye takılır
-  expect(html).not.toMatch(/javascript:/i);
-  expect(csp(d, 'turnstile/index.html')['script-src']).toContain('https://challenges.cloudflare.com');
+test('telefon doğrulama sayfası (/turnstile/) kaldırıldı: dosya, sertleştirme özel durumu ve .htaccess kuralı yok', () => {
+  expect(existsSync(root('app/public/turnstile'))).toBe(false);
+  expect(read('app/scripts/harden-html.mjs')).not.toMatch(/isTurnstilePage|\/turnstile\//);
+  expect(read('app/public/.htaccess')).not.toMatch(/turnstile/i);
 });
 
 test('canonical ve og:url her sayfada sondaki eğik çizgiyle; yeniden çalıştırmak bir şeyi değiştirmez', () => {
@@ -96,9 +79,9 @@ test('canonical ve og:url her sayfada sondaki eğik çizgiyle; yeniden çalışt
   expect(get('blog/yazi.html')).toContain('<meta property="og:url" content="https://anahtar.io/blog/yazi/"/>');
   expect(get('blog/yazi.html')).toContain('<link rel="canonical" href="https://anahtar.io/blog/"/>');   // zaten eğik çizgili
   for (const f of ['index.html', 'giris.html', 'blog/yazi.html']) expect(get(f)).not.toMatch(/rel="canonical" href="https:\/\/anahtar\.io\/[^"]*[^/"]"/);
-  const before = ['index.html', 'giris.html', 'blog/yazi.html', 'turnstile/index.html'].map(get);
+  const before = ['index.html', 'giris.html', 'blog/yazi.html'].map(get);
   harden(d);
-  expect(['index.html', 'giris.html', 'blog/yazi.html', 'turnstile/index.html'].map(get)).toEqual(before);
+  expect(['index.html', 'giris.html', 'blog/yazi.html'].map(get)).toEqual(before);
 });
 
 // ---------- well-known.mjs ----------
@@ -296,7 +279,6 @@ test('.htaccess: doğrulama dosyaları yönlendirmesiz ve JSON olarak, kaldırı
   expect(exempt).toBeLessThan(h.indexOf('RewriteCond %{HTTPS} !=on'));
   expect(h).toMatch(/<Files "apple-app-site-association">\s*ForceType application\/json\s*<\/Files>/);
   expect(h).toContain('RewriteRule ^cozumler/portfoy/?$ /cozumler/mulk-sahibi/ [L,R=301]');
-  expect(h).toMatch(/<FilesMatch "\^turnstile\\\.js\$">\s*Header set Cache-Control "no-cache"/);   // özetsiz dosya adı: yıllık önbelleğe girmez
   expect(h).toMatch(/RewriteCond %\{REQUEST_URI\} !\^\/\\\.well-known\//);       // gizli dosya engeli .well-known'ı hâlâ açık bırakır
 });
 

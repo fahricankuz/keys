@@ -1,6 +1,6 @@
 /* Ekranlar: kiracı ve mülk sahibi görünümleri (views.js → React). */
 import { ReactNode, useEffect, useState } from 'react';
-import { Linking, ScrollView, View } from 'react-native';
+import { Linking, Platform, ScrollView, View } from 'react-native';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { S, ui, PROP_TYPES } from '../domain/state';
@@ -38,7 +38,8 @@ import {
 
 function Shell({ fill, children }: { fill?: boolean; children: ReactNode }) {
   if (fill) return <View style={{ flex: 1, minHeight: 0, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, width: '100%', maxWidth: 760, alignSelf: 'center' }}>{children}</View>;
-  return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120, width: '100%', maxWidth: 760, alignSelf: 'center' }} keyboardShouldPersistTaps="handled">{children}</ScrollView>;
+  return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120, width: '100%', maxWidth: 760, alignSelf: 'center' }} keyboardShouldPersistTaps="handled"
+    {...(Platform.OS === 'ios' ? { automaticallyAdjustKeyboardInsets: true } : null)}>{children}</ScrollView>;
 }
 
 /** `fill`: sayfa kaydırılmaz, içerik ekranı doldurur (sohbet: mesaj kutusu sabit, yalnız mesaj listesi kaydırılır). */
