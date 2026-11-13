@@ -62,7 +62,11 @@
     "build:web": "expo export -p web --output-dir dist && node scripts/harden-html.mjs dist",
     "build:web:maps": "expo export -p web --output-dir dist --source-maps && node scripts/harden-html.mjs dist && node scripts/sentry-sourcemaps.mjs dist",
     "build:hostinger": "npm run build:web:maps && node scripts/well-known.mjs dist && rm -rf ../hostinger-site && cp -r dist ../hostinger-site",
-    "build": "npm run build:web"
+    "build": "npm run build:web",
+    "magaza:durum": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/magaza/asc-durum.mjs",
+    "magaza:asc-fiyat": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/magaza/asc-abonelik-fiyatlari.mjs",
+    "magaza:play-abonelik": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/magaza/play-abonelikler.mjs",
+    "magaza:play-yukle": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/magaza/play-yukle.mjs"
   },
   "private": true,
   "overrides": {
