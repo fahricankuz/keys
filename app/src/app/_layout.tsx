@@ -8,6 +8,7 @@ import { initLang } from '../domain/i18n';
 import { boot } from '../domain/state';
 import { AuthProvider } from '../auth/auth';
 import { useColors } from '../ui/theme';
+import { useInsets } from '../ui/safe-area';
 import titles from '../site/titles.json';
 import { installErrorReporting, installStaleRecovery, isStaleError, recoverStale, reportError } from '../domain/errors';
 import { t } from '../domain/i18n';
@@ -21,6 +22,7 @@ initSentry();
 /** Beklenmeyen ekran hatası: boş ekran yerine açıklama ve yeniden deneme; hata sunucuya kaydedilir (yönetici → Hatalar). */
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const c = useColors();
+  const insets = useInsets();
   // React'in yakaladığı hata pencere olayına düşmez: eski sekmenin parça hatası (yeni yayın eski dosyayı sildi) burada yenilenir.
   const stale = isStaleError(error);
   const [gaveUp, setGaveUp] = useState(false);
@@ -31,7 +33,7 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   }, [error]);
   if (stale && !gaveUp) return <View style={{ flex: 1, backgroundColor: c.bg }} />;
   return (
-    <View accessibilityRole="alert" style={{ flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 14 }}>
+    <View accessibilityRole="alert" style={{ flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', padding: 24, paddingTop: 24 + insets.top, paddingBottom: 24 + insets.bottom, gap: 14 }}>
       <Text v="h2" style={{ fontFamily: fonts.siteBold, textAlign: 'center' }}>{t('Bir şeyler ters gitti')}</Text>
       <Text v="body" muted style={{ textAlign: 'center', maxWidth: 420 }}>{t('Ekran yüklenirken beklenmeyen bir hata oluştu. Kayıtların güvende; hatayı ekibimize ilettik.')}</Text>
       <Button title={t('Yeniden dene')} onPress={() => { if (stale && typeof window !== 'undefined' && window.location) window.location.reload(); else retry(); }} />

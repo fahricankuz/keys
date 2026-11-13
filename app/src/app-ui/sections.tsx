@@ -1,6 +1,6 @@
 /* Ekran bölümleri: views.js'in React karşılığı (aynı veri, aynı kurallar). */
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, KeyboardAvoidingView, Linking, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { S, ui, STEPS, CONDITIONS, docCatsFor, isCommercial } from '../domain/state';
 import { estimate, stopajRate } from '../domain/tax';
@@ -16,6 +16,7 @@ import { toApp } from '../domain/nav';
 import { tl, fmt, fmtFull, monthYear, parse, t0, iso, between, daysTo, tm, dayLabel, percent, mkey, addM } from '../domain/util';
 import { Button, Chip, PressScale, Text } from '../ui/kit';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
+import { KeyboardLift } from '../ui/KeyboardLift';
 import {
   Avatar, Bar, Big, BigRoll, Card, Empty, FileLink, H2, Hero, Icon, IconBtn, Items, KV, Label, LI, List, Mid, Muted, Note, ReviewChip, Row, Seg, Stack, Steps, StatusChip, Thumbs, initials, toneOf, typeIcon, MonthLegend, YearTiles
 } from './blocks';
@@ -424,7 +425,7 @@ export function SecMsg({ p }: { p: any }) {
     else setUnseen((n) => n + added);
   }, [p.msgs.length]);
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, minHeight: 0, gap: 10 }}>
+    <KeyboardLift style={{ flex: 1, minHeight: 0, gap: 10 }}>
       <Card>
         <Row between align="center" gap={8}>
           <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
@@ -529,7 +530,7 @@ export function SecMsg({ p }: { p: any }) {
           {sending ? <ActivityIndicator color={c.accentInk} /> : <Icon name="send" size={20} color={c.accentInk} />}
         </PressScale>
       </Row>
-    </KeyboardAvoidingView>
+    </KeyboardLift>
   );
 }
 

@@ -7,6 +7,7 @@ import { t } from '../domain/i18n';
 import { AdminUI, Button, Chip, PressScale, Text } from '../ui/kit';
 import { Wordmark } from '../ui/Wordmark';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
+import { useInsets } from '../ui/safe-area';
 import { Icon } from './blocks';
 
 export type NavItem = { key: string; label: string; icon: string; badge?: number; group?: string };
@@ -34,6 +35,7 @@ export function AdminShell({ items, active, onPick, email, onReload, onSignOut, 
   const c = useColors();
   const router = useRouter();
   const { desktop } = useBreakpoint();
+  const insets = useInsets();
   const [menu, setMenu] = useState(false);
   // Kapalı menü grupları tarayıcıda hatırlanır; açık sayfanın grubu her zaman açıktır.
   const [closed, setClosed] = useState<string[]>(readClosed);
@@ -42,7 +44,7 @@ export function AdminShell({ items, active, onPick, email, onReload, onSignOut, 
     const cur = items.find((x) => x.key === active) || items[0];
     return (
       <View style={{ flex: 1, backgroundColor: c.bg }}>
-        <View style={{ backgroundColor: c.deepA, paddingTop: 14, paddingBottom: 10, gap: 10 }}>
+        <View style={{ backgroundColor: c.deepA, paddingTop: 14 + insets.top, paddingBottom: 10, gap: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <PressScale onPress={() => router.push('/' as any)} accessibilityRole="link" accessibilityLabel={t('Ana sayfa')} style={{ alignSelf: 'flex-start' }}><Wordmark size={22} variant="cream" bg={c.deepA} /></PressScale>
@@ -83,7 +85,7 @@ export function AdminShell({ items, active, onPick, email, onReload, onSignOut, 
             ) : null}
           </View>
         </View>
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}><AdminUI.Provider value={true}>{children}</AdminUI.Provider></ScrollView>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 + insets.bottom }}><AdminUI.Provider value={true}>{children}</AdminUI.Provider></ScrollView>
       </View>
     );
   }

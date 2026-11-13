@@ -1,12 +1,14 @@
-/* Bot koruması (Cloudflare Turnstile). Yalnızca EXPO_PUBLIC_TURNSTILE_SITE_KEY verilmişse çalışır;
+/* Bot koruması (Cloudflare Turnstile): yalnızca web. Yalnızca EXPO_PUBLIC_TURNSTILE_SITE_KEY verilmişse çalışır;
    Supabase tarafında Authentication → Attack Protection → CAPTCHA açılınca giriş, kayıt ve şifre
-   sıfırlama isteği doğrulama olmadan sunucuda reddedilir. Anahtar yoksa hiçbir şey çizilmez. */
+   sıfırlama isteği doğrulama olmadan sunucuda reddedilir. Anahtar yoksa hiçbir şey çizilmez.
+   Telefonda (iOS ve Android) bot doğrulaması yoktur: bu dosya telefonda da yüklenir ama anahtar boş sayılır; Captcha hiçbir şey çizmez,
+   captchaToken() null, captchaPending() false döner (istekler jetonsuz gider; kötüye kullanımı Supabase hız sınırları sınırlar). */
 import { createElement, useEffect, useRef } from 'react';
 import { Platform, View } from 'react-native';
 import { getLang } from '../domain/i18n';
 
-export const CAPTCHA_KEY = process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY || '';
-const ON = !!CAPTCHA_KEY && Platform.OS === 'web';
+export const CAPTCHA_KEY = Platform.OS === 'web' ? process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY || '' : '';
+const ON = !!CAPTCHA_KEY;
 
 let token: string | null = null;
 let widgetId: string | null = null;

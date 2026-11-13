@@ -11,6 +11,7 @@ import { mySiteUnits, residentRoleLabel, siteResidentOnly } from '../domain/site
 import { PORTFOLIO_SECTORS, currentPortfolioOrg, residentTitle, sectionPath } from './site';
 import { PanelPhone, PanelUI, PressScale, Text } from '../ui/kit';
 import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
+import { useInsets } from '../ui/safe-area';
 import { Icon } from './blocks';
 import { Wordmark } from '../ui/Wordmark';
 import { useLangTick, useStore } from './hooks';
@@ -108,6 +109,9 @@ function TabBar({ list, more = [] }: { list: Item[]; more?: Item[] }) {
   const c = useColors();
   const router = useRouter();
   const active = useActive();
+  const insets = useInsets();
+  // Yüzen çubuk ana ekran çubuğunun (home indicator) üstünde durur; çentiksiz ekranda eski 12 px.
+  const lift = Math.max(12, insets.bottom - 8);
   const [open, setOpen] = useState(false);
   const all = more.length ? [...list, { label: t('Diğer'), icon: 'more', path: '#diger' }] : list;
   const inMore = more.some((x) => active(x.path)) && !list.some((x) => active(x.path));
@@ -116,8 +120,8 @@ function TabBar({ list, more = [] }: { list: Item[]; more?: Item[] }) {
     <>
       {open ? (
         <>
-          <Pressable onPress={() => setOpen(false)} accessibilityLabel={t('Kapat')} style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(29,26,25,0.35)', zIndex: 20 }} />
-          <View accessibilityRole="menu" style={{ position: 'absolute', left: 12, right: 12, bottom: 84, maxHeight: '70%', zIndex: 21, backgroundColor: c.surface, borderRadius: 26, borderWidth: 1, borderColor: c.line, boxShadow: shadows.soft, overflow: 'hidden' }}>
+          <Pressable onPress={() => setOpen(false)} accessibilityLabel={t('Kapat')} style={{ position: 'absolute', left: 0, right: 0, top: -insets.top, bottom: 0, backgroundColor: 'rgba(29,26,25,0.35)', zIndex: 20 }} />
+          <View accessibilityRole="menu" style={{ position: 'absolute', left: 12, right: 12, bottom: 72 + lift, maxHeight: '70%', zIndex: 21, backgroundColor: c.surface, borderRadius: 26, borderWidth: 1, borderColor: c.line, boxShadow: shadows.soft, overflow: 'hidden' }}>
             <ScrollView contentContainerStyle={{ padding: 8, gap: 2 }}>
               {more.map((it) => {
                 const on = active(it.path);
@@ -134,7 +138,7 @@ function TabBar({ list, more = [] }: { list: Item[]; more?: Item[] }) {
           </View>
         </>
       ) : null}
-      <View accessibilityRole="tablist" style={{ flexDirection: 'row', backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 999, marginHorizontal: 12, marginBottom: 12, marginTop: 4, paddingVertical: 4, paddingHorizontal: 6, boxShadow: shadows.soft, zIndex: 22 }}>
+      <View accessibilityRole="tablist" style={{ flexDirection: 'row', backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 999, marginHorizontal: 12, marginBottom: lift, marginTop: 4, paddingVertical: 4, paddingHorizontal: 6, boxShadow: shadows.soft, zIndex: 22 }}>
         {all.map((it) => {
           const isMore = it.path === '#diger';
           const on = isMore ? open || inMore : !open && active(it.path);
@@ -199,12 +203,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
   useLangTick();
   const { desktop, phone } = useBreakpoint();
   const c = useColors();
+  const insets = useInsets();
   const { tabs, extra, side } = items();
   return (
     <PanelUI.Provider value={true}>
     <PanelPhone.Provider value={phone}>
     <OverlayProvider renderSheet={renderSheet}>
-      <View style={{ flex: 1, flexDirection: 'row', backgroundColor: c.bg }}>
+      {/* Üstte durum çubuğu / Dynamic Island kadar boşluk: bütün panel ekranları (sekmeler, ayrıntılar) altından başlar. Webde 0. */}
+      <View style={{ flex: 1, flexDirection: 'row', backgroundColor: c.bg, paddingTop: insets.top }}>
         {desktop && <SideNav list={[...(side || [...tabs, ...extra]), { label: t('Ayarlar'), icon: 'gear', path: SETTINGS }]} />}
         <View style={{ flex: 1 }}>
           {!desktop && myContexts().length > 1 ? <View style={{ paddingHorizontal: 14, paddingTop: 10 }}><RoleSwitcher compact /></View> : null}

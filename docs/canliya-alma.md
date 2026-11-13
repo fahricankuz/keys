@@ -31,17 +31,17 @@ e-postaları için **Project Settings → Authentication → SMTP** bölümüne 
 kayıtlarını eklemeyi unutma; yoksa e-postalar gereksiz klasörüne düşer. Hostinger posta kutusu kullanılıyorsa günlük gönderim
 kotasını Supabase'in e-posta sınırıyla birlikte kontrol et.
 
-## 2a. Bot koruması (Cloudflare Turnstile) — zorunlu
+## 2a. Bot koruması (Cloudflare Turnstile) — yalnız web, isteğe bağlı
 
 E-posta onayı kapalıyken botlar sınırsız hesap açabilir ve hoş geldin e-postası başkasının adresine gidebilir.
-1. dash.cloudflare.com → Turnstile → Add site: alan adı `anahtar.io`, mod *Managed*. Site key ve Secret key'i al.
-2. Supabase → Authentication → **Attack Protection** → CAPTCHA: Turnstile, Secret key.
-3. Site key'i **web** için GitHub'da `TURNSTILE_SITE_KEY` değişkeni olarak (derlemede `EXPO_PUBLIC_TURNSTILE_SITE_KEY`) ve **telefon** için
-   EAS ortamında `EXPO_PUBLIC_TURNSTILE_SITE_KEY` olarak gir. Kod hazırdır: giriş, kayıt ve şifre sıfırlama formlarında kutu görünür
-   (telefonda `/turnstile/` sayfası bir WebView'de açılır), CSP kendiliğinden izin verir.
-4. **Sıra:** önce siteyi anahtarla yeniden yayınla ve ilk mağaza derlemesini anahtarla al; **en son** Supabase CAPTCHA zorunluluğunu aç.
-   Anahtarı taşımayan bir sürüm yayındayken zorunluluk açılırsa o sürümden kimse giriş yapamaz.
-5. Supabase → Authentication → **Rate Limits**: kayıt ve giriş sınırlarını gözden geçir.
+**Telefon uygulamasında CAPTCHA yoktur** (WebView'deki doğrulama Turnstile çerçevesini sistem tarayıcısında açtığı için kaldırıldı). Bu yüzden
+Supabase CAPTCHA zorunluluğu **açılmaz**: açılırsa telefon uygulaması jeton gönderemez ve telefondan kimse giriş yapıp kayıt olamaz.
+Telefondaki kötüye kullanımı Supabase hız sınırları sınırlar.
+1. (İsteğe bağlı, yalnız web) dash.cloudflare.com → Turnstile → Add site: alan adı `anahtar.io`, mod *Managed*. Site key'i GitHub'da `TURNSTILE_SITE_KEY`
+   değişkeni olarak gir (derlemede `EXPO_PUBLIC_TURNSTILE_SITE_KEY`); giriş, kayıt ve şifre sıfırlama formlarında kutu görünür, CSP kendiliğinden izin verir.
+   Telefon derlemesine (EAS) bu anahtarı girme.
+2. Supabase → Authentication → **Attack Protection** → CAPTCHA: **kapalı** bırak.
+3. Supabase → Authentication → **Rate Limits**: kayıt ve giriş sınırlarını gözden geçir (telefonun tek koruması bunlardır).
 
 ## 3. Yasal metinler — zorunlu (mağaza gönderiminin engeli)
 
@@ -69,7 +69,7 @@ denemeyle başlar, yönetici panelinden **Abonelikler → Paket ver / Denemeyi u
 - [ ] Ziyaretçi ölçümü (Plausible ya da GA4) eklendi
 - [ ] Google Search Console'a alan adı ve `sitemap.xml` eklendi
 - [ ] Tetikleyici ve zamanlanmış iş tanımlarında düz metin gizli değer yok (kontrol sorguları: [migrations.md](migrations.md) → "Uygulamadan sonra kontroller")
-- [ ] Bot koruması (Turnstile) web ve telefonda taşınıyor; Supabase CAPTCHA zorunluluğu en son açıldı (bölüm 2a)
+- [ ] Supabase CAPTCHA zorunluluğu kapalı (telefonda CAPTCHA yok); Supabase hız sınırları gözden geçirildi (bölüm 2a)
 
 ## 6. Sürüm sırası (güvenlik ve mağaza sürümü)
 

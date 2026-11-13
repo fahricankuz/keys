@@ -15,7 +15,7 @@ depoda hazırdır ve testlerle sınanır.
 | Çerçeve koruması | aynı betik | Sayfa başka sitenin içine gömülürse kendini gizler (clickjacking). |
 | Referrer politikası | aynı betik | Adres bilgisi başka sitelere tam sızmaz. |
 | Sunucu başlıkları | `app/public/.htaccess` (Hostinger/Apache) | HTTPS zorlaması, HSTS, çerçeve koruması, gizli dosyalara erişimi kapatma, önbellek; `.map` dosyaları engelli. |
-| Bot koruması (Turnstile) | web: `app/src/auth/captcha.tsx`; telefon: `captcha.native.tsx` | Giriş, kayıt ve şifre sıfırlamada doğrulama kutusu çıkar. Telefonda sitenin `/turnstile/` sayfası bir WebView'de açılır. Doğrulama yüklenemezse hata ve "Yeniden dene" gösterilir; jetonsuz istek hiçbir zaman gönderilmez (bölüm 4). |
+| Bot koruması (Turnstile) | yalnız web: `app/src/auth/captcha.tsx` | Webde giriş, kayıt ve şifre sıfırlamada doğrulama kutusu çıkar. **Telefonda CAPTCHA yoktur** (iOS ve Android): Captcha hiçbir şey çizmez, istekler jetonsuz gider. Supabase CAPTCHA zorunluluğu **kapalı kalır**; telefonda kötüye kullanımı Supabase hız sınırları sınırlar (bölüm 4). |
 | Oturum (PKCE) | `app/src/domain/backend.js` | E-posta bağlantıları (şifre sıfırlama, e-posta değişikliği, onay) tek kullanımlık kod taşır ve yalnız isteğin yapıldığı cihazda oturuma çevrilir; adresteki jetonla oturum kurulmaz (`setSession` yok). Başka cihazda açılırsa açıklama gösterilir. |
 | Telefonda oturum deposu | `app/src/domain/secure-storage.native.js` | Oturum iOS Keychain / Android Keystore'da (SecureStore) saklanır; eski sürümdeki açık metin oturum bir kez taşınıp silinir. Android yedeklemesi kapalı (`allowBackup: false`), reklam kimliği (`AD_ID`) engelli. |
 | Hesap silme | uygulama ve `delete_my_account` | Silme başarısız olursa hata gösterilir, oturum açık kalır; etkin mağaza aboneliği varsa önce iptal edilmesi gerektiği söylenir. |
@@ -82,7 +82,7 @@ yetkilidir. Gerçek Postgres'te sınanır (`tests/*.sql.spec.mjs`). Bu sürümde
 **Sunucu başlıkları hakkında:** Hostinger'da `.htaccess` başlıkları gerçekten gönderilir (HSTS, çerçeve koruması, `nosniff`, referrer
 politikası). Kural tabanlı gerçek bir WAF (kötü amaçlı istekleri sunucuya varmadan eleyen duvar) için sitenin önüne Cloudflare
 konabilir (bölüm 3, isteğe bağlı); Hostinger'ın kendi güvenlik araçları planınıza göre değişir (hPanel → **Security**).
-Giriş/kayıt istekleri sitenize değil doğrudan Supabase'e gittiği için onları Supabase'in kendi koruması ve Turnstile (bölüm 4) korur.
+Giriş/kayıt istekleri sitenize değil doğrudan Supabase'e gittiği için onları Supabase'in kendi koruması (hız sınırları, bölüm 4) korur; webde ayrıca Turnstile kutusu çıkar, sunucuda zorunlu değildir.
 
 ## 2. Alan adı koruması (alan adı ve DNS sağlayıcınızda: Hostinger)
 
@@ -119,7 +119,6 @@ DNS taşıma adımları Hostinger desteğiyle netleştirilmelidir.
    - Yönetici sayfası: *URI Path starts with `/admin`* → **Managed Challenge**.
    - Tarayıcı/keşif botları: *URI Path contains* `wp-admin`, `wp-login`, `.env`, `.git`, `phpmyadmin` → **Block**.
    - İsteğe bağlı: Türkiye dışı trafiği giriş sayfalarında zorlaştırmak için *Country does not equal Turkey AND URI Path starts with `/giris`* → **Managed Challenge** (yurt dışı kullanıcı beklemiyorsanız).
-   - **Dikkat:** `/turnstile/` sayfası telefon uygulamasındaki doğrulama kutusunu taşır; bu sayfayı engelleyen ya da sınayan bir kural yazmayın.
 9. **Security → WAF → Rate limiting rules** (ücretsiz planda çok az kural hakkı): *URI Path starts with `/giris` or `/kayit`*, 10 saniyede 20 istek → 10 saniye bloke. (Sayfa isteklerini sınırlar; hesap denemelerini bölüm 4 sınırlar.)
 10. **Caching**: Hostinger yeni sürüm yayınlayınca Cloudflare eski dosyayı tutabilir. Deploy sonrası *Caching → Purge Everything* yapın ya da *Cache Rule* ile HTML için kısa süre (2 dk) verin. `/.well-known/` dosyaları ([magaza.md](magaza.md) bölüm 9) önbelleğe alınmamalı ve yönlendirilmemelidir.
 
@@ -129,17 +128,16 @@ Doğrulama: <https://securityheaders.com> ve <https://www.ssllabs.com/ssltest/> 
 
 Hesap işlemleri doğrudan Supabase'e gider; Cloudflare duvarının görmediği yer burasıdır.
 
-1. **Bot koruması (Turnstile)** — web ve telefonda birlikte:
-   1. Cloudflare → Turnstile → *Add widget* → alan adınızı (`anahtar.io`) ekleyin; *Site Key* ve *Secret Key* verir.
-   2. Supabase → Authentication → **Attack Protection** → *Enable CAPTCHA protection* → sağlayıcı *Cloudflare Turnstile*, Secret Key'i girin.
-   3. Site Key'i **iki yere** girin: GitHub depo → Settings → Secrets and variables → Actions → **Variables** → `TURNSTILE_SITE_KEY` (web) ve
-      EAS ortamında `EXPO_PUBLIC_TURNSTILE_SITE_KEY` (telefon; [magaza.md](magaza.md) bölüm 1).
-
-   **Sıra önemlidir:** Supabase CAPTCHA'yı açıp (zorunlu yapıp) Site Key'i taşıyan bir sürüm yayında değilse **kimse giriş yapamaz**.
-   Önce web'i anahtarla yeniden yayınlayın ve ilk mağaza derlemesini anahtarla alın; CAPTCHA zorunluluğunu en son açın.
+1. **Bot koruması (Turnstile)** — yalnız web; **telefon uygulamasında CAPTCHA yoktur** (karar, Kasım 2026: telefondaki WebView doğrulaması
+   Turnstile çerçevesini sistem tarayıcısında açtığı için kaldırıldı).
+   - Supabase → Authentication → **Attack Protection** → CAPTCHA zorunluluğu **KAPALI kalır**. Açılırsa telefon uygulaması jeton
+     gönderemediği için telefondan kimse giriş yapamaz ve kayıt olamaz.
+   - Webde Site Key verilirse (GitHub depo → Settings → Secrets and variables → Actions → **Variables** → `TURNSTILE_SITE_KEY`) formda
+     doğrulama kutusu çıkar; sunucu zorunlu tutmadığı için yalnızca ek bir sinyaldir. Telefon derlemesine `EXPO_PUBLIC_TURNSTILE_SITE_KEY` girmeyin.
+   - Kötüye kullanım (sınırsız hesap, e-posta bombalama) Supabase hız sınırlarıyla sınırlanır: madde 2.
 2. **Authentication → Rate Limits**: e-posta gönderimi, giriş denemesi ve kayıt sınırlarını varsayılandan düşük tutun; e-posta gönderme aralığı 60 saniye.
 3. **Authentication → Providers → Email**: *Confirm email* **kapalı** (karar, Ekim 2026: kişi kayıt olur olmaz paneline girer);
-   bu yüzden bot koruması zorunludur. En az parola uzunluğu 8 (uygulama da bunu ister), *Leaked password protection* ve güvenli parola
+   bu yüzden hız sınırları (madde 2) sıkı tutulur. En az parola uzunluğu 8 (uygulama da bunu ister), *Leaked password protection* ve güvenli parola
    değişikliği açık.
 4. **Authentication → URL Configuration**: *Site URL* ve *Redirect URLs* yalnızca gerçek adresiniz (`https://anahtar.io/**`; `/dogrula` ve `/yeni-sifre` dahil). Başka yönlendirme adresi bırakmayın.
 5. **Authentication → Sign In / Providers**: kullanmadığınız her şeyi (anonim giriş, telefon, üçüncü taraf) kapatın. Oturum hareketsizlik süresi 90 gün.
@@ -154,8 +152,8 @@ Hesap işlemleri doğrudan Supabase'e gider; Cloudflare duvarının görmediği 
 
 - `zod` yüksek açığı (`npm audit`) yalnızca Expo derleme aracından gelir (`@expo/cli`), tarayıcıya giden pakete girmez; Expo güncellemesiyle kapanır. Tarama bu yüzden `app/` için yalnızca kritik açıkta durur.
 - İlk çalıştırmada `guvenlik.yml` bulgu çıkarırsa Security → Code scanning sayfasında görünür.
-- Turnstile akışı testlerle doğrulanmıştır; gerçek Cloudflare/Supabase ile web'de ve ilk mağaza derlemesinde kayıt, giriş ve şifre sıfırlamayı
-  bir kez deneyin, ancak ondan sonra Supabase CAPTCHA'yı zorunlu yapın. Anahtar yokken formlar değişmeden çalışır.
+- Webdeki Turnstile akışı testlerle doğrulanmıştır. Supabase CAPTCHA zorunluluğu açılmaz (telefon uygulamasında CAPTCHA yok); anahtar yokken
+  formlar değişmeden çalışır.
 - CSP `style-src 'unsafe-inline'` içerir (React Native Web stilleri satır içidir); betikler için `unsafe-inline` yoktur.
 - Sertleştirme yalnızca derlenmiş sitede çalışır; `expo start` ile geliştirmede CSP yoktur.
 - **Depo sahibinin yapacağı GitHub işleri** (yönetici hesabı gerekir): varsayılan dalda PR ve zorunlu kontrol kuralı (ruleset), `site` dalının

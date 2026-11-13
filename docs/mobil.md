@@ -27,7 +27,7 @@ satın alma) için [abonelik.md](abonelik.md).
 - **Anlık bildirim** — iPhone'da APNs, Android'de Firebase (FCM). İzin, girişten hemen sonra değil kısa bir açıklamadan sonra sorulur.
 - **Güvenli oturum** — oturum anahtarı iOS Keychain / Android Keystore içinde saklanır (`expo-secure-store`); eski sürümdeki
   oturum bir kez taşınıp silinir.
-- **Bot koruması** — giriş, kayıt ve şifre sıfırlamada Cloudflare Turnstile, sitenin `/turnstile/` sayfası bir WebView içinde açılarak çalışır.
+- **Bot koruması** — telefonda CAPTCHA yoktur (WebView'deki Turnstile sistem tarayıcısını açtığı için kaldırıldı); giriş, kayıt ve şifre sıfırlamada kötüye kullanımı Supabase hız sınırları sınırlar. Turnstile yalnız webde çalışır.
 - **Kamera** — dekont ve talep formunda "Kamerayla çek".
 - **Bağlantılar** — davet, e-posta doğrulama ve şifre sıfırlama bağlantıları (`https://anahtar.io/…`) uygulamayı doğrudan açar.
 - **Abonelik** — App Store / Google Play'in kendi ödeme ekranı.
