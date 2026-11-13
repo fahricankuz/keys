@@ -4,7 +4,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /** supabase-js'in `auth.storage` arayüzü (getItem / setItem / removeItem; hepsi asenkron). */
-export const authStorage = AsyncStorage;
+// Statik derlemede (Node, window yok) supabase-js oturumu okumaya çalışır; o sırada depo boş davranır.
+const ssrStorage = { getItem: async () => null, setItem: async () => {}, removeItem: async () => {} };
+export const authStorage = typeof window === 'undefined' ? ssrStorage : AsyncStorage;
 
 /** Telefonda eski AsyncStorage oturumunu güvenli depoya taşır; web'de yapılacak bir şey yok. */
 export async function migrateAuthStorage(key) { void key; }
