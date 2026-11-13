@@ -19,7 +19,7 @@ test.beforeAll(async () => {
   // A1: yalnız malik (L) oturuyor, kiracı yok. A2: malik X ve kiracı T, ikisinin de hesabı bağlı.
   const res = async (unit, role, uid) => {
     await as(M);
-    const [{ code }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, $3, 'K') returning code`, [org, unit, role]);
+    const [{ code }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, $3, 'K') returning id`, [org, unit, role]).then(([{ id }]) => q(`select public.site_resident_code($1) code`, [id]));
     await as(uid); await q(`select public.accept_site_invite($1)`, [code]);
   };
   await res(u1, 'malik', ID.L);

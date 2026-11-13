@@ -7929,3 +7929,1570 @@ begin
     end if;
   end loop;
 end $$;
+
+-- ===== migration: 20261113134007_yetki_duzeltmeleri.sql =====
+-- yetki düzeltmeleri (üretim öncesi güvenlik denetimi, 2026-11-13)
+-- Yeniden çalıştırılabilir. Eski istemciyle de çalışır: istemci yalnızca memberships.display_name/phone günceller, system mesajı yazmaya devam eder.
+-- Bu dosyadaki her delik için tests/yetki-duzeltmeleri.sql.spec.mjs rol rol (kiracı, mülk sahibi, yönetici ekip üyesi, site sakini, anon) deneme yapar.
+
+-- ---------------------------------------------------------------------
+-- 1. Üyelik rolü yükseltme: kiracı kendi memberships satırını "landlord" yapabiliyordu.
+--    Satırı kendi güncelleyebilir (politika aynı kaldı) ama yalnız ad ve telefon sütunlarını; rol, mülk, kullanıcı ve e-posta
+--    istemciden değişmez. Tetikleyici ikinci kat: sunucu işlevleri (accept_invite vb., security definer) ve service_role geçer.
+-- ---------------------------------------------------------------------
+drop policy if exists memberships_update on public.memberships;
+create policy memberships_update on public.memberships for update to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+revoke update on public.memberships from authenticated;
+grant update (display_name, phone) on public.memberships to authenticated;
+
+create or replace function public.guard_membership() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  -- current_user: istemci isteğinde 'authenticated'; security definer işlevlerde işlevin sahibi; service_role'de 'service_role'.
+  if current_user in ('authenticated', 'anon')
+     and (new.role is distinct from old.role or new.property_id is distinct from old.property_id or new.user_id is distinct from old.user_id
+          or new.email is distinct from old.email or new.created_at is distinct from old.created_at) then
+    raise exception 'Üyelik rolü, mülkü ve kullanıcısı değiştirilemez' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.guard_membership() from public, anon;
+drop trigger if exists guard_membership on public.memberships;
+create trigger guard_membership before update on public.memberships for each row execute function public.guard_membership();
+
+-- ---------------------------------------------------------------------
+-- 2. site_report: oturumsuz çağrı yönetim denetimini atlıyordu (auth.uid() boşsa denetim yoktu).
+-- ---------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.site_report(oid uuid, period text, ref date)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  d0 date := case when period = 'year' then date_trunc('year', ref)::date else date_trunc('month', ref)::date end;
+  d1 date := case when period = 'year' then (date_trunc('year', ref) + interval '1 year')::date else (date_trunc('month', ref) + interval '1 month')::date end;
+  m0 text := to_char(d0, 'YYYY-MM');
+  m1 text := to_char(d1 - 1, 'YYYY-MM');
+  yr int := extract(year from d0)::int;
+begin
+  -- Oturum şart: oturumsuz (anon) çağrı geçemez. Yalnız sunucu içi çağrılar (service_role, pg_cron, SQL) oturumsuz çalışır.
+  if auth.uid() is null then
+    if coalesce(nullif(current_setting('role', true), 'none'), session_user) not in ('service_role', 'postgres', 'supabase_admin')
+       and coalesce(current_setting('request.jwt.claim.role', true), '') <> 'service_role' then
+      raise exception 'Oturum açılmamış' using errcode = '42501';
+    end if;
+  elsif not public.org_can(oid, 'reports.view') and not public.is_admin() then
+    raise exception 'Rapor yetkin yok' using errcode = '42501';
+  end if;
+  return jsonb_build_object(
+    'org', (select name from public.organizations where id = oid),
+    'sector', (select sector from public.organizations where id = oid),
+    'period', period, 'from', d0, 'to', d1 - 1,
+    'units', (select count(*) from public.site_units where org_id = oid),
+    'charges', (select coalesce(jsonb_agg(x order by x.kind), '[]'::jsonb) from (
+        select kind, sum(amount) as charged,
+               sum(case when status = 'paid' then amount when status in ('partial') then paid_amount else 0 end) as collected
+        from public.site_charges where org_id = oid and month between m0 and m1 group by kind) x),
+    'expenses', (select coalesce(jsonb_agg(x order by x.total desc), '[]'::jsonb) from (
+        select cat, sum(amount) as total from public.site_expenses where org_id = oid and spent_on >= d0 and spent_on < d1 group by cat) x),
+    'budget', (select case when b.org_id is null then null else jsonb_build_object('year', b.year, 'approved_on', b.approved_on,
+                 'items', b.items, 'total', (select coalesce(sum((i ->> 'amount')::numeric), 0) from jsonb_array_elements(b.items) i)) end
+               from (select 1) one left join public.site_budgets b on b.org_id = oid and b.year = yr),
+    'debtors', (select coalesce(jsonb_agg(x order by x.unpaid desc), '[]'::jsonb) from (
+        select public.unit_label(unit_id) as unit, sum(amount - case when status = 'partial' then paid_amount else 0 end) as unpaid
+        from public.site_charges where org_id = oid and status <> 'paid' and month <= m1
+          and (date_trunc('month', to_date(month, 'YYYY-MM')) + interval '1 month')::date <= least(d1, current_date)
+        group by unit_id order by 2 desc limit 20) x),
+    'requests', jsonb_build_object(
+        'opened', (select count(*) from public.site_requests where org_id = oid and created_at >= d0 and created_at < d1),
+        'open', (select count(*) from public.site_requests where org_id = oid and status < 3)),
+    -- Dolar karşılıkları (rapor_dolar_karsiligi): her işlem kendi gününün TCMB satış kuruyla; TL kur farkı bilgi satırı.
+    'usd', public.site_report_fx(oid, m0, m1, d0, d1, 'USD'),
+    'fx_diff_try', (public.site_report_fx(oid, m0, m1, d0, d1, 'TRY') ->> 'fx_diff')::numeric);
+end $function$;
+
+-- ---------------------------------------------------------------------
+-- 3. Engelleme: "system" mesajı engelleyen kişinin ekranında süzülmüyordu; engellenen kişi system rolüyle mesaj yazıp engeli aşabiliyordu.
+--    Uygulama system mesajlarını (talep durumu, ödeme onayı vb.) hâlâ istemciden yazar; bu yüzden ekleme politikası aynı kalır,
+--    okuma politikası ise artık by_user dolu her satırı (system dahil) engelleyen için gizler. Sunucunun yazdığı system mesajı
+--    (by_user boş) herkese görünür.
+-- ---------------------------------------------------------------------
+drop policy if exists messages_select on public.messages;
+create policy messages_select on public.messages for select to authenticated
+  using (public.is_member(property_id) and public.member_role(property_id) <> 'accountant'
+         and (by_user is null or not exists (select 1 from public.user_blocks b where b.user_id = (select auth.uid()) and b.blocked = messages.by_user)));
+
+-- ---------------------------------------------------------------------
+-- 4. Belge: güncellemede WITH CHECK yoktu ve property_id değiştirilebiliyordu (belgeyi başkasının mülküne taşıyıp listesine sızdırma).
+-- ---------------------------------------------------------------------
+create or replace function public.guard_document_property() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if new.property_id is distinct from old.property_id then
+    raise exception 'Belge başka bir mülke taşınamaz' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.guard_document_property() from public, anon;
+drop trigger if exists guard_document_property on public.documents;
+create trigger guard_document_property before update on public.documents for each row execute function public.guard_document_property();
+
+drop policy if exists documents_update on public.documents;
+create policy documents_update on public.documents for update to authenticated
+  using ((uploaded_by = (select auth.uid()))
+         or ((public.is_owner(property_id) or public.member_role(property_id) = 'agent') and public.review_ok('document', property_id, id)))
+  with check ((uploaded_by = (select auth.uid()) and public.is_member(property_id))
+         or ((public.is_owner(property_id) or public.member_role(property_id) = 'agent') and public.review_ok('document', property_id, id)));
+
+-- ---------------------------------------------------------------------
+-- 5. Mülk kimliği: "site-<kurum>" ve "hukuk-<kullanıcı>" depolama klasörleriyle çakışabiliyordu (mülk kimliği = klasör adı;
+--    böyle bir mülk açan kişi o klasörün "üyesi/sahibi" sayılıp dosyaları okuyup silebilirdi). Büyük/küçük harf duyarsız yasak.
+--    Üretimde eşleşen satır yok (denetlendi); satır yoksa kural doğrulanır, varsa yalnız yeni ve değişen satırlara uygulanır.
+-- ---------------------------------------------------------------------
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'properties_id_onek' and conrelid = 'public.properties'::regclass) then
+    alter table public.properties add constraint properties_id_onek check (id !~* '^(site|hukuk)-') not valid;
+  end if;
+  if not exists (select 1 from public.properties where id ~* '^(site|hukuk)-') then
+    alter table public.properties validate constraint properties_id_onek;
+  end if;
+end $$;
+
+-- properties.org_id istemciden verilebiliyordu: başkasının kurumuna mülk bağlanıp kurumun mülk sayısı/bildirimleri kirletilebilirdi.
+-- İstemci yalnız kendisinin yöneticisi (master) olduğu etkin kuruma bağlayabilir; sunucu işlevleri ve service_role geçer.
+create or replace function public.guard_property_org() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if current_user not in ('authenticated', 'anon') then return new; end if;
+  if new.org_id is null or (tg_op = 'UPDATE' and new.org_id is not distinct from old.org_id) then return new; end if;
+  if exists (select 1 from public.org_members m join public.organizations o on o.id = m.org_id
+              where m.user_id = new.owner_id and m.is_master and o.id = new.org_id and o.status = 'active') then
+    return new;
+  end if;
+  raise exception 'Mülk bu kuruma bağlanamaz' using errcode = '42501';
+end $$;
+revoke execute on function public.guard_property_org() from public, anon;
+drop trigger if exists guard_property_org on public.properties;
+create trigger guard_property_org before insert or update of org_id on public.properties for each row execute function public.guard_property_org();
+
+-- ---------------------------------------------------------------------
+-- 6. team_remove: kendi kimliğini "member" verip başkasının "owner" kimliğini yazan kişi, o mülk sahibinin etkinlik akışına sahte
+--    "ekip üyesi çıkarıldı" kaydı ekleyebiliyordu (hiçbir üyelik silinmese de). Kayıt artık yalnız gerçek bir silmede yazılır.
+-- ---------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.team_remove(member uuid, owner uuid DEFAULT NULL::uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare own uuid := coalesce(owner, auth.uid()); gone int;
+begin
+  if auth.uid() is null then raise exception 'Oturum açılmamış' using errcode = '42501'; end if;
+  if own <> auth.uid() and member <> auth.uid() then raise exception 'Yetki yok' using errcode = '42501'; end if;
+  delete from public.team_members where owner_id = own and member_id = member;
+  get diagnostics gone = row_count;
+  delete from public.memberships m using public.properties p
+   where m.property_id = p.id and p.owner_id = own and m.user_id = member and m.role in ('agent','accountant','staff');
+  -- Etkinlik kaydı yalnız gerçekten bir ekip üyeliği kaldırıldıysa yazılır (başkasının akışına sahte kayıt eklenemez).
+  if gone > 0 then
+    perform public.log_activity(null, 'team', 'remove', member::text, '{}'::jsonb, own);
+  end if;
+end $function$;
+
+-- ===== migration: 20261113134213_anon_islev_yetkileri.sql =====
+-- anon işlev yetkileri (üretim öncesi güvenlik denetimi, 2026-11-13)
+-- Sorun: Supabase, public şemasındaki her yeni işleve anon ve authenticated rollerine doğrudan EXECUTE verir ve Postgres ayrıca PUBLIC'e verir.
+-- 179 security definer işlevin 110'una oturumsuz (anon) çağrı yapılabiliyordu; yalnız altısı bilerek herkese açıktır.
+-- Bu migration: (1) izin listesindekiler dışındaki her security definer işlevden anon ve PUBLIC EXECUTE'u kaldırır (authenticated'ın yetkisi aynen
+-- kalır: RLS ve depolama politikaları işlevleri bu rolle çağırır), (2) yeni işlevlerde varsayılan yetkiyi aynı yönde değiştirir,
+-- (3) search_path'i sabit olmayan yardımcı işlevlere sabit bir yol verir. Yeniden çalıştırılabilir.
+-- İzin listesi tests/qa-db.spec.mjs içinde de tutulur; yeni bir herkese açık işlev eklemek bilinçli bir karar olmalıdır.
+
+-- ---------------------------------------------------------------------
+-- 1. Mevcut işlevler
+--    İzin listesi (oturumsuz kullanılabilen): invite_preview (davet sayfası), signup_code_ok (kayıt formu), site_invite_info (site davet sayfası),
+--    submit_lead (web kurumsal başvuru), report_error (oturum öncesi hata kaydı), verify_rent_certificate (kira belgesi doğrulama).
+-- ---------------------------------------------------------------------
+do $$
+declare
+  f record;
+  keep constant text[] := array['invite_preview', 'signup_code_ok', 'site_invite_info', 'submit_lead', 'report_error', 'verify_rent_certificate'];
+  had_auth boolean;
+  had_svc boolean;
+  has_svc boolean := exists (select 1 from pg_roles where rolname = 'service_role');
+begin
+  for f in
+    select p.oid, p.oid::regprocedure as sig
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.prokind = 'f' and p.prosecdef and p.proname <> all (keep)
+       and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')   -- eklentiye ait işlevlere dokunma
+  loop
+    had_auth := has_function_privilege('authenticated', f.oid, 'execute');
+    had_svc := has_svc and has_function_privilege('service_role', f.oid, 'execute');
+    execute format('revoke execute on function %s from public, anon', f.sig);
+    -- authenticated ve service_role yetkiyi yalnız PUBLIC üzerinden alıyorsa (Supabase'de doğrudan alırlar; yerel testte almazlar) geri ver.
+    if had_auth and not has_function_privilege('authenticated', f.oid, 'execute') then
+      execute format('grant execute on function %s to authenticated', f.sig);
+    end if;
+    if had_svc and not has_function_privilege('service_role', f.oid, 'execute') then
+      execute format('grant execute on function %s to service_role', f.sig);
+    end if;
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 2. Yeni işlevler: anon ve PUBLIC varsayılan EXECUTE'u kaldırılır; authenticated (ve service_role, varsa) doğrudan alır.
+--    Dahili (yalnız tetikleyici/zamanlanmış iş) işlevler yazılırken ayrıca "revoke ... from authenticated" yapılmalıdır.
+--    Not: "in schema public" varsayılanı PUBLIC'in yerleşik varsayılan EXECUTE'unu kaldırmaz; bu yüzden şemasız satır da gerekir.
+-- ---------------------------------------------------------------------
+alter default privileges in schema public revoke execute on functions from anon;
+alter default privileges revoke execute on functions from public;
+alter default privileges in schema public grant execute on functions to authenticated;
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    alter default privileges in schema public grant execute on functions to service_role;
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 3. search_path sabit olmayan işlevler (card_trial_from, charge_word, fmt_tl, legal_label, month_tr, org_module_list, org_perm_list, pay_ref,
+--    plan_of, plan_units, product_units, project_stage_label, project_stage_tr, quotes_tenant_ok, recent_messages, sector_modules,
+--    short_name, signup_code_required, storage_path, touch_updated_at, trial_days, welcome_since ve varsa benzerleri)
+-- ---------------------------------------------------------------------
+do $$
+declare f record;
+begin
+  for f in
+    select p.oid::regprocedure as sig
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.prokind = 'f'
+       and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c where c like 'search_path=%')
+       and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
+  loop
+    execute format('alter function %s set search_path = public', f.sig);
+  end loop;
+end $$;
+
+-- ===== migration: 20261113134445_davet_kodlari.sql =====
+-- davet kodları (üretim öncesi güvenlik denetimi, 2026-11-13)
+-- Sorunlar: kodlar kısaydı (mülk 8 onaltılık hane = 32 bit; kurum "K"+7, site sakini "S"+7 = 28 bit) ve denemeye sınır yoktu; oturumsuz üç işlev
+-- (invite_preview, site_invite_info, signup_code_ok) kod avcılığına yarıyordu ve site_invite_info geçerli bir kod için sakinin adını, telefonunu ve
+-- e-postasını veriyordu; kabul işlevleri ayırt edici hata iletileri döndürüyordu; davet kimin için olduğuna bağlı değildi; site sakininin davet kodu
+-- kurumun salt okur rollerince de okunabiliyordu.
+-- Bu migration:
+--  1. Yeni kodlar ≥80 bit: mülk 16 karakter, kurum "K"+16, site sakini "S"+16 (Crockford base32, büyük harf). Eski kodlar süresi dolana (sakin kodları kabul edilene)
+--     kadar geçerli kalır. Kabul işlevleri girdiyi normalleştirir (büyük harf; boşluk, tire ve işaret atılır; O→0, I ve L→1).
+--  2. invite_attempts + invite_throttle(): kullanıcı başına ve istemci IP'si başına saatte en çok 10 başarısız deneme; sınır dolunca doğru kod bile reddedilir.
+--  3. Başarısız her kabul / önizleme tek biçimde sonuçlanır: kabul işlevleri NULL döndürür (kod yok, kullanılmış, süresi dolmuş, başka e-postaya ait ya da
+--     deneme sınırı: hepsi aynı), önizleme işlevleri NULL / false döner. Neden hata fırlatılmıyor: işlev hata verirse PostgREST işlemi geri alır ve
+--     başarısız denemenin kaydı da silinirdi; sınır işlemez. Oturum yok / hesap askıda hataları ve "kendi davetini kullanamazsın" gibi kod doğrulandıktan
+--     sonraki iletiler eskisi gibi hata olarak kalır.
+--  4. E-posta bağlama: davetin e-postası doluysa yalnız o e-postalı hesap kabul edebilir.
+--  5. site_invite_info yalnız maskeli ad döndürür (telefon ve e-posta yok); site_resident_code(p_resident) kodu yalnız "Malik ve kiracılar" yetkisine verir;
+--     site_residents.code sütunu istemciden yazılamaz. (Okumanın kapatılması eski istemciyi bozacağı için sonraki PR'dadır:
+--     specs/followup-migrations/.)
+--  6. site_invite_mail: aynı kişiye e-posta 2 dakikada bir.
+-- Yeniden çalıştırılabilir. Eski kodlar ve eski istemci: kod biçimi serbest, işlev imzaları aynı; istemcinin yapması gereken değişiklikler
+-- tests/davet-kodlari.sql.spec.mjs içinde.
+
+-- ---------------------------------------------------------------------
+-- 1. Kod üretici ve normalleştirici
+-- ---------------------------------------------------------------------
+-- n karakterlik (5 bit/karakter) kod. Rastgelelik: gen_random_uuid() (kriptografik); sürüm ve varyant baytları atılır, kalan 14 bayt/uuid kullanılır.
+create or replace function public.gen_invite_code(n integer default 16) returns text
+language plpgsql volatile set search_path = public as $$
+declare
+  alphabet constant text := '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+  raw bytea;
+  bits text := '';
+  res text := '';
+  i int;
+begin
+  if n is null or n < 1 or n > 40 then raise exception 'Geçersiz kod uzunluğu' using errcode = '22023'; end if;
+  while length(bits) < n * 5 loop
+    raw := uuid_send(gen_random_uuid());
+    for i in 0..15 loop
+      continue when i in (6, 8);
+      bits := bits || get_byte(raw, i)::bit(8)::text;
+    end loop;
+  end loop;
+  for i in 0..n - 1 loop
+    res := res || substr(alphabet, (substring(bits from i * 5 + 1 for 5)::bit(5)::int) + 1, 1);
+  end loop;
+  return res;
+end $$;
+
+create or replace function public.invite_norm(c text) returns text
+language sql immutable set search_path = public as $$
+  select translate(upper(left(regexp_replace(coalesce(c, ''), '[^0-9A-Za-z]', '', 'g'), 40)), 'OIL', '011')
+$$;
+
+alter table public.invites alter column code set default public.gen_invite_code(16);
+alter table public.org_invites alter column code set default ('K' || public.gen_invite_code(16));
+alter table public.site_residents alter column code set default ('S' || public.gen_invite_code(16));
+
+-- Ad maskesi: her sözcüğün ilk harfi ve ***  ("Ayşe Yılmaz" → "A*** Y***").
+create or replace function public.mask_name(n text) returns text
+language sql immutable set search_path = public as $$
+  select regexp_replace(btrim(coalesce(n, '')), '(\S)\S*', '\1***', 'g')
+$$;
+
+-- ---------------------------------------------------------------------
+-- 2. Deneme kaydı ve sınır
+-- ---------------------------------------------------------------------
+create table if not exists public.invite_attempts (
+  id      bigint generated always as identity primary key,
+  at      timestamptz not null default now(),
+  user_id uuid,
+  ip      text
+);
+create index if not exists invite_attempts_user on public.invite_attempts (user_id, at) where user_id is not null;
+create index if not exists invite_attempts_ip on public.invite_attempts (ip, at) where ip is not null;
+alter table public.invite_attempts enable row level security;     -- politika yok: yalnız security definer işlevler (ve service_role) yazar/okur
+revoke all on public.invite_attempts from anon, authenticated;
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then revoke all on public.invite_attempts from service_role; end if;
+end $$;
+
+-- İstemci IP'si. Cloudflare'in koyduğu cf-connecting-ip varsa o (istemci uyduramaz), yoksa x-forwarded-for'un ilk girdisi.
+-- Oturum açan kullanıcı sayacı ayrıca tutulur; IP yoksa (ör. kayıt sırasında auth tetikleyicisi) yalnız kullanıcıya bakılır.
+create or replace function public.client_ip() returns text
+language plpgsql stable set search_path = public as $$
+declare h jsonb; v text;
+begin
+  begin h := nullif(current_setting('request.headers', true), '')::jsonb; exception when others then h := null; end;
+  if h is null then return null; end if;
+  v := coalesce(nullif(btrim(h ->> 'cf-connecting-ip'), ''), nullif(btrim(split_part(coalesce(h ->> 'x-forwarded-for', ''), ',', 1)), ''));
+  return left(v, 64);
+end $$;
+
+-- true: kullanıcı ya da IP son bir saatte 10 başarısız deneme yapmış.
+create or replace function public.invite_throttle() returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare v_uid uuid := auth.uid(); v_ip text := public.client_ip();
+begin
+  if v_uid is null and v_ip is null then return false; end if;
+  return (v_uid is not null and (select count(*) from public.invite_attempts a where a.user_id = v_uid and a.at > now() - interval '1 hour') >= 10)
+      or (v_ip is not null and (select count(*) from public.invite_attempts a where a.ip = v_ip and a.at > now() - interval '1 hour') >= 10);
+end $$;
+
+create or replace function public.invite_fail() returns void
+language plpgsql security definer set search_path = public as $$
+declare v_uid uuid := auth.uid(); v_ip text := public.client_ip();
+begin
+  if v_uid is null and v_ip is null then return; end if;
+  insert into public.invite_attempts (user_id, ip) values (v_uid, v_ip);
+end $$;
+
+revoke execute on function public.invite_throttle() from public, anon, authenticated;
+revoke execute on function public.invite_fail() from public, anon, authenticated;
+revoke execute on function public.client_ip() from public, anon, authenticated;
+revoke execute on function public.invite_norm(text) from public, anon, authenticated;
+revoke execute on function public.mask_name(text) from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- 3. Kabul işlevleri
+-- ---------------------------------------------------------------------
+create or replace function public.accept_invite(invite_code text) returns text
+language plpgsql security definer set search_path = public as $$
+declare
+  inv public.invites;
+  me  public.profiles;
+  pid text;
+  c   text := public.invite_norm(invite_code);
+  mail text;
+begin
+  select * into me from public.profiles where id = auth.uid();
+  if me.id is null then raise exception 'Oturum açılmamış' using errcode = '42501'; end if;
+  if public.is_banned() then raise exception 'Hesap askıya alındı' using errcode = '42501'; end if;
+  if public.invite_throttle() then return null; end if;
+
+  select lower(btrim(email::text)) into mail from auth.users where id = me.id;
+  select * into inv from public.invites where code = c for update;
+  -- Tek sonuç: kod yok, kullanılmış, süresi dolmuş, başka e-postaya bağlı ya da deneme sınırı → NULL (başarısızlık kaydedilir).
+  if inv.code is null or inv.accepted_by is not null or inv.expires_at < now()
+     or (btrim(inv.email) <> '' and lower(btrim(inv.email)) is distinct from mail) then
+    perform public.invite_fail();
+    return null;
+  end if;
+
+  if inv.role = 'tenant' then
+    -- Aynı e-posta birden çok rol taşıyabilir: mülk sahibi ve ekip hesapları da başka bir mülkte kiracı olabilir.
+    -- Kendi mülkünün kiracı davetini kullanamaz (kendi evinin kiracısı olamaz).
+    if me.id = inv.created_by or exists (select 1 from public.properties where id = inv.property_id and owner_id = me.id) then
+      raise exception 'Kendi davetini kullanamazsın' using errcode = '22023';
+    end if;
+    insert into public.memberships (property_id, user_id, role, display_name, phone, email)
+    values (inv.property_id, me.id, 'tenant', coalesce(nullif(me.name, ''), inv.name), coalesce(nullif(me.phone, ''), inv.phone),
+            coalesce((select email from auth.users where id = me.id), inv.email))
+    on conflict (property_id, user_id) do nothing;
+    insert into public.messages (id, property_id, from_role, by_user, body)
+    values (gen_random_uuid()::text, inv.property_id, 'system', null, me.name || ' eve katıldı');
+  else
+    if me.role not in ('team','landlord') then raise exception 'Ekip davetleri ekip ya da mülk sahibi hesapları içindir' using errcode = '22023'; end if;
+    if me.id = inv.created_by then raise exception 'Kendi davetini kullanamazsın' using errcode = '22023'; end if;
+    insert into public.team_members (owner_id, member_id, role, scope) values (inv.created_by, me.id, inv.role, inv.scope)
+    on conflict (owner_id, member_id) do update set role = excluded.role,
+      scope = case when public.team_members.scope = 'portfolio' then 'portfolio' else excluded.scope end;
+    for pid in select id from public.properties
+               where owner_id = inv.created_by and (inv.scope = 'portfolio' or id = inv.property_id) loop
+      insert into public.memberships (property_id, user_id, role, display_name, email)
+      values (pid, me.id, inv.role, me.name, coalesce((select email from auth.users where id = me.id), ''))
+      on conflict (property_id, user_id) do update set role = excluded.role where public.memberships.role <> 'landlord';
+    end loop;
+    perform public.log_activity(inv.property_id, 'team', 'join', me.id::text, jsonb_build_object('role', inv.role, 'scope', inv.scope), inv.created_by);
+  end if;
+
+  update public.invites set accepted_by = me.id, accepted_at = now() where code = inv.code;
+  return inv.property_id;
+end $$;
+
+create or replace function public.accept_org_invite(invite_code text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare
+  inv public.org_invites;
+  me uuid := auth.uid();
+  c text := public.invite_norm(invite_code);
+  mail text;
+begin
+  if me is null then raise exception 'Oturum açılmamış' using errcode = '42501'; end if;
+  if public.is_banned() then raise exception 'Hesap askıya alındı' using errcode = '42501'; end if;
+  if public.invite_throttle() then return null; end if;
+  select lower(btrim(email::text)) into mail from auth.users where id = me;
+  select * into inv from public.org_invites where code = c for update;
+  if inv.code is null or (inv.accepted_by is not null and inv.accepted_by <> me) or inv.expires_at < now()
+     or (btrim(inv.email) <> '' and lower(btrim(inv.email)) is distinct from mail) then
+    perform public.invite_fail();
+    return null;
+  end if;
+  if inv.master then
+    update public.org_members set is_master = false where org_id = inv.org_id and is_master and user_id <> me;
+    insert into public.org_members (org_id, user_id, role_id, is_master) values (inv.org_id, me, null, true)
+    on conflict (org_id, user_id) do update set is_master = true, role_id = null;
+  else
+    insert into public.org_members (org_id, user_id, role_id) values (inv.org_id, me, inv.role_id)
+    on conflict (org_id, user_id) do update set role_id = case when public.org_members.is_master then null else excluded.role_id end;
+  end if;
+  update public.org_invites set accepted_by = me, accepted_at = now() where code = inv.code;
+  return inv.org_id;
+end $$;
+
+create or replace function public.accept_site_invite(invite_code text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare
+  r public.site_residents;
+  c text := public.invite_norm(invite_code);
+  mail text;
+begin
+  if auth.uid() is null then raise exception 'Oturum açılmamış' using errcode = '42501'; end if;
+  if public.is_banned() then raise exception 'Hesap askıya alındı' using errcode = '42501'; end if;
+  if public.invite_throttle() then return null; end if;
+  select lower(btrim(email::text)) into mail from auth.users where id = auth.uid();
+  select * into r from public.site_residents where code = c for update;
+  if r.id is not null and r.user_id = auth.uid() then return r.unit_id; end if;            -- aynı hesap kodu yeniden kullanırsa işlem değişmez
+  if r.id is null or r.user_id is not null or (btrim(r.email) <> '' and lower(btrim(r.email)) is distinct from mail) then
+    perform public.invite_fail();
+    return null;
+  end if;
+  update public.site_residents set user_id = auth.uid() where id = r.id;
+  return r.unit_id;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 4. Oturumsuz önizleme / kod denetimi (anon): geçerli koddan başka hiçbir şey döndürmez
+-- ---------------------------------------------------------------------
+create or replace function public.invite_preview(invite_code text) returns jsonb
+language plpgsql volatile security definer set search_path = public as $$
+declare r jsonb; c text := public.invite_norm(invite_code);
+begin
+  if public.invite_throttle() then return null; end if;
+  select jsonb_build_object('role', i.role, 'scope', i.scope, 'owner', o.name, 'property', p.name, 'valid', true, 'email_bound', btrim(i.email) <> '')
+    into r
+    from public.invites i join public.properties p on p.id = i.property_id join public.profiles o on o.id = i.created_by
+   where i.code = c and i.accepted_by is null and i.expires_at > now();
+  if r is null then perform public.invite_fail(); end if;
+  return r;
+end $$;
+
+create or replace function public.signup_code_ok(invite_code text) returns boolean
+language plpgsql volatile security definer set search_path = public as $$
+declare c text := public.invite_norm(invite_code); ok boolean;
+begin
+  if public.invite_throttle() then return false; end if;
+  if length(c) not between 6 and 24 then
+    if length(c) > 0 then perform public.invite_fail(); end if;
+    return false;
+  end if;
+  ok := exists (select 1 from public.invites i where i.code = c and i.role = 'tenant' and i.accepted_by is null and i.expires_at > now())
+     or exists (select 1 from public.site_residents r where r.code = c and r.user_id is null);
+  if not ok then perform public.invite_fail(); end if;
+  return ok;
+end $$;
+
+-- Site daveti önizlemesi: kurum, daire ve rol; ad yalnız maskeli, telefon/e-posta yok (e-postaya bağlı olup olmadığı bilgisi var).
+create or replace function public.site_invite_info(invite_code text) returns jsonb
+language plpgsql volatile security definer set search_path = public as $$
+declare res jsonb; c text := public.invite_norm(invite_code);
+begin
+  if public.invite_throttle() then return null; end if;
+  select jsonb_build_object('org', o.name, 'sector', o.sector, 'unit', public.unit_label(r.unit_id), 'role', r.role,
+                            'name', public.mask_name(r.name), 'email_bound', btrim(r.email) <> '', 'used', false)
+    into res
+    from public.site_residents r join public.organizations o on o.id = r.org_id
+   where r.code = c and r.user_id is null;
+  if res is null then perform public.invite_fail(); end if;
+  return res;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 5. Sakin davet kodu: yalnız "Malik ve kiracılar" yetkisi okur
+-- ---------------------------------------------------------------------
+create or replace function public.site_resident_code(p_resident uuid) returns text
+language plpgsql stable security definer set search_path = public as $$
+declare r public.site_residents;
+begin
+  if auth.uid() is null then raise exception 'Oturum açılmamış' using errcode = '42501'; end if;
+  select * into r from public.site_residents where id = p_resident;
+  if r.id is null then raise exception 'Kişi bulunamadı' using errcode = 'P0002'; end if;
+  if not public.org_can(r.org_id, 'residents.manage') then raise exception 'Davet yetkin yok' using errcode = '42501'; end if;
+  return r.code;
+end $$;
+grant execute on function public.site_resident_code(uuid) to authenticated;
+
+-- Sütun yetkileri: code istemciden YAZILAMAZ (istemci kod uyduramaz). Eski istemci yalnız bu sütunları yazar (saveResident, markInvited, toplu ekleme),
+-- bu yüzden yazma kısıtı eski istemciyi bozmaz; mailed_at ve code yalnız sunucuda yazılır.
+-- Okuma kısıtı (code sütununu istemciden gizleyen "revoke select" ve sütun listesiyle "grant select") BU migrationda YOKTUR: yayındaki eski web istemcisi
+-- "select *" ve "insert ... returning *" kullanır ve sütun yetkisiyle bozulur. O değişiklik, yeni site yayına çıkıp en az 24 saat geçtikten sonra ayrı bir PR'da
+-- uygulanır: specs/followup-migrations/20261113141601_site_residents_kod_gizle.sql (README.md orada). Yeni istemci kodu zaten site_resident_code() ile okur.
+alter table public.site_residents add column if not exists mailed_at timestamptz;
+revoke insert, update on public.site_residents from authenticated;
+grant insert (org_id, unit_id, user_id, role, name, phone, email, lives_here, invited_at) on public.site_residents to authenticated;
+grant update (org_id, unit_id, user_id, role, name, phone, email, lives_here, invited_at) on public.site_residents to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 6. Davet e-postası: aynı kişiye 2 dakikada bir (site-invite işlevi {throttled:true} alınca göndermez)
+-- ---------------------------------------------------------------------
+create or replace function public.site_invite_mail(rid uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare r public.site_residents; o public.organizations;
+begin
+  select * into r from public.site_residents where id = rid;
+  if r.id is null then raise exception 'Kişi bulunamadı' using errcode = 'P0002'; end if;
+  if not public.org_can(r.org_id, 'residents.manage') then raise exception 'Davet yetkin yok' using errcode = '42501'; end if;
+  if r.user_id is not null then raise exception 'Bu kişi zaten katıldı' using errcode = '22023'; end if;
+  if r.email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then raise exception 'E-posta adresi yok' using errcode = '22023'; end if;
+  if r.mailed_at is not null and r.mailed_at > now() - interval '2 minutes' then return jsonb_build_object('throttled', true); end if;
+  select * into o from public.organizations where id = r.org_id;
+  update public.site_residents set invited_at = now(), mailed_at = now() where id = rid;
+  return jsonb_build_object('email', r.email, 'name', r.name, 'role', r.role, 'code', r.code, 'org', o.name, 'sector', o.sector,
+    'unit', public.unit_label(r.unit_id), 'by', (select name from public.profiles where id = auth.uid()));
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 7. Temizlik: deneme kayıtları 2 gün tutulur (zamanlanmış prune_logs işi siler)
+-- ---------------------------------------------------------------------
+create or replace function public.prune_logs(days integer default 90) returns integer
+language plpgsql security definer set search_path = public as $$
+declare n int; m int;
+begin
+  delete from public.client_errors where at < now() - make_interval(days => greatest(days, 1));
+  get diagnostics n = row_count;
+  delete from public.function_logs where at < now() - make_interval(days => greatest(days, 1));
+  get diagnostics m = row_count;
+  delete from public.invite_attempts where at < now() - interval '2 days';
+  return n + m;
+end $$;
+
+-- ===== migration: 20261113135200_depolama_sinirlari.sql =====
+-- depolama sınırları (üretim öncesi güvenlik denetimi, 2026-11-13)
+-- Sorunlar: (1) evim kovasında sunucu tarafı boyut ve tür sınırı yoktu (yalnız istemci denetliyordu); (2) site klasöründe (site-<kurum>/) sakin,
+-- yönetimin yüklediği her dosyayı ve başka sakinlerin dekontlarını okuyabiliyordu; salt okur kurum rolleri yazabiliyordu; (3) kullanıcı başına kota yoktu;
+-- (4) evim_read/_write/_delete politikaları klasör adını mülk kimliği sayıyordu: "site-<kurum>" ya da "hukuk-<kullanıcı>" adlı bir mülk açan kişi
+-- o klasörün üyesi/sahibi olurdu (yetki_duzeltmeleri kimlik önekini yasakladı; bu politikalar da öneklere artık hiç eşleşmez).
+-- Yeniden çalıştırılabilir. Kova ayarı yalnız storage.buckets'ta sütunlar varsa yazılır (yerel testlerdeki yalın şemada yok).
+
+-- ---------------------------------------------------------------------
+-- 1. Kova sınırları: dosya başına 10 MB; uygulamanın yüklediği türler (app-ui/media.ts, backend.js → extOf):
+--    görseller (jpeg, png, webp; heic/heif telefon fotoğrafı yedeği), PDF, talep ekleri için videolar (mp4, m4v, mov, webm).
+--    Genel (global) dosya sınırı Storage ayarlarında 10 MB'tan büyük olmalıdır (varsayılan 50 MB). Kova sınırı genel sınırdan küçük olmalıdır.
+-- ---------------------------------------------------------------------
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema = 'storage' and table_name = 'buckets' and column_name = 'file_size_limit')
+     and exists (select 1 from information_schema.columns where table_schema = 'storage' and table_name = 'buckets' and column_name = 'allowed_mime_types') then
+    update storage.buckets
+       set file_size_limit = 10485760,
+           allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf',
+                                      'video/mp4', 'video/x-m4v', 'video/quicktime', 'video/webm']
+     where id = 'evim';
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 2. Mülk klasörleri: kimliği "site-" ya da "hukuk-" ile başlayan klasörler mülk sayılmaz
+--    (üyelik/sahiplik denetimi bu öneklerde hiçbir zaman doğru dönmez; kendi yüklediğin dosyayı okuma ve yönetici okuması aynı kalır).
+-- ---------------------------------------------------------------------
+drop policy if exists evim_read on storage.objects;
+create policy evim_read on storage.objects for select to authenticated
+  using (bucket_id = 'evim' and (public.is_admin() or owner = (select auth.uid())
+    or ((storage.foldername(name))[1] !~* '^(site|hukuk)-'
+        and public.is_member((storage.foldername(name))[1])
+        and public.file_review_ok(storage.objects.name))));
+
+drop policy if exists evim_write on storage.objects;
+create policy evim_write on storage.objects for insert to authenticated
+  with check (bucket_id = 'evim' and (storage.foldername(name))[1] !~* '^(site|hukuk)-' and public.is_member((storage.foldername(name))[1]));
+
+drop policy if exists evim_delete on storage.objects;
+create policy evim_delete on storage.objects for delete to authenticated
+  using (bucket_id = 'evim' and (storage.foldername(name))[1] !~* '^(site|hukuk)-'
+         and public.is_owner((storage.foldername(name))[1]) and not public.file_in_locked_inspect(name));
+
+-- ---------------------------------------------------------------------
+-- 3. Site klasörü (site-<kurum>/<dosya>)
+--    Okuma: kurum üyeleri klasörün tamamını (tablolardaki okuma kurallarıyla aynı); sakin yalnız kendi yüklediklerini (evim_read: sahibi) ve
+--    kendisine görünen kayıtlara bağlı dosyaları: herkese açık / kendi dairesine açık belgeler, kendi dairesinin dekontları, proje belgeleri ve
+--    fotoğrafları, kendi talebinin ekleri, yönetimin kendi talebine yazdığı ekler, paylaşıma açılmış gider belgeleri. Küçük kopya (".k") asıl dosyanın kuralına bağlıdır.
+--    Yazma: yönetimde dosya yükleyen bir yetkiye (belge, tahakkuk, ödeme onayı, gider, proje, talep) sahip kişi ve siteye bağlı sakin;
+--    tek seviyeli yol (site-<kurum>/<ad>); salt okur kurum rolleri yükleyemez.
+-- ---------------------------------------------------------------------
+create or replace function public.site_file_read_ok(fname text) returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare folder text := split_part(coalesce(fname, ''), '/', 1); oid uuid; base text;
+begin
+  if auth.uid() is null or folder !~ '^site-[0-9a-f-]{36}$' or position('/' in fname) = 0 then return false; end if;
+  oid := substr(folder, 6)::uuid;
+  base := regexp_replace(fname, '\.k$', '');
+  if public.is_org_member(oid) then return true; end if;
+  if not public.is_site_resident(oid) then return false; end if;
+  return exists (select 1 from public.site_documents d where d.org_id = oid and d.path in (fname, base)
+                  and (d.audience = 'herkes' or (d.audience = 'daire' and public.site_linked(oid, d.unit_id))))
+      or exists (select 1 from public.site_charges c where c.org_id = oid and c.receipt_path in (fname, base) and public.site_role(c.unit_id) is not null)
+      or exists (select 1 from public.site_project_costs c where c.org_id = oid and c.file in (fname, base))
+      or exists (select 1 from public.site_project_updates u where u.org_id = oid and (fname = any (u.photos) or base = any (u.photos)))
+      or exists (select 1 from public.site_projects p where p.org_id = oid and p.cover in (fname, base) and not (p.kind <> 'proje' and p.status = 'acildi'))
+      or exists (select 1 from public.site_requests r where r.org_id = oid and r.user_id = auth.uid() and (fname = any (r.media) or base = any (r.media)))
+      or exists (select 1 from public.site_request_messages m join public.site_requests r on r.id = m.request_id
+                  where m.org_id = oid and r.user_id = auth.uid() and (fname = any (m.media) or base = any (m.media)))
+      or exists (select 1 from public.site_expenses e join public.site_cash c on c.org_id = e.org_id
+                  where e.org_id = oid and e.receipt_path in (fname, base) and coalesce(c.share_summary, false) and coalesce(c.share_receipts, false));
+end $$;
+
+create or replace function public.site_file_write_ok(fname text) returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare oid uuid;
+begin
+  if auth.uid() is null or coalesce(fname, '') !~ '^site-[0-9a-f-]{36}/[^/]+$' then return false; end if;
+  oid := substr(split_part(fname, '/', 1), 6)::uuid;
+  return public.org_can(oid, 'documents.manage') or public.org_can(oid, 'charges.manage') or public.org_can(oid, 'payments.approve')
+      or public.org_can(oid, 'expenses.manage') or public.org_can(oid, 'projects.manage') or public.org_can(oid, 'requests.manage')
+      or public.is_site_resident(oid);
+end $$;
+
+drop policy if exists site_files_read on storage.objects;
+create policy site_files_read on storage.objects for select to authenticated
+  using (bucket_id = 'evim' and public.site_file_read_ok(name));
+drop policy if exists site_files_write on storage.objects;
+create policy site_files_write on storage.objects for insert to authenticated
+  with check (bucket_id = 'evim' and public.site_file_write_ok(name));
+
+-- ---------------------------------------------------------------------
+-- 4. Kullanıcı başına kota: yüklediği (owner) dosyaların toplamı 1 GiB ya da 3000 dosya olunca yeni yükleme reddedilir.
+--    Yumuşak sınırdır: denetim yükleme başlarken var olan toplam üzerinden yapılır (yeni dosyanın boyutu o an bilinmez); aşım en çok
+--    eşzamanlı yükleme sayısı × 10 MB kadardır. storage.objects'ta tetikleyici kurulamaz (tablo supabase_storage_admin'in), bu yüzden politika.
+--    Bedel: yükleme başına kullanıcının dosyaları üzerinde bir toplama (indeks yok; bugün 44 dosya).
+-- ---------------------------------------------------------------------
+create or replace function public.storage_quota_ok() returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare n int; used bigint;
+begin
+  if auth.uid() is null then return true; end if;
+  select count(*), coalesce(sum(coalesce((to_jsonb(o) -> 'metadata' ->> 'size')::bigint, 0)), 0) into n, used
+    from storage.objects o where o.bucket_id = 'evim' and o.owner = auth.uid();
+  return n < 3000 and used < 1073741824;
+end $$;
+
+drop policy if exists evim_quota on storage.objects;
+create policy evim_quota on storage.objects as restrictive for insert to authenticated
+  with check (bucket_id <> 'evim' or public.storage_quota_ok());
+
+-- ===== migration: 20261113135445_istek_sinirlari.sql =====
+-- istek sınırları (üretim öncesi güvenlik denetimi, 2026-11-13)
+-- Sorunlar: destek talebinde e-posta adresi istemciden geliyordu (lead-mail onay e-postası herhangi bir adrese gidebilirdi) ve günlük sınır yoktu;
+-- submit_lead yalnız e-posta başına ve sistem geneli sınırlıydı (adresi değiştiren biri sistem sınırını doldururdu); report_error oturumsuzda yalnız
+-- genel sınırı vardı; plan seçimi her farklı adet için e-posta üretirdi; push_subscriptions.endpoint her adresi kabul ediyordu (sunucu o adrese istek yapar: SSRF);
+-- davet e-postasında kullanıcı başına günlük sınır yoktu; cihaz anahtarı başka kullanıcıya geçirilemiyordu (device_own politikası), çıkışta silinemiyordu.
+-- Not: sınır sayaçları (request_log) yalnız başarıyla biten işlemde yazılır; hata fırlatan işlem geri alınır. Bu yüzden sayaç "başarılı kayıt" sayar (başvuru, hata
+-- kaydı, e-posta); başarısız deneme sayaçları için bkz. invite_attempts (davet_kodlari).
+-- Yeniden çalıştırılabilir.
+
+-- ---------------------------------------------------------------------
+-- 1. Ortak sayaç: request_log + rate_ok(tür, özne, sınır, süre)
+-- ---------------------------------------------------------------------
+create table if not exists public.request_log (
+  id      bigint generated always as identity primary key,
+  at      timestamptz not null default now(),
+  kind    text not null,
+  subject text not null
+);
+create index if not exists request_log_kind_subject on public.request_log (kind, subject, at);
+alter table public.request_log enable row level security;          -- politika yok: yalnız security definer işlevler yazar/okur
+revoke all on public.request_log from anon, authenticated;
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then revoke all on public.request_log from service_role; end if;
+end $$;
+
+-- true: sınır dolu değil, bir kayıt eklendi. false: son "süre" içinde zaten "sınır" kadar kayıt var (kayıt eklenmez).
+create or replace function public.rate_ok(p_kind text, p_subject text, p_limit integer, p_window interval) returns boolean
+language plpgsql security definer set search_path = public as $$
+begin
+  if p_subject is null then return true; end if;
+  if (select count(*) from public.request_log r where r.kind = p_kind and r.subject = p_subject and r.at > now() - p_window) >= p_limit then return false; end if;
+  insert into public.request_log (kind, subject) values (p_kind, p_subject);
+  return true;
+end $$;
+revoke execute on function public.rate_ok(text, text, integer, interval) from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- 2. Destek talebi: e-posta hesabın e-postasına zorlanır; günde en çok 10
+-- ---------------------------------------------------------------------
+create or replace function public.guard_support_request() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare em text;
+begin
+  -- Yalnız uygulamadan (source 'app') oturumla gelen satırlar; web başvurusu submit_lead ile gelir, sunucu yolları oturumsuzdur.
+  if new.source = 'app' and auth.uid() is not null then
+    if (select count(*) from public.support_requests s where s.user_id = auth.uid() and s.source = 'app' and s.created_at > now() - interval '1 day') >= 10 then
+      raise exception 'Günlük başvuru sınırına ulaştın. Yarın yeniden dene.' using errcode = '54000';
+    end if;
+    select lower(btrim(u.email::text)) into em from auth.users u where u.id = auth.uid();
+    new.email := coalesce(em, '');
+  end if;
+  return new;
+end $$;
+revoke execute on function public.guard_support_request() from public, anon, authenticated;
+drop trigger if exists guard_support_request on public.support_requests;
+create trigger guard_support_request before insert on public.support_requests for each row execute function public.guard_support_request();
+
+drop policy if exists support_insert on public.support_requests;
+create policy support_insert on public.support_requests for insert to authenticated
+  with check (user_id = (select auth.uid()) and status = 'open' and source = 'app');
+
+-- ---------------------------------------------------------------------
+-- 3. Herkese açık başvuru ve hata kaydı: IP başına sınır
+-- ---------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.submit_lead(p jsonb)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  nm text := btrim(coalesce(p ->> 'name', ''));
+  em text := lower(btrim(coalesce(p ->> 'email', '')));
+  ph text := btrim(coalesce(p ->> 'phone', ''));
+  co text := btrim(coalesce(p ->> 'company', ''));
+  msg text := btrim(coalesce(p ->> 'message', ''));
+  units int;
+  types jsonb := coalesce(p -> 'types', '[]'::jsonb);
+  rid uuid;
+begin
+  if length(nm) not between 2 and 120 then raise exception 'Adını yaz.' using errcode = '22023'; end if;
+  if em !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' or length(em) > 200 then raise exception 'Geçerli bir e-posta adresi yaz.' using errcode = '22023'; end if;
+  if length(ph) > 30 or length(co) > 160 or length(msg) > 4000 then raise exception 'Alanlardan biri çok uzun.' using errcode = '22023'; end if;
+  if coalesce((p ->> 'consent')::boolean, false) is not true then raise exception 'Aydınlatma metnini onayla.' using errcode = '22023'; end if;
+  begin units := nullif(p ->> 'units', '')::int; exception when others then units := null; end;
+  if units is not null and (units < 0 or units > 1000000) then units := null; end if;
+  if jsonb_typeof(types) <> 'array' or exists (select 1 from jsonb_array_elements_text(types) x where x not in ('Konut','Ofis','Mağaza','Depo','Arsa','Diğer')) then
+    types := '[]'::jsonb;
+  end if;
+  -- Kötüye kullanım sınırı: aynı adresten saatte en fazla 3, sistem genelinde 10 dakikada en fazla 30 başvuru.
+  if (select count(*) from public.support_requests where source = 'web' and email = em and created_at > now() - interval '1 hour') >= 3
+     or (select count(*) from public.support_requests where source = 'web' and created_at > now() - interval '10 minutes') >= 30 then
+    raise exception 'Çok sık başvuru. Biraz sonra yeniden dene.' using errcode = '54000';
+  end if;
+  -- İstemci IP'si başına saatte en çok 5 başvuru (e-posta adresini değiştirerek yapılan toplu gönderimi keser). IP bilinmiyorsa yalnız yukarıdaki sınırlar.
+  if public.client_ip() is not null and not public.rate_ok('lead', public.client_ip(), 5, interval '1 hour') then
+    raise exception 'Çok sık başvuru. Biraz sonra yeniden dene.' using errcode = '54000';
+  end if;
+  insert into public.support_requests (user_id, kind, units, name, email, phone, message, company, source, details)
+  values (auth.uid(), 'kurumsal', units, nm, em, ph, msg, co, 'web', jsonb_build_object(
+    'types', types,
+    'role', left(coalesce(p ->> 'role', ''), 60),
+    'city', left(coalesce(p ->> 'city', ''), 80),
+    'timeline', left(coalesce(p ->> 'timeline', ''), 60)))
+  returning id into rid;
+  return rid;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.report_error(p jsonb)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare uid uuid := auth.uid(); v_ip text := public.client_ip();
+begin
+  if uid is not null and (select count(*) from public.client_errors where user_id = uid and at > now() - interval '1 hour') >= 30 then return; end if;
+  if uid is null and (select count(*) from public.client_errors where user_id is null and at > now() - interval '1 hour') >= 500 then return; end if;
+  -- Oturumsuz kayıtta IP başına saatte en çok 60 (yalnız kaydedilen hata sayılır; sınır aşılınca kayıt sessizce atlanır).
+  if uid is null and v_ip is not null and not public.rate_ok('error', v_ip, 60, interval '1 hour') then return; end if;
+  insert into public.client_errors (user_id, route, message, stack, kind, platform, version, agent)
+  values (uid, left(coalesce(p->>'route', ''), 200), left(coalesce(p->>'message', ''), 1000), left(coalesce(p->>'stack', ''), 4000),
+          case when p->>'kind' in ('error','rejection','render','caught') then p->>'kind' else 'error' end,
+          left(coalesce(p->>'platform', ''), 20), left(coalesce(p->>'version', ''), 40), left(coalesce(p->>'agent', ''), 300));
+end $function$;
+
+-- ---------------------------------------------------------------------
+-- 4. Plan seçimi e-postası ve davet e-postası: kullanıcı başına günlük sınır
+-- ---------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.queue_plan_choice()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare c jsonb := new.settings -> 'planChoice'; o jsonb := old.settings -> 'planChoice'; mail text; yr boolean;
+begin
+  if new.role <> 'landlord' or c is null or jsonb_typeof(c) <> 'object' or c ->> 'plan' not in ('tek', 'bes') then return new; end if;
+  yr := (c ->> 'yearly') = 'true';
+  if o is not null and jsonb_typeof(o) = 'object'
+     and (o ->> 'plan', o ->> 'units', coalesce(o ->> 'yearly', 'false')) is not distinct from (c ->> 'plan', c ->> 'units', coalesce(c ->> 'yearly', 'false')) then
+    return new;
+  end if;
+  -- Kullanıcı başına günde en çok 5 plan seçimi e-postası (her farklı mülk adedi ayrı e-posta üretirdi).
+  if (select count(*) from public.mail_outbox where kind = 'plan_choice' and data ->> 'user' = new.id::text and created_at > now() - interval '1 day') >= 5 then
+    return new;
+  end if;
+  select email::text into mail from auth.users where id = new.id;
+  insert into public.mail_outbox (kind, to_email, lang, data, dedupe)
+  values ('plan_choice', null, 'tr',
+          jsonb_build_object('user', new.id, 'name', coalesce(new.name, ''), 'email', coalesce(mail, ''), 'plan', c ->> 'plan',
+                             'units', left(coalesce(c ->> 'units', ''), 6), 'yearly', yr),
+          new.id::text || ':' || (c ->> 'plan') || ':' || coalesce(c ->> 'units', '') || ':' || yr::text || ':' || to_char(now(), 'YYYYMMDD'))
+  on conflict do nothing;
+  return new;
+exception when others then
+  return new;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.invite_mail_claim(uid uuid, invite_code text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare i public.invites; o public.profiles; pname text;
+begin
+  select * into i from public.invites where code = upper(trim(invite_code)) and created_by = uid for update;
+  if not found or i.accepted_by is not null or i.expires_at <= now() or btrim(i.email) = '' or i.role <> 'tenant' then return null; end if;
+  if i.mailed_at is not null and i.mailed_at > now() - interval '2 minutes' then return jsonb_build_object('throttled', true); end if;
+  -- Mülk sahibi başına günde en çok 40 davet e-postası (e-posta kutusunu ve gönderici itibarını korur).
+  if not public.rate_ok('invite_mail', uid::text, 40, interval '1 day') then return jsonb_build_object('throttled', true); end if;
+  update public.invites set mailed_at = now() where code = i.code;
+  select * into o from public.profiles where id = uid;
+  select name into pname from public.properties where id = i.property_id;
+  return jsonb_build_object('code', i.code, 'email', i.email, 'name', i.name, 'owner', coalesce(o.name, ''),
+                            'property', coalesce(pname, ''), 'lang', coalesce(o.lang, 'tr'), 'expires', i.expires_at);
+end $function$;
+
+-- ---------------------------------------------------------------------
+-- 5. Web push uç noktası: yalnız bilinen itme servislerinin https adresleri (sunucu bu adrese istek yapar).
+--    Mevcut satırlar kontrol edilmez (NOT VALID); satır yoksa ya da hepsi uyuyorsa kural doğrulanır.
+-- ---------------------------------------------------------------------
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'push_subscriptions_endpoint_host' and conrelid = 'public.push_subscriptions'::regclass) then
+    alter table public.push_subscriptions add constraint push_subscriptions_endpoint_host check (
+      length(endpoint) <= 2000
+      and endpoint ~* '^https://(fcm\.googleapis\.com|updates\.push\.services\.mozilla\.com|([a-z0-9-]+\.)*push\.apple\.com|([a-z0-9-]+\.)*notify\.windows\.com)(:443)?/'
+    ) not valid;
+  end if;
+  if not exists (select 1 from public.push_subscriptions
+                  where not (length(endpoint) <= 2000 and endpoint ~* '^https://(fcm\.googleapis\.com|updates\.push\.services\.mozilla\.com|([a-z0-9-]+\.)*push\.apple\.com|([a-z0-9-]+\.)*notify\.windows\.com)(:443)?/')) then
+    alter table public.push_subscriptions validate constraint push_subscriptions_endpoint_host;
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 6. Cihaz anahtarı (native push): kaydet / sil işlevleri
+--    register: anahtarı çağıran kullanıcıya bağlar (paylaşılan cihazda önceki kullanıcıdan devralır); kullanıcı başına en çok 20 anahtar.
+--    unregister: çağıranın anahtarını siler; sahibinin açık oturumu kalmamış (yetim) anahtar da silinir (çıkış sonrası yeniden başlatılan cihaz).
+-- ---------------------------------------------------------------------
+create or replace function public.register_device_token(p_token text, p_platform text) returns void
+language plpgsql security definer set search_path = public as $$
+declare t text := btrim(coalesce(p_token, ''));
+begin
+  if auth.uid() is null then raise exception 'Oturum açılmamış' using errcode = '42501'; end if;
+  if p_platform is null or p_platform not in ('ios', 'android') then raise exception 'Geçersiz platform' using errcode = '22023'; end if;
+  if length(t) < 8 or length(t) > 4096 then raise exception 'Geçersiz cihaz anahtarı' using errcode = '22023'; end if;
+  insert into public.device_tokens (token, user_id, platform) values (t, auth.uid(), p_platform)
+  on conflict (token) do update set user_id = auth.uid(), platform = excluded.platform, created_at = now();
+  delete from public.device_tokens d where d.user_id = auth.uid()
+     and d.token not in (select x.token from public.device_tokens x where x.user_id = auth.uid() order by x.created_at desc, x.token limit 20);
+end $$;
+
+create or replace function public.unregister_device_token(p_token text) returns void
+language plpgsql security definer set search_path = public as $$
+declare t text := btrim(coalesce(p_token, ''));
+begin
+  if auth.uid() is null then raise exception 'Oturum açılmamış' using errcode = '42501'; end if;
+  delete from public.device_tokens d where d.token = t
+     and (d.user_id = auth.uid() or not exists (select 1 from auth.sessions s where s.user_id = d.user_id));
+end $$;
+grant execute on function public.register_device_token(text, text) to authenticated;
+grant execute on function public.unregister_device_token(text) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 7. Temizlik: sayaç kayıtları 2 gün tutulur (zamanlanmış prune_logs işi siler)
+-- ---------------------------------------------------------------------
+create or replace function public.prune_logs(days integer default 90) returns integer
+language plpgsql security definer set search_path = public as $$
+declare n int; m int;
+begin
+  delete from public.client_errors where at < now() - make_interval(days => greatest(days, 1));
+  get diagnostics n = row_count;
+  delete from public.function_logs where at < now() - make_interval(days => greatest(days, 1));
+  get diagnostics m = row_count;
+  delete from public.invite_attempts where at < now() - interval '2 days';
+  delete from public.request_log where at < now() - interval '2 days';
+  return n + m;
+end $$;
+
+-- ===== migration: 20261113135644_kasa_sirlari.sql =====
+-- kasa sırları (üretim öncesi güvenlik denetimi, 2026-11-13)
+-- Sorun: 4 webhook tetikleyicisi (support_requests.talep, legal_requests.hukuki → lead-mail; notifications.bildirim → push; mail_outbox.kuyruk → mail-send) ve
+-- 4 HTTP zamanlanmış iş (anahtar-mail-sweep, anahtar-rapor-aylik, anahtar-rapor-yillik, tufe-sync-aylik) gizli anahtarları (bir tanesi info@anahtar.io
+-- posta kutusunun parolasıyla aynıydı) ve service_role JWT'sini düz metin olarak tetikleyici/iş tanımında taşıyordu: tanımı okuyabilen herkes (pg_dump,
+-- yedek, yönetim paneli, bu repo) anahtarları görürdü. Hedef işlevlerin hepsi verify_jwt=false'tur; Authorization başlığı gereksizdi.
+-- Çözüm: gizli değerler Supabase Vault'ta durur, başlıklar ÇAĞRI ANINDA oluşturulur; tetikleyici ve iş tanımlarında hiçbir gizli değer yoktur.
+-- Bu dosyaya hiçbir gizli değer yazılmaz; yalnız Vault'taki kayıtların ADLARI geçer.
+--
+-- Vault'ta bulunması gereken kayıtlar (SQL Editor: select vault.create_secret('<değer>', '<ad>', '<açıklama>'); değerler git'e, sohbete, yoruma yazılmaz):
+--   anahtar_functions_url   fonksiyonların taban adresi, ör. https://<proje>.supabase.co/functions/v1   (gizli değil; ayar olarak tutulur)
+--   anahtar_lead_secret     lead-mail    → başlık x-anahtar-secret  (işlev ortam değişkeni LEAD_SECRET)
+--   anahtar_mail_secret     mail-send    → başlık x-anahtar-secret  (MAIL_SECRET)
+--   anahtar_push_secret     push         → başlık x-evim-secret     (WEBHOOK_SECRET)
+--   anahtar_report_secret   report       → başlık x-anahtar-secret  (REPORT_SECRET)
+--   anahtar_tufe_secret     tufe-sync    → başlık x-anahtar-secret  (TUFE_SECRET)
+--   anahtar_billing_secret  billing      → başlık x-anahtar-secret  (BILLING_CRON_SECRET)
+-- Her gizli değer ayrı, rastgele ve en az 32 bayttır. Vault, pg_net ve pg_cron eklentileri kuruluysa kayıtların hepsi bulunmalıdır; biri eksikse bu migration
+-- hiçbir şeyi değiştirmeden hata verir. Eklentiler yoksa (yerel test, staging) bu dosyadaki kurulum atlanır; yardımcı işlevler yine oluşturulur.
+-- Yeniden çalıştırılabilir (tetikleyiciler yeniden kurulur, işler adıyla silinip yeniden zamanlanır).
+
+-- ---------------------------------------------------------------------
+-- 0. Ön denetim: gerekli Vault kayıtları var mı? (hiçbir şey değişmeden önce)
+-- ---------------------------------------------------------------------
+do $$
+declare
+  has_vault boolean := to_regclass('vault.decrypted_secrets') is not null;
+  has_net   boolean := exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'net' and p.proname = 'http_post');
+  has_cron  boolean := to_regclass('cron.job') is not null;
+  need text[];
+  missing text;
+begin
+  if not (has_vault and has_net) then
+    raise notice 'kasa_sirlari: Vault ya da pg_net yok; webhook ve zamanlanmış iş kurulumu atlandı';
+    return;
+  end if;
+  need := array['anahtar_functions_url', 'anahtar_lead_secret', 'anahtar_mail_secret', 'anahtar_push_secret'];
+  if has_cron then need := need || array['anahtar_report_secret', 'anahtar_tufe_secret', 'anahtar_billing_secret']; end if;
+  execute 'select string_agg(n, '', '' order by n) from unnest($1::text[]) n
+            where not exists (select 1 from vault.decrypted_secrets s where s.name = n and btrim(coalesce(s.decrypted_secret, '''')) <> '''')'
+    into missing using need;
+  if missing is not null then
+    raise exception 'Vault gizli anahtarı eksik: %. Önce SQL Editor''de vault.create_secret(değer, ad) ile ekle (değerleri git''e yazma); sonra bu migration''ı yeniden uygula.', missing
+      using errcode = '55000';
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 1. Yardımcı işlevler (eklentiler olmasa da oluşturulur; yalnız çalıştırıldıklarında Vault/pg_net gerekir)
+-- ---------------------------------------------------------------------
+-- Vault'tan bir kayıt (yalnız bu işlevler okur; istemciye kapalı).
+create or replace function public.anahtar_secret(p_name text) returns text
+language plpgsql stable security definer set search_path = public as $$
+declare v text;
+begin
+  execute 'select decrypted_secret from vault.decrypted_secrets where name = $1' into v using p_name;
+  return v;
+end $$;
+
+-- Bir edge işlevini çağırır: adres ve gizli başlık değeri ÇAĞRI ANINDA Vault'tan okunur; Authorization başlığı yoktur.
+-- p_fn: işlev adı (lead-mail, push, ...), p_secret: Vault kayıt adı, p_header: gizli başlığın adı, p_timeout: yanıt bekleme (ms).
+create or replace function public.anahtar_call(p_fn text, p_secret text, p_header text, p_body jsonb default '{}'::jsonb, p_timeout integer default 10000) returns bigint
+language plpgsql security definer set search_path = public as $$
+declare base text := btrim(coalesce(public.anahtar_secret('anahtar_functions_url'), '')); sec text := public.anahtar_secret(p_secret); rid bigint;
+begin
+  if base !~ '^https://' then raise exception 'anahtar_functions_url geçersiz (https ile başlamalı)' using errcode = '55000'; end if;
+  if sec is null or btrim(sec) = '' then raise exception 'Vault kaydı eksik: %', p_secret using errcode = '55000'; end if;
+  execute 'select net.http_post(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)'
+    into rid using rtrim(base, '/') || '/' || p_fn, coalesce(p_body, '{}'::jsonb),
+      jsonb_build_object('Content-Type', 'application/json', p_header, sec), greatest(p_timeout, 1000);
+  return rid;
+end $$;
+
+-- Webhook tetikleyicisi: supabase_functions.http_request ile aynı yük ({type, table, schema, record, old_record}); bağımsız değişkenler:
+-- işlev adı, Vault kayıt adı, gizli başlığın adı. Hata ana işlemi bozmaz (başvuru/bildirim yine kaydedilir); uyarı günlüğe düşer, değer yazılmaz.
+create or replace function public.anahtar_webhook() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  begin
+    perform public.anahtar_call(tg_argv[0], tg_argv[1], tg_argv[2],
+      jsonb_build_object('type', tg_op, 'table', tg_table_name, 'schema', tg_table_schema,
+        'record', case when tg_op = 'DELETE' then null else to_jsonb(new) end,
+        'old_record', case when tg_op = 'INSERT' then null else to_jsonb(old) end), 10000);
+  exception when others then
+    raise warning 'anahtar_webhook % -> %: % (%)', tg_table_name, tg_argv[0], sqlerrm, sqlstate;
+  end;
+  return case when tg_op = 'DELETE' then old else new end;
+end $$;
+
+revoke execute on function public.anahtar_secret(text) from public, anon, authenticated;
+revoke execute on function public.anahtar_call(text, text, text, jsonb, integer) from public, anon, authenticated;
+revoke execute on function public.anahtar_webhook() from public, anon, authenticated;
+-- Supabase service_role'e yeni işlevlerde varsayılan olarak EXECUTE verir; gizli değerleri okuyan işlevlere service_role (edge işlevleri) de erişmemeli.
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    revoke execute on function public.anahtar_secret(text) from service_role;
+    revoke execute on function public.anahtar_call(text, text, text, jsonb, integer) from service_role;
+    revoke execute on function public.anahtar_webhook() from service_role;
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 2. Webhook tetikleyicileri (eskileri supabase_functions.http_request ile düz metin başlık taşıyordu)
+-- ---------------------------------------------------------------------
+do $$
+begin
+  if to_regclass('vault.decrypted_secrets') is null
+     or not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'net' and p.proname = 'http_post') then
+    return;
+  end if;
+  drop trigger if exists talep on public.support_requests;
+  create trigger talep after insert on public.support_requests
+    for each row execute function public.anahtar_webhook('lead-mail', 'anahtar_lead_secret', 'x-anahtar-secret');
+  drop trigger if exists hukuki on public.legal_requests;
+  create trigger hukuki after insert on public.legal_requests
+    for each row execute function public.anahtar_webhook('lead-mail', 'anahtar_lead_secret', 'x-anahtar-secret');
+  drop trigger if exists bildirim on public.notifications;
+  create trigger bildirim after insert on public.notifications
+    for each row execute function public.anahtar_webhook('push', 'anahtar_push_secret', 'x-evim-secret');
+  drop trigger if exists kuyruk on public.mail_outbox;
+  create trigger kuyruk after insert on public.mail_outbox
+    for each row execute function public.anahtar_webhook('mail-send', 'anahtar_mail_secret', 'x-anahtar-secret');
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 3. Zamanlanmış işler (pg_cron): komutlarda gizli değer yok; başlık anahtar_call içinde çağrı anında oluşur
+--    anahtar-mail-sweep     her 15 dakikada      mail-send   {"sweep":true}
+--    anahtar-rapor-aylik    ayın 1'i 06:00 UTC   report      {"period":"month"}   (yanıt 120 sn beklenir)
+--    anahtar-rapor-yillik   1 Ocak 06:30 UTC     report      {"period":"year"}
+--    tufe-sync-aylik        her gün 13:00 UTC    tufe-sync   {}                   (30 sn)
+--    anahtar-billing-reconcile  her gün 04:30 UTC  billing   {"action":"reconcile"}  (kaçan mağaza bildirimlerini yeniden eşitler)
+--    anahtar-cron-prune     her gün 00:20 UTC    cron.job_run_details 14 günden eski kayıtları siler
+-- ---------------------------------------------------------------------
+do $$
+declare j record;
+begin
+  if to_regclass('vault.decrypted_secrets') is null or to_regclass('cron.job') is null
+     or not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'net' and p.proname = 'http_post') then
+    return;
+  end if;
+  for j in select * from (values
+    ('anahtar-mail-sweep', '*/15 * * * *',
+      $c$select public.anahtar_call('mail-send', 'anahtar_mail_secret', 'x-anahtar-secret', '{"sweep":true}'::jsonb, 10000)$c$),
+    ('anahtar-rapor-aylik', '0 6 1 * *',
+      $c$select public.anahtar_call('report', 'anahtar_report_secret', 'x-anahtar-secret', '{"period":"month"}'::jsonb, 120000)$c$),
+    ('anahtar-rapor-yillik', '30 6 1 1 *',
+      $c$select public.anahtar_call('report', 'anahtar_report_secret', 'x-anahtar-secret', '{"period":"year"}'::jsonb, 120000)$c$),
+    ('tufe-sync-aylik', '0 13 * * *',
+      $c$select public.anahtar_call('tufe-sync', 'anahtar_tufe_secret', 'x-anahtar-secret', '{}'::jsonb, 30000)$c$),
+    ('anahtar-billing-reconcile', '30 4 * * *',
+      $c$select public.anahtar_call('billing', 'anahtar_billing_secret', 'x-anahtar-secret', '{"action":"reconcile"}'::jsonb, 30000)$c$),
+    ('anahtar-cron-prune', '20 0 * * *',
+      $c$delete from cron.job_run_details where end_time < now() - interval '14 days'$c$)
+  ) as t(name, schedule, command) loop
+    perform cron.unschedule(jobid) from cron.job where jobname = j.name;
+    perform cron.schedule(j.name, j.schedule, j.command);
+  end loop;
+end $$;
+
+-- ===== migration: 20261113140004_abonelik_magaza.sql =====
+-- abonelik ve mağaza (üretim öncesi güvenlik denetimi ve mağaza hazırlığı, 2026-11-13)
+-- 1. app_config: uygulamanın okuduğu, yöneticinin değiştirdiği ayarlar. "billing_paused" (ödeme duraklatma bayrağı) şimdiye dek uygulamada sabitti
+--    (config.js billing.paused = true); mağazalar onaylayınca veritabanından açılır. Mevcut davranış değişmez: bayrak doğru (true) ile başlar.
+-- 2. Mağaza test (sandbox) satın alımları erişim verir (access_state aynen sayar) ama gelir ve KPI hesaplarına (admin_kpis) ile abonelik
+--    hatırlatmasına (billing_reminders) girmez.
+-- 3. billing_reconcile_candidates(): günlük uzlaştırma işi (billing işlevi, service_role) için, süresi 2 gün içinde dolacak ya da son 30 günde dolmuş
+--    mağaza abonelikleri.
+-- 4. subscriptions yedek koruma: service_role (mağaza eşitlemesi) yöneticinin verdiği ya da promosyon olarak verilmiş ve süresi dolmamış paketi ezemez
+--    (billing işlevi de bu satırları atlar; bu ikinci kattır). Süresi dolmuş hibe eşitlemeyle değiştirilebilir.
+-- Yeniden çalıştırılabilir.
+
+-- ---------------------------------------------------------------------
+-- 1. app_config
+-- ---------------------------------------------------------------------
+create table if not exists public.app_config (
+  key        text primary key check (key ~ '^[a-z][a-z0-9_]{0,63}$'),
+  value      jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.app_config enable row level security;
+drop policy if exists app_config_read on public.app_config;
+create policy app_config_read on public.app_config for select to anon, authenticated using (true);
+drop policy if exists app_config_admin on public.app_config;
+create policy app_config_admin on public.app_config for all to authenticated
+  using ((select public.is_admin())) with check ((select public.is_admin()));
+revoke all on public.app_config from anon, authenticated;
+grant select on public.app_config to anon, authenticated;
+grant insert, update, delete on public.app_config to authenticated;     -- yazma yalnız yönetici politikasından geçer
+insert into public.app_config (key, value) values ('billing_paused', 'true'::jsonb) on conflict (key) do nothing;
+
+drop trigger if exists touch_app_config on public.app_config;
+create trigger touch_app_config before update on public.app_config for each row execute function public.touch_updated_at();
+
+-- Yöneticinin ayar değişikliği işlem kaydına yazılır (ödeme duraklatma bayrağı önemlidir).
+create or replace function public.app_config_audit() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  perform public.audit('config.set', new.key, jsonb_build_object('value', new.value));
+  return new;
+end $$;
+revoke execute on function public.app_config_audit() from public, anon, authenticated;
+drop trigger if exists app_config_audit on public.app_config;
+create trigger app_config_audit after insert or update on public.app_config for each row
+  when (auth.uid() is not null) execute function public.app_config_audit();
+
+-- ---------------------------------------------------------------------
+-- 2. Sandbox satın alımları gelir/KPI dışında
+-- ---------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.admin_kpis(days integer DEFAULT 30)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  d int := least(greatest(days, 1), 365);
+  res jsonb;
+begin
+  if not public.is_admin() then raise exception 'Yönetici yetkisi gerekli' using errcode = '42501'; end if;
+  with owners as (
+    -- Mağaza test (sandbox) satın alımları erişim verir (access_state) ama ödeyen/gelir sayımına girmez: o hesaplar "abone değil" sayılır.
+    select p.id,
+           case when exists (select 1 from public.subscriptions sx where sx.user_id = p.id and sx.environment = 'sandbox')
+                then public.access_state(p.id) || jsonb_build_object('subscribed', false, 'plan', null)
+                else public.access_state(p.id) end a,
+           exists (select 1 from public.activity x where x.actor = p.id and x.at > now() - interval '30 days') active
+    from public.profiles p where p.role = 'landlord'
+  )
+  select jsonb_build_object(
+    'days', d,
+    'users', (select jsonb_build_object('total', count(*), 'landlords', count(*) filter (where role = 'landlord'),
+                                        'tenants', count(*) filter (where role = 'tenant'), 'team', count(*) filter (where role = 'team'))
+              from public.profiles),
+    'signups', jsonb_build_object(
+       'period', (select count(*) from public.profiles where created_at > now() - make_interval(0, 0, 0, d)),
+       'prev', (select count(*) from public.profiles where created_at <= now() - make_interval(0, 0, 0, d)
+                                                       and created_at > now() - make_interval(0, 0, 0, 2 * d))),
+    'owners', (select jsonb_build_object('total', count(*),
+                 'paying', count(*) filter (where (a ->> 'subscribed')::boolean),
+                 'trial', count(*) filter (where (a ->> 'inTrial')::boolean),
+                 'expiring', count(*) filter (where (a ->> 'inTrial')::boolean and (a ->> 'trialEnds')::timestamptz < now() + interval '7 days'),
+                 'active', count(*) filter (where active),
+                 'lapsed', count(*) filter (where not (a ->> 'access')::boolean)) from owners),
+    'plans', (select coalesce(jsonb_object_agg(plan, n), '{}'::jsonb) from
+               (select a ->> 'plan' plan, count(*) n from owners where (a ->> 'subscribed')::boolean group by 1) x),
+    'billingIssues', (select count(*) from public.subscriptions where billing_issue and coalesce(environment, '') <> 'sandbox'),
+    'cancelling', (select count(*) from public.subscriptions where active and not will_renew and store <> 'admin' and coalesce(environment, '') <> 'sandbox'),
+    'units', jsonb_build_object('total', (select count(*) from public.properties),
+                                'connected', (select count(distinct property_id) from public.memberships where role = 'tenant')),
+    'rent', jsonb_build_object(
+       'month', (select coalesce(sum(amount), 0) from public.payments where kind = 'kira' and status in ('approved','partial') and month = to_char(now(), 'YYYY-MM')),
+       'prevMonth', (select coalesce(sum(amount), 0) from public.payments where kind = 'kira' and status in ('approved','partial') and month = to_char(now() - interval '1 month', 'YYYY-MM'))),
+    'supportOpen', (select count(*) from public.support_requests where status = 'open'),
+    -- Aktivasyon hunisi: mülk sahibi → mülk ekledi → kiracı bağlandı → onaylı ödeme aldı.
+    'funnel', (select jsonb_build_object(
+       'owners', count(*),
+       'withProperty', count(*) filter (where exists (select 1 from public.properties pr where pr.owner_id = o.id)),
+       'withTenant', count(*) filter (where exists (select 1 from public.properties pr join public.memberships m on m.property_id = pr.id
+                                                     where pr.owner_id = o.id and m.role = 'tenant')),
+       'withPayment', count(*) filter (where exists (select 1 from public.properties pr join public.payments pa on pa.property_id = pr.id
+                                                      where pr.owner_id = o.id and pa.status in ('approved','partial'))))
+       from public.profiles o where o.role = 'landlord'),
+    -- Etkin kullanıcı: son 7 / 30 günde en az bir işlem yapan (mülk sahibi, kiracı, ekip).
+    'activeUsers', jsonb_build_object(
+       'week', (select count(distinct actor) from public.activity where at > now() - interval '7 days'),
+       'month', (select count(distinct actor) from public.activity where at > now() - interval '30 days')),
+    -- Kiracı davetleri: dönemde oluşturulan ve kabul edilen.
+    'invites', jsonb_build_object(
+       'created', (select count(*) from public.invites where role = 'tenant' and created_at > now() - make_interval(0, 0, 0, d)),
+       'accepted', (select count(*) from public.invites where role = 'tenant' and accepted_at > now() - make_interval(0, 0, 0, d))),
+    -- Arıza / tadilat talepleri.
+    'requests', jsonb_build_object(
+       'open', (select count(*) from public.requests where status < 3),
+       'done', (select count(*) from public.requests where status = 3),
+       'period', (select count(*) from public.requests where req_date > current_date - d)),
+    -- Geçen ayın ödemeleri: vadesinde (ödeme günü ≤ vade günü) ya da geç.
+    'punctuality', (select jsonb_build_object(
+       'onTime', count(*) filter (where pa.paid_on <= make_date(split_part(pa.month, '-', 1)::int, split_part(pa.month, '-', 2)::int, least(greatest(pr.due_day, 1), 28))),
+       'late', count(*) filter (where pa.paid_on > make_date(split_part(pa.month, '-', 1)::int, split_part(pa.month, '-', 2)::int, least(greatest(pr.due_day, 1), 28))))
+       from public.payments pa join public.properties pr on pr.id = pa.property_id
+       where pa.kind = 'kira' and pa.status in ('approved','partial') and pa.paid_on is not null and pa.month = to_char(now() - interval '1 month', 'YYYY-MM')),
+    'series', (select coalesce(jsonb_agg(jsonb_build_object('d', g::date,
+                 'landlords', (select count(*) from public.profiles where role = 'landlord' and created_at::date = g::date),
+                 'tenants', (select count(*) from public.profiles where role <> 'landlord' and created_at::date = g::date)) order by g), '[]'::jsonb)
+               from generate_series(current_date - (d - 1), current_date, interval '1 day') g),
+    -- Kurum kiraları (AVM, depo, GYO, site): tahsil edilen kira ve ciro farkı (tahakkukta TL'ye çevrilmiş tutar).
+    'orgRent', jsonb_build_object(
+       'month', (select public.admin_collected(array['kira','ciro'], to_char(now(), 'YYYY-MM'))),
+       'prevMonth', (select public.admin_collected(array['kira','ciro'], to_char(now() - interval '1 month', 'YYYY-MM')))),
+    -- Aidat hacmi: bireysel mülklerin onaylı aidat ödemeleri + sitelerde tahsil edilen aidat (yakıt, demirbaş, özel toplama dahil).
+    'aidat', jsonb_build_object(
+       'month', (select coalesce(sum(amount), 0) from public.payments where kind = 'aidat' and status in ('approved','partial') and month = to_char(now(), 'YYYY-MM')),
+       'prevMonth', (select coalesce(sum(amount), 0) from public.payments where kind = 'aidat' and status in ('approved','partial') and month = to_char(now() - interval '1 month', 'YYYY-MM')),
+       'siteMonth', (select public.admin_collected(array['aidat','yakit','demirbas','ozel'], to_char(now(), 'YYYY-MM'))),
+       'sitePrev', (select public.admin_collected(array['aidat','yakit','demirbas','ozel'], to_char(now() - interval '1 month', 'YYYY-MM')))),
+    -- Tahmini gelirin tabanı: ödeyen mülk sahipleri paket, dönem (aylık / yıllık) ve mülk adedine göre (fiyat uygulamada).
+    'revenueBase', (select coalesce(jsonb_agg(x), '[]'::jsonb) from (
+       -- Adet: yöneticinin verdiği pakette subscriptions.units, mağaza ürününde kimlikteki sayı ("bes_5_yillik"), yoksa 1.
+       select o.a ->> 'plan' as plan, coalesce(sb.product_id, '') ~* '(yillik|yearly|annual)' as yearly, count(*) as owners,
+              sum(greatest(coalesce(sb.units, (regexp_match(coalesce(sb.product_id, ''), '_([0-9]+)_(aylik|yillik)'))[1]::int, 1), 1)) as units
+       from owners o left join public.subscriptions sb on sb.user_id = o.id
+       where (o.a ->> 'subscribed')::boolean group by 1, 2) x),
+    -- Kurumlar: sayı, sektör dağılımı, yönetilen birim (site dairesi, mağaza, depo) ve sözleşmedeki adet.
+    'orgs', (select jsonb_build_object(
+       'total', count(*), 'active', count(*) filter (where status = 'active'),
+       'bySector', (select coalesce(jsonb_object_agg(sector, n), '{}'::jsonb) from (select sector, count(*) n from public.organizations group by 1) s),
+       'units', (select count(*) from public.site_units),
+       'contracted', coalesce(sum(units), 0),
+       'ending', count(*) filter (where contract_until is not null and contract_until < current_date + 60)) from public.organizations)
+  ) into res;
+  return res;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.billing_reminders(today date DEFAULT ((now() AT TIME ZONE 'Europe/Istanbul'::text))::date)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare n int;
+begin
+  with due as (
+    select s.user_id, s.product_id, s.period_type, s.store, s.expires_at
+      from public.subscriptions s
+     where s.active and s.will_renew and coalesce(s.store, '') not in ('admin', 'promotional') and coalesce(s.environment, '') <> 'sandbox' and s.expires_at is not null
+       and (s.expires_at at time zone 'Europe/Istanbul')::date = today + 1
+  ), ins as (
+    insert into public.notifications (user_id, title, body, url, tag)
+    select d.user_id,
+      case when d.period_type in ('trial','intro') then 'Ücretsiz denemen yarın bitiyor' else 'Aboneliğin yarın yenilenecek' end,
+      case when d.period_type in ('trial','intro') then 'Yarın ilk ödemen alınacak.' else 'Yarın ödemen alınacak.' end
+        || ' Paket: ' || case public.plan_of(d.product_id) when 'tek' then 'Başlangıç' when 'bes' then 'Profesyonel' when 'kurumsal' then 'Kurumsal' else 'Abonelik' end
+        || coalesce(' · ' || public.product_units(d.product_id)::text || ' mülk', '')
+        || case when d.product_id ~ '_yillik$' then ' · yıllık' when d.product_id ~ '_aylik$' then ' · aylık' else '' end
+        || '. İptal etmek istersen ' || case d.store when 'app_store' then 'App Store' when 'play_store' then 'Google Play' else 'ödeme' end
+        || ' abonelik ayarlarından bugün iptal edebilirsin.',
+      '/uygulama/ayarlar', 'bill-' || to_char(today + 1, 'YYYYMMDD')
+      from due d
+    on conflict do nothing
+    returning 1
+  )
+  select count(*) into n from ins;
+  return n;
+end $function$;
+
+-- ---------------------------------------------------------------------
+-- 3. Günlük uzlaştırma adayları (yalnız service_role)
+-- ---------------------------------------------------------------------
+create or replace function public.billing_reconcile_candidates() returns setof uuid
+language sql stable security definer set search_path = public as $$
+  select s.user_id from public.subscriptions s
+   where coalesce(s.store, '') not in ('', 'admin', 'promotional')
+     and s.expires_at is not null
+     and s.expires_at < now() + interval '2 days'
+     and s.expires_at > now() - interval '30 days'
+   order by s.expires_at
+$$;
+revoke execute on function public.billing_reconcile_candidates() from public, anon, authenticated;
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then grant execute on function public.billing_reconcile_candidates() to service_role; end if;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 4. Hibe (admin / promotional) satırı mağaza eşitlemesiyle ezilmez
+-- ---------------------------------------------------------------------
+create or replace function public.guard_grant() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  -- Yalnız service_role (billing edge işlevi): yönetici işlevleri (security definer) ve SQL bu denetimden geçer.
+  if current_user = 'service_role' and old.active and (old.expires_at is null or old.expires_at > now()) then
+    if old.store = 'admin' then return old; end if;
+    if old.store = 'promotional' and not (new.active and new.store = 'promotional') then return old; end if;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.guard_grant() from public, anon;
+drop trigger if exists guard_grant on public.subscriptions;
+create trigger guard_grant before update on public.subscriptions for each row execute function public.guard_grant();
+
+-- ===== migration: 20261113140150_rls_performans.sql =====
+-- RLS performansı (Supabase performans uyarıları, 2026-11-13: auth_rls_initplan 47 uyarı, unindexed_foreign_keys 79 bilgi)
+-- 1. Politikalarda auth.uid() her satır için yeniden hesaplanıyordu; "(select auth.uid())" sorgu başına bir kez hesaplanır (initplan).
+--    Anlam değişmez: yalnız çağrı sarılır. Dosya, önceki migration'lar uygulandıktan sonraki politikaları (public şeması) okuyup yeniden yazar;
+--    zaten sarılmış çağrılara dokunmaz. Politikanın rolü, komutu, türü (permissive/restrictive) ve ifadesinin geri kalanı aynı kalır.
+-- 2. Dizinsiz yabancı anahtarlar: her yabancı anahtarın sütunları için (başka bir dizinin ilk sütunları olarak yoksa) dizin açılır.
+--    Silme/güncelleme sırasında ilgili tabloda sıralı tarama ve kilit süresi azalır; tablolar küçük olduğundan kurulum anlıktır.
+-- Yeniden çalıştırılabilir: ikinci çalıştırmada yeniden yazılacak politika ve eksik dizin kalmaz.
+
+-- ---------------------------------------------------------------------
+-- 0. content_reports.reports_insert: günlük sınırın sayımı politikanın içinde kendi tablosuna alt sorguydu. Politikalar sarılınca (aşağıda)
+--    "infinite recursion detected in policy" hatası verir; sayım aynı anlamla bir security definer işleve taşınır (kullanıcının son 24 saatteki bildirimi).
+-- ---------------------------------------------------------------------
+create or replace function public.reports_today(uid uuid) returns integer
+language sql stable security definer set search_path = public as $$
+  select count(*)::int from public.content_reports r where r.reporter = uid and r.created_at > now() - interval '1 day'
+$$;
+drop policy if exists reports_insert on public.content_reports;
+create policy reports_insert on public.content_reports for insert to authenticated
+  with check (reporter = (select auth.uid()) and status = 'open' and resolution = ''
+              and (property_id is null or public.is_member(property_id))
+              and public.reports_today((select auth.uid())) < 20);
+
+-- ---------------------------------------------------------------------
+-- 1. auth.uid() → (select auth.uid())
+-- ---------------------------------------------------------------------
+do $$
+declare
+  p record;
+  q text;
+  w text;
+  wrapped constant text := '( SELECT auth.uid() AS uid)';      -- Postgres'in sarılı çağrıyı yazdığı biçim
+  mark constant text := '@@ZATEN_SARILI@@';
+  cmd text;
+begin
+  for p in
+    select schemaname, tablename, policyname, qual, with_check from pg_policies
+     where schemaname = 'public'
+       and (replace(coalesce(qual, ''), wrapped, mark) like '%auth.uid()%' or replace(coalesce(with_check, ''), wrapped, mark) like '%auth.uid()%')
+  loop
+    q := replace(replace(replace(p.qual, wrapped, mark), 'auth.uid()', '(select auth.uid())'), mark, '(select auth.uid())');
+    w := replace(replace(replace(p.with_check, wrapped, mark), 'auth.uid()', '(select auth.uid())'), mark, '(select auth.uid())');
+    cmd := format('alter policy %I on %I.%I', p.policyname, p.schemaname, p.tablename);
+    if q is not null then cmd := cmd || ' using (' || q || ')'; end if;
+    if w is not null then cmd := cmd || ' with check (' || w || ')'; end if;
+    execute cmd;
+  end loop;
+end $$;
+
+-- Depolama: hukuk klasörü yazma politikası (storage.objects; aynı kalıpla, yalnız çağrı sarılır)
+drop policy if exists legal_files_write on storage.objects;
+create policy legal_files_write on storage.objects for insert to authenticated
+  with check (bucket_id = 'evim' and (storage.foldername(name))[1] = 'hukuk-' || (select auth.uid())::text);
+
+-- ---------------------------------------------------------------------
+-- 2. Dizinsiz yabancı anahtarlar
+-- ---------------------------------------------------------------------
+do $$
+declare f record;
+begin
+  for f in
+    select c.conrelid::regclass as tbl, t.relname as tname,
+           (select string_agg(quote_ident(a.attname), ', ' order by x.ord) from unnest(c.conkey) with ordinality x(attnum, ord)
+              join pg_attribute a on a.attrelid = c.conrelid and a.attnum = x.attnum) as cols,
+           (select string_agg(a.attname, '_' order by x.ord) from unnest(c.conkey) with ordinality x(attnum, ord)
+              join pg_attribute a on a.attrelid = c.conrelid and a.attnum = x.attnum) as colnames
+      from pg_constraint c
+      join pg_class t on t.oid = c.conrelid
+      join pg_namespace n on n.oid = t.relnamespace
+     where c.contype = 'f' and n.nspname = 'public' and t.relkind = 'r'
+       and not exists (
+         select 1 from pg_index i
+          where i.indrelid = c.conrelid and i.indisvalid and i.indpred is null
+            and cardinality(string_to_array(i.indkey::text, ' ')) >= cardinality(c.conkey)
+            and (string_to_array(i.indkey::text, ' ')::int2[])[1:cardinality(c.conkey)] <@ c.conkey)
+  loop
+    execute format('create index if not exists %I on %s (%s)', left(f.tname || '_' || f.colnames || '_fk', 63), f.tbl, f.cols);
+  end loop;
+end $$;
+
+-- ===== migration: 20261113141557_sistem_mesaji.sql =====
+-- sistem mesaji
+-- Sorun: sohbetteki olay satırları ("Talep durumu: …", "… kirası onaylandı") from_role = 'system' ile istemciden doğrudan yazılıyordu; ekleme
+-- politikası system satırına her üyeye izin verdiği için üyenin herkese "sistem" görünümlü, istediği metni yazabilmesi mümkündü.
+-- Bu migration: post_system_message(p_property, p_kind, p_payload). İşlev (1) oturum ve askı denetler, (2) çağıranın mülkte mesaj yazma yetkisini
+-- (member_can 'message', eski ekleme politikasıyla aynı), (3) türün bilinen 23 türden biri olduğunu, (4) olayı çağıranın tarafının yapabildiğini
+-- (ör. kiracı ekleme / çıkarma, yenileme teklifi mülk sahibi tarafının; talebi kapatma ve teklifi kabul kiracının), (5) metnin türün kalıbına
+-- (Türkçe ya da İngilizce) uyduğunu denetler ve satırı çağıranın kimliğiyle (by_user) yazar: engelleyen kişi engellediğinin satırını göremez
+-- (messages_select, migration yetki_duzeltmeleri). Kalıplar app/src/domain/system-message.js ile birebir aynıdır.
+-- Eski istemci (doğrudan insert) çalışmaya devam eder: messages_insert'teki system dalı bu migrationda KALIR; yeni istemci yalnız bu işlevi kullanır.
+-- Dal, bu PR'ın DIŞINDA bekleyen specs/followup-migrations/20261113141559_sistem_mesaji_kapat.sql ile kaldırılır; o migration yeni site yayına çıktıktan en az 24 saat sonra,
+-- ikinci bir PR'la uygulanır (README.md orada).
+-- Yeniden çalıştırılabilir.
+
+create or replace function public.post_system_message(p_property text, p_kind text, p_payload jsonb default '{}'::jsonb) returns text
+language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  d constant text := '[^\n\r]{1,240}';        -- olaya bağlı değişken parça (başlık, ad, tutar, ay)
+  v_side text;
+  v_pat text;
+  v_text text := p_payload ->> 'text';
+  v_id text := coalesce(nullif(p_payload ->> 'id', ''), gen_random_uuid()::text);
+  v_req text := nullif(p_payload ->> 'req', '');
+  v_at timestamptz;
+begin
+  if uid is null then raise exception 'Oturum açılmamış' using errcode = '42501'; end if;
+  if public.is_banned() then raise exception 'Hesap askıya alındı' using errcode = '42501'; end if;
+  if p_property is null or not public.member_can(p_property, 'message') then
+    raise exception 'Bu mülkte mesaj yazma yetkin yok' using errcode = '42501';
+  end if;
+
+  select k.side, replace(k.pattern, '{D}', d) into v_side, v_pat
+    from (values
+      ('request_status',    null,       '^(Talep durumu|Request status): {D}$'),
+      ('request_decision',  null,       '^(Ek talep|Extra request): {D}$'),
+      ('cost_approved',     null,       '^(Masraf paylaşımı onaylandı|Cost split approved): {D}$'),
+      ('cost_proposed',     null,       '^(Masraf önerisi|Cost proposal): {D}$'),
+      ('request_closed',    'tenant',   '^(Talep kapatıldı|Request closed): {D}$'),
+      ('request_opened',    null,       '^(Yeni talep açıldı|New request opened): {D}$'),
+      ('payment_approved',  'landlord', '^{D} (aidatı onaylandı|kirası onaylandı|dues approved|rent approved)$'),
+      ('payment_uploaded',  null,       '^{D} (aidatı için dekont yüklendi|kirası için dekont yüklendi|dues receipt uploaded|rent: receipt uploaded)( (\(kısmi|\(partial): {D}\))?$'),
+      ('payment_rejected',  'landlord', '^{D} (dekontu reddedildi|receipt rejected): {D}$'),
+      ('document_uploaded', null,       '^{D} (yüklendi|uploaded): {D}$'),
+      ('tenant_added',      'landlord', '^{D} (mülke kiracı olarak eklendi|was added as a tenant)$'),
+      ('tenant_removed',    'landlord', '^{D} (mülkten çıkarıldı|was removed from the property)$'),
+      ('quote_added',       null,       '^(Yeni usta teklifi|New contractor quote): {D}$'),
+      ('vendor_chosen',     null,       '^(Talep için usta seçildi|Tradesperson chosen for request): {D}$'),
+      ('invoice_added',     null,       '^(Talep faturası|Request invoice): {D}$'),
+      ('renewal_offer',     'landlord', '^(Yenileme teklifi|Renewal offer): {D}$'),
+      ('renewal_accepted',  'tenant',   '^(Yenileme teklifi kabul edildi|Renewal offer accepted): {D}$'),
+      ('renewal_withdrawn', 'landlord', '^(Yenileme teklifi geri çekildi|Renewal offer withdrawn)$'),
+      ('inspect_approved',  null,       '^(Giriş tutanağı (kiracı|mülk sahibi) tarafından onaylandı|Move-in report approved by the (tenant|landlord))$'),
+      ('moveout_started',   null,       '^(Çıkış süreci başlatıldı ·|Move-out started ·) {D}$'),
+      ('moveout_approved',  null,       '^(Çıkış hesabı (kiracı|mülk sahibi) tarafından onaylandı|Move-out settlement approved by the (tenant|landlord))( (· iade|· refund): {D})?$'),
+      ('moveout_cancelled', null,       '^(Çıkış süreci iptal edildi|Move-out cancelled)$'),
+      ('deposit_refunded',  'landlord', '^(Depozito iadesi yapıldı|Deposit refunded): {D}$')
+    ) as k(kind, side, pattern)
+   where k.kind = p_kind;
+  if v_pat is null then raise exception 'Bilinmeyen sistem mesajı türü' using errcode = '22023'; end if;
+  if v_side is not null and v_side <> public.msg_side(p_property) then
+    raise exception 'Bu olayı bu taraf yapamaz' using errcode = '42501';
+  end if;
+  if v_text is null or v_text !~ v_pat then raise exception 'Sistem mesajı metni türüne uymuyor' using errcode = '22023'; end if;
+  if v_id !~ '^[A-Za-z0-9_.:-]{1,64}$' then raise exception 'Geçersiz mesaj kimliği' using errcode = '22023'; end if;
+
+  if v_req is not null and not exists (select 1 from public.requests r where r.id = v_req and r.property_id = p_property) then v_req := null; end if;
+  begin v_at := (p_payload ->> 'at')::timestamptz; exception when others then v_at := null; end;
+  if v_at is null or v_at > now() + interval '5 minutes' or v_at < now() - interval '7 days' then v_at := now(); end if;
+
+  -- Aynı kimlik ikinci kez gelirse (eşitleme yarıda kesilip yeniden denenir) atlanır.
+  insert into public.messages (id, property_id, from_role, by_user, body, at, req_id)
+  values (v_id, p_property, 'system', uid, v_text, v_at, v_req)
+  on conflict (id) do nothing;
+  return v_id;
+end $$;
+
+revoke execute on function public.post_system_message(text, text, jsonb) from public, anon;
+grant execute on function public.post_system_message(text, text, jsonb) to authenticated;
+
+-- ===== migration: 20261113145940_saklama_sureleri.sql =====
+-- saklama süreleri
+-- Yeni gizlilik ve hesap silme sayfaları (gizlilik, hesap-silme) saklama süreleri vaat eder; kod bunları şimdiye kadar uygulamıyordu:
+--  1. prune_logs(): mail_outbox satırları 90 gün sonra silinir (gönderilmiş, başarısız ya da takılı kalmış: hepsi; adres taşıdıkları için bekletilmez);
+--     çözülmüş (status = 'done') destek talepleri 6 ay sonra silinir. support_requests'te güncelleme zamanı sütunu yoktur: kapanış anı bilinmediği için
+--     created_at + status = 'done' kullanılır (talep en erken oluşturulduktan 6 ay sonra, çözülmüşse silinir). Hukuki talepler (legal_requests) hesapla
+--     birlikte silinir (user_id ... on delete cascade); admin_audit değişmez (politika 10 yıla kadar der).
+--  2. delete_my_account(): silmeden önce kişinin destek taleplerini anonimleştirir (ad 'silindi'; e-posta, telefon, şirket, mesaj ve ayrıntı boşaltılır;
+--     talep ve durum kalır, user_id zaten on delete set null), hesap silindi e-postası kuyruğa yalnız gerekli alanlarla (adres, dil, ad) yazılır
+--     (satır 90 gün sonra prune_logs ile silinir) ve RevenueCat abonesinin silinmesi için revenuecat_deletions kuyruğuna kimlik yazılır.
+--     Hukuki talepte contact alanı guard_legal ile değişmezdir ve satır hesap silinince zaten cascade ile gider; ayrıca güncellenmez.
+--  3. revenuecat_deletions: billing fonksiyonunun günlük uzlaştırması (RevenueCat DELETE /v1/subscribers/{app_user_id}) bu kuyruğu işler.
+-- Eski istemciyle uyumlu: işlev imzaları aynı. Yeniden çalıştırılabilir.
+
+-- ---------------------------------------------------------------------
+-- 3. RevenueCat silme kuyruğu (istemciye kapalı: RLS açık, politika yok, yetki yok; yalnız security definer işlev ve service_role)
+-- ---------------------------------------------------------------------
+create table if not exists public.revenuecat_deletions (
+  user_id    uuid primary key,
+  created_at timestamptz not null default now()
+);
+alter table public.revenuecat_deletions enable row level security;
+revoke all on public.revenuecat_deletions from anon, authenticated;
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then grant select, delete on public.revenuecat_deletions to service_role; end if;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 2. Hesabı silme
+-- ---------------------------------------------------------------------
+create or replace function public.delete_my_account()
+returns void language plpgsql security definer set search_path = public as $$
+declare mail text; nm text; lg text; uid uuid := auth.uid();
+begin
+  if uid is null then raise exception 'Oturum açılmamış' using errcode = '42501'; end if;
+  select u.email::text, p.name, coalesce(p.lang, 'tr') into mail, nm, lg
+    from auth.users u left join public.profiles p on p.id = u.id where u.id = uid;
+  if mail is not null then
+    insert into public.mail_outbox (kind, to_email, lang, data, dedupe)
+    values ('account_deleted', mail, lg, jsonb_build_object('name', coalesce(nm, ''), 'by', 'self'), uid::text)
+    on conflict do nothing;
+  end if;
+  update public.support_requests set name = 'silindi', email = '', phone = '', company = '', message = '', details = '{}'::jsonb where user_id = uid;
+  insert into public.revenuecat_deletions (user_id) values (uid) on conflict do nothing;
+  update public.messages set by_user = null where by_user = uid;
+  delete from auth.users where id = uid;
+end $$;
+grant execute on function public.delete_my_account() to authenticated;
+
+-- Yönetici silmesi de aynı saklama kurallarına uyar: destek talepleri anonimleşir, RevenueCat kuyruğuna kimlik yazılır (denetim ve yönetici kontrolleri aynı).
+create or replace function public.admin_delete_user(uid uuid, why text default '')
+returns void language plpgsql security definer set search_path = public as $$
+declare pr public.profiles; mail text; owned int;
+begin
+  if not public.is_admin() then raise exception 'Yönetici yetkisi gerekli' using errcode = '42501'; end if;
+  if uid = auth.uid() then raise exception 'Kendi hesabını buradan silemezsin' using errcode = '22023'; end if;
+  if exists (select 1 from public.admins where user_id = uid) then raise exception 'Yönetici silinemez' using errcode = '22023'; end if;
+  select * into pr from public.profiles where id = uid;
+  if not found then raise exception 'Kullanıcı bulunamadı' using errcode = 'P0002'; end if;
+  if not exists (select 1 from public.bans where user_id = uid) then raise exception 'Önce hesabı yasakla, sonra sil' using errcode = '22023'; end if;
+  select email::text into mail from auth.users where id = uid;
+  select count(*) into owned from public.properties where owner_id = uid;
+  perform public.audit('user.delete', uid::text, jsonb_build_object('email', coalesce(mail, ''), 'name', coalesce(pr.name, ''), 'role', pr.role,
+                                                                      'properties', owned, 'reason', coalesce(trim(why), '')));
+  if mail is not null then
+    insert into public.mail_outbox (kind, to_email, lang, data, dedupe)
+    values ('account_deleted', mail, coalesce(pr.lang, 'tr'),
+            jsonb_build_object('name', coalesce(pr.name, ''), 'by', 'admin', 'reason', coalesce(trim(why), '')), uid::text)
+    on conflict do nothing;
+  end if;
+  update public.support_requests set name = 'silindi', email = '', phone = '', company = '', message = '', details = '{}'::jsonb where user_id = uid;
+  insert into public.revenuecat_deletions (user_id) values (uid) on conflict do nothing;
+  update public.messages set by_user = null where by_user = uid;
+  delete from auth.users where id = uid;
+end $$;
+grant execute on function public.admin_delete_user(uuid, text) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 1. Temizlik
+-- ---------------------------------------------------------------------
+create or replace function public.prune_logs(days integer default 90) returns integer
+language plpgsql security definer set search_path = public as $$
+declare n int; m int;
+begin
+  delete from public.client_errors where at < now() - make_interval(days => greatest(days, 1));
+  get diagnostics n = row_count;
+  delete from public.function_logs where at < now() - make_interval(days => greatest(days, 1));
+  get diagnostics m = row_count;
+  delete from public.invite_attempts where at < now() - interval '2 days';
+  delete from public.request_log where at < now() - interval '2 days';
+  delete from public.mail_outbox where created_at < now() - interval '90 days';
+  delete from public.support_requests where status = 'done' and created_at < now() - interval '6 months';
+  return n + m;
+end $$;

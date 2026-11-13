@@ -42,5 +42,5 @@ test('kiracı hesabı davetleri eskisi gibi kabul eder; kullanılmış davet yen
   await as(ID.X);
   await q(`select public.accept_invite($1)`, [code]);
   await as(ID.L);
-  expect(await tryCall(db, `select public.accept_invite($1)`, [code])).toMatch(/kullanılmış/);
+  expect((await q(`select public.accept_invite($1) r`, [code]))[0].r).toBeNull();   // kullanılmış davet: tek biçimli ret
 });

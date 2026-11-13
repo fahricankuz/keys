@@ -19,7 +19,7 @@ test.beforeAll(async () => {
   const unit = async (no, share) => (await q(`insert into public.site_units (org_id, block, no, share) values ($1, 'A', $2, $3) returning id`, [org, no, share]))[0].id;
   [a1, a2, a3] = [await unit('1', 1), await unit('2', 1), await unit('3', 2)];
   for (const [u, who] of [[a1, ID.L], [a2, ID.T], [a3, ID.X]]) {
-    const [{ code }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'malik', 'Malik') returning code`, [org, u]);
+    const [{ code }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'malik', 'Malik') returning id`, [org, u]).then(([{ id }]) => q(`select public.site_resident_code($1) code`, [id]));
     await as(who); await q(`select public.accept_site_invite($1)`, [code]); await as(M);
   }
   await as(null); await q(`delete from public.notifications`);

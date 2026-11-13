@@ -27,9 +27,10 @@ test('uygunluk: her security definer işlevinde search_path sabit', async () => 
   expect(bad).toEqual([]);
 });
 
-test('uygunluk: anon rolü yalnız herkese açık TÜFE tablosunu okur', async () => {
+test('uygunluk: anon rolü yalnız herkese açık TÜFE ve uygulama ayarı tablolarını okur', async () => {
   const g = await q(`select table_name, privilege_type from information_schema.role_table_grants where grantee = 'anon' and table_schema = 'public'`);
-  expect(g).toEqual([{ table_name: 'cpi_rates', privilege_type: 'SELECT' }]);
+  // app_config: uygulamanın oturum öncesi okuduğu ayarlar (billing_paused); yazma yalnız yönetici politikasından geçer.
+  expect(g.sort((a, b) => a.table_name.localeCompare(b.table_name))).toEqual([{ table_name: 'app_config', privilege_type: 'SELECT' }, { table_name: 'cpi_rates', privilege_type: 'SELECT' }]);
 });
 
 // Supabase anon ve authenticated rollerine yeni işlevlerde doğrudan EXECUTE verir; "revoke ... from public" bunu kaldırmaz (PGlite'ta bu
@@ -65,6 +66,11 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
     // site_project_vote_open / _close → "Site projeleri" yetkisi; site_project_vote_sync → kurum üyesi ya da sitenin sakini (süresi dolan oylamaların sonucunu uygular, idempotent).
     // file_in_locked_inspect → depo yolunun kilitli giriş tutanağında olup olmadığını sorar (dosya silme politikası; kişisel veri dönmez).
     // link_site_unit → mülk sahibi ve dairenin maliki; site_linked_tenants → kurum üyesi; site_report → Raporlar yetkisi.
+    // register_device_token / unregister_device_token → çağıranın kendi cihaz anahtarı (native push; yetim anahtar yalnız sahibinin açık oturumu yoksa silinir).
+    // reports_today → content_reports politikası günlük sınırı için çağıranın kendi bildirim sayısını sorar.
+    // site_file_read_ok / site_file_write_ok / storage_quota_ok → depolama politikaları (storage.objects) bu işlevleri çağırır; yalnız çağıranı sorarlar.
+    // post_system_message → mülkte mesaj yazma yetkisi, bilinen tür, çağıranın tarafı ve metin kalıbı denetlenir (sohbet olay satırları).
+    // site_resident_code → "Malik ve kiracılar" yetkisi (yeni istemci kodu yalnız bununla okur; sütunun doğrudan okunmasının kapanması specs/followup-migrations içindedir).
     // investor_report_mail → Raporlar yetkisi ve açık yatırımcı modülü; yalnız çağıranın kendi e-postasına, saatte 10.
     // add_landlord_role → yalnız çağıranın kendi hesabı (kiracı → mülk sahibi, deneme bir kez); signup_code_ok → kodu bilen (yalnız geçerli/geçersiz döner).
     'accept_invite', 'accept_org_invite', 'accept_site_invite', 'activity_feed', 'add_landlord_role', 'admin_add_property', 'admin_audit_log', 'admin_cohorts', 'admin_cost_delete', 'admin_cost_save', 'admin_delete_message', 'admin_delete_user', 'admin_extend_trial', 'admin_kpis', 'admin_messages', 'admin_monthly',
@@ -75,8 +81,29 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
     'member_can', 'member_role', 'msg_side', 'my_access', 'my_orgs', 'my_site_units',
     'org_can', 'org_detail', 'org_invite_create', 'org_invite_delete', 'org_member_remove', 'org_member_set', 'org_role_delete', 'org_role_save',
     'org_transfer_master',
-    'report_error', 'review_ok', 'shares_property', 'signup_code_ok', 'site_cash_summary', 'site_folder_ok', 'site_invite_info', 'site_invite_mail', 'site_linked', 'site_linked_tenants', 'site_meeting_reply', 'site_poll_results', 'site_poll_vote', 'site_project_vote_close', 'site_project_vote_open', 'site_project_vote_sync', 'site_report', 'site_role', 'submit_lead', 'team_list', 'team_remove', 'team_set', 'verify_rent_certificate'
+    'post_system_message',
+    'register_device_token', 'report_error', 'reports_today', 'review_ok', 'shares_property', 'signup_code_ok', 'site_cash_summary', 'site_file_read_ok', 'site_file_write_ok', 'site_folder_ok', 'site_invite_info', 'site_invite_mail', 'site_linked', 'site_linked_tenants', 'site_meeting_reply', 'site_poll_results', 'site_poll_vote', 'site_project_vote_close', 'site_project_vote_open', 'site_project_vote_sync', 'site_report', 'site_resident_code', 'site_role', 'storage_quota_ok', 'submit_lead', 'team_list', 'team_remove', 'team_set', 'unregister_device_token', 'verify_rent_certificate'
   ]);
+});
+
+test('güvenlik: oturumsuz (anon) çağrılabilen security definer işlevler yalnızca izinli listede (tetikleyici işlevler dahil; yeni herkese açık işlev bilinçli karar gerekir)', async () => {
+  await as(null);
+  const rows = await q(`select distinct p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.prosecdef and has_function_privilege('anon', p.oid, 'EXECUTE') order by 1`);
+  expect(rows.map(r => r.proname)).toEqual([
+    // invite_preview, site_invite_info, signup_code_ok → davet/kayıt sayfaları: yalnız geçerli kod için bilgi, başarısız denemeler IP başına sınırlı;
+    // submit_lead → web kurumsal başvuru (IP ve e-posta başına sınır); report_error → oturum öncesi hata kaydı (IP başına sınır);
+    // verify_rent_certificate → 10 haneli kodu bilen (belgenin anlık görüntüsü). Başka hiçbir işlev anon'a açık olmaz (migration anon_islev_yetkileri).
+    'invite_preview', 'report_error', 'signup_code_ok', 'site_invite_info', 'submit_lead', 'verify_rent_certificate'
+  ]);
+});
+
+test('güvenlik: yeni işlev varsayılan olarak anon ve PUBLIC\'e kapalı (alter default privileges)', async () => {
+  await as(null);
+  await db.exec(`create function public.qa_yeni_islev() returns int language sql as $$ select 1 $$;`);
+  const [r] = await q(`select has_function_privilege('anon', 'public.qa_yeni_islev()', 'EXECUTE') anon`);
+  await db.exec(`drop function public.qa_yeni_islev()`);
+  expect(r.anon).toBe(false);
 });
 
 /* ---------------------------------------------------------------- güvenlik: yetki ihlali denemeleri */
@@ -125,7 +152,7 @@ test('güvenlik: ekipten çıkarılan kişi kullanılmış davetle geri dönemez
   await as(L);
   await q(`select public.team_remove($1)`, [L2]);
   await as(L2);
-  expect(await tryCall(db, `select public.accept_invite($1)`, [code])).toMatch(/Bu davet kullanılmış/);
+  expect((await q(`select public.accept_invite($1) r`, [code]))[0].r).toBeNull();   // kullanılmış davet: tek biçimli ret (ayırt edici ileti yok)
   await as(null);
   expect((await q(`select count(*)::int c from public.team_members where owner_id = '${L}' and member_id = '${L2}'`))[0].c).toBe(0);
   expect((await q(`select count(*)::int c from public.memberships where property_id = 'p1' and user_id = '${L2}'`))[0].c).toBe(0);
@@ -136,7 +163,7 @@ test('güvenlik: yinelenen / çakışan istekler (aynı davet iki kez, aynı kim
   const [{ code }] = await q(`insert into public.invites (property_id, created_by) values ('p1', '${L}') returning code`);
   await as(X);
   await q(`select public.accept_invite($1)`, [code]);
-  expect(await tryCall(db, `select public.accept_invite($1)`, [code])).toMatch(/Bu davet kullanılmış/);   // davet tek kullanımlık; ikinci çağrı hiçbir şey yazmaz
+  expect((await q(`select public.accept_invite($1) r`, [code]))[0].r).toBeNull();   // davet tek kullanımlık; ikinci çağrı hiçbir şey yazmaz
   await as(null);
   expect((await q(`select count(*)::int c from public.memberships where property_id = 'p1' and user_id = '${X}'`))[0].c).toBe(1);
   await as(L);

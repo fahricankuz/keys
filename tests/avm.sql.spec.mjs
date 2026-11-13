@@ -25,7 +25,7 @@ test('mağaza sözleşmesi: döviz kirası, ciro oranı, KDV ve stopaj birlikte 
   await as(null);
   expect((await q(`select public.unit_label($1) l`, [z12]))[0].l).toBe('Zemin kat · Z-12');
   await as(M);
-  [{ code }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'kiraci', 'Moda Giyim A.Ş.') returning code`, [org, z12]);
+  [{ code }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'kiraci', 'Moda Giyim A.Ş.') returning id`, [org, z12]).then(([{ id }]) => q(`select public.site_resident_code($1) code`, [id]));
   await as(ID.T);
   await q(`select public.accept_site_invite($1)`, [code]);
   const [{ u }] = await q(`select public.my_site_units() u`);
