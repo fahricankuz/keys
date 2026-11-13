@@ -109,9 +109,10 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await page.evaluate(() => { const d = JSON.parse(localStorage.getItem('__fakedb')); d.session = null; localStorage.setItem('__fakedb', JSON.stringify(d)); });
   await page.goto(url('/katil?kod=' + code));
   await expect(page.getByText('Atakum Sitesi · A Blok No 1')).toBeVisible();
-  await page.getByRole('button', { name: 'Ücretsiz hesap oluştur' }).click();
+  // Maskeli ad ve e-posta bağı davet sayfasında görünür (kayıt formuna geçmeden önce).
   await expect(page.getByText('M*** K***')).toBeVisible();
-  await expect(page.getByText('Bu davet bir e-posta adresine özel')).toBeVisible();
+  await expect(page.getByText(/Bu davet bir e-posta adresine özel/)).toBeVisible();
+  await page.getByRole('button', { name: 'Ücretsiz hesap oluştur' }).click();
   await expect(page.getByLabel('Ad soyad')).toHaveValue('');
   await expect(page.getByLabel('E-posta')).toHaveValue('');
   await expect(page.getByLabel('Telefon (isteğe bağlı)')).toHaveValue('');
