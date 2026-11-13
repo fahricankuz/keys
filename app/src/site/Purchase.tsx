@@ -1,14 +1,15 @@
 /* Satın alma sayfası (/satin-al): önce mülk sayısı, sonra paket ve ödeme dönemi seçilir; fiyat mülk başınadır ve KDV dahildir.
-   Sağdaki özet "bugün ödenecek ₺0", ilk ödeme tarihi ve hatırlatma çizelgesini gösterir. Başlangıç seçiliyken Profesyonel önerisi çıkar.
-   Ödeme: kart bilgisi ya da App Store / Google Play aboneliği; 1 ay ücretsizden sonra iptal edilmezse otomatik başlar,
-   çekimden 1 gün önce e-posta ve bildirimle hatırlatılır. */
+   Sağdaki özet "bugün ödenecek ₺0" ve çizelgeyi gösterir. Başlangıç seçiliyken Profesyonel önerisi çıkar.
+   Web'de ödeme alınmaz (karar D15): abonelik iPhone ve Android uygulamasından App Store / Google Play ile başlar. Ücretsiz deneme
+   mağazada değil sunucudadır: hesap açılınca 30 gün, kart gerekmez; deneme bitince abone olunmazsa kayıtlar salt okunur olur. */
 import { useEffect, useState } from 'react';
 import { Linking, ScrollView, Text as RNText, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { t, locale, getLang } from '../domain/i18n';
 import { CONFIG } from '../domain/config';
+import { useBillingPaused } from '../domain/app-config';
 import { storage } from '../domain/storage';
-import { maxUnits, paused, planLabel, tierOf, tierPoints, totalPrice, totalText, PLAN_CHOICE, savePlanChoice } from '../domain/billing';
+import { maxUnits, planLabel, tierOf, tierPoints, totalPrice, totalText, PLAN_CHOICE, savePlanChoice } from '../domain/billing';
 import { useAuth } from '../auth/auth';
 import { Button, Container, PressScale, Text } from '../ui/kit';
 import { Wordmark } from '../ui/Wordmark';
@@ -120,6 +121,7 @@ export default function Purchase() {
   const router = useRouter();
   const { phone, desktop } = useBreakpoint();
   const { user } = useAuth();
+  const paused = useBillingPaused();
   const params = useLocalSearchParams<{ plan?: string; donem?: string; adet?: string }>();
   // Statik çıktıda adres parametresi ve tarih ilk çizimde yoktur; bağlandıktan sonra okunur (hidrasyon uyuşsun diye).
   const [plan, setPlan] = useState<Plan>('tek');
@@ -148,11 +150,6 @@ export default function Purchase() {
   const yearlyMonthly = Math.round((yearlyTotal / 12) * 100) / 100;
   const diff = Math.round((priceOf(bes, yearly) - priceOf(tek, yearly)) * 100) / 100;
   const dateText = (off: number) => (today == null ? '' : new Date(today + off * DAY).toLocaleDateString(locale(), { day: 'numeric', month: 'long' }));
-  // Türkçede ay adına ayrılma eki: "28 Kasım’dan itibaren", "2 Aralık’tan itibaren" (ünsüz uyumu).
-  const ABL = ['tan', 'tan', 'tan', 'dan', 'tan', 'dan', 'dan', 'tan', 'den', 'den', 'dan', 'tan'];
-  const firstCharge = today == null ? t('1 ay sonra')
-    : getLang() === 'en' ? t('{date}’dan itibaren', { date: dateText(30) })
-    : (() => { const d = new Date(today + 30 * DAY); return d.getDate() + ' ' + d.toLocaleDateString('tr-TR', { month: 'long' }) + '’' + ABL[d.getMonth()] + ' itibaren'; })();
 
   const start = () => {
     // Ödeme sistemi bağlanana kadar: oturum yoksa seçim cihazda tutulur ve kayda gidilir (girişte profile taşınır);
@@ -162,6 +159,7 @@ export default function Purchase() {
     setStarted(true);
   };
 
+  const storeLinks = !paused && !!((CONFIG as any).billing.appStoreUrl || (CONFIG as any).billing.playStoreUrl);
   const card = { backgroundColor: c.surface, borderRadius: 28, borderWidth: 1, borderColor: c.line } as const;
   return (
     <ScrollView style={{ flex: 1, backgroundColor: c.cream }} contentContainerStyle={{ paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
@@ -177,14 +175,22 @@ export default function Purchase() {
         <RNText style={{ fontFamily: fonts.siteBold, fontSize: phone ? 34 : 54, lineHeight: phone ? 36 : 56, letterSpacing: phone ? -1 : -2, color: c.ink }}>{t('Kaç mülkün var?')}</RNText>
         <Text v="body" muted style={{ fontSize: phone ? 16 : 18, lineHeight: phone ? 24 : 27, maxWidth: 640 }}>{t('Fiyat mülk başınadır ve KDV dahildir. Mülk sayını artırıp azaltabilirsin; toplam anında güncellenir.')}</Text>
       </Container>
-      {paused() ? (
-        <Container style={{ paddingTop: 18, maxWidth: 1040 }}>
-          <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', backgroundColor: 'rgba(242,181,68,0.32)', borderRadius: radius.pill, paddingVertical: 12, paddingHorizontal: 18 }}>
+      <Container style={{ paddingTop: 18, maxWidth: 1040 }}>
+        <View style={{ gap: 10, backgroundColor: 'rgba(242,181,68,0.32)', borderRadius: storeLinks ? 24 : radius.pill, paddingVertical: 12, paddingHorizontal: 18 }}>
+          <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
             <Icon name="bell" size={16} color={c.ink} />
-            <Text v="small" color={c.ink} style={{ flex: 1 }}>{t('Ödeme sistemimizi güncelliyoruz. Paket satın alma kısa süre içinde açılacak; paketini şimdiden seçebilir ve hesabını açabilirsin.')}</Text>
+            <Text v="small" color={c.ink} style={{ flex: 1 }}>{paused
+              ? t('Ödeme sistemimizi güncelliyoruz. Paket satın alma kısa süre içinde açılacak; paketini şimdiden seçebilir ve hesabını açabilirsin.')
+              : t('Abonelik anahtar’ın iPhone ve Android uygulamasından başlar; web’de ödeme alınmaz. Paketini şimdiden seçebilir ve hesabını açabilirsin.')}</Text>
           </View>
-        </Container>
-      ) : null}
+          {storeLinks ? (
+            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+              {(CONFIG as any).billing.appStoreUrl ? <Button kind="ghost" title="App Store" onPress={() => Linking.openURL((CONFIG as any).billing.appStoreUrl)} style={{ minHeight: 40 }} /> : null}
+              {(CONFIG as any).billing.playStoreUrl ? <Button kind="ghost" title="Google Play" onPress={() => Linking.openURL((CONFIG as any).billing.playStoreUrl)} style={{ minHeight: 40 }} /> : null}
+            </View>
+          ) : null}
+        </View>
+      </Container>
 
       <Container style={{ paddingTop: 22, maxWidth: 1040, flexDirection: desktop ? 'row' : 'column', gap: 20, alignItems: 'flex-start' }}>
         {/* Sol: üç numaralı seçim */}
@@ -242,11 +248,11 @@ export default function Purchase() {
               <View style={{ backgroundColor: c.okBg, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 5 }}><RNText style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: c.okInk }}>{t('1 ay ücretsiz')}</RNText></View>
             </View>
             <Text v="small" color={c.heroMuted} style={{ fontSize: 15 }}>
-              {firstCharge}{' '}
+              {t('Deneme bitince, uygulamadan abone olursan')}{' '}
               <Text v="small" color={c.heroInk} style={{ fontFamily: fonts.siteBold, fontSize: 17 }}>{totalText(tier, units, yearly)}</Text> {per} · {t('KDV dahil')}
             </Text>
             <View style={{ backgroundColor: 'rgba(250,245,240,0.07)', borderRadius: 18, padding: 16, gap: 14 }}>
-              {[[true, t('Bugün'), t('Hesabın açılır, tüm özellikler açık')], [true, today == null ? t('Çekimden 1 gün önce') : dateText(29), t('E-posta ve bildirimle hatırlatırız')], [false, today == null ? t('1 ay sonra') : dateText(30), t('İptal etmezsen ilk ödeme alınır')]].map(([f, h, b], i) => (
+              {[[true, t('Bugün'), t('Hesabın açılır, tüm özellikler açık')], [false, today == null ? t('30 gün sonra') : dateText(30), t('Deneme biter; abone olmazsan kayıtların silinmez, salt okunur olur')], [false, t('Abone olunca'), t('Uygulamadan; ücret abone olduğun an mağaza hesabından alınır')]].map(([f, h, b], i) => (
                 <View key={i} style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
                   <Dot filled={f as boolean} />
                   <View style={{ flex: 1 }}>
@@ -258,7 +264,7 @@ export default function Purchase() {
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <Text v="small" color={c.heroMuted}>{t('Abonelik')}:</Text>
-              {[t('Kart'), 'App Store', 'Google Play'].map((x) => <View key={x} style={{ borderRadius: radius.pill, borderWidth: 1, borderColor: 'rgba(250,245,240,0.25)', paddingHorizontal: 10, paddingVertical: 3 }}><RNText style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: c.heroInk }}>{x}</RNText></View>)}
+              {['App Store', 'Google Play'].map((x) => <View key={x} style={{ borderRadius: radius.pill, borderWidth: 1, borderColor: 'rgba(250,245,240,0.25)', paddingHorizontal: 10, paddingVertical: 3 }}><RNText style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: c.heroInk }}>{x}</RNText></View>)}
             </View>
             <Button kind="primary" block title={t('1 ay ücretsiz başla') + '  →'} onPress={start} />
             <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' }}>
@@ -272,8 +278,8 @@ export default function Purchase() {
                   <Text v="small" color={c.heroInk}>{t('Abonelik mülk sahibi hesabı içindir. Kiracı hesapları ücretsizdir; mülk sahibi hesabı için yeni bir hesap aç.')}</Text>
                 ) : (
                   <>
-                    <Text v="small" color={c.heroInk} style={{ fontFamily: fonts.bodyBold }}>{paused() ? t('Ödeme sistemimizi güncelliyoruz') : t('Aboneliği telefondan başlat')}</Text>
-                    <Text v="small" color={c.heroMuted}>{paused()
+                    <Text v="small" color={c.heroInk} style={{ fontFamily: fonts.bodyBold }}>{paused ? t('Ödeme sistemimizi güncelliyoruz') : t('Aboneliği telefondan başlat')}</Text>
+                    <Text v="small" color={c.heroMuted}>{paused
                       ? t('Satın alma kısa süre içinde açılacak. Seçimin ({plan}, {n} mülk) kayıtlı; hesabın ve kayıtların korunur.', { plan: planLabel(plan), n: units })
                       : t('anahtar’ın iPhone ya da Android uygulamasından abone olabilirsin; aynı hesapla web’de de geçerli olur.')}</Text>
                     {(CONFIG as any).billing.appStoreUrl ? <Button kind="onDark" title="App Store" onPress={() => Linking.openURL((CONFIG as any).billing.appStoreUrl)} /> : null}

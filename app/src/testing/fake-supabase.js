@@ -3,20 +3,29 @@
 // Sunucu kuralları (RLS, tetikleyiciler) gerçek Postgres'te ayrıca sınanır
 // (tests/sql.spec.mjs); burada yalnızca istemcinin akışları doğrulanır.
 
+import { SYSTEM_KINDS } from '../domain/system-message.js';
+
 const KEY = '__fakedb';
 const TABLES = ['profiles','properties','property_shared','memberships','invites','payments','rent_history',
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
                 'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes','site_documents','site_investor_notes','mail_outbox','site_cash','site_recurring_expenses',
                 'site_projects','site_project_updates','site_request_messages','site_project_costs',
-                'fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_costs','admin_revenue_months','crm_leads','crm_notes','admin_emails'];
+                'app_config','fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_costs','admin_revenue_months','crm_leads','crm_notes','admin_emails'];
 
 function load(){
-  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d){ TABLES.forEach(t => d.tables[t] = d.tables[t] || []); d.tables.payments.forEach(r => { r.kind = r.kind || 'kira'; }); return d; } } catch(e){}
+  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d){ TABLES.forEach(t => d.tables[t] = d.tables[t] || []); if (!d.tables.app_config.length) d.tables.app_config.push({ key:'billing_paused', value:true }); d.tables.payments.forEach(r => { r.kind = r.kind || 'kira'; }); return d; } } catch(e){}
   const d = { users:[], session:null, storage:{}, tables:{} };
   TABLES.forEach(t => d.tables[t] = []);
+  d.tables.app_config.push({ key:'billing_paused', value:true });      // migration abonelik_magaza: satın alma bayrağı (yedek değerle aynı)
   return d;
 }
+/** migration davet_kodlari: invite_norm (büyük harf; harf-rakam dışı atılır; O→0, I ve L→1). */
+const inviteNorm = (c) => String(c == null ? '' : c).replace(/[^0-9A-Za-z]/g, '').toUpperCase().slice(0, 40).replace(/O/g, '0').replace(/[IL]/g, '1');
+/** Davet bir e-postaya bağlıysa yalnız o e-postalı hesap kabul eder. */
+const emailOk = (bound, mine) => !String(bound || '').trim() || String(bound).trim().toLowerCase() === String(mine || '').trim().toLowerCase();
+/** mask_name: her sözcüğün ilk harfi ve *** ("Ayşe Yılmaz" → "A*** Y***"). */
+const maskName = (n) => String(n || '').trim().replace(/(\S)\S*/g, '$1***');
 function persist(d){ localStorage.setItem(KEY, JSON.stringify(d)); }
 const uuid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
@@ -25,7 +34,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 const KEYS = {
   profiles:['id'], properties:['id'], property_shared:['property_id'], memberships:['property_id','user_id'],
   invites:['code'], payments:['property_id','month','kind'], rent_history:['id'], requests:['id'], messages:['id'],
-  documents:['id'], expenses:['id'], notifications:['id'], push_subscriptions:['endpoint'], subscriptions:['user_id'], device_tokens:['token'],
+  documents:['id'], expenses:['id'], notifications:['id'], push_subscriptions:['endpoint'], subscriptions:['user_id'], device_tokens:['token'], app_config:['key'],
   site_meeting_replies:['meeting_id','unit_id','role'], site_votes:['poll_id','unit_id'], site_investor_notes:['org_id','period'], site_cash:['org_id'],
   site_budgets:['org_id','year'], site_auto:['org_id'], site_turnovers:['unit_id','month'], legal_notes:['request_id'], user_blocks:['user_id','blocked'],
   admins:['user_id'], reviews:['kind','property_id','ref_id'], bans:['user_id'], admin_audit:['id']
@@ -197,10 +206,10 @@ function decideEffects(db, r, was){
 const TRIAL_DAYS = 30;
 /** signup_code_ok: kullanılmamış, süresi dolmamış kiracı daveti ya da kullanılmamış site dairesi kodu. */
 function signupCodeOk(db, code){
-  const k = String(code || '').trim().toUpperCase();
-  if (k.length < 6 || k.length > 12) return false;
-  return (db.tables.invites || []).some(i => i.code === k && (i.role || 'tenant') === 'tenant' && !i.accepted_by && (!i.expires_at || new Date(i.expires_at) > new Date()))
-    || (db.tables.site_residents || []).some(r => r.code === k && !r.user_id);
+  const k = inviteNorm(code);
+  if (k.length < 6 || k.length > 24) return false;
+  return (db.tables.invites || []).some(i => inviteNorm(i.code) === k && (i.role || 'tenant') === 'tenant' && !i.accepted_by && (!i.expires_at || new Date(i.expires_at) > new Date()))
+    || (db.tables.site_residents || []).some(r => inviteNorm(r.code) === k && !r.user_id);
 }
 function accessOf(db, uid){
   const p = db.tables.profiles.find(x => x.id === uid);
@@ -247,7 +256,7 @@ const matchKey = (table, a, b) => (KEYS[table] || ['id']).every(k => a[k] === b[
 
 class Query {
   constructor(client, table){ this.c = client; this.t = table; this.op = null; this.filters = []; this.opts = {}; }
-  select(){ if (!this.op) this.op = 'select'; else this.returning = true; return this; }
+  select(cols){ this.cols = cols; if (!this.op) this.op = 'select'; else this.returning = true; return this; }
   insert(rows){ this.op = 'insert'; this.rows = [].concat(rows); return this; }
   upsert(rows, o){ this.op = 'upsert'; this.rows = [].concat(rows); this.opts = o || {}; return this; }
   update(v){ this.op = 'update'; this.values = v; return this; }
@@ -266,7 +275,27 @@ class Query {
   maybeSingle(){ this.one = 'maybe'; return this; }
   then(res, rej){ return Promise.resolve().then(() => this.run()).then(res, rej); }
 
+  // migration davet_kodlari: site_residents.code istemciye kapalı (sütun yetkisi). "select *" ve "returning *" reddedilir, sütun listesinde
+  // code olamaz; dönen satırlarda code yoktur. Kod yalnız rpc('site_resident_code') ile okunur.
   run(){
+    const reading = this.op === 'select' || this.returning;
+    if (this.t === 'site_residents' && reading){
+      const cols = typeof this.cols === 'string' ? this.cols.split(',').map(x => x.trim()) : null;
+      if (!cols || cols.includes('*') || cols.includes('code')) return { data:null, error:{ message:'permission denied for table site_residents', code:'42501' } };
+    }
+    if (this.t === 'site_residents' && ['insert', 'upsert', 'update'].includes(this.op)){
+      const rows = this.op === 'update' ? [this.values || {}] : this.rows || [];
+      if (rows.some(r => 'code' in r)) return { data:null, error:{ message:'permission denied for table site_residents', code:'42501' } };
+    }
+    const res = this.run0();
+    if (this.t === 'site_residents' && reading && res && res.data){
+      const strip = (r) => { const { code, ...rest } = r; return rest; };
+      res.data = Array.isArray(res.data) ? res.data.map(strip) : strip(res.data);
+    }
+    return res;
+  }
+
+  run0(){
     const db = load();
     this.c._calls.push({ table:this.t, op:this.op });
     // Kesinti benzetimi (testler): __fakefail=1 yazmalar, =2 her şey "Failed to fetch" verir; =3 yazmalar sunucu hatası verir (ağ değil).
@@ -292,6 +321,9 @@ class Query {
       // guard_site_charge_insert (migration site_tahakkuk_koruma): sıfır ya da eksi tutarlı tahakkuk yazılmaz; toplu yazım bütünüyle reddedilir.
       if (this.t === 'site_charges' && this.op === 'insert' && this.rows.some(r => !(Number(r.amount) > 0)))
         return { data:null, error:{ message:'Tutar sıfırdan büyük olmalı', code:'22023' } };
+      // Bitmiş şema (specs/followup-migrations → sistem_mesaji_kapat dahil): system satırı istemciden doğrudan yazılmaz (yalnız post_system_message). Yeni istemci hiç doğrudan yazmaz.
+      if (this.t === 'messages' && actor && this.rows.some(r => r.from_role === 'system'))
+        return { data:null, error:{ message:'new row violates row-level security policy for table "messages"', code:'42501' } };
       out = [];
       for (const raw of this.rows){
         const existing = this.op === 'upsert' ? list.find(r => matchKey(this.t, r, raw)) : null;
@@ -446,8 +478,11 @@ export function createClient(url, key, opts){
       async resetPasswordForEmail(email, o){ client._calls.push({ reset:email, redirectTo:o && o.redirectTo }); return { data:{}, error:null }; },
       async exchangeCodeForSession(code){
         client._calls.push({ exchange:code });
+        // PKCE: "noverifier" = bağlantı isteğin yapıldığı cihazda açılmadı; "tok-<e-posta>" o kişinin oturumunu açar; diğer kodlar ilk kullanıcıyı.
+        if (code === 'noverifier') return { data:{}, error:Object.assign(new Error('PKCE code verifier not found in storage'), { name:'AuthPKCECodeVerifierMissingError' }) };
+        if (code === 'bad') return { data:{}, error:{ message:'invalid code' } };
         const db = load();
-        const u = db.users[0];
+        const u = db.users.find(x => code === 'tok-' + x.email) || db.users[0];
         if (!u) return { data:{}, error:{ message:'invalid code' } };
         db.session = { user:{ id:u.id, email:u.email }, access_token:'fake' };
         persist(db);
@@ -500,10 +535,10 @@ export function createClient(url, key, opts){
         return { data: out.sort((a, b) => (a.at < b.at ? -1 : 1)).map(r => JSON.parse(JSON.stringify(r))), error: null };
       }
       if (name === 'accept_invite'){
-        const inv = db.tables.invites.find(i => i.code === String(args.invite_code).toUpperCase().trim());
-        if (!inv) return { data:null, error:{ message:'Davet kodu bulunamadı' } };
+        // migration davet_kodlari: kod yok, kullanılmış, süresi dolmuş ya da başka e-postaya bağlı → hata değil NULL (tek biçimli ret).
+        const inv = db.tables.invites.find(i => inviteNorm(i.code) === inviteNorm(args.invite_code));
         const prof = db.tables.profiles.find(p => p.id === me);
-        if (inv.accepted_by) return { data:null, error:{ message:'Bu davet kullanılmış', code:'22023' } };
+        if (!inv || inv.accepted_by || (inv.expires_at && new Date(inv.expires_at) < new Date()) || !emailOk(inv.email, db.session.user.email)) return { data:null, error:null };
         // Aynı hesap birden çok rol taşır: mülk sahibi de başka bir mülkte kiracı olabilir; kendi mülkünün davetini kullanamaz.
         if (inv.created_by === me || db.tables.properties.some(p => p.id === inv.property_id && p.owner_id === me)) return { data:null, error:{ message:'Kendi davetini kullanamazsın', code:'22023' } };
         if (!db.tables.memberships.some(m => m.property_id === inv.property_id && m.user_id === me))
@@ -651,9 +686,8 @@ export function createClient(url, key, opts){
         }
         if (name === 'org_invite_delete'){ const i = T.org_invites.find(x => x.code === A.c); if (i && !can(i.org_id, 'org.members') && !adm) return err('Yetki yok'); T.org_invites = T.org_invites.filter(x => x.code !== A.c); return ok(null); }
         if (name === 'accept_org_invite'){
-          const i = T.org_invites.find(x => x.code === String(A.invite_code).trim().toUpperCase());
-          if (!i) return err('Davet kodu bulunamadı', 'P0002');
-          if (i.accepted_by && i.accepted_by !== me) return err('Bu davet kullanılmış', '22023');
+          const i = T.org_invites.find(x => inviteNorm(x.code) === inviteNorm(A.invite_code));
+          if (!i || (i.accepted_by && i.accepted_by !== me) || (i.expires_at && new Date(i.expires_at) < new Date()) || !emailOk(i.email, db.session.user.email)) return { data:null, error:null };
           if (i.master) setMaster(i.org_id, me);
           else { const m = mem(i.org_id); if (m){ if (!m.is_master) m.role_id = i.role_id; } else T.org_members.push({ org_id:i.org_id, user_id:me, role_id:i.role_id, is_master:false, created_at:now() }); }
           i.accepted_by = me; return ok(i.org_id);
@@ -896,24 +930,71 @@ export function createClient(url, key, opts){
         return { data:'landlord', error:null };
       }
       if (name === 'invite_preview'){
-        const i = db.tables.invites.find(x => x.code === String(args.invite_code || '').trim().toUpperCase());
-        if (!i) return { data:null, error:null };
+        // migration davet_kodlari: geçerli koddan başka bir şey dönmez (kullanılmış / süresi dolmuş kod → NULL); e-posta bilgisi yok, yalnız bağlı mı.
+        const i = db.tables.invites.find(x => inviteNorm(x.code) === inviteNorm(args.invite_code));
+        if (!i || i.accepted_by || (i.expires_at && new Date(i.expires_at) < new Date())) return { data:null, error:null };
         const p = db.tables.properties.find(x => x.id === i.property_id) || {}, o = db.tables.profiles.find(x => x.id === i.created_by) || {};
-        return { data:{ role:i.role || 'tenant', scope:i.scope, owner:o.name, property:p.name, valid:!i.accepted_by && (!i.expires_at || new Date(i.expires_at) > new Date()) }, error:null };
+        return { data:{ role:i.role || 'tenant', scope:i.scope, owner:o.name, property:p.name, valid:true, email_bound:!!String(i.email || '').trim() }, error:null };
       }
       if (name === 'site_invite_info'){
-        const T = db.tables, r = T.site_residents.find(x => x.code === String(args.invite_code || '').trim().toUpperCase());
-        if (!r) return { data:null, error:null };
+        const T = db.tables, r = T.site_residents.find(x => inviteNorm(x.code) === inviteNorm(args.invite_code));
+        if (!r || r.user_id) return { data:null, error:null };
         const u = T.site_units.find(x => x.id === r.unit_id) || {}, o = (T.organizations || []).find(x => x.id === r.org_id) || {};
         const unit = o.sector === 'site' ? (u.block ? u.block + ' Blok ' : '') + (/^\d/.test(String(u.no)) ? 'No ' : '') + u.no : (u.block ? u.block + ' · ' : '') + u.no;
-        return { data: r.user_id ? { org:o.name, unit, used:true } : { org:o.name, sector:o.sector, unit, role:r.role, name:r.name, phone:r.phone, email:r.email, used:false }, error:null };
+        // migration davet_kodlari: ad maskeli (mask_name), telefon ve e-posta yok.
+        return { data:{ org:o.name, sector:o.sector, unit, role:r.role, name:maskName(r.name), email_bound:!!String(r.email || '').trim(), used:false }, error:null };
       }
       if (name === 'accept_site_invite'){
-        const r = db.tables.site_residents.find(x => x.code === String(args.invite_code).trim().toUpperCase());
-        if (!r) return { data:null, error:{ message:'Davet kodu bulunamadı', code:'P0002' } };
-        if (r.user_id && r.user_id !== me) return { data:null, error:{ message:'Bu davet kullanılmış', code:'22023' } };
+        const r = db.tables.site_residents.find(x => inviteNorm(x.code) === inviteNorm(args.invite_code));
+        if (r && r.user_id === me) return { data:r.unit_id, error:null };
+        if (!r || r.user_id || !emailOk(r.email, db.session.user.email)) return { data:null, error:null };
         r.user_id = me; persist(db);
         return { data:r.unit_id, error:null };
+      }
+      // migration davet_kodlari: sakinin davet kodu yalnız "Malik ve kiracılar" yetkisine (kurum yöneticisi master'ı ya da yetkili rol).
+      if (name === 'site_resident_code'){
+        const T = db.tables, r = T.site_residents.find(x => x.id === args.p_resident);
+        if (!r) return { data:null, error:{ message:'Kişi bulunamadı', code:'P0002' } };
+        const m = (T.org_members || []).find(x => x.org_id === r.org_id && x.user_id === me);
+        const role = m && !m.is_master ? (T.org_roles || []).find(x => x.id === m.role_id) : null;
+        if (!m || (!m.is_master && !(role && (role.perms || []).includes('residents.manage')))) return { data:null, error:{ message:'Davet yetkin yok', code:'42501' } };
+        return { data:r.code, error:null };
+      }
+      // migration kimlik_bicimi / native push: cihaz anahtarı çağıranın hesabına yazılır (başka hesaptaki aynı anahtar taşınır); çıkışta silinir.
+      if (name === 'register_device_token'){
+        if (!me) return { data:null, error:{ message:'Oturum açılmamış', code:'42501' } };
+        const tok = String(args.p_token || '').trim();
+        if (tok.length < 8 || tok.length > 4096) return { data:null, error:{ message:'Geçersiz cihaz anahtarı', code:'22023' } };
+        const row = db.tables.device_tokens.find(x => x.token === tok);
+        if (row){ row.user_id = me; row.platform = args.p_platform; row.updated_at = now(); }
+        else db.tables.device_tokens.push({ token:tok, user_id:me, platform:args.p_platform, created_at:now(), updated_at:now() });
+        persist(db);
+        return { data:null, error:null };
+      }
+      if (name === 'unregister_device_token'){
+        if (!me) return { data:null, error:{ message:'Oturum açılmamış', code:'42501' } };
+        db.tables.device_tokens = db.tables.device_tokens.filter(x => !(x.token === args.p_token && x.user_id === me));
+        persist(db);
+        return { data:null, error:null };
+      }
+      // migration sistem_mesaji: sohbet olay satırları yalnız bu işlevle yazılır (üyelik, tür, taraf ve metin kalıbı denetlenir).
+      if (name === 'post_system_message'){
+        if (!me) return { data:null, error:{ message:'Oturum açılmamış', code:'42501' } };
+        const pid = args.p_property, mem = db.tables.memberships.find(m => m.property_id === pid && m.user_id === me);
+        const owner = db.tables.properties.find(x => x.id === pid && x.owner_id === me);
+        if (!mem && !owner) return { data:null, error:{ message:'Bu mülkte mesaj yazma yetkin yok', code:'42501' } };
+        const side = (mem && mem.role === 'tenant') ? 'tenant' : 'landlord';
+        const k = SYSTEM_KINDS[args.p_kind];
+        if (!k) return { data:null, error:{ message:'Bilinmeyen sistem mesajı türü', code:'22023' } };
+        if (k.side && k.side !== side) return { data:null, error:{ message:'Bu olayı bu taraf yapamaz', code:'42501' } };
+        const pl = args.p_payload || {};
+        if (typeof pl.text !== 'string' || !new RegExp(k.pattern).test(pl.text)) return { data:null, error:{ message:'Sistem mesajı metni türüne uymuyor', code:'22023' } };
+        const id = pl.id || uuid();
+        if (!db.tables.messages.some(m => m.id === id)){
+          db.tables.messages.push({ id, property_id:pid, from_role:'system', by_user:me, body:pl.text, at:pl.at || now(), ...(pl.req && db.tables.requests.some(r => r.id === pl.req && r.property_id === pid) ? { req_id:pl.req } : {}) });
+          persist(db);
+        }
+        return { data:id, error:null };
       }
       if (name === 'is_admin') return { data: !!me && isAdmin(db, me), error:null };
       // schema.sql (migration hesap_rolleri): her hesabın tüm rolleri.

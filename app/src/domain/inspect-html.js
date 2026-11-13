@@ -10,6 +10,14 @@ const C = { tugla: '#C8302E', krem: '#FAF5F0', kart: '#FFFDFB', baca: '#1D1A19',
 const TZ = 'Europe/Istanbul';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const loc = () => (locale() === 'en-GB' ? 'en-GB' : 'tr-TR');
+/** Belgedeki yazı tipi ve logo adresleri için kaynak: yalnız "http(s)://alan[:kapı]" biçimi geçer (stil bloğuna ve adreslere
+    kullanıcı ya da adres çubuğu kaynaklı değer karışamasın); aksi halde boş (göreli adres). */
+function safeOrigin(o){
+  const m = /^(https?):\/\/([A-Za-z0-9.-]+)(:[0-9]{1,5})?$/.exec(String(o || '').trim().replace(/\/$/, ''));
+  return m ? m[1] + '://' + m[2] + (m[3] || '') : '';
+}
+/** Fotoğraf adresi: https, blob ya da görsel data adresi. "javascript:" gibi şemalar belgeye girmez. */
+const safeImg = (u) => (/^(https?:\/\/|blob:|data:image\/)/i.test(String(u || '')) ? String(u) : '');
 
 /** Onay anı: tarih ve saat ayrı ayrı (İstanbul saati). Geçersiz ya da yoksa null. */
 export function stamp(v){
@@ -27,7 +35,7 @@ export function stamp(v){
  * o: { origin }
  */
 export function inspectHtml(d, o = {}){
-  const origin = (o.origin || '').replace(/\/$/, '');
+  const origin = safeOrigin(o.origin);
   const ins = d.inspect || {};
   const rooms = ins.rooms || [];
   const both = !!(ins.tenantOk && ins.landlordOk);
@@ -53,7 +61,7 @@ export function inspectHtml(d, o = {}){
     if (!shots.length && !r.photos) return '';
     const figs = shots.map((_, j) => {
       const cap = ((r.caps || [])[j] || '').trim();
-      const src = urls[j] || '';
+      const src = safeImg(urls[j]);
       return `<figure><div class="ph">${src ? `<img src="${esc(src)}" alt="${esc(r.n)} ${j + 1}">` : ''}</div>
         <figcaption><b>${esc(r.n)} · ${esc(t('Fotoğraf {n}', { n: j + 1 }))}</b><span class="${cap ? '' : 'mut'}">${esc(cap || t('Açıklama yok'))}</span></figcaption></figure>`;
     }).join('');

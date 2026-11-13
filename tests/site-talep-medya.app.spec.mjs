@@ -86,10 +86,10 @@ test('sakin talebe fotoğraf ve video ekler; kendi kartında ve yönetimde gör�
   expect(m.media).toHaveLength(1);
 });
 
-test('40 MB üstü video eklenmez; en çok 2 video ve 6 dosya eklenir', async ({ page }) => {
+test('10 MB üstü video eklenmez; en çok 2 video ve 6 dosya eklenir', async ({ page }) => {
   await login(page, 'kiraci@ornek.com');
   await page.goto(url('/uygulama/sitem'));
-  await pick(page, 'Video ekle', { ...VIDEO, name: 'dev.mp4', buffer: Buffer.alloc(41 * 1024 * 1024) });
+  await pick(page, 'Video ekle', { ...VIDEO, name: 'dev.mp4', buffer: Buffer.alloc(11 * 1024 * 1024) });
   await expect(page.getByText('Video: dev.mp4')).toHaveCount(0);
   await expect(page.getByText('Video çok büyük')).toBeVisible();
   await pick(page, 'Video ekle', VIDEO);

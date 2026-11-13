@@ -6,7 +6,8 @@
 
 import { t } from './i18n.js';
 import { logCaught } from './logs.js';
-import { client, live } from './backend.js';
+import { client, live, inviteRejected } from './backend.js';
+import { isOrgInviteCode, normalizeInviteCode } from './invite-code.js';
 import { emit } from './state.js';
 
 /** Sektörler: ad, simge ve bu sektörde kullanılan sözcükler. */
@@ -126,12 +127,13 @@ export const setMemberRole = (oid, member, rid) => rpc('org_member_set', { oid, 
 export const removeOrgMember = (oid, member) => rpc('org_member_remove', { oid, member });
 export const transferMaster = (oid, member) => rpc('org_transfer_master', { oid, member });
 
-/** Kurum davet kodu "K" ile başlar (mülk davet kodları yalnız 0-9 ve A-F içerir). */
 /** Kurum paneli açılan sektörler: site yönetimi ve ticari portföy (AVM, depo, GYO). */
 export const PORTFOLIO_SECTORS = ['site', 'avm', 'depo', 'gyo'];
-export const isOrgCode = (code) => /^K[0-9A-F]{7}$/.test(String(code || '').trim().toUpperCase());
+/** Kurum davet kodu "K" ile başlar; eski (K + 7) ve yeni (K + 16) biçimler invite-code.js'te tanınır. */
+export const isOrgCode = (code) => isOrgInviteCode(code);
 export async function acceptOrgInvite(code){
-  const oid = await rpc('accept_org_invite', { invite_code: String(code).trim().toUpperCase() });
+  const oid = await rpc('accept_org_invite', { invite_code: normalizeInviteCode(code) });
+  if (!oid) throw inviteRejected();      // sunucu her başarısızlığı NULL ile bildirir
   await refreshOrgs();
   return oid;
 }

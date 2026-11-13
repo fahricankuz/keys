@@ -4,7 +4,7 @@
 
 import { norm, num } from './importer.js';
 import { client } from './backend.js';
-import { sendSiteInvite } from './site.js';
+import { sendSiteInvite, RESIDENT_COLS } from './site.js';
 
 export const SITE_COLUMNS = [
   { key: 'block', header: 'Blok', example: 'A', aliases: ['blok', 'block', 'bina'] },
@@ -110,10 +110,10 @@ export async function importUnitItems(oid, items, commercial = false){
   const rows = ok.flatMap((x, i) => (made[i] ? x.people.map((p) => ({ org_id: oid, unit_id: made[i].id, role: p.role, name: p.name, phone: p.phone, email: p.email })) : []));
   let people = [], mailed = 0;
   if (rows.length) {
-    const r = await c.from('site_residents').insert(rows).select();
+    const r = await c.from('site_residents').insert(rows).select(RESIDENT_COLS);
     if (r.error) throw r.error;
     people = r.data || [];
-    for (const p of people.filter((x) => x.email)) if (await sendSiteInvite(p)) mailed++;
+    for (const p of people.filter((x) => x.email)) if (await sendSiteInvite(p) === true) mailed++;
   }
   return { units: made.length, people: people.length, mailed };
 }

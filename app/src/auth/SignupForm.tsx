@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Linking, View } from 'react-native';
+import { Linking, Platform, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import AuthShell from './AuthShell';
 import SignedIn from './SignedIn';
 import { keepInvite, pendingInvite, pendingPrefill, Role, useAuth } from './auth';
 import { Captcha } from './captcha';
 import { CONFIG } from '../domain/config';
+import { INVITE_INPUT_MAX, inviteCodeFromInput, normalizeInviteCode } from '../domain/invite-code';
 import { t } from '../domain/i18n';
 import { Button, Field, PressScale, Text } from '../ui/kit';
 import { fonts, useColors } from '../ui/theme';
@@ -30,8 +31,8 @@ export default function SignupForm({ role, site = false }: { role: Role; site?: 
   useEffect(() => {
     // Davet e-postasındaki bağlantı (/kayit/kiraci?kod=…&ad=…&e=…): kod, ad ve e-posta kendiliğinden dolar.
     let q: URLSearchParams | null = null;
-    try { q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null; } catch {}
-    const fromLink = (q?.get('kod') || '').trim().toUpperCase();
+    try { q = Platform.OS === 'web' && typeof window !== 'undefined' && window.location ? new URLSearchParams(window.location.search) : null; } catch {}
+    const fromLink = inviteCodeFromInput(q?.get('kod'));
     if (fromLink) keepInvite(fromLink);
     const k = fromLink || pendingInvite(); if (k) setCode(k);
     const ad = (q?.get('ad') || '').trim(), e = (q?.get('e') || '').trim();
@@ -77,7 +78,7 @@ export default function SignupForm({ role, site = false }: { role: Role; site?: 
       {withCode ? (
         <Field
           label={team ? t('Ekip davet kodu (isteğe bağlı)') : needCode ? t('Davet kodu') : t('Davet kodu (isteğe bağlı)')}
-          value={code} onChangeText={(v) => setCode(v.toUpperCase())} autoCapitalize="characters" maxLength={12}
+          value={code} onChangeText={(v) => setCode(normalizeInviteCode(v))} autoCapitalize="characters" autoCorrect={false} maxLength={INVITE_INPUT_MAX}
           hint={team
             ? t('Kodu mülk sahibi “Ekip” ekranından oluşturur. Şimdi girmezsen hesabını açtıktan sonra da girebilirsin.')
             : site ? t('Kodu site yönetimin verir (S ile başlar). Kodun yoksa yönetiminden seni anahtar’a eklemesini iste.')

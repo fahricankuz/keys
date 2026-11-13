@@ -1,14 +1,15 @@
 /* Kurum panelinde kişi ekleme ve davet (alt sayfa "site-kisi"): malik ya da kiracı için ad soyad, telefon ve isteğe bağlı
    e-posta. "Davet gönder"e basınca e-posta girildiyse davet e-postası kendiliğinden gider (site-invite fonksiyonu) ve
    telefon girildiyse WhatsApp hazır mesajla (kayıt bağlantısı ve davet kodu) açılır. Bağlantı açılınca kayıt formunda
-   ad, telefon ve e-posta dolu gelir (bkz. katil.tsx → site_invite_info). */
-import { useState } from 'react';
+   yalnız davetin site ve daire bilgisi görünür (bkz. katil.tsx → site_invite_info); kod sütunu istemciye kapalıdır, kod residentCode() ile okunur. */
+import { useEffect, useState } from 'react';
 import { Linking, Platform, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { t } from '../domain/i18n';
 import { humanError, inviteLink } from '../domain/backend';
-import { deleteResident, inviteState, markInvited, inviteText, inviteWa, saveResident, sendSiteInvite, unitLabel } from '../domain/site';
+import { deleteResident, inviteState, markInvited, inviteText, inviteWa, residentCode, saveResident, sendSiteInvite, unitLabel } from '../domain/site';
 import { host } from '../domain/host';
+import { waLink } from '../domain/wa';
 import { Button, Field, PressScale, Text } from '../ui/kit';
 import { fonts, radius, useColors } from '../ui/theme';
 import { Muted, Note, Row, Stack } from './blocks';
@@ -29,10 +30,20 @@ export function SitePersonSheet({ oid, org, unit, commercial, person, manage, re
   const c = useColors();
   const [p, setP] = useState<any>(person || null);
   const [f, setF] = useState({ role: 'kiraci', name: '', phone: '', email: '' });
-  const [mailed, setMailed] = useState<boolean | null>(null);
+  const [mailed, setMailed] = useState<boolean | 'throttled' | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const label = unitLabel(unit);
+  // Davet kodu sütunu istemciye kapalı: sunucu işleviyle (yalnız "Malik ve kiracılar" yetkisine) okunur.
+  const [code, setCode] = useState<string>('');
+  const pid = p ? p.id : null;
+  const linked = !!(p && p.user_id);
+  useEffect(() => {
+    let alive = true;
+    setCode('');
+    if (pid && !linked) residentCode(pid).then((x: string) => { if (alive) setCode(x || ''); });
+    return () => { alive = false; };
+  }, [pid, linked]);
 
   const submit = async () => {
     if (!okMail(f.email)) { setErr(t('E-posta adresini kontrol et.')); return; }
@@ -43,7 +54,7 @@ export function SitePersonSheet({ oid, org, unit, commercial, person, manage, re
       const m = await sendSiteInvite(row);
       setMailed(row.email ? m : null);
       setP({ ...row, invited_at: new Date().toISOString() });
-      if (row.phone) openWa(inviteWa(row, org, label, commercial), pre);
+      if (row.phone) openWa(await inviteWa(row, org, label, commercial), pre);
       else if (pre) pre.close();
       reload();
     } catch (e) { if (pre) pre.close(); setErr(humanError(e)); }
@@ -70,8 +81,8 @@ export function SitePersonSheet({ oid, org, unit, commercial, person, manage, re
   );
 
   const st = inviteState(p);
-  const text = inviteText(org, label, p.code, commercial);
-  const link = inviteLink(p.code);
+  const text = inviteText(org, label, code, commercial);
+  const link = inviteLink(code);
   return (
     <Stack>
       <Title>{st === 'linked' ? p.name : t('Davet hazır')}</Title>
@@ -79,13 +90,14 @@ export function SitePersonSheet({ oid, org, unit, commercial, person, manage, re
       {st === 'linked' ? <Note>{t('Hesabı bağlı; aidat, duyuru ve taleplerini anahtar’dan izliyor.')}</Note> : (
         <>
           {mailed === true ? <Note ok>{t('Davet e-postası {email} adresine gönderildi.', { email: p.email })}</Note>
+            : mailed === 'throttled' ? <Note warn>{t('Bu davet az önce gönderildi; birkaç dakika sonra yeniden dene.')}</Note>
             : mailed === false ? <Note warn>{t('Davet e-postası şu an gönderilemedi. WhatsApp ya da bağlantıyla gönderebilirsin.')}</Note>
             : !p.email ? <Muted>{t('E-posta girilmedi; daveti WhatsApp ya da bağlantıyla gönder.')}</Muted> : null}
           <View style={{ backgroundColor: c.surface, borderRadius: radius.md, borderWidth: 1, borderColor: c.line, padding: 16, alignItems: 'center', gap: 4 }}>
             <Text v="small" muted>{t('Davet kodu')}</Text>
-            <Text v="h2" selectable style={{ letterSpacing: 4 }}>{p.code}</Text>
+            <Text v="h2" selectable style={{ letterSpacing: 4 }}>{code || '…'}</Text>
           </View>
-          <PressScale onPress={() => { openWa(inviteWa(p, org, label, commercial)); if (!p.invited_at) markInvited(p.id).then(reload); }} accessibilityRole="button" scaleTo={0.98}
+          <PressScale onPress={() => { openWa(waLink(p.phone, text)); if (!p.invited_at) markInvited(p.id).then(reload); }} accessibilityRole="button" scaleTo={0.98}
             style={{ minHeight: 44, borderRadius: radius.pill, backgroundColor: WA_GREEN, alignItems: 'center', justifyContent: 'center' }}>
             <Text v="small" color="#fff" style={{ fontFamily: fonts.bodyXBold, fontSize: 15 }}>{t('WhatsApp ile gönder')}</Text>
           </PressScale>
@@ -127,8 +139,8 @@ export function SiteBulkInviteSheet({ org, commercial, people, reload, close }:
     let ok = 0, fail = 0, n = 0;
     for (const p of withMail) {
       const sent = await sendSiteInvite(p);
-      // E-posta gitmese de kişide telefon varsa WhatsApp akışına düşer; burada yalnız sonucu sayarız.
-      if (sent) ok++; else fail++;
+      // E-posta gitmese de kişide telefon varsa WhatsApp akışına düşer; burada yalnız sonucu sayarız (az önce gönderilmiş olan "gönderilemedi" sayılır).
+      if (sent === true) ok++; else fail++;
       setMailed({ ok, fail, n: ++n });
     }
     setMailState('done');
@@ -137,7 +149,7 @@ export function SiteBulkInviteSheet({ org, commercial, people, reload, close }:
   const waNext = async () => {
     const p = phoneOnly[next];
     if (!p) return;
-    openWa(inviteWa(p, org, p.unitLabel, commercial));
+    openWa(await inviteWa(p, org, p.unitLabel, commercial));
     await markInvited(p.id);
     setNext(next + 1);
     if (next + 1 >= phoneOnly.length) reload();

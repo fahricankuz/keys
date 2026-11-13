@@ -18,6 +18,34 @@ type SheetState = { name: string; params: any } | null;
 const Ctx = createContext<{ sheet: SheetState; open: (n: string, p?: any) => void; close: () => void }>(null as any);
 export const useSheet = () => useContext(Ctx);
 
+/** Dosya türüne göre iOS tür kimliği (UTI); Android yalnız MIME kullanır. */
+const UTI: Record<string, string> = {
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'org.openxmlformats.spreadsheetml.sheet',
+  'text/csv': 'public.comma-separated-values-text',
+  'application/json': 'public.json',
+  'text/plain': 'public.plain-text',
+  'application/pdf': 'com.adobe.pdf'
+};
+
+/** Telefon: baytları önbellek klasörüne yazar ve paylaşım penceresini açar (Dosyalara kaydet, Excel, e-posta…). Dönen: açıldı mı. */
+async function shareNativeFile(name: string, data: Uint8Array, type: string): Promise<boolean> {
+  try {
+    const [{ File, Paths }, Sharing] = await Promise.all([import('expo-file-system'), import('expo-sharing')]);
+    if (!(await Sharing.isAvailableAsync())) throw new Error('paylaşım yok');
+    const mime = String(type || 'application/octet-stream').split(';')[0].trim();
+    const safe = name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').slice(0, 120) || 'dosya';
+    const file = new File(Paths.cache, safe);
+    file.create({ overwrite: true });
+    await file.write(data);
+    await Sharing.shareAsync(file.uri, { mimeType: mime, UTI: UTI[mime], dialogTitle: name });
+    return true;
+  } catch (e) {
+    console.warn('Dosya paylaşılamadı', e);
+    host.notify({ title: t('Dosya hazırlanamadı'), body: t('Dosya oluşturulamadı ya da paylaşılamadı. Biraz sonra yeniden dene.'), icon: 'bell' });
+    return false;
+  }
+}
+
 export function OverlayProvider({ children, renderSheet }: { children: ReactNode; renderSheet: (name: string, params: any, close: () => void) => ReactNode }) {
   const c = useColors();
   const router = useRouter();
@@ -56,9 +84,11 @@ export function OverlayProvider({ children, renderSheet }: { children: ReactNode
         a.href = URL.createObjectURL(blob); a.download = name;
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-      } else {
-        if (typeof text === "string") { try { await Share.share({ message: text, title: name }); } catch {} }
+        return true;
       }
+      // Telefon: metin paylaşım penceresiyle mesaj olarak, ikili dosya (Excel .xlsx) gerçek dosya olarak paylaşılır.
+      if (typeof text === 'string') { try { await Share.share({ message: text, title: name }); } catch {} return true; }
+      return shareNativeFile(name, text, type);
     };
     // Panelden çıkınca (ör. yönetici paneline geçiş) kapanmış pencereye sorulmasın: yanıt hiç gelmez, düğme ölü kalır.
     return () => { host.ask = fallbackAsk; };

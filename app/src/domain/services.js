@@ -4,7 +4,7 @@
 import { Platform } from 'react-native';
 import { S, ui, save, reset as resetState, replaceState, setTheme, VERSION, STEPS, AREA_TEMPLATES, TENANT_KINDS } from './state.js';
 import {
-  P, ST, period, remaining, rentAt, expectedAt, normalize, tenantsLabel, meTenant, senderName, unpaid, moveOutSummary, yearNumbers, payMap, dueOf
+  P as propById, ST, period, remaining, rentAt, expectedAt, normalize, tenantsLabel, meTenant, senderName, unpaid, moveOutSummary, yearNumbers, payMap, dueOf
 } from './logic.js';
 import { estimate } from './tax.js';
 import { migrate } from './migrate.js';
@@ -20,6 +20,14 @@ import { toApp } from './nav.js';
 import { iso, t0, parse, fmtFull, monthYear, tl, daysTo, uid, percent } from './util.js';
 import { formatAddress } from './address.js';
 import { openInspectReport } from './inspect-html.js';
+
+/** Mülk kaydı. Kimlik kullanıcı girdisinden (d.pid, d.updateId) gelebilir; "__proto__" gibi adlar Object.prototype'a çözülüp
+    sonraki atamalarla (p.docs = …, p[k] = …) onu bozmasın diye yalnız kendi mülk kayıtları döner (CodeQL js/prototype-polluting-assignment). */
+const P = id => (typeof id === 'string' && Object.prototype.hasOwnProperty.call(S.props, id) ? propById(id) : undefined);
+/** Ayar ve kayıt anahtarlarında Object.prototype'ı değiştirebilecek adlar reddedilir. */
+const UNSAFE_KEY = /^(__proto__|constructor|prototype)$/;
+/** Demo (sunucusuz) davet kodu için 4 haneli sayı; rastgelelik util.js → uid() üzerinden kriptografik kaynaktan gelir (Math.random kullanılmaz). */
+const demoDigits = () => String(parseInt(uid().replace(/-/g, '').slice(0, 8), 16) % 9000 + 1000);
 
 const go = path => host.go(toApp(path));
 const notify = (n, log) => {
@@ -57,8 +65,8 @@ function lesseeFrom(fd){
 }
 
 function pushMsg(p, m){ p.msgs.push(Object.assign({ id: uid('m') }, m)); }
-/** Sistem mesajı; `req` verilirse talebe bağlanır (mesajlarda dokununca talep açılır). */
-function sysMsg(p, text, req){ pushMsg(p, Object.assign({ from:'system', text, at:Date.now() }, req ? { req } : {})); }
+/** Sistem mesajı; `kind` system-message.js'teki türdür (sunucu yalnız bilinen tür ve kalıbı kabul eder); `req` verilirse talebe bağlanır (mesajlarda dokununca talep açılır). */
+function sysMsg(p, kind, text, req){ pushMsg(p, Object.assign({ from:'system', kind, text, at:Date.now() }, req ? { req } : {})); }
 function logReq(r, text){ (r.log = r.log || []).push({ at:Date.now(), text }); }
 function reqOf(p, id){ return p.requests.find(r => r.id === id); }
 /** Giriş tutanağı iki tarafın onayıyla kilitlenir; kilitliyken hiçbir alanı değişmez (sunucu da aynı kuralı uygular: guard_shared). */
@@ -170,7 +178,7 @@ export async function importProps(rows){
     const hasTenant = !!(r.tenantName || r.tenantPhone || r.tenantEmail);
     const data = { name:r.name, addr:r.addr, type:r.type, area:r.area, rent:r.rent, dueDay:r.dueDay, aidat:r.aidat, aidatPayer:r.aidatPayer,
       deposit:r.deposit, depositKind:r.depositKind, startDate:r.startDate, contractEnd:r.contractEnd, dask:r.dask, stopaj:r.stopaj, company:r.company };
-    let p = r.updateId ? S.props[r.updateId] : null;
+    let p = r.updateId ? P(r.updateId) : null;
     if (p){
       const rentChanged = r.rent != null && r.rent !== p.rent;
       Object.entries(data).forEach(([k, v]) => { if (v != null && v !== '' && k !== 'name') p[k] = v; });
@@ -178,7 +186,7 @@ export async function importProps(rows){
     } else p = newProperty(data);
     const invite = hasTenant && !p.tenants.length;
     if (invite) p.tenants.push({ id:uid('t'), name: r.tenantName || 'Davet bekleniyor', phone: r.tenantPhone || '', email: r.tenantEmail || '' });
-    return { id:p.id, line:r.line, name:p.name, code: invite ? 'DEMO' + String(Math.floor(Math.random() * 9000) + 1000) : null, phone: r.tenantPhone || '', tenant: r.tenantName || '' };
+    return { id:p.id, line:r.line, name:p.name, code: invite ? 'DEMO' + demoDigits() : null, phone: r.tenantPhone || '', tenant: r.tenantName || '' };
   });
   save();
   return out;
@@ -203,7 +211,7 @@ export const A = {
     const p = P(d.pid), r = reqOf(p, d.id);
     r.status = Math.min(3, r.status + 1);
     logReq(r, (t('Durum:')+' ')+t(STEPS[r.status]));
-    sysMsg(p, (t('Talep durumu:')+' ')+r.title+' · '+t(STEPS[r.status]), r.id);
+    sysMsg(p, 'request_status', (t('Talep durumu:')+' ')+r.title+' · '+t(STEPS[r.status]), r.id);
     // Çözülen talepte seçili teklif varsa ve fatura yoksa teklif tutarı gidere işlenir (fatura gelince güncellenir).
     const chosen = (r.quotes || []).find(q => q.chosen);
     if (r.status === 3 && chosen && r.costOk && !r.invoice && ownerShare(r, chosen.amount) > 0 && can(p.id, 'expense')
@@ -226,7 +234,7 @@ export const A = {
     const p = P(d.pid), r = reqOf(p, d.id);
     r.decision = d.v; r.status = 3;
     logReq(r, (t('Karar:')+' ')+d.v);
-    sysMsg(p, (t('Ek talep:')+' ')+r.title+' · '+d.v, r.id);
+    sysMsg(p, 'request_decision', (t('Ek talep:')+' ')+r.title+' · '+d.v, r.id);
     save();
     notify({ title:t('Karar kaydedildi'), body:r.title+': '+d.v, icon:'wrench' });
   },
@@ -234,7 +242,7 @@ export const A = {
     const p = P(d.pid), r = reqOf(p, d.id);
     r.costOk = true;
     logReq(r, (t('Masraf paylaşımı onaylandı:')+' ')+t(r.cost));
-    sysMsg(p, (t('Masraf paylaşımı onaylandı:')+' ')+t(r.cost), r.id);
+    sysMsg(p, 'cost_approved', (t('Masraf paylaşımı onaylandı:')+' ')+t(r.cost), r.id);
     save();
   },
   setCost: d => {
@@ -242,14 +250,14 @@ export const A = {
     r.cost = d.v;
     r.costOk = false;
     logReq(r, (t('Masraf önerisi:')+' ')+t(r.cost));
-    sysMsg(p, (t('Masraf önerisi:')+' ')+r.cost+' ('+r.title+')', r.id);
+    sysMsg(p, 'cost_proposed', (t('Masraf önerisi:')+' ')+r.cost+' ('+r.title+')', r.id);
     save();
   },
   closeReq: d => {
     const p = P(d.pid), r = reqOf(p, d.id);
     r.status = 3;
     logReq(r, t('Kiracı talebi çözüldü olarak işaretledi'));
-    sysMsg(p, (t('Talep kapatıldı:')+' ')+r.title, r.id);
+    sysMsg(p, 'request_closed', (t('Talep kapatıldı:')+' ')+r.title, r.id);
     save();
     notify({ title:t('Talep kapatıldı'), body:r.title, icon:'wrench' });
   },
@@ -260,7 +268,7 @@ export const A = {
     rec.status = 'approved';
     rec.approvedAt = Date.now();
     delete rec.rejectReason;
-    sysMsg(p, monthYear(d.key)+(' '+(aidat ? t('aidatı onaylandı') : t('kirası onaylandı'))));
+    sysMsg(p, 'payment_approved', monthYear(d.key)+(' '+(aidat ? t('aidatı onaylandı') : t('kirası onaylandı'))));
     save(); host.closeSheet();
     host.haptic();
     host.celebrate({ title:t('Ödeme onaylandı') });
@@ -284,7 +292,7 @@ export const A = {
     const max = Math.round(p.rent * (1 + cpi/100));
     const amt = Math.min(Number(ui.renewal.amount) || max, max);
     p.renewal = { amount:amt, max, cpi, status:'sent', at:Date.now() };
-    sysMsg(p, (t('Yenileme teklifi:')+' ')+tl(amt)+(' '+t('(yasal üst sınır')+' ')+tl(max)+')');
+    sysMsg(p, 'renewal_offer', (t('Yenileme teklifi:')+' ')+tl(amt)+(' '+t('(yasal üst sınır')+' ')+tl(max)+')');
     ui.renewal = { cpi:null, amount:null };
     save(); host.closeSheet();
     notify({ title:t('Teklif gönderildi'), body:t('Kiracı uygulamada kabul edebilir ya da mesajla görüşebilir.'), icon:'card' });
@@ -295,7 +303,7 @@ export const A = {
     p.rentHistory = (p.rentHistory || []).filter(h => h.from !== p.contractEnd);
     p.rentHistory.push({ from:p.contractEnd, amount:p.renewal.amount, note:t('Yenileme · TÜFE {pct}', { pct:percent(p.renewal.cpi, 2) }) });
     normalize(p);
-    sysMsg(p, (t('Yenileme teklifi kabul edildi:')+' ')+tl(p.renewal.amount));
+    sysMsg(p, 'renewal_accepted', (t('Yenileme teklifi kabul edildi:')+' ')+tl(p.renewal.amount));
     save();
     notify({ title:t('Teklifi kabul ettin'), body:(t('Yeni kira')+' ')+fmtFull(parse(p.contractEnd))+(' '+t('itibarıyla')+' ')+tl(p.renewal.amount)+'.', icon:'card' });
   },
@@ -303,7 +311,7 @@ export const A = {
     if (!await ask({ title:t('Teklif geri çekilsin mi?'), body:t('Kiracı artık teklifi göremez.'), ok:t('Geri çek') })) return;
     const p = P(d.pid);
     p.renewal = null;
-    sysMsg(p, t('Yenileme teklifi geri çekildi'));
+    sysMsg(p, 'renewal_withdrawn', t('Yenileme teklifi geri çekildi'));
     save();
   },
 
@@ -373,7 +381,7 @@ export const A = {
       p.inspect[side + 'By'] = side === 'tenant' ? ((p.tenants && p.tenants[0] && p.tenants[0].name) || '') : ((p.landlord && p.landlord.name) || '');
       if (p.inspect.tenantOk && p.inspect.landlordOk) p.inspect.lockedAt = new Date().toISOString();
     }
-    sysMsg(p, t('Giriş tutanağı {who} tarafından onaylandı', { who: ui.role === 'tenant' ? t('kiracı') : t('mülk sahibi') }));
+    sysMsg(p, 'inspect_approved', t('Giriş tutanağı {who} tarafından onaylandı', { who: ui.role === 'tenant' ? t('kiracı') : t('mülk sahibi') }));
     save();
     notify({
       title:t('Tutanak onaylandı'),
@@ -435,14 +443,15 @@ export const A = {
       ('\n\n'+t('Not: Onaylanmış ve kısmi ödemelerden hesaplanmıştır. Tahmindir; beyan için mali müşavirinize danışın.'));
     openText(t('Beyanname özeti'), body);
   },
-  exportCsv: d => {
+  exportCsv: async d => {
     const { sheets, file } = exportSheets(d && d.pid);
-    host.saveFile(file + '.csv', toCsv(sheets, locale() === 'en-GB' ? 'en' : 'tr'), 'text/csv;charset=utf-8');
+    if (await host.saveFile(file + '.csv', toCsv(sheets, locale() === 'en-GB' ? 'en' : 'tr'), 'text/csv;charset=utf-8') === false) return;
     notify({ title:t('CSV hazır'), body:t('Ödemeler ve giderler dosyası hazırlandı.'), icon:'chart' }, false);
   },
   exportXlsx: async d => {
     const { sheets, file } = exportSheets(d && d.pid);
-    host.saveFile(file + '.xlsx', await toXlsx(sheets), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    // Web: dosya iner. Telefon: .xlsx baytları önbelleğe yazılır ve paylaşım penceresi açılır (app-ui/overlays.tsx → saveFile); açılamazsa false döner.
+    if (await host.saveFile(file + '.xlsx', await toXlsx(sheets), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') === false) return;
     notify({ title:t('Excel dosyası hazır'), body:t('Ödemeler ve giderler ayrı sayfalarda.'), icon:'chart' }, false);
   },
   /** Yazışma açıldı: okunmamış sayacı sıfırlanır, sunucuda da işaretlenir. */
@@ -479,7 +488,7 @@ export const A = {
 
   clearInbox: () => { S.inbox = []; save(); },
   theme: d => { setTheme(d.v); },
-  setSetting: d => { S.settings[d.k] = d.bool ? !!d.v : d.str ? String(d.v ?? '').slice(0, 40) : Math.max(0, Number(d.v) || 0); save(); },
+  setSetting: d => { if (UNSAFE_KEY.test(String(d.k))) return; S.settings[d.k] = d.bool ? !!d.v : d.str ? String(d.v ?? '').slice(0, 40) : Math.max(0, Number(d.v) || 0); save(); },
   lang: d => {
     S.lang = d.v; save(); setLang(d.v);
     // Modül düzeyindeki etiketler (durum adları, sekmeler) dil değişince yeniden kurulsun diye web'de sayfa yenilenir.
@@ -514,7 +523,7 @@ export const A = {
       return;
     }
     p.tenants = p.tenants.filter(x => x.id !== d.id);
-    sysMsg(p, tn.name+(' '+t('mülkten çıkarıldı')));
+    sysMsg(p, 'tenant_removed', tn.name+(' '+t('mülkten çıkarıldı')));
     save();
   },
 
@@ -523,7 +532,7 @@ export const A = {
     r.quotes.forEach(q => { q.chosen = q.id === d.q; });
     const q = r.quotes.find(x => x.chosen);
     logReq(r, (t('Teklif seçildi:')+' ')+q.vendor+' · '+tl(q.amount));
-    sysMsg(p, (t('Talep için usta seçildi:')+' ')+q.vendor+' ('+tl(q.amount)+') · '+r.title, r.id);
+    sysMsg(p, 'vendor_chosen', (t('Talep için usta seçildi:')+' ')+q.vendor+' ('+tl(q.amount)+') · '+r.title, r.id);
     if (r.status < 2){ r.status = 2; logReq(r, (t('Durum:')+' ')+t(STEPS[2])); }
     save();
     notify({ title:t('Usta seçildi'), body:q.vendor+' · '+tl(q.amount)+t('. Kiracıya bildirildi.'), icon:'wrench' });
@@ -584,7 +593,7 @@ export const A = {
     const p = P(d.pid), mo = p.moveOut;
     if (ui.role === 'tenant') mo.tenantOk = true; else mo.landlordOk = true;
     const both = mo.tenantOk && mo.landlordOk;
-    sysMsg(p, t('Çıkış hesabı {who} tarafından onaylandı', { who: ui.role === 'tenant' ? t('kiracı') : t('mülk sahibi') })+(both ? (' '+t('· iade:')+' ')+tl(moveOutSummary(p).refund) : ''));
+    sysMsg(p, 'moveout_approved', t('Çıkış hesabı {who} tarafından onaylandı', { who: ui.role === 'tenant' ? t('kiracı') : t('mülk sahibi') })+(both ? (' '+t('· iade:')+' ')+tl(moveOutSummary(p).refund) : ''));
     save();
     notify({ title:t('Çıkış hesabı onaylandı'), body: both ? t('İki taraf da onayladı; iade tutarı kesinleşti.') : t('Karşı tarafın onayı bekleniyor.'), icon:'key' });
   },
@@ -592,7 +601,7 @@ export const A = {
     if (!await ask({ title:t('Çıkış süreci iptal edilsin mi?'), body:t('Çıkış notları, fotoğraflar ve kesintiler silinir.'), ok:t('İptal et'), danger:true })) return;
     const p = P(d.pid);
     p.moveOut = null;
-    sysMsg(p, t('Çıkış süreci iptal edildi'));
+    sysMsg(p, 'moveout_cancelled', t('Çıkış süreci iptal edildi'));
     save();
   },
   exportMoveOut: d => {
@@ -664,7 +673,7 @@ export async function submit(type, v){
     };
     if (!r.title) return false;
     p.requests.unshift(r);
-    sysMsg(p, (t('Yeni talep açıldı:')+' ')+r.title, r.id);
+    sysMsg(p, 'request_opened', (t('Yeni talep açıldı:')+' ')+r.title, r.id);
     save(); host.closeSheet();
     go(ui.role === 'tenant' ? '/kiraci/talepler' : '/mulk-sahibi/mulk/'+p.id+'/talep');
     notify({ title:t('Talep gönderildi'), body:t('Mülk sahibine bildirildi. Durum değiştikçe haber vereceğiz.'), icon:'wrench' });
@@ -694,7 +703,7 @@ export async function submit(type, v){
     const stored = file ? await keep(p.id, file) : null;
     if (stored) rec.photo = stored;
     map[key] = rec;
-    sysMsg(p, monthYear(key)+(' '+(kind === 'aidat' ? t('aidatı için dekont yüklendi') : t('kirası için dekont yüklendi')))+(rec.status === 'partial' ? (' '+t('(kısmi:')+' ')+tl(total)+')' : ''));
+    sysMsg(p, 'payment_uploaded', monthYear(key)+(' '+(kind === 'aidat' ? t('aidatı için dekont yüklendi') : t('kirası için dekont yüklendi')))+(rec.status === 'partial' ? (' '+t('(kısmi:')+' ')+tl(total)+')' : ''));
     save(); if (!v.keepOpen) host.closeSheet();
     notify(own && rec.status === 'approved' ? { title:t('Aidat kaydedildi'), body:p.name+' · '+monthYear(key), icon:'card' } : {
       title: rec.status === 'partial' ? t('Kısmi ödeme kaydedildi') : t('Dekont yüklendi'),
@@ -712,7 +721,7 @@ export async function submit(type, v){
     const note = String(fd.get('note') || '').trim();
     rec.status = 'rejected';
     rec.rejectReason = t(String(fd.get('reason'))) + (note ? ' · '+note : '');
-    sysMsg(p, t('{month} dekontu reddedildi: {reason}', { month: monthYear(key), reason: rec.rejectReason }));
+    sysMsg(p, 'payment_rejected', t('{month} dekontu reddedildi: {reason}', { month: monthYear(key), reason: rec.rejectReason }));
     save(); host.closeSheet();
     notify({ title:t('Dekont reddedildi'), body:t('Kiracıya gerekçe iletildi.'), icon:'card' });
     return true;
@@ -729,7 +738,7 @@ export async function submit(type, v){
     const name = fileName(p.name, cat, iso(t0()), p.docs.map(d => d.name), file);
     p.docs.push(Object.assign({ id:uid('d'), cat, name, at: iso(t0()), until }, note ? { note } : {}, path ? { path } : {}));
     if (cat === 'DASK poliçesi' && until) p.dask = until;
-    sysMsg(p, cat+(' '+t('yüklendi:')+' ')+name);
+    sysMsg(p, 'document_uploaded', cat+(' '+t('yüklendi:')+' ')+name);
     save(); host.closeSheet();
     notify({ title:t('Belge yüklendi'), body: cat + (until ? ' · '+fmtFull(parse(until))+(' '+t('için hatırlatma kuruldu')) : '') , icon:'doc' });
     return true;
@@ -822,9 +831,9 @@ export async function submit(type, v){
       return true;
     }
     p.tenants.push({ id:uid('t'), name, email:String(fd.get('email') || '').trim(), phone:String(fd.get('phone') || '').trim() });
-    sysMsg(p, name+(' '+t('mülke kiracı olarak eklendi')));
+    sysMsg(p, 'tenant_added', name+(' '+t('mülke kiracı olarak eklendi')));
     save(); host.closeSheet();
-    setTimeout(() => host.openSheet('davet-paylas', { pid:p.id, code:'DEMO' + String(Math.floor(Math.random() * 9000) + 1000) }), 60);
+    setTimeout(() => host.openSheet('davet-paylas', { pid:p.id, code:'DEMO' + demoDigits() }), 60);
     return true;
   }
 
@@ -836,7 +845,7 @@ export async function submit(type, v){
     r.quotes = r.quotes || [];
     r.quotes.push(q);
     logReq(r, (t('Teklif eklendi:')+' ')+q.vendor+' · '+tl(q.amount));
-    sysMsg(p, (t('Yeni usta teklifi:')+' ')+q.vendor+' ('+tl(q.amount)+') · '+r.title, r.id);
+    sysMsg(p, 'quote_added', (t('Yeni usta teklifi:')+' ')+q.vendor+' ('+tl(q.amount)+') · '+r.title, r.id);
     save(); host.closeSheet();
     return true;
   }
@@ -852,7 +861,7 @@ export async function submit(type, v){
     const name = file ? fileName(p.name, 'fatura', date, p.requests.map(x => x.invoice && x.invoice.name).filter(Boolean), file) : 'fatura';
     r.invoice = Object.assign({ amount, date, name, expenseId }, path ? { path } : {});
     logReq(r, (t('Fatura işlendi:')+' ')+tl(amount));
-    sysMsg(p, (t('Talep faturası:')+' ')+r.title+' · '+tl(amount), r.id);
+    sysMsg(p, 'invoice_added', (t('Talep faturası:')+' ')+r.title+' · '+tl(amount), r.id);
     save(); host.closeSheet();
     notify({ title:t('Fatura kaydedildi'), body: expenseId ? t('Gider defterine de işlendi.') : t('Gider defterine eklenmedi.'), icon:'doc' }, false);
     return true;
@@ -876,7 +885,7 @@ export async function submit(type, v){
       rooms: p.inspect.rooms.map(r => ({ n:r.n, note:'', shots:[], condition:'' })),
       deductions: [], tenantOk:false, landlordOk:false, refunded:null
     };
-    sysMsg(p, (t('Çıkış süreci başlatıldı ·')+' ')+fmtFull(parse(p.moveOut.date)));
+    sysMsg(p, 'moveout_started', (t('Çıkış süreci başlatıldı ·')+' ')+fmtFull(parse(p.moveOut.date)));
     save(); host.closeSheet();
     notify({ title:t('Çıkış süreci başladı'), body:t('Odaları birlikte değerlendirip kesintileri onaylayın.'), icon:'key' });
     return true;
@@ -894,7 +903,7 @@ export async function submit(type, v){
   if (type === 'refund'){
     const amount = Number(fd.get('amount')) || 0, date = String(fd.get('date'));
     p.moveOut.refunded = { amount, date };
-    sysMsg(p, (t('Depozito iadesi yapıldı:')+' ')+tl(amount));
+    sysMsg(p, 'deposit_refunded', (t('Depozito iadesi yapıldı:')+' ')+tl(amount));
     save(); host.closeSheet();
     host.celebrate({ title:t('İade kaydedildi') });
     notify({ title:t('İade kaydedildi'), body:tl(amount)+' · '+fmtFull(parse(date))+t('. Kiracıya bildirildi.'), icon:'key' });

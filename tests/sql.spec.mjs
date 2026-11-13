@@ -94,7 +94,7 @@ test('davet koduyla kiracı katılır; yabancı evi göremez', async () => {
   expect((await q(`select public.accept_invite($1) as pid`, [code.toLowerCase()]))[0].pid).toBe('p1');
   await as(T2);
   await q(`select public.accept_invite($1)`, [code2]);
-  await expect(db.query(`select public.accept_invite($1)`, [code])).rejects.toThrow(/kullanılmış/);
+  expect((await q(`select public.accept_invite($1) as pid`, [code]))[0].pid).toBeNull();   // kullanılmış davet: tek biçimli ret (hata iletisi yok)
 
   await as(T1);
   expect((await q(`select name from public.properties`)).map(r => r.name)).toEqual(['Moda']);

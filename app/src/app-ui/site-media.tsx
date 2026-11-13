@@ -1,5 +1,5 @@
 /* Site talebi ve yazışması: fotoğraf ve video ekleri.
-   MediaPicker: ek seçimi (fotoğraf, telefonda kamera, video); en çok 6 dosya, en çok 2 video, video 40 MB.
+   MediaPicker: ek seçimi (fotoğraf, telefonda kamera, video); en çok 6 dosya, en çok 2 video, video 10 MB.
    MediaList: kayıtlı eklerin gösterimi: fotoğraf küçük resim olarak, video "Videoyu oynat" ile (web'de sayfa içinde oynar,
    telefonda sistem oynatıcısı açılır). Dosyalar sitenin klasöründedir; imzalı adresle açılır. */
 import { createElement, useState } from 'react';
@@ -39,7 +39,7 @@ export function MediaPicker({ files, setFiles }: { files: Picked[]; setFiles: (f
             </Row>
           ))}
         </View>
-      ) : <Muted>{t('Fotoğraf ve video ekleyebilirsin (en çok {n} dosya, video en çok 40 MB).', { n: MAX_FILES })}</Muted>}
+      ) : <Muted>{t('Fotoğraf ve video ekleyebilirsin (en çok {n} dosya, video en çok 10 MB).', { n: MAX_FILES })}</Muted>}
     </View>
   );
 }

@@ -33,11 +33,26 @@ test('kayıt onay gerektiriyorsa form bağlantıyı anlatır; bağlantı /dogrul
 });
 
 test('onay bağlantısı oturumu açar, giriş geçişini oynatır ve kişiyi kendi paneline götürür', async ({ page }) => {
-  await page.goto(url('/dogrula#access_token=tok-ev@ornek.com&refresh_token=r&expires_in=3600&token_type=bearer&type=signup'));
+  await page.goto(url('/dogrula?code=tok-ev@ornek.com&sb_flow_id=f1'));
   await expect(page).toHaveURL(/\/uygulama$/);
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
-  expect(page.url()).not.toContain('access_token');
+  expect(page.url()).not.toContain('code=');
   expect((await db(page)).session.user.email).toBe('ev@ornek.com');
+});
+
+test('adres parçasındaki oturum jetonu (#access_token) yok sayılır: oturum açılmaz, jeton adresten silinir', async ({ page }) => {
+  await page.goto(url('/dogrula#access_token=tok-ev@ornek.com&refresh_token=r&expires_in=3600&token_type=bearer&type=signup'));
+  await expect(page.getByText('Bağlantı geçersiz').first()).toBeVisible();
+  await expect.poll(() => page.url()).not.toContain('access_token');
+  expect((await db(page)).session).toBeNull();
+});
+
+test('bağlantı isteğin yapıldığı cihazda açılmadıysa (PKCE doğrulayıcı yok) açıklama ve giriş düğmesi görünür; oturum açılmaz', async ({ page }) => {
+  await page.goto(url('/dogrula?code=noverifier'));
+  await expect(page.getByText('Bağlantıyı başka cihazda açtın').first()).toBeVisible();
+  expect((await db(page)).session).toBeNull();
+  await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await expect(page).toHaveURL(/\/giris$/);
 });
 
 test('süresi dolmuş bağlantı: açıklama ve giriş düğmesi', async ({ page }) => {

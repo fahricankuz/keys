@@ -105,16 +105,20 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await page.getByRole('button', { name: 'Duyur', exact: true }).click();
   await expect(page.getByText('Yarın 10-14 arası su kesilecek.')).toBeVisible();
 
-  // Davet bağlantısı oturumsuz açılınca kayıt formu yönetimin girdiği bilgilerle dolu gelir.
+  // Davet bağlantısı oturumsuz açılınca yalnız site, daire ve maskeli ad görünür (telefon ve e-posta sunucudan çıkmaz); kayıt formu önceden doldurulmaz.
   await page.evaluate(() => { const d = JSON.parse(localStorage.getItem('__fakedb')); d.session = null; localStorage.setItem('__fakedb', JSON.stringify(d)); });
   await page.goto(url('/katil?kod=' + code));
   await expect(page.getByText('Atakum Sitesi · A Blok No 1')).toBeVisible();
   await page.getByRole('button', { name: 'Ücretsiz hesap oluştur' }).click();
-  await expect(page.getByLabel('Ad soyad')).toHaveValue('Mehmet Kiracı');
-  await expect(page.getByLabel('E-posta')).toHaveValue('mehmet@ornek.com');
-  await expect(page.getByLabel('Telefon (isteğe bağlı)')).toHaveValue('0532 123 45 67');
+  await expect(page.getByText('M*** K***')).toBeVisible();
+  await expect(page.getByText('Bu davet bir e-posta adresine özel')).toBeVisible();
+  await expect(page.getByLabel('Ad soyad')).toHaveValue('');
+  await expect(page.getByLabel('E-posta')).toHaveValue('');
+  await expect(page.getByLabel('Telefon (isteğe bağlı)')).toHaveValue('');
   await expect(page.getByLabel('Davet kodu')).toHaveValue(code);
 
+  // Davet e-postaya bağlıdır: yönetim kişinin e-postasını bu hesabın e-postasıyla düzeltince hesap kabul edebilir.
+  await page.evaluate(() => { const d = JSON.parse(localStorage.getItem('__fakedb')); d.tables.site_residents.forEach((r) => { if (r.email === 'mehmet@ornek.com') r.email = 'kiraci@ornek.com'; }); localStorage.setItem('__fakedb', JSON.stringify(d)); });
   // 2. Kiracı: davet bağlantısıyla bağlanır; yalnız kendi dairesini görür; dekont yükler, talep açar.
   await login(page, 'kiraci@ornek.com');
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();

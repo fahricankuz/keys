@@ -26,6 +26,7 @@ import { useAuth } from '../auth/auth';
 import { useStore } from './hooks';
 import { humanError, refreshProperty, olderMessages, realtimeStatus, setActiveChat } from '../domain/backend';
 import { mySiteUnits, linkSiteUnit, unitLabel } from '../domain/site';
+import { INVITE_INPUT_MAX, normalizeInviteCode } from '../domain/invite-code';
 import { Picked, pickImages, takePhoto } from './media';
 import { preparing } from '../domain/file-prep';
 import { mediaSrc } from '../domain/backend';
@@ -235,7 +236,7 @@ function SiteLinker({ p }: { p: any }) {
         <>
           <Muted>{t('Siten anahtar kullanıyorsa yönetimden malik davet kodunu iste ve buraya gir; ardından mülkünü daireye bağla.')}</Muted>
           <Row gap={8} wrap align="flex-end">
-            <TextInput value={code} onChangeText={(v) => setCode(v.toUpperCase())} accessibilityLabel={t('Site davet kodu')} placeholder="S1234ABC" placeholderTextColor={c.muted} autoCapitalize="characters" maxLength={12}
+            <TextInput value={code} onChangeText={(v) => setCode(normalizeInviteCode(v))} accessibilityLabel={t('Site davet kodu')} placeholder="S1234ABC" placeholderTextColor={c.muted} autoCapitalize="characters" autoCorrect={false} maxLength={INVITE_INPUT_MAX}
               style={{ flexGrow: 1, flexBasis: 160, minHeight: 48, borderRadius: radius.pill, paddingHorizontal: 18, borderWidth: 1.5, borderColor: c.line, color: c.ink, fontFamily: fonts.bodyBold, letterSpacing: 1.5 }} />
             <Button title={t('Kodu gir')} disabled={!code.trim() || busy} onPress={async () => { setBusy(true); const e = await join(code); setBusy(false); setErr(e); if (!e) setCode(''); }} />
           </Row>

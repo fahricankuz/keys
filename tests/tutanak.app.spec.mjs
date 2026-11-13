@@ -11,8 +11,9 @@ test.describe.configure({ mode: 'serial', timeout: 90_000 });          // CI'da 
 test.beforeAll(async () => { test.setTimeout(300_000); await ensureDist(DIST); server = await serveDist(DIST, PORT); });
 test.afterAll(() => server && server.close());
 
-const PX = (c) => `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="${c}"/></svg>`)}`;
-const R = { red: PX('#c33'), green: PX('#3c3'), blue: PX('#33c') };
+// Belgeye yalnız png/jpeg/webp/gif görsel adresleri girer (safeFileUrl svg'yi reddeder): 1x1 png'ler.
+const PX = (c) => `data:image/png;base64,${c}`;
+const R = { red: PX('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGM4Y2wMAAMBATPEwnsTAAAAAElFTkSuQmCC'), green: PX('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGMwPmMMAAJoATO4y9g/AAAAAElFTkSuQmCC'), blue: PX('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGMwNj4DAAHPATMW+B0jAAAAAElFTkSuQmCC') };
 
 function veri(ins) {
   const d = seed();

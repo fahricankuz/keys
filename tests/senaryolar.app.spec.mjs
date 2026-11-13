@@ -67,13 +67,12 @@ test('Z4b var olmayan site davet kodu da bulunamadı der', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('Z4c kullanılmış davet: kişi uyarılır', async ({ page }) => {
+test('Z4c kullanılmış davet: sunucu yanlış kodla aynı yanıtı verir (ayırt edilmez), davet bulunamadı görünür', async ({ page }) => {
   const d = seed();
   d.tables.invites.push({ code: 'ABCD1234', property_id: 'p1', created_by: ID.landlord, accepted_by: ID.tenant });
   await seedDb(page, d);
   await page.goto(url('/katil?kod=ABCD1234'));
-  await expect(page.getByText(/kullanılmış ya da süresi dolmuş/)).toBeVisible();
-  await expect(page.getByText('Davet bulunamadı')).toHaveCount(0);
+  await expect(page.getByText('Davet bulunamadı')).toBeVisible();
 });
 
 test('Z4d sunucuya ulaşılamazsa geçerli olabilecek davet silinmez, davet sayfası kalır', async ({ page }) => {

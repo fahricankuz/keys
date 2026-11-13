@@ -21,5 +21,17 @@ export const EN_MULK = {
   'Sözleşme başı (YYYY-AA-GG)': 'Contract start (YYYY-MM-DD)',
   'Sözleşme sonu (YYYY-AA-GG)': 'Contract end (YYYY-MM-DD)',
   '{n} mülk ekli': '{n} property added||{n} properties added',
-  'Sözleşmendeki mülk adedine ulaştın. Daha fazla mülk için anahtar ekibine yaz: info@anahtar.io': 'You reached the number of properties in your contract. Write to the anahtar team for more: info@anahtar.io'
+  'Sözleşmendeki mülk adedine ulaştın. Daha fazla mülk için anahtar ekibine yaz: info@anahtar.io': 'You reached the number of properties in your contract. Write to the anahtar team for more: info@anahtar.io',
+  // Oturum ve güvenlik: PKCE bağlantı ekranları, davet kodu hatası, hesap silme, telefondaki bot doğrulaması.
+  'Bağlantıyı başka cihazda açtın': 'You opened the link on another device',
+  'Güvenliğin için bu bağlantı yalnızca isteği yaptığın cihazda ve uygulamada ya da tarayıcıda çalışır. Bağlantıyı orada aç. E-postanı zaten doğruladıysan giriş yaparak devam edebilirsin.': 'For your security this link only works on the device, and in the app or browser, where you made the request. Open it there. If you have already verified your email, you can sign in to continue.',
+  'Güvenliğin için şifre yenileme bağlantısı yalnızca isteği yaptığın cihazda ve uygulamada ya da tarayıcıda çalışır. Bağlantıyı orada aç ya da buradan yeni bir bağlantı iste.': 'For your security the password reset link only works on the device, and in the app or browser, where you made the request. Open it there, or request a new link from here.',
+  'Bu davet kodu geçerli değil: yanlış yazılmış, kullanılmış ya da süresi dolmuş olabilir. Davet edenden yeni kod iste.': 'This invite code is not valid: it may be mistyped, already used or expired. Ask the person who invited you for a new code.',
+  'Hesap silinemedi': 'Could not delete the account',
+  'Güvenlik doğrulaması': 'Security check',
+  'Güvenlik doğrulaması yüklenemedi. Bağlantını kontrol edip yeniden dene.': 'The security check could not load. Check your connection and try again.',
+  'Bu davet bir e-posta adresine özel: davet edilen e-postayla kayıt ol ya da giriş yap.': 'This invite is tied to one email address: sign up or sign in with the invited email.',
+  'Dosya türü desteklenmiyor': 'File type not supported',
+  'Fotoğraf (jpeg, png, webp, heic) ya da PDF seç.': 'Choose a photo (jpeg, png, webp, heic) or a PDF.',
+  'Günlük başvuru sınırına ulaştın. Yarın yeniden dene.': 'You have reached the daily request limit. Try again tomorrow.'
 };

@@ -49,6 +49,7 @@ test('kiracının değişiklikleri doğru tablolara, doğru biçimde gider', () 
   after.pay['2026-02'] = { status:'review', date:'2026-02-03', amount:30000, receipt:'subat.jpg', photo:'sb:p1/s.jpg' };
   after.msgs.push({ id:'m2', from:'tenant', by:T, text:'Dekont yüklendi', at:Date.parse('2026-02-03T10:00:00Z') });
   after.msgs.push({ id:'m3', from:'system', text:'Şubat kirası için dekont yüklendi', at:Date.parse('2026-02-03T10:00:01Z') });
+  after.msgs.push({ id:'m4', from:'system', text:'Kalıba uymayan eski metin', at:Date.parse('2026-02-03T10:00:02Z') });
   after.requests[0].status = 3;
   after.rent = 99999;                         // kiracı kirayı değiştiremez
   after.expenses.push({ id:'e2', cat:'x', amount:1, date:'2026-02-01', note:'' });
@@ -61,8 +62,17 @@ test('kiracının değişiklikleri doğru tablolara, doğru biçimde gider', () 
   const pay = ops.find(o => o.table === 'payments');
   expect(pay.rows).toEqual([expect.objectContaining({ month:'2026-02', status:'review', receipt_path:'p1/s.jpg' })]);
 
-  const msgs = ops.find(o => o.table === 'messages');
-  expect(msgs.rows.map(r => [r.id, r.from_role, r.by_user])).toEqual([['m2', 'tenant', T], ['m3', 'system', T]]);
+  const msgs = ops.find(o => o.table === 'messages' && o.kind === 'insert');
+  expect(msgs.rows.map(r => [r.id, r.from_role, r.by_user])).toEqual([['m2', 'tenant', T]]);
+  // Sistem mesajı tabloya yazılmaz; türü metinden bulunur ve post_system_message ile gider.
+  const sys = ops.find(o => o.kind === 'rpc');
+  expect(sys).toMatchObject({ table:'messages', fn:'post_system_message' });
+  expect(sys.calls).toEqual([{ p_property:'p1', p_kind:'payment_uploaded', p_payload:expect.objectContaining({ id:'m3', text:'Şubat kirası için dekont yüklendi' }) }]);   // türü bulunamayan (m4) işlevle gitmez
+  // Sunucuda post_system_message yoksa (site migration'dan önce yayına çıkar) eski satır biçimi yazılır: from_role 'system', çağıranın kimliği (system-message.js → writeSystemMessages).
+  expect(sys.fallbackRows).toEqual([
+    { id:'m3', property_id:'p1', from_role:'system', by_user:T, body:'Şubat kirası için dekont yüklendi', at:'2026-02-03T10:00:01.000Z', image_path:null },
+    { id:'m4', property_id:'p1', from_role:'system', by_user:T, body:'Kalıba uymayan eski metin', at:'2026-02-03T10:00:02.000Z', image_path:null }
+  ]);
 
   expect(ops.find(o => o.table === 'requests').rows[0]).toMatchObject({ id:'r1', status:3 });
 });

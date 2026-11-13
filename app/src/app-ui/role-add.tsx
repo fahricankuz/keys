@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../auth/auth';
 import { t } from '../domain/i18n';
 import { CONFIG } from '../domain/config';
+import { INVITE_INPUT_MAX, normalizeInviteCode } from '../domain/invite-code';
 import { Button, Field, PressScale, Text } from '../ui/kit';
 import { fonts, radius, useColors } from '../ui/theme';
 import { Label, Muted, Row, Stack } from './blocks';
@@ -58,7 +59,7 @@ export function RoleAddSheet({ close }: { close: () => void }) {
         <Label>{t('Kiracı ya da site sakini')}</Label>
         <Text v="body" style={{ fontFamily: fonts.bodyXBold }}>{t('Davet kodum var')}</Text>
         <Muted>{t('Kiraladığın evin mülk sahibinden ya da oturduğun sitenin yönetiminden aldığın kodu gir. Başka bir siteye ya da daireye bağlanmak için de yeni kodu buradan girersin.')}</Muted>
-        <Field label={t('Davet kodu')} value={code} onChangeText={(v) => { setCode(v.toUpperCase()); setErr(null); }} autoCapitalize="characters" maxLength={12} onSubmitEditing={useCode} error={err} />
+        <Field label={t('Davet kodu')} value={code} onChangeText={(v) => { setCode(normalizeInviteCode(v)); setErr(null); }} autoCapitalize="characters" autoCorrect={false} maxLength={INVITE_INPUT_MAX} onSubmitEditing={useCode} error={err} />
         {ok ? <Text v="small" color={c.okInk} accessibilityLiveRegion="polite">{ok}</Text> : null}
         <Button title={t('Kodla bağlan')} onPress={useCode} loading={busy === 'code'} disabled={!code.trim()} />
       </View>

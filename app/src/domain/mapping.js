@@ -5,6 +5,8 @@
    normalleştirilmiş tablolara dağılır. Kaydederken önceki ve sonraki hal
    karşılaştırılır; yalnızca değişen satırlar yazılır. */
 
+import { kindOfText } from './system-message.js';
+
 const num = v => v == null || v === '' ? null : Number(v);
 const ms = v => v == null ? null : (typeof v === 'number' ? v : Date.parse(v));
 const isoTs = v => v == null ? null : new Date(v).toISOString();
@@ -219,10 +221,20 @@ export function diffProperty(before, after, ctx){
 
   // Mesajlar: yalnızca yeni olanlar eklenir, düzenleme yok.
   const known = new Set((b.msgs || []).map(m => m.id));
-  const newMsgs = (after.msgs || []).filter(m => m.id && !known.has(m.id) && (m.from === role || m.from === 'system'));
+  const fresh = (after.msgs || []).filter(m => m.id && !known.has(m.id));
+  const newMsgs = fresh.filter(m => m.from === role);
   // Mesaj kimliği cihazda üretilir; eşitleme yarıda kesilip yeniden denenirse aynı mesaj ikinci kez gelir. Zaten varsa atlanır
   // (önceden "messages_pkey" çakışmasıyla o mülkün eşitlemesi her denemede takılıyordu).
   if (newMsgs.length) ops.push({ table:'messages', kind:'insert', ignoreDuplicates:true, rows:newMsgs.map(m => messageRow(pid, m, meId)) });
+  // Sistem mesajları (olay satırları) tabloya doğrudan yazılmaz: post_system_message işlevi üyeliği, türü ve metin kalıbını denetler
+  // ve satırı çağıranın kimliğiyle yazar. Türü yazılmamış (eski sürümden kalan) mesajın türü metinden bulunur; bulunamazsa işlevle gönderilmez.
+  // Sunucuda işlev yoksa (site migration'dan önce yayına çıkar) system-message.js → writeSystemMessages fallbackRows'u eski biçimde
+  // (from_role = 'system', doğrudan insert) yazar; bu yüzden eski istemcinin yazacağı satırlar burada hazır taşınır.
+  const sysAll = fresh.filter(m => m.from === 'system');
+  const sys = sysAll.map(m => ({ m, kind:m.kind || kindOfText(m.text) })).filter(x => x.kind);
+  if (sysAll.length) ops.push({ table:'messages', kind:'rpc', fn:'post_system_message', calls:sys.map(({ m, kind }) => ({
+    p_property:pid, p_kind:kind, p_payload:clean({ id:m.id, text:m.text || '', at:isoTs(m.at), req:m.req || undefined }) })),
+    fallbackRows:sysAll.map(m => messageRow(pid, m, meId)) });
 
   // Belgeler.
   collection(ops, 'documents', b.docs, after.docs, d => d.id, d => documentRow(pid, d), true);

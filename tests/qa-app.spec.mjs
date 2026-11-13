@@ -512,11 +512,17 @@ test('üst menü sırası; çözümlerde tek "Mülk sahibi"; eski /cozumler/port
   await expect(page).toHaveURL(/\/cozumler\/mulk-sahibi/);
 });
 
-test('e-posta onay bağlantısı (eski biçim, ana sayfaya #access_token ile dönen) oturumu açıp panele geçer, jeton adreste kalmaz', async ({ page }) => {
-  await page.goto(url('/#access_token=tok-kiraci@ornek.com&expires_in=3600&refresh_token=abc&token_type=bearer&type=signup'));
+test('e-posta onay bağlantısı: PKCE kodu /dogrula sayfasında oturumu açıp panele geçer; eski biçim (#access_token) yok sayılır ve adresten silinir', async ({ page }) => {
+  await page.goto(url('/dogrula?code=tok-kiraci@ornek.com'));
   await expect(page).toHaveURL(/\/uygulama$/);
   await expect(page.getByText('Moda Dairesi').first()).toBeVisible();
-  expect(page.url()).not.toContain('access_token');
+  expect(page.url()).not.toContain('code=');
+  expect((await db(page)).session.user.email).toBe('kiraci@ornek.com');
+  await page.evaluate(() => { const d = JSON.parse(localStorage.getItem('__fakedb')); d.session = null; localStorage.setItem('__fakedb', JSON.stringify(d)); });
+  await page.goto(url('/#access_token=tok-kiraci@ornek.com&expires_in=3600&refresh_token=abc&token_type=bearer&type=signup'));
+  await expect.poll(() => page.url()).not.toContain('access_token');
+  await expect(page).not.toHaveURL(/\/uygulama$/);
+  expect((await db(page)).session).toBeNull();
 });
 
 test('kira artış hesaplayıcı: kira ve oranla yeni kirayı hesaplar; sözleşme oranı düşükse onu uygular', async ({ page }) => {

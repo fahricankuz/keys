@@ -97,8 +97,18 @@ export function match(hay, q){ return norm(hay).includes(norm(q)); }
 /** Ekran okuyucu bildirimi: RN'de erişilebilirlik katmanı üstlenir. */
 export function announce(){}
 
-/** Çakışmasız kimlik: sunucuda birincil anahtar olarak da kullanılır. */
+/** Güvenli rastgele baytlar: tarayıcıda Web Crypto, Hermes'te (Web Crypto yok) expo-crypto. Math.random kimlik ya da jeton üretmez. */
+function randomBytes(n){
+  const c = globalThis.crypto;
+  if (c && c.getRandomValues) return c.getRandomValues(new Uint8Array(n));
+  return require('expo-crypto').getRandomBytes(n);
+}
+
+/** Çakışmasız kimlik: sunucuda birincil anahtar olarak da kullanılır (UUID v4 biçimi, kriptografik rastgelelik). */
 export function uid(prefix = ''){
   if (globalThis.crypto && crypto.randomUUID) return prefix + crypto.randomUUID();
-  return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+  const b = randomBytes(16);
+  b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  return prefix + h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
 }
