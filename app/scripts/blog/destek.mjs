@@ -1,5 +1,12 @@
 // Destek merkezi (public/destek/index.html). build.mjs ortak üst çubuk ve alt bilgiyle üretir.
 const MAIL = 'info@anahtar.io';
+/** Şirket kimliği: Devredin'in yayımlanmış yasal metinleriyle aynı değerler (gizlilik, kosullar, hesap-silme sayfalarıyla tutarlı olmalı). */
+const COMPANY = {
+  legalName: 'DEVREDİN BİLGİ TEKNOLOJİLERİ YAZILIM VE TİCARET ANONİM ŞİRKETİ',
+  mersis: '0295131795100001', registry: '1072030', taxOffice: 'Beyoğlu Vergi Dairesi', taxNo: '2951317951',
+  address: 'Şehit Muhtar Mah. Mis Sk. No:24 İç Kapı No:28 Kat:5 Beyoğlu/İstanbul 34435',
+  kep: 'devredin@hs01.kep.tr', phone: '+90 544 957 44 74'
+};
 const mail = (subject) => `mailto:${MAIL}?subject=${encodeURIComponent(subject)}`;
 const ICON = {
   user: '<path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M4 21a8 8 0 0 1 16 0"/>',
@@ -72,6 +79,14 @@ ${qs.map(([q, a]) => `<details><summary>${q}</summary><p>${a}</p></details>`).jo
 
 <section class="contact"><div><h2>Hâlâ yardıma mı ihtiyacın var?</h2><p>Bize yaz; sorununu birlikte çözelim.</p></div>
 <div class="row" style="margin:0"><a class="btn light" href="mailto:${MAIL}">${MAIL}</a><a class="btn ghost" style="color:#FAF5F0;box-shadow:inset 0 0 0 1.5px #FAF5F0" href="/giris">Uygulamaya giriş yap</a></div></section>
+
+<section id="sirket"><h2>Şirket bilgileri</h2>
+<div class="card"><b>${COMPANY.legalName}</b><br>
+anahtar: Kira Yönetimi uygulamasının ve anahtar.io’nun işletmecisi, yayıncısı ve kişisel verilerin veri sorumlusudur.<br>
+MERSİS: ${COMPANY.mersis} · Ticaret sicil no: ${COMPANY.registry} · ${COMPANY.taxOffice}, ${COMPANY.taxNo}<br>
+Adres: ${COMPANY.address}<br>
+KEP: ${COMPANY.kep} · Telefon: ${COMPANY.phone} · E-posta: <a href="mailto:${MAIL}">${MAIL}</a><br>
+<a href="/gizlilik/">Gizlilik ve KVKK</a> · <a href="/kosullar/">Kullanım koşulları</a> · <a href="/hesap-silme/">Hesap silme</a></div></section>
 </main>
 ${foot()}
 </body>
