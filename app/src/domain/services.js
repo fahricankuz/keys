@@ -433,7 +433,7 @@ export const A = {
         (e.includeW ? '' : ' — '+t('beyan sınırının altında, beyana eklenmez')) : '') +
       (e.diger.gross ? '\n'+t('İşyeri kira geliri (stopajsız)')+': '+tl(e.diger.gross) : '') +
       ('\n'+t('Toplam belgeli gider:')+' ')+tl(yn.exp) +
-      (e.konut.gross ? ('\n'+t('İstisna ('))+e.rates.year+'): '+(ui.noExemption ? t('uygulanmıyor') : tl(e.istisna)) : '') +
+      (e.konut.gross ? ('\n'+t('İstisna ('))+e.rates.year+'): '+(ui.noExemption || e.overLimit ? t('uygulanmıyor') : tl(e.istisna)) : '') +
       (e.belowExemption ? ('\n\n'+t('Bu yıl için kira geliri beyanı gerekmeyebilir.')) :
         '\n'+t('Beyana giren gelir')+': '+tl(e.declared) +
         (e.credit ? '\n'+t('Mahsup edilecek stopaj')+': '+tl(e.credit) : '') +

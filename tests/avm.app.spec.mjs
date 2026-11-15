@@ -105,17 +105,18 @@ test('AVM: mağaza ve sözleşme, döviz kira tahakkuku, ciro bildirimi ve fark�
   await expect(page.getByText('Ciron yönetime iletildi.')).toBeVisible();
 
   // Yönetim: ciroyu onaylar → 1.200.000 × %8 = 96.000; sabit kira 2.000 × 34 = 68.000; fark 28.000.
+  // Fark da kiradır: KDV'li sözleşmede tahakkuk %20 KDV ile 33.600.
   await login(page, 'ev@ornek.com');
   await expect(page).toHaveURL(/\/uygulama\/site$/);            // kurum yöneticisi girişte kendi panelinde açılır
   await page.goto(url('/uygulama/site'));
   await expect(page.getByText('%100').first()).toBeVisible();          // doluluk: 1 / 1 birim
   await page.getByRole('link', { name: 'Ciro', exact: true }).first().click();
   await page.getByLabel('USD kuru (₺)').fill('34');
-  await expect(page.getByText('Ciro farkı: ₺28.000')).toBeVisible();
+  await expect(page.getByText('Ciro farkı: ₺28.000 · KDV dahil tahakkuk ₺33.600')).toBeVisible();
   await page.getByRole('button', { name: 'Onayla', exact: true }).click();
   await expect.poll(async () => (await db(page)).tables.site_turnovers[0].status).toBe('approved');
   d = await db(page);
-  expect(d.tables.site_charges.find(x => x.kind === 'ciro')).toMatchObject({ month: prev, amount: 28000 });
+  expect(d.tables.site_charges.find(x => x.kind === 'ciro')).toMatchObject({ month: prev, amount: 33600 });
   expect(d.tables.site_turnovers[0].status).toBe('approved');
 
   // Kira artışı: sabit %25 → 2.500 USD.

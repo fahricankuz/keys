@@ -267,12 +267,23 @@ export function yearIncome(){
     let s = 0;
     Object.keys(p.pay).forEach(k => {
       const rec = p.pay[k];
-      if (k.startsWith(y) && (rec.status === 'approved' || rec.status === 'partial')) s += Number(rec.amount) || 0;
+      if (incomeYear(k, rec) === y && (rec.status === 'approved' || rec.status === 'partial')) s += Number(rec.amount) || 0;
     });
     per[id] = s;
     total += s;
   });
   return { per, total, year:y };
+}
+
+/**
+ * Kira tahsilatının vergi yılı (GVK md. 72, tahsil esası): kira tahsil edildiği yılın geliridir; ait olduğu yıldan sonra
+ * ödenen kira (ör. Aralık kirası Ocak'ta) ödendiği yıla yazılır. Gelecek yıla ait peşin kira ise ait olduğu yılın geliridir.
+ * Ödeme tarihi yoksa (eski kayıt) ait olduğu ay esas alınır.
+ */
+export function incomeYear(key, rec){
+  const due = String(key).slice(0, 4);
+  const paid = /^\d{4}-/.test(String(rec?.date || '')) ? String(rec.date).slice(0, 4) : '';
+  return paid && paid > due ? paid : due;
 }
 
 /**
@@ -287,7 +298,7 @@ export function yearNumbers(year, ids = S.order){
     let received = 0, gross = 0, withheld = 0;
     Object.keys(p.pay).forEach(k => {
       const rec = p.pay[k];
-      if (!k.startsWith(y) || !(rec.status === 'approved' || rec.status === 'partial')) return;
+      if (incomeYear(k, rec) !== y || !(rec.status === 'approved' || rec.status === 'partial')) return;
       const amount = Number(rec.amount) || 0;
       const g = grossOf(p, k, amount);
       received += amount; gross += g.gross; withheld += g.withheld;
@@ -339,7 +350,7 @@ export function dataYears(ids = S.order){
   const ys = new Set([String(new Date().getFullYear())]);
   ids.forEach(id => {
     const p = P(id);
-    Object.keys(p.pay).forEach(k => ys.add(k.slice(0, 4)));
+    Object.keys(p.pay).forEach(k => ys.add(incomeYear(k, p.pay[k])));
     (p.expenses || []).forEach(e => ys.add(String(e.date).slice(0, 4)));
   });
   return [...ys].sort().reverse();

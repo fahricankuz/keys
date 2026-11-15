@@ -93,6 +93,7 @@ function LeaseForm({ u, oid, done }: { u: any; oid: string; done: () => void }) 
         <Pill label={t('KDV eklenir (%20)')} on={f.vat} onPress={() => setF({ ...f, vat: !f.vat, stopaj: false })} />
         <Pill label={t('Kiracı stopaj keser (%20)')} on={f.stopaj} onPress={() => setF({ ...f, stopaj: !f.stopaj, vat: false })} />
       </Row>
+      <Muted>{t('Kiraya veren şirketse (AVM şirketi, GYO, KDV mükellefi) kiraya KDV eklenir, stopaj kesilmez. Stopaj yalnız kiraya veren gerçek kişiyse (birimin maliki şahıs) ve kiracı şirket ya da esnafsa kesilir.')}</Muted>
       <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{t('Depozito')}</Text>
       {!dep ? <Button kind="ghost" title={t('Depozito ekle')} onPress={() => setDep(true)} style={{ alignSelf: 'flex-start' }} /> : (
         <Stack gap={10}>

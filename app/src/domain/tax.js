@@ -10,6 +10,8 @@
       bu oranını keser ve vergi dairesine kendisi öder; mülk sahibine net tutar geçer.
    6. beyanSiniri: GVK md. 86/1-c — stopajı kesilmiş işyeri kira gelirinin
       toplamı bu tutarı aşmıyorsa beyana eklenmez (kesilen stopaj nihai vergidir).
+   7. istisnaSiniri: GVK md. 21/2 — ücret, menkul ve gayrimenkul sermaye iratlarının (kira dahil) gayrisafi
+      toplamı GVK md. 103 ÜCRET tarifesinin üçüncü dilim tutarını aşanlar konut istisnasından yararlanamaz.
    Kaynak: Gelir İdaresi Başkanlığı (gib.gov.tr) yıllık rehberleri.
 
    Bir yılın verisi yoksa en yakın önceki yıl kullanılır ve ekranda
@@ -22,6 +24,7 @@ export const RATES = {
     goturu: 0.15,
     stopaj: 0.20,
     beyanSiniri: 150000,
+    istisnaSiniri: 550000,
     brackets: [[70000, 0.15], [150000, 0.20], [370000, 0.27], [1900000, 0.35], [Infinity, 0.40]]
   },
   2024: {
@@ -29,6 +32,7 @@ export const RATES = {
     goturu: 0.15,
     stopaj: 0.20,
     beyanSiniri: 230000,
+    istisnaSiniri: 870000,
     brackets: [[110000, 0.15], [230000, 0.20], [580000, 0.27], [3000000, 0.35], [Infinity, 0.40]]
   },
   2025: {
@@ -36,6 +40,7 @@ export const RATES = {
     goturu: 0.15,
     stopaj: 0.20,
     beyanSiniri: 330000,
+    istisnaSiniri: 1200000,
     brackets: [[158000, 0.15], [330000, 0.20], [800000, 0.27], [4300000, 0.35], [Infinity, 0.40]]
   },
   // 332 sıra no.lu Gelir Vergisi Genel Tebliği (RG 31.12.2025): yeniden değerleme oranı %25,49.
@@ -44,6 +49,7 @@ export const RATES = {
     goturu: 0.15,
     stopaj: 0.20,
     beyanSiniri: 400000,
+    istisnaSiniri: 1500000,
     brackets: [[190000, 0.15], [400000, 0.20], [1000000, 0.27], [5300000, 0.35], [Infinity, 0.40]]
   }
 };
@@ -76,6 +82,7 @@ export function stopajRate(year){ return ratesFor(year).stopaj; }
  *   konut   — istisna uygulanır (kiracı stopaj kestiyse o stopaj mahsup edilir)
  *   stopajli — stopajı kesilmiş işyeri kirası; beyan sınırını aşmazsa beyana girmez
  *   diger   — stopajsız işyeri kirası (kiracı şahıs); ilk liradan beyana girer
+ * Kira gelirinin (konut + işyeri) gayrisafi toplamı istisna sınırını aşarsa konut istisnası uygulanmaz (GVK 21/2).
  * Götürü ve gerçek gider yöntemleri karşılaştırılır; kesilen stopaj hesaplanan
  * vergiden düşülür, fazlası iade olarak görünür (payable < 0).
  *
@@ -87,7 +94,9 @@ export function estimate(inc, o){
   const z = { gross:0, withheld:0, exp:0 };
   const K = Object.assign({}, z, inc.konut), W = Object.assign({}, z, inc.stopajli), N = Object.assign({}, z, inc.diger);
 
-  const istisna = o.noExemption ? 0 : r.istisna;
+  // Uygulamanın bildiği kira gelirleri toplamı istisna sınırını aşıyorsa istisna kendiliğinden kalkar (başka gelirler için: noExemption).
+  const overLimit = K.gross + W.gross + N.gross > r.istisnaSiniri;
+  const istisna = o.noExemption || overLimit ? 0 : r.istisna;
   const konutTaxable = Math.max(0, K.gross - istisna);
   const includeW = W.gross > r.beyanSiniri;
   const needed = konutTaxable > 0 || N.gross > 0 || includeW;
@@ -97,6 +106,8 @@ export function estimate(inc, o){
   const konutAllowed = K.gross ? Math.round(K.exp * (konutTaxable / K.gross)) : 0;
   const allowed = konutAllowed + N.exp + (includeW ? W.exp : 0);
   const credit = (konutTaxable > 0 ? K.withheld : 0) + (includeW ? W.withheld : 0);
+  // Konut geliri istisnanın altında kaldığı için beyana girmeyen ama kiracının (şirket) stopaj kestiği tutar: mahsup edilmez.
+  const konutWithheldNotCredited = konutTaxable > 0 ? 0 : K.withheld;
 
   const method = base => {
     const tax = progressive(base, r.brackets);
@@ -106,7 +117,7 @@ export function estimate(inc, o){
   const gercek = Object.assign(method(Math.max(0, declared - allowed)), { allowed });
 
   return {
-    rates:r, istisna, needed, belowExemption: !needed,
+    rates:r, istisna, overLimit, konutWithheldNotCredited, needed, belowExemption: !needed,
     konut:K, stopajli:W, diger:N, konutTaxable, includeW, declared, credit,
     goturu, gercek, best: gercek.payable < goturu.payable ? 'gercek' : 'goturu'
   };
