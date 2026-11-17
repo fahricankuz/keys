@@ -52,7 +52,7 @@ Names and roles only. Passwords and 2FA devices are with the owners; agents neve
 | Cloudflare (devredin account) | Devredin | | Browser console by Erdem; Turnstile secret key in Supabase Auth settings |
 | Hostinger | Erdem (verify) | Mailbox `info@anahtar.io` has its own owner | Browser console by Erdem |
 
-Branch rules: **no rulesets and no environment reviewers** on GitHub (owner decision). The rule is process-based: changes go through PRs to `main`, nobody pushes to `main`, merges only on Erdem's explicit go ([AGENTS.md](../AGENTS.md) section 4.1).
+Branch rules: **no rulesets and no environment reviewers** on GitHub (owner decision). The rule is process-based: changes go through PRs to `main`, nobody pushes to `main`, CI must be green, and the owners merge their own PRs (decided 2026-11-17).
 
 ## 3. GitHub
 

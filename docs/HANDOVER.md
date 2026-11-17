@@ -13,7 +13,7 @@
 1. Read in this order: **this file** → [`AGENTS.md`](../AGENTS.md) (rules, how to run and test, approval matrix) →
    [`CLAUDE.md`](../CLAUDE.md) (owners' Turkish rules: migrations, release, commits) → [`docs/README.md`](README.md) (index of every doc).
 2. **Talk to the owners in Turkish**, in plain language. They are partly non-technical. Prove every claim (command + output, PR link).
-3. **You do not merge.** Open a PR into `main` and stop. Erdem (DevirVentures, he runs the release) merges. The owners agreed not to merge.
+3. **The owners merge their own work** (decided 2026-11-17). Open a PR into `main`; when CI is green an owner merges it (or tells you to). Erdem no longer reviews or merges routine PRs.
 4. **Release 1.0.0 is in flight from Erdem's session** (section 4). Until this file says the store submissions are done:
    do **not** start EAS builds, store submissions, OTA updates, migrations, Edge Function deploys or production data changes.
    Opening PRs is fine.
@@ -67,7 +67,7 @@
 - Sentry in the **EU** region. No session replay, no analytics, no cookies today (any analytics needs a KVKK/consent decision first).
 - Universal links for `/katil`, `/dogrula`, `/yeni-sifre`. Native push yes, SMS no.
 - **Manual release** after store approval. Age rating 4+ (no 18+ override). Available in all countries; subscriptions in all countries with store-converted prices.
-- **No branch protection rules** on GitHub (owner decision); the rule is process: PRs only, Erdem merges.
+- **No branch protection rules** on GitHub (owner decision); the rule is process: PRs only, CI green, an owner merges.
 
 ---
 
@@ -123,7 +123,7 @@ Until both stores approve, still **no** new store builds, submissions or OTA wit
 - **P1-6/7/8** internal links to `/cozumler/*`, slash-consistent hrefs, truthful sitemap `lastmod`, blog template with sources and publisher line.
 
 ### 5.5 P2: housekeeping
-- Dependabot **#105, #106, #108**: review and test; Erdem merges. No major-version jumps.
+- Dependabot **#105, #106, #108**: review and test; an owner merges. No major-version jumps.
 - `docs/test.md` mentions `tests/i18n.spec.mjs`, which does not exist (English checks are in `tests/app-admin.spec.mjs`, `tests/paketler.spec.mjs`).
 - `docs/guvenlik.md`, `docs/yol-haritasi.md`, `docs/magaza.md` are being updated by the native-fix PR (no CAPTCHA on phones). Check after it merges.
 
@@ -203,3 +203,4 @@ End-to-end test accounts (production, seeded data, notification e-mails off): `t
 | 2026-11-13 22:45 | First version: launch-day state, in-flight release steps, critical items (SEO, security, store), traps, ownership |
 | 2026-11-14 00:15 | Handover back to owners: iOS + 36 subscriptions in App Review; Android 1.0.0 (4) in Google review with managed publishing; Play catalog (36 plans) + RevenueCat (72 products) done; store scripts (#120) and test accounts (#121) |
 | 2026-11-14 00:30 | Play API write permission for `eas-submit` fixed (convertRegionPrices 200) |
+| 2026-11-17 | Owners now merge their own PRs (Erdem's decision); merge rules updated in AGENTS.md, HANDOVER.md, release-and-ota.md, infrastructure.md |

@@ -68,7 +68,7 @@ Publisher: DevirVentures; data controller: Devredin A.S. Store id `io.anahtar.ap
 
 - **PRs only.** No direct push to `main`. Branch names: `fix/…`, `feat/…`, `chore/…`, `docs/…`. Open the PR against `main` as **ready** (not draft).
 - **Never** `git push --force`, rewrite published history (`amend`, `rebase` of pushed commits, `reset --hard`), or delete someone else's branch.
-- **Merge only with Erdem's explicit "merge" in his current message.** Green CI is not approval. Never merge another person's PR.
+- **The repo owners merge their own PRs** (decided 2026-11-17). Merge only when an owner asks for it in their current message and CI is green. Green CI alone is not approval. Never merge another person's PR on your own initiative.
 - Stage **only the files you changed**, by name (no `git add -A`). The repo is shared with other agents and people.
 - Accumulate small commits locally and **push once** (every push re-runs CI, ~15 min).
 - No `--no-verify`; satisfy the hook.
@@ -153,7 +153,7 @@ Details: [docs/magaza.md](docs/magaza.md). Submitting for review and releasing a
 
 | What | Flow | Details |
 |---|---|---|
-| Web | PR → CI green → Erdem says "merge" → `hostinger.yml` (tests → build → `site` branch) → Hostinger publishes | [release-and-ota.md](docs/release-and-ota.md) section 1 |
+| Web | PR → CI green → an owner merges → `hostinger.yml` (tests → build → `site` branch) → Hostinger publishes | [release-and-ota.md](docs/release-and-ota.md) section 1 |
 | Edge Function | Secrets → `supabase functions deploy` (manual) | section 2 |
 | Migration | staging plan → apply → production plan → apply (Actions) | section 3 |
 | Secret rotation | Vault + `supabase secrets set` together | section 4 |
