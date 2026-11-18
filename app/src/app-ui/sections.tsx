@@ -67,16 +67,16 @@ export function RentHero({ p }: { p: any }) {
     if (['pending', 'late', 'rejected'].includes(per.status)) action = <Button kind="primary" block title={t('Dekont yükle')} icon={<Icon name="doc" size={16} color="#fff" />} onPress={() => open('odeme', { pid, key })} />;
     else if (per.status === 'partial') action = <Button kind="primary" block title={`${t('Kalan')} ${tl(remaining(p, key))} ${t('için dekont yükle')}`} onPress={() => open('odeme', { pid, key })} />;
     else if (per.status === 'review') action = <Button kind="onDark" block title={t('Yüklediğin dekontu gör')} onPress={() => open('dekont', { pid, key })} />;
-  }
-  // Mülk sahibi IBAN eklediyse kiracı havale bilgilerini (IBAN, alıcı, tutar, açıklama kodu) kopyalayabilir.
-  const transfer = ui.role === 'tenant' && p.bankIban && ['pending', 'late', 'rejected', 'partial'].includes(per.status)
-    ? <Button kind="onDark" block title={t('Havale / EFT bilgileri')} onPress={() => open('havale', { pid, key })} /> : null; else if (per.status === 'review') {
+  } else if (per.status === 'review') {
     action = can(pid, 'decide')
       ? <Row><Button kind="onDark" title={t('Dekontu gör')} onPress={() => open('dekont', { pid, key })} style={{ flex: 1 }} /><Button title={t('Onayla')} onPress={() => act('approvePay', { pid, key })} style={{ flex: 1 }} /></Row>
       : <Button kind="onDark" block title={t('Dekontu gör')} onPress={() => open('dekont', { pid, key })} />;
   } else if ((per.status === 'late' || per.status === 'partial') && can(pid, 'message')) {
     action = <Button kind="primary" block title={t('Nazik hatırlatma gönder')} onPress={() => act('nudge', { pid })} />;
   }
+  // Mülk sahibi IBAN eklediyse kiracı havale bilgilerini (IBAN, alıcı, tutar, açıklama kodu) kopyalayabilir.
+  const transfer = ui.role === 'tenant' && p.bankIban && ['pending', 'late', 'rejected', 'partial'].includes(per.status)
+    ? <Button kind="onDark" block title={t('Havale / EFT bilgileri')} onPress={() => open('havale', { pid, key })} /> : null;
   return (
     <Hero>
       <Row between align="flex-start">
