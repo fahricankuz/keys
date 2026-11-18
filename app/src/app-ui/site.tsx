@@ -31,6 +31,7 @@ import { useStore } from './hooks';
 import { Picked } from './media';
 import { host } from '../domain/host';
 import { Pill } from './org';
+import { Contracts } from './site-contracts';
 import { Page } from './screens';
 import { Meetings, ResidentMeetings } from './site-meetings';
 import { CurrencySwitch, FxNote, RevenueChart, useFx, useReportCurrency } from './fx-ui';
@@ -52,7 +53,7 @@ const CURS: [string, string][] = [['TRY', '₺ TL'], ['USD', '$ USD'], ['EUR', '
 /** Bu ekranın açıldığı kurum türleri: site yönetimi ve ticari portföy (AVM, depo, GYO). */
 export { PORTFOLIO_SECTORS };
 /** Kurum paneli bölümlerinin adresleri (/uygulama/site/<bölüm>); menü org.js → sectorSections. */
-export const SECTION_KEYS = ['ozet', 'birimler', 'tahakkuk', 'ciro', 'artis', 'giderler', 'butce', 'duyurular', 'genelkurul', 'projeler', 'belgeler', 'talepler', 'rapor', 'yatirimci'];
+export const SECTION_KEYS = ['ozet', 'birimler', 'tahakkuk', 'ciro', 'artis', 'giderler', 'sozlesmeler', 'butce', 'duyurular', 'genelkurul', 'projeler', 'belgeler', 'talepler', 'rapor', 'yatirimci'];
 export const sectionPath = (k: string) => (k === 'ozet' ? '/uygulama/site' : '/uygulama/site/' + k);
 /** Kişinin yönettiği sektör kurumu (birden çoksa seçili olan). */
 export function currentPortfolioOrg() {
@@ -857,6 +858,7 @@ export function SiteAdminScreen({ section: sec = 'ozet' }: { section?: string })
                 : { month: String(x.spent_on).slice(0, 7), kind: 'ozel', title: String(x.note || x.cat).slice(0, 120), mode: 'share', value: x.amount };   // başlık: açıklama, yoksa kategori
               go('tahakkuk');
             } : undefined} />}
+          {cur.key === 'sozlesmeler' && <Contracts oid={org.id} can={can} />}
           {cur.key === 'rapor' && <Report d={d} org={org.name} />}
           {cur.key === 'yatirimci' && <InvestorReport d={d} org={org} />}
           {cur.key === 'duyurular' && <Notes d={d} oid={org.id} can={can} reload={load} />}

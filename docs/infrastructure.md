@@ -136,6 +136,7 @@ Check live: `select jobname, schedule from cron.job order by jobname;` (14 jobs 
 | `anahtar-site-recurring` | `15 6 * * *` | recurring site expenses | `duzenli_gider_seffaflik` |
 | `anahtar-site-late` | `0 6 * * 1` | weekly late-payment digest | `odeyen_ve_bildirim_ayarlari` |
 | `anahtar-crm-reminders` | `30 6 * * *` | `crm_reminders()` | `crm` |
+| `anahtar-site-contracts` | `10 6 * * *` | `site_contract_reminders()` | `site_sozlesmeler` |
 | `anahtar-log-prune` | `15 0 * * *` | `prune_logs()` (90-day retention) | `uygulama_loglari` |
 
 Cron and webhook calls never contain a secret: they call `public.anahtar_call(...)` / `public.anahtar_webhook(...)`, which read the Vault entry **at call time**.

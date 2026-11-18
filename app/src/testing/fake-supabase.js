@@ -10,7 +10,7 @@ const TABLES = ['profiles','properties','property_shared','memberships','invites
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
                 'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes','site_documents','site_investor_notes','mail_outbox','site_cash','site_recurring_expenses',
-                'site_projects','site_project_updates','site_request_messages','site_project_costs',
+                'site_projects','site_project_updates','site_request_messages','site_project_costs','site_contracts',
                 'app_config','fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_costs','admin_revenue_months','crm_leads','crm_notes','admin_emails'];
 
 function load(){
@@ -53,6 +53,7 @@ function defaults(table, row, db){
   if (table === 'site_residents'){ r.code = r.code || 'S' + Math.random().toString(16).slice(2, 9).toUpperCase().padEnd(7, '0'); r.user_id = r.user_id || null; r.lives_here = r.lives_here !== false; }
   if (table === 'site_budgets'){ r.updated_at = now(); }
   if (table === 'site_turnovers'){ r.status = r.status || 'reported'; r.reported_by = r.reported_by || db.session?.user.id || null; }
+  if (table === 'site_contracts'){ r.id = r.id || uuid(); r.created_at = r.created_at || now(); r.kind = r.kind || 'diger'; r.period = r.period || 'yillik'; r.phone = r.phone || ''; r.note = r.note || ''; r.remind_days = r.remind_days || [30, 15, 7]; }
   if (table === 'site_units'){ r.payer = r.payer || 'kiraci'; r.block = r.block || ''; r.currency = r.currency || 'TRY'; r.index_kind = r.index_kind || 'tufe'; r.vat = !!r.vat; r.stopaj = !!r.stopaj; }
   if (table === 'site_charges'){ r.status = r.status || 'open'; r.paid_amount = r.paid_amount || 0; r.title = r.title || ''; r.method = r.method || 'dekont'; r.currency = r.currency || 'TRY'; }
   if (table === 'site_requests'){ r.status = r.status || 0; r.reply = r.reply || ''; }
