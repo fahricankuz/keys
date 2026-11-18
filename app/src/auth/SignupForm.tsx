@@ -5,6 +5,8 @@ import AuthShell from './AuthShell';
 import SignedIn from './SignedIn';
 import { keepInvite, pendingInvite, pendingPrefill, Role, useAuth } from './auth';
 import { Captcha } from './captcha';
+import PasswordRules from './PasswordRules';
+import { pwProblem, pwReady } from '../domain/sifre';
 import { CONFIG } from '../domain/config';
 import { INVITE_INPUT_MAX, inviteCodeFromInput, normalizeInviteCode } from '../domain/invite-code';
 import { t } from '../domain/i18n';
@@ -51,7 +53,7 @@ export default function SignupForm({ role, site = false }: { role: Role; site?: 
   const needCode = role === 'tenant' && live;
 
   const submit = async () => {
-    if (pw && pw2 !== pw) { setErr(t('Şifreler aynı değil.')); return; }
+    const pwBad = pwProblem(pw, pw2); if (pwBad) { setErr(pwBad); return; }
     if (needCode && !code.trim()) { setErr(site ? t('Davet kodunu gir. Kodu site yönetimin verir.') : t('Davet kodunu gir. Kodu mülk sahibin ya da site yönetimin verir.')); return; }
     if (!consent) { setErr(t('Devam etmek için koşulları kabul etmelisin.')); return; }
     if (withCode && code.trim()) keepInvite(code);
@@ -73,8 +75,9 @@ export default function SignupForm({ role, site = false }: { role: Role; site?: 
       <Field label={t('Ad soyad')} value={name} onChangeText={setName} autoComplete="name" maxLength={60} />
       <Field label={t('E-posta')} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
       {role === 'tenant' ? <Field label={t('Telefon (isteğe bağlı)')} value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" maxLength={30} /> : null}
-      <Field label={t('Şifre')} value={pw} onChangeText={setPw} secureTextEntry autoComplete="new-password" hint={t('En az 8 karakter.')} />
+      <Field label={t('Şifre')} value={pw} onChangeText={setPw} secureTextEntry autoComplete="new-password" />
       <Field label={t('Şifre (tekrar)')} value={pw2} onChangeText={setPw2} secureTextEntry autoComplete="new-password" />
+      <PasswordRules pw={pw} pw2={pw2} />
       {withCode ? (
         <Field
           label={team ? t('Ekip davet kodu (isteğe bağlı)') : needCode ? t('Davet kodu') : t('Davet kodu (isteğe bağlı)')}
@@ -101,7 +104,7 @@ export default function SignupForm({ role, site = false }: { role: Role; site?: 
       {info ? <Text v="small" color={c.okInk}>{info}</Text> : null}
       {team && !live ? <Text v="small" muted>{t('Ekip hesapları yalnızca sunucuya bağlı kurulumda açılır.')}</Text> : null}
       <Captcha />
-      <Button kind="primary" block title={landlord ? t('1 ay ücretsiz başla') : t('Hesap oluştur')} onPress={submit} loading={busy} />
+      <Button kind="primary" block title={landlord ? t('1 ay ücretsiz başla') : t('Hesap oluştur')} onPress={submit} loading={busy} disabled={!pwReady(pw, pw2)} />
       <PressScale onPress={() => router.replace('/kayit')} accessibilityRole="link"><Text v="small" muted>{t('Başka bir rolle mi kayıt olacaksın? Seçeneklere dön')}</Text></PressScale>
     </AuthShell>
   );

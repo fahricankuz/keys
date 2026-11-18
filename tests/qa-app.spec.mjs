@@ -415,6 +415,8 @@ test('ayarlar: yan menüden açılır; ad/telefon kaydedilir, e-posta onayla de�
 
   await page.getByLabel('Mevcut şifre').fill('yanlis-sifre');
   await page.getByLabel('Yeni şifre').fill('yepyeni-sifre-9');
+  await expect(page.getByRole('button', { name: 'Şifreyi değiştir' })).toBeDisabled();   // tekrar alanı boşken kapalı
+  await page.getByLabel('Şifre (tekrar)').fill('yepyeni-sifre-9');
   await page.getByRole('button', { name: 'Şifreyi değiştir' }).click();
   await expect(page.getByText('Mevcut şifren yanlış.')).toBeVisible();
   await page.getByLabel('Mevcut şifre').fill(PW);
