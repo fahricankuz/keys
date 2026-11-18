@@ -1751,4 +1751,16 @@ export const EN_EXTRA = {
   'Site ya da portföy yöneticisi': 'Site or portfolio manager',
   'Kurumsal başvuru yap; onaylanınca kurumun açılır': 'Apply for a corporate plan; your organization is set up once approved',
   'Mülk sahibi, kiracı ya da site sakini rolü ekle': 'Add a landlord, tenant or resident role',
+  // Bloğu toplu yeniden adlandırma (site-units.tsx, site.js → renameBlock)
+  'Bloğu yeniden adlandır': 'Rename block',
+  'Bu bölümü yeniden adlandır': 'Rename this section',
+  'Yeni blok adı': 'New block name',
+  'Yeni bölüm adı': 'New section name',
+  '{n} {w} birlikte güncellenir.': '{n} {w} will be updated together.',
+  'Görünüm: {x}': 'Preview: {x}',
+  '{n} {w} güncellendi.': '{n} {w} updated.',
+  'Yeni blok adını yaz.': 'Enter the new block name.',
+  'Blok adı en fazla 40 karakter olabilir.': 'The block name can be at most 40 characters.',
+  'Yeni ad eskisiyle aynı.': 'The new name is the same as the old one.',
+  'Bu adla bir blok zaten var. Başka bir ad seç.': 'A block with this name already exists. Choose a different name.',
 };

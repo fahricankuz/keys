@@ -4,6 +4,7 @@
    Sunucu kuralları: supabase/schema.sql 17. bölüm (RLS ve guard_site_charges). */
 
 import { t } from './i18n.js';
+import { blockTitle } from './blok.js';
 import { logCaught } from './logs.js';
 import { client, live, storeFile, inviteLink, inviteRejected } from './backend.js';
 import { waLink } from './wa.js';
@@ -53,7 +54,7 @@ export const MODES = (sector) => (isCommercial(sector) ? [
 /** Birim etiketi: sitede "A Blok No 3" (villada "Villa 3"), ticaride "Zemin kat · Z-12" (schema.sql → unit_label ile aynı). */
 export const unitLabel = (u) => (isCommercial(u.sector)
   ? (u.block ? u.block + ' · ' : '') + u.no
-  : (u.block ? u.block + ' ' + t('Blok') + ' ' : '') + (/^\d/.test(String(u.no)) ? t('No') + ' ' : '') + u.no);
+  : (u.block ? blockTitle(u.block) + ' ' : '') + (/^\d/.test(String(u.no)) ? t('No') + ' ' : '') + u.no);
 /** Kurum içi arama (yönetici paneli): daire (blok/no/malik/kiracı), talep, duyuru. d: loadSiteAdmin verisi; go: bölüm adresi. Sonuç ≤ 24. */
 export function siteSearch(d, q, sectionPath){
   const k = String(q || '').trim();
@@ -258,6 +259,18 @@ export async function saveUnit(oid, u){
     index_rate: numOrNull(u.index_rate), vat: !!u.vat, stopaj: !u.vat && !!u.stopaj, due_day: numOrNull(u.due_day), ...depositRow(u) };
   if (u.id) return must(await c.from('site_units').update(row).eq('id', u.id));
   return must(await c.from('site_units').insert(row).select().single());
+}
+/** Bloğu toplu yeniden adlandırır: kurumdaki o bloğun bütün birimleri tek sorguda (tek işlem) güncellenir.
+    Aynı adla başka bir blok varsa birleştirmez, hata verir (aynı daire numarası çakışabilir). Dönen: güncellenen birim sayısı. */
+export async function renameBlock(oid, from, to, existing){
+  from = String(from ?? ''); to = String(to || '').trim();
+  if (!to) throw new Error(t('Yeni blok adını yaz.'));
+  if (to.length > 40) throw new Error(t('Blok adı en fazla 40 karakter olabilir.'));
+  if (to === from) throw new Error(t('Yeni ad eskisiyle aynı.'));
+  if ((existing || []).some((x) => x !== from && String(x).trim().toLocaleLowerCase('tr') === to.toLocaleLowerCase('tr'))) throw new Error(t('Bu adla bir blok zaten var. Başka bir ad seç.'));
+  const c = await db();
+  const rows = must(await c.from('site_units').update({ block: to }).eq('org_id', oid).eq('block', from).select('id'));
+  return (rows || []).length;
 }
 /** Depozito alanları (migration depozito_otomatik_kira): yalnız depozito girilmişse ya da önceden varsa yazılır; böylece
     migration'dan önce yayınlanan sürüm eski veritabanında sözleşme kaydederken hata vermez. */
