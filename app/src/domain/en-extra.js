@@ -1860,4 +1860,7 @@ export const EN_EXTRA = {
   'Kart tahsilatı aktarımı': 'Card settlement',
   'Zaten kayıtlı (dekont ya da elle işlenmiş)': 'Already recorded (receipt or by hand)',
   'Aynı tutar ve tarihte kayıtlı ödeme var': 'A recorded payment has the same amount and date',
+  // Ekstre: bireysel mülk sahibi
+  'kira': 'rent',
+  'Bankadan indirdiğin hesap hareketlerini (Excel ya da CSV) yükle; gelen kira ödemeleri mülkün açıklama koduna ve kiracının adına göre eşleşir. Onaylamadan hiçbir ödeme işlenmez; dosya sunucuya gönderilmez.': 'Upload the account transactions you downloaded from your bank (Excel or CSV); incoming rent payments are matched by the property’s reference code and the tenant’s name. Nothing is recorded until you approve, and the file is not sent to the server.',
 };

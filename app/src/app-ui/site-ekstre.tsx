@@ -5,7 +5,12 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { t } from '../domain/i18n';
-import { humanError } from '../domain/backend';
+import { humanError, loadAll } from '../domain/backend';
+import { LIVE } from '../domain/config';
+import { P } from '../domain/logic';
+import { applyRentTxn, rentSource, seenRentTxns } from '../domain/rent-ekstre';
+import { S } from '../domain/state';
+import { can } from '../domain/team';
 import { readTable } from '../domain/importer';
 import { bankOf, findHeader, incoming, matchTxns } from '../domain/ekstre';
 import { applyBankTxn, kindLabel, seenBankTxns, unitLabel } from '../domain/site';
@@ -14,6 +19,7 @@ import { Button, Chip, Text } from '../ui/kit';
 import { fonts, useColors } from '../ui/theme';
 import { Card, H2, Muted, Note, Row } from './blocks';
 import { pickTable } from './media';
+import { useStore } from './hooks';
 import { Pill } from './org';
 
 type Header = { row: number; map: Record<string, number> };
@@ -205,5 +211,21 @@ export function BankImport({ d, oid, reload }: { d: any; oid: string; reload: ()
     <StatementImport source={{ units: d.units, residents: d.residents, charges: d.charges, target }} reload={reload}
       seen={(fps) => seenBankTxns(oid, fps)} apply={(m, bank) => applyBankTxn(oid, m, bank)}
       lead={t('Bankadan indirdiğin hesap hareketlerini (Excel ya da CSV) yükle; gelen ödemeler dairelerin açıklama koduna ve adına göre eşleşir. Onaylamadan hiçbir ödeme işlenmez; dosya sunucuya gönderilmez.')} />
+  );
+}
+
+/** Bireysel mülk sahibi (ve karar yetkili emlakçı): Portföy ekranında, bütün mülkler için tek ekstre. */
+export function RentStatementImport() {
+  useStore();
+  const ids = S.order.filter((id: string) => can(id, 'decide'));
+  const props = ids.map((id: string) => P(id)).filter(Boolean);
+  const src = rentSource(props);
+  const name = Object.fromEntries(props.map((p: any) => [p.id, p.name]));
+  const target = (m: any) => (m.unit ? name[m.unit.id] || '' : '')
+    + (m.parts.length ? ' · ' + m.parts.map((x: any) => monthYear(x.charge.month) + ' ' + (x.charge.kind === 'aidat' ? t('aidat') : t('kira'))).join(', ') : '');
+  if (!LIVE || !props.length) return null;
+  return (
+    <StatementImport source={{ ...src, target }} seen={seenRentTxns} apply={applyRentTxn} reload={() => { loadAll({ force: true }).catch(() => {}); }}
+      lead={t('Bankadan indirdiğin hesap hareketlerini (Excel ya da CSV) yükle; gelen kira ödemeleri mülkün açıklama koduna ve kiracının adına göre eşleşir. Onaylamadan hiçbir ödeme işlenmez; dosya sunucuya gönderilmez.')} />
   );
 }
