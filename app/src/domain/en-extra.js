@@ -25,7 +25,7 @@ export const EN_EXTRA = {
   'Konut, ofis, mağaza ve depo': 'Home, office, shop and warehouse',
   'E-posta ya da şifre yanlış.': 'Email or password is wrong.',
   'Bağlantı kurulamadı. Biraz sonra yeniden dene.': 'Could not connect. Try again shortly.',
-  'Adını, e-postanı ve en az 8 karakterli bir şifre gir.': 'Enter your name, email and a password of at least 8 characters.',
+  'Adını ve e-postanı gir.': 'Enter your name and email.',
   'Hesap oluşturulamadı: {m}': 'Could not create the account: {m}',
   'E-posta adresini yaz.': 'Enter your email address.',
   'Yerel hesap modunda şifre sıfırlanamaz. Sunucu kurulunca e-posta ile sıfırlanır.': 'Passwords cannot be reset in local account mode. Once the server is set up, reset by email.',
@@ -1763,4 +1763,10 @@ export const EN_EXTRA = {
   'Blok adı en fazla 40 karakter olabilir.': 'The block name can be at most 40 characters.',
   'Yeni ad eskisiyle aynı.': 'The new name is the same as the old one.',
   'Bu adla bir blok zaten var. Başka bir ad seç.': 'A block with this name already exists. Choose a different name.',
+  // Şifre kuralları (PasswordRules, domain/sifre.js)
+  'İki şifre aynı': 'Both passwords match',
+  'Yaygın ya da daha önce sızmış şifreler kabul edilmez (ör. 12345678, sifre123).': 'Common or previously leaked passwords are not accepted (e.g. 12345678, password123).',
+  'Bu şifre çok yaygın ya da daha önce internette sızan şifreler arasında. Başka bir şifre seç.': 'This password is too common or has appeared in a data leak. Choose a different password.',
+  'Şifre gereken karakter türlerini içermiyor. Başka bir şifre seç.': 'The password is missing a required character type. Choose a different password.',
+  'Bu şifre yeterince güçlü değil. Başka bir şifre seç.': 'This password is not strong enough. Choose a different password.',
 };

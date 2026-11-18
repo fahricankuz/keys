@@ -21,6 +21,8 @@ import { TeamInviteSheet, TeamShareSheet, TeamMemberSheet } from './team';
 import { toApp } from '../domain/nav';
 import { tl, fmtFull, monthYear, parse, iso, t0, ago } from '../domain/util';
 import { Button, Chip, Field, PressScale, Text } from '../ui/kit';
+import PasswordRules from '../auth/PasswordRules';
+import { pwReady } from '../domain/sifre';
 import { fonts, radius, useColors } from '../ui/theme';
 import { Card, H2, Icon, IconBtn, Items, KV, Label, LI, List, Muted, Note, Row, Seg, Stack, Thumbs, Empty, FileLink, DownloadLink, ReviewChip } from './blocks';
 import { Actions, Area, Choice, DateField, FileField, MoneyField, NumField, Text2, Title, Toggle, useVals } from './forms';
@@ -129,6 +131,7 @@ function ProfileForm() {
   const [email, setEmail] = useState('');
   const [cur, setCur] = useState('');
   const [next, setNext] = useState('');
+  const [next2, setNext2] = useState('');
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState<Record<string, { ok: boolean; text: string }>>({});
   const run = async (k: string, fn: () => Promise<string | null>, ok: string, after?: () => void) => {
@@ -161,10 +164,12 @@ function ProfileForm() {
       <Card gap={14}>
         <H2>{t('Şifre')}</H2>
         <Field label={t('Mevcut şifre')} value={cur} onChangeText={setCur} secureTextEntry autoComplete="current-password" />
-        <Field label={t('Yeni şifre')} hint={t('En az 8 karakter')} value={next} onChangeText={setNext} secureTextEntry autoComplete="new-password" />
+        <Field label={t('Yeni şifre')} value={next} onChangeText={setNext} secureTextEntry autoComplete="new-password" />
+        <Field label={t('Şifre (tekrar)')} value={next2} onChangeText={setNext2} secureTextEntry autoComplete="new-password" />
+        <PasswordRules pw={next} pw2={next2} />
         <Out k="sifre" />
-        <Button kind="ghost" title={t('Şifreyi değiştir')} loading={busy === 'sifre'} disabled={!cur || !next}
-          onPress={() => run('sifre', () => changePassword(cur, next), t('Şifren değişti.'), () => { setCur(''); setNext(''); })} />
+        <Button kind="ghost" title={t('Şifreyi değiştir')} loading={busy === 'sifre'} disabled={!cur || !pwReady(next, next2)}
+          onPress={() => run('sifre', () => changePassword(cur, next), t('Şifren değişti.'), () => { setCur(''); setNext(''); setNext2(''); })} />
       </Card>
     </Stack>
   );
