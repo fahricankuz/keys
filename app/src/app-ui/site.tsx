@@ -12,7 +12,7 @@ import {
   saveResident, deleteResident, createCharges, deleteCharge, decideCharge, markPaid, addExpense, deleteExpense, announce, deleteAnnouncement,
   answerRequest, mySiteUnits, loadMySite, payCharge, openSiteRequest, loadUnitCharges, budgetTotal, budgetAidat, saveBudget,
   applyBudgetAidat, loadBudgets, siteReport, unitPays, payerText, depositKindLabel, cashbook, saveCash, SITE_EXPENSE_CATS, saveRecurring, setRecurringActive, deleteRecurring, setCashSharing, loadCashSummary, isCommercial, overdue, occupancy, ciroDiff, reportTurnover, loadTurnovers, decideTurnover,
-  dueIncreases, applyIncrease, rentCharge, nextAuto, saveAuto, cardReady, cardTotal, uploadSiteDoc, deleteSiteDoc, loadSiteDocs
+  dueIncreases, applyIncrease, rentCharge, nextAuto, saveAuto, cardReady, cardTotal, uploadSiteDoc, deleteSiteDoc, loadSiteDocs, loadOrgBank, saveOrgBank
 } from '../domain/site';
 import { loadRates } from '../domain/cpi';
 import { terms, sectorOf } from '../domain/org';
@@ -31,6 +31,8 @@ import { useStore } from './hooks';
 import { Picked } from './media';
 import { host } from '../domain/host';
 import { Pill } from './org';
+import TransferInfo from './TransferInfo';
+import { formatIban, validIban } from '../domain/iban';
 import { Page } from './screens';
 import { Meetings, ResidentMeetings } from './site-meetings';
 import { CurrencySwitch, FxNote, RevenueChart, useFx, useReportCurrency } from './fx-ui';
@@ -137,6 +139,51 @@ function ChargeRow({ x, unit, can, reload, row, first }: { x: any; unit: any; ca
 
 /** Otomatik aidat: ayın seçilen gününde dairelerin aylık aidatı kendiliğinden tahakkuk edilir (schema.sql 29. bölüm). */
 /** Aylık aidat kira gibi otomatiktir: her dairenin aidatı her ay kendiliğinden yazılır; yönetici yalnız son ödeme gününü seçer. */
+/** Banka hesabı: sakin ve kiracılar "Havale / EFT bilgileri" ekranında IBAN'ı, alıcı adını ve dairenin açıklama kodunu kopyalar. */
+function BankCard({ oid, commercial }: { oid: string; commercial: boolean }) {
+  const [bank, setBank] = useState<{ name: string; iban: string; holder: string } | null | undefined>(undefined);
+  const [iban, setIban] = useState('');
+  const [holder, setHolder] = useState('');
+  const [edit, setEdit] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = () => loadOrgBank(oid).then((b) => { setBank(b); if (b) { setIban(b.iban ? formatIban(b.iban) : ''); setHolder(b.holder); } }).catch(() => setBank(null));
+  useEffect(() => { load(); }, [oid]);
+  if (!bank) return null;   // yükleniyor ya da sunucuda henüz yok (migration öncesi)
+  const save = async () => {
+    setErr(null);
+    if (iban.trim() && !validIban(iban)) { setErr(t('IBAN geçersiz. TR ile başlayan 26 karakteri kontrol et.')); return; }
+    setBusy(true);
+    try { await saveOrgBank(oid, iban, holder); setEdit(false); await load(); } catch (e) { setErr(humanError(e)); }
+    setBusy(false);
+  };
+  return (
+    <Card gap={10}>
+      <H2>{t('Banka hesabı')}</H2>
+      {!edit ? (
+        <>
+          {bank.iban
+            ? <Muted>{(bank.holder || bank.name) + ' · ' + formatIban(bank.iban)}</Muted>
+            : <Note warn>{commercial ? t('IBAN ekle: kiracılar kirayı havaleyle öderken IBAN’ı, alıcı adını ve açıklama kodunu tek dokunuşla kopyalasın.') : t('IBAN ekle: sakinler aidatı havaleyle öderken IBAN’ı, alıcı adını ve açıklama kodunu tek dokunuşla kopyalasın.')}</Note>}
+          <Button kind="ghost" style={{ alignSelf: 'flex-start' }} title={bank.iban ? t('Banka hesabını düzenle') : t('IBAN ekle')} onPress={() => setEdit(true)} />
+        </>
+      ) : (
+        <>
+          <Field label="IBAN" value={iban} onChangeText={setIban} autoCapitalize="characters" maxLength={34} placeholder="TR00 0000 0000 0000 0000 0000 00" />
+          <Field label={t('Alıcı adı (hesap sahibi)')} value={holder} onChangeText={setHolder} maxLength={120} placeholder={bank.name}
+            hint={t('Boş bırakırsan kurum adı gösterilir.')} />
+          <Muted>{t('Her dairenin kendi açıklama kodu vardır; ödeme yapan bu kodu açıklamaya yazar, ödeme kolayca tanınır.')}</Muted>
+          <Err e={err} />
+          <Row wrap>
+            <Button title={t('Kaydet')} loading={busy} onPress={save} />
+            <Button kind="ghost" title={t('Vazgeç')} onPress={() => { setEdit(false); setErr(null); setIban(bank.iban ? formatIban(bank.iban) : ''); setHolder(bank.holder); }} />
+          </Row>
+        </>
+      )}
+    </Card>
+  );
+}
+
 function AutoAidat({ d, oid, can, reload }: { d: any; oid: string; can: (p: string) => boolean; reload: () => void }) {
   const c = useColors();
   const a = d.auto;
@@ -254,6 +301,7 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
   return (
     <Stack>
       {(!commercial && (d.modules || []).includes('aidat')) || (commercial && (d.modules || []).includes('kira')) ? <AutoAidat d={d} oid={oid} can={can} reload={reload} /> : null}
+      {can('org.settings') ? <BankCard oid={oid} commercial={commercial} /> : null}
       {can('charges.manage') && !commercial && !extra ? (
         <Row wrap gap={8}>
           <Button kind="ghost" title={t('Ek ödeme iste')} onPress={() => setExtra(true)} />
@@ -915,9 +963,11 @@ function PayCharge({ x, done }: { x: any; done: () => void }) {
   );
 }
 
-function MyCharge({ x, payer, reload, site = true }: { x: any; payer: boolean; reload: () => void; site?: boolean }) {
+function MyCharge({ x, payer, reload, site = true, unit }: { x: any; payer: boolean; reload: () => void; site?: boolean; unit?: any }) {
   const c = useColors();
   const [paying, setPaying] = useState(false);
+  const [transfer, setTransfer] = useState(false);
+  const canPay = payer && ['open', 'partial', 'rejected'].includes(x.status);
   // Gecikme tazminatı (KMK md. 20) yalnızca sitede; ticari sözleşmede gecikme yalnızca durumla gösterilir.
   const fee = site ? lateFee(x) : 0;
   const late = overdue(x);
@@ -931,8 +981,13 @@ function MyCharge({ x, payer, reload, site = true }: { x: any; payer: boolean; r
         </View>
         <StatusChip st={stOf(x)} />
       </Row>
-      {payer && ['open', 'partial', 'rejected'].includes(x.status) && !paying
-        ? <Button kind={late ? 'primary' : 'ghost'} title={t('Dekont yükle')} onPress={() => setPaying(true)} style={{ alignSelf: 'flex-start' }} /> : null}
+      {canPay && !paying ? (
+        <Row wrap>
+          <Button kind={late ? 'primary' : 'ghost'} title={t('Dekont yükle')} onPress={() => setPaying(true)} />
+          {unit?.bank_iban ? <Button kind="ghost" title={transfer ? t('Havale bilgilerini gizle') : t('Havale / EFT bilgileri')} onPress={() => setTransfer(!transfer)} /> : null}
+        </Row>
+      ) : null}
+      {canPay && transfer && unit?.bank_iban ? <TransferInfo iban={unit.bank_iban} holder={unit.bank_holder || unit.org} amount={unpaidOf(x)} code={unit.pay_code} /> : null}
       {paying ? <PayCharge x={x} done={() => { setPaying(false); reload(); }} /> : null}
     </View>
   );
@@ -959,7 +1014,7 @@ export function SiteUnitCharges({ unitId }: { unitId: string }) {
         </View>
         <View style={{ alignItems: 'flex-end' }}><Muted>{t('Ödenmemiş')}</Muted><Text v="h3" color={due ? c.badInk : c.okInk}>{tl(due)}</Text></View>
       </Row>
-      {!list ? <Spin /> : list.length ? <View>{list.slice(0, 6).map((x) => <MyCharge key={x.id} x={x} payer={payer} reload={load} site={!isCommercial(u.sector)} />)}</View> : <Muted>{t('Ödeme kaydı yok.')}</Muted>}
+      {!list ? <Spin /> : list.length ? <View>{list.slice(0, 6).map((x) => <MyCharge key={x.id} x={x} payer={payer} reload={load} site={!isCommercial(u.sector)} unit={u} />)}</View> : <Muted>{t('Ödeme kaydı yok.')}</Muted>}
     </Stack>
   );
 }
@@ -1077,7 +1132,7 @@ export function ResidentSiteScreen({ part = 'all' }: { part?: ResidentPart }) {
             {!payer ? <Muted>{u.role === 'malik'
               ? t('Aidatı kiracın öder; dairenin aidat durumunu buradan izleyebilirsin.')
               : t('Aidatı malik öder. Sana aidat yazılırsa aşağıdaki talep formundan yönetime bildirebilirsin.')}</Muted> : null}
-            {!d ? <Spin /> : mine.length ? <View>{mine.map((x: any) => <MyCharge key={x.id} x={x} payer={payer} reload={load} site={!isCommercial(u.sector)} />)}</View>
+            {!d ? <Spin /> : mine.length ? <View>{mine.map((x: any) => <MyCharge key={x.id} x={x} payer={payer} reload={load} site={!isCommercial(u.sector)} unit={u} />)}</View>
               : <Muted>{part === 'home' && all.length ? t('Bekleyen ödemen yok.') : t('Ödeme kaydı yok.')}</Muted>}
             {part === 'home' && all.length ? <Button kind="ghost" title={t('Tüm ödemeler')} onPress={() => router.push('/uygulama/odemeler' as any)} /> : null}
             {show('pay') && isCommercial(u.sector) && Number(u.turnover_rate) > 0 && u.role === 'kiraci' ? <TurnoverBox u={u} /> : null}

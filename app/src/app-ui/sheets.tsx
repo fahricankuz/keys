@@ -13,6 +13,8 @@ import { P, period, statusOf, remaining, ST, reminders, rentAt, expectedAt, move
 import { t, LANGS, getLang } from '../domain/i18n';
 import { CONFIG, LIVE } from '../domain/config';
 import { inviteLink, mediaSrc, sendInviteMail, humanError } from '../domain/backend';
+import { formatIban, validIban } from '../domain/iban';
+import TransferInfo from './TransferInfo';
 import { act, submit } from '../domain/services';
 import { access, trialDaysLeft, planLabel, unitsText, unitLimit, hasFeature, maxUnits, ownedCount, roomFor } from '../domain/billing';
 import { useBillingPaused } from '../domain/app-config';
@@ -585,6 +587,23 @@ function InvoiceSheet({ pid, id, close }: { pid?: string; id: string; close: () 
 
 /* ---------------- ödeme ---------------- */
 
+/** Kiracı: kiranın Havale / EFT bilgileri (mülk sahibinin girdiği IBAN ve alıcı adı, kalan tutar, mülkün açıklama kodu). */
+function TransferSheet({ pid, k, close }: { pid?: string; k: string; close: () => void }) {
+  useStore();
+  const { open } = useSheet();
+  const p = propOf(pid);
+  if (!p?.bankIban) return <Stack><Title>{t('Havale / EFT bilgileri')}</Title><Muted>{t('Mülk sahibin henüz IBAN eklemedi.')}</Muted><Button block title={t('Kapat')} onPress={close} /></Stack>;
+  return (
+    <Stack>
+      <Title>{t('Havale / EFT bilgileri')}</Title>
+      <Muted>{t('{m} kirası için aşağıdaki bilgileri banka uygulamana kopyala.', { m: monthYear(k) })}</Muted>
+      <TransferInfo iban={p.bankIban} holder={p.bankHolder || p.landlord?.name || ''} amount={remaining(p, k)} code={p.payCode} />
+      <Button block title={t('Ödedim, dekont yükle')} onPress={() => { close(); open('odeme', { pid: p.id, key: k }); }} />
+      <Button kind="quiet" block title={t('Kapat')} onPress={close} />
+    </Stack>
+  );
+}
+
 function ReceiptSheet({ pid, k, kind, close }: { pid?: string; k: string; kind?: string; close: () => void }) {
   useStore();
   const { open } = useSheet();
@@ -752,7 +771,8 @@ function EditPropSheet({ pid, close }: { pid?: string; close: () => void }) {
     name: p.name, address: p.address || { ...emptyAddress(), note: p.addr || '' }, type: p.type, area: p.area ? String(p.area) : '', rent: String(p.rent), due: String(p.dueDay),
     tenantKind: p.company ? TENANT_KINDS[1] : TENANT_KINDS[0], coName: p.company?.name || '', coTaxNo: p.company?.taxNo || '', coTaxOffice: p.company?.taxOffice || '', stopaj: !p.company || p.stopaj,
     aidat: String(p.aidat), aidatPayer: p.aidatPayer, depositKind: p.depositKind || 'Nakit', deposit: String(p.deposit), depositNote: p.depositNote || '',
-    value: p.value ? String(p.value) : '', contractEnd: p.contractEnd, dask: p.dask || ''
+    value: p.value ? String(p.value) : '', contractEnd: p.contractEnd, dask: p.dask || '',
+    bankIban: p.bankIban ? formatIban(p.bankIban) : '', bankHolder: p.bankHolder || ''
   });
   return (
     <Stack>
@@ -768,13 +788,16 @@ function EditPropSheet({ pid, close }: { pid?: string; close: () => void }) {
       <Choice label={t('Depozito türü')} options={DEPOSIT_KINDS} v={v} set={set} k="depositKind" render={t} />
       <NumField label={t('Depozito (₺)')} v={v} set={set} k="deposit" />
       <Text2 label={t('Depozito notu')} v={v} set={set} k="depositNote" maxLength={120} placeholder={t('Ör. banka, mektup tutarı ve vadesi')} />
+      <Text2 label={t('Kiranın yatacağı IBAN')} v={v} set={set} k="bankIban" maxLength={34} placeholder="TR00 0000 0000 0000 0000 0000 00"
+        hint={t('Kiracın "Havale / EFT bilgileri" ekranında IBAN’ı, alıcı adını ve açıklama kodunu kopyalayabilir.')} />
+      <Text2 label={t('Alıcı adı (hesap sahibi)')} v={v} set={set} k="bankHolder" maxLength={120} placeholder={p.landlord?.name || ''} />
       <NumField label={t('Tahmini değer (₺)')} v={v} set={set} k="value" hint={t('İsteğe bağlı')} />
       <Muted>{t('Kira tutarını değiştirirsen bugünden geçerli yeni bir dönem olarak kira geçmişine eklenir. Değer, net getiri oranı için kullanılır.')}</Muted>
       <DateField label={t('Sözleşme bitişi')} v={v} set={set} k="contractEnd" />
       <DateField label={isCommercial(p) ? t('DASK bitişi (varsa)') : t('DASK bitişi')} v={v} set={set} k="dask" />
       {isCommercial(p) ? <Muted>{t('DASK yalnızca konutta zorunludur. İşyeri sigortasını Belgeler’e bitiş tarihiyle yüklersen hatırlatma kurulur.')}</Muted> : null}
       {areaErr ? <Text v="small" color="#A8231F">{areaErr}</Text> : null}
-      <Actions onCancel={close} submitLabel={t('Kaydet')} onSubmit={() => { if (!(Number(String(v.area).replace(',', '.')) > 0)) { setAreaErr(t('Alanı (m²) yaz.')); return; } submit('editProp', { ...v, pid: p.id }); }} />
+      <Actions onCancel={close} submitLabel={t('Kaydet')} onSubmit={() => { if (!(Number(String(v.area).replace(',', '.')) > 0)) { setAreaErr(t('Alanı (m²) yaz.')); return; } if (String(v.bankIban || '').trim() && !validIban(v.bankIban)) { setAreaErr(t('IBAN geçersiz. TR ile başlayan 26 karakteri kontrol et.')); return; } submit('editProp', { ...v, pid: p.id }); }} />
       {S.order.length > 1 ? <Button kind="quiet" block title={t('Bu mülkü kaldır')} onPress={() => act('removeProp', { pid: p.id })} /> : null}
     </Stack>
   );
@@ -1139,6 +1162,7 @@ export function renderSheet(name: string, p: any, close: () => void): ReactNode 
     case 'fatura': return <InvoiceSheet pid={p.pid} id={p.id} close={close} />;
     case 'dekont': return <ReceiptSheet pid={p.pid} k={p.key} kind={p.kind} close={close} />;
     case 'odeme': return <PayFormSheet pid={p.pid} k={p.key} kind={p.kind} close={close} />;
+    case 'havale': return <TransferSheet pid={p.pid} k={p.key} close={close} />;
     case 'red': return <RejectSheet pid={p.pid} k={p.key} kind={p.kind} close={close} />;
     case 'yenileme': return <RenewalSheet pid={p.pid} close={close} />;
     case 'ev-ekle': return <AddPropGate close={close} />;

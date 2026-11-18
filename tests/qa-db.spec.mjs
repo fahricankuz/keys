@@ -57,7 +57,7 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
     // submit_lead → herkese açık kurumsal başvuru (alan doğrulaması ve sıklık sınırı içinde).
     // report_error → herkese açık hata kaydı (alanlar kısaltılır, kişi başına ve oturumsuz toplamda saatlik sınır).
     // Kurumlar: org_* ve my_orgs → çağıranın kurum üyeliği / master'lığı / rol yetkisi; is_org_* ve org_can yalnız çağıranı sorar;
-    // accept_org_invite → kodu bilen (süre ve tek kullanım denetimiyle).
+    // accept_org_invite → kodu bilen (süre ve tek kullanım denetimiyle). org_bank_save → "Kurum bilgileri" (org.settings) yetkisi.
     // Site: accept_site_invite → kodu bilen (tek kullanım); site_role, is_site_resident, my_site_units, site_folder_ok → yalnız çağıranı sorar;
     // site_invite_info → kodu bilen (kullanılmış kodda kişisel bilgi yok); site_invite_mail → "Malik ve kiracılar" yetkisi.
     // create_rent_certificate → yalnız mülkün kiracısı; verify_rent_certificate → 10 haneli kodu bilen (belgenin anlık görüntüsü).
@@ -79,7 +79,7 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
     'create_rent_certificate', 'delete_my_account', 'file_in_locked_inspect', 'file_review_ok', 'has_access', 'import_properties', 'investor_report_mail', 'invite_preview', 'is_admin', 'is_banned', 'is_member',
     'is_org_master', 'is_org_member', 'is_owner', 'is_site_resident', 'link_site_unit',
     'member_can', 'member_role', 'msg_side', 'my_access', 'my_orgs', 'my_site_units',
-    'org_can', 'org_detail', 'org_invite_create', 'org_invite_delete', 'org_member_remove', 'org_member_set', 'org_role_delete', 'org_role_save',
+    'org_bank_save', 'org_can', 'org_detail', 'org_invite_create', 'org_invite_delete', 'org_member_remove', 'org_member_set', 'org_role_delete', 'org_role_save',
     'org_transfer_master',
     'post_system_message',
     'register_device_token', 'report_error', 'reports_today', 'review_ok', 'shares_property', 'signup_code_ok', 'site_cash_summary', 'site_file_read_ok', 'site_file_write_ok', 'site_folder_ok', 'site_invite_info', 'site_invite_mail', 'site_linked', 'site_linked_tenants', 'site_meeting_reply', 'site_poll_results', 'site_poll_vote', 'site_project_vote_close', 'site_project_vote_open', 'site_project_vote_sync', 'site_report', 'site_resident_code', 'site_role', 'storage_quota_ok', 'submit_lead', 'team_list', 'team_remove', 'team_set', 'unregister_device_token', 'verify_rent_certificate'

@@ -348,3 +348,51 @@ test('yalnız site sakini: "Mülküne bağlan" yok; ana sayfa, ödemeler, talepl
   await page.getByRole('button', { name: 'Paylaş', exact: true }).click();
   await expect.poll(async () => (await db(page)).tables.site_documents.find((x) => x.title === 'Sayaç tutanağı')).toMatchObject({ audience: 'daire', unit_id: 'u1' });
 });
+
+test('aidat: yönetim banka hesabını ekler; sakin havale bilgilerini (IBAN, alıcı, tutar, açıklama kodu) görür', async ({ page }) => {
+  await login(page, 'ev@ornek.com');
+  await page.evaluate(() => {
+    const d = JSON.parse(localStorage.getItem('__fakedb'));
+    d.tables.site_units = [{ id: 'u1', org_id: 'o1', block: 'A', no: '1', area: 100, share: 1, aidat: 1500, payer: 'kiraci', note: '', currency: 'TRY', index_kind: 'tufe', vat: false, stopaj: false, pay_code: 'K7MXRP', created_at: new Date().toISOString() }];
+    localStorage.setItem('__fakedb', JSON.stringify(d));
+  });
+  await page.goto(url('/uygulama/site/tahakkuk'));
+  await page.getByRole('button', { name: 'IBAN ekle' }).click();
+  await page.getByLabel('IBAN', { exact: true }).fill('TR12 3456');
+  await page.getByLabel('Alıcı adı (hesap sahibi)').fill('Atakum Sitesi Yönetimi');
+  await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
+  await expect(page.getByText('IBAN geçersiz. TR ile başlayan 26 karakteri kontrol et.')).toBeVisible();
+  await page.getByLabel('IBAN', { exact: true }).fill('tr42 0001 0000 0000 0000 0000 01');   // uydurma, mod-97 tutarlı
+  await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
+  await expect(page.getByText('Atakum Sitesi Yönetimi · TR42 0001 0000 0000 0000 0000 01')).toBeVisible();
+  const o = (await db(page)).tables.organizations.find((x) => x.id === 'o1');
+  expect(o).toMatchObject({ bank_iban: 'TR420001000000000000000001', bank_holder: 'Atakum Sitesi Yönetimi' });
+});
+
+test('daireler: bloğu toplu yeniden adlandırma; "Blok" tekrar etmez', async ({ page }) => {
+  await login(page, 'ev@ornek.com');
+  await expect(page).toHaveURL(/\/uygulama\/site$/);
+  await page.evaluate(() => {
+    const d = JSON.parse(localStorage.getItem('__fakedb'));
+    const u = (id, block, no) => ({ id, org_id: 'o1', block, no, area: 100, share: 1, aidat: 1000, payer: 'kiraci', note: '', currency: 'TRY', index_kind: 'tufe', vat: false, stopaj: false, created_at: new Date().toISOString() });
+    d.tables.site_units = [u('u1', 'A', '1'), u('u2', 'B', '1'), u('u3', 'B', '2')];
+    localStorage.setItem('__fakedb', JSON.stringify(d));
+  });
+  await page.reload();
+  await page.getByRole('link', { name: 'Daireler', exact: true }).first().click();
+  await expect(page.getByRole('button', { name: 'Bloğu yeniden adlandır' })).toHaveCount(0);   // "Tümü" seçiliyken (çok bloklu) çıkmaz
+  await page.getByText('B Blok', { exact: true }).click();
+  await page.getByRole('button', { name: 'Bloğu yeniden adlandır' }).click();
+  await page.getByLabel('Yeni blok adı').fill('A');
+  await page.getByRole('button', { name: 'Kaydet' }).click();
+  await expect(page.getByText('Bu adla bir blok zaten var. Başka bir ad seç.')).toBeVisible();   // birleştirme yok
+  await page.getByLabel('Yeni blok adı').fill('Lale Blok');
+  await expect(page.getByText('Görünüm: Lale Blok No 1')).toBeVisible();
+  await page.getByRole('button', { name: 'Kaydet' }).click();
+  await expect(page.getByText('2 daire güncellendi.')).toBeVisible();
+  const units = (await db(page)).tables.site_units;
+  expect(units.filter((x) => x.block === 'Lale Blok').map((x) => x.no).sort()).toEqual(['1', '2']);
+  expect(units.find((x) => x.id === 'u1').block).toBe('A');
+  await expect(page.getByText(/Lale Blok No 1/).first()).toBeVisible();
+  await expect(page.getByText(/Blok Blok/)).toHaveCount(0);
+});
