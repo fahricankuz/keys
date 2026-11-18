@@ -255,7 +255,6 @@ export const EN = {
   'Elle güncellendi': 'Updated manually',
   'Emlak vergisi': 'Property tax',
   'Emlak vergisi, sigorta, tamir gibi giderler burada. Talep faturaları otomatik işlenir; net getiri anında hesaplanır.': 'Property tax, insurance, repairs and other expenses live here. Request invoices are added automatically; net yield is calculated instantly.',
-  'En az 8 karakter.': 'At least 8 characters.',
   'En az iki harf yaz. Talep başlıkları, belge adları, mesajlar ve mülk bilgileri taranır.': 'Type at least two letters. Request titles, document names, messages and property details are searched.',
   'En fazla 10 MB yüklenebilir.': 'The maximum upload size is 10 MB.',
   'Ev sahibi': 'Landlord',
