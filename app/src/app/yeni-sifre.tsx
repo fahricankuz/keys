@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import AuthShell from '../auth/AuthShell';
 import { useAuth } from '../auth/auth';
+import PasswordRules from '../auth/PasswordRules';
+import { pwProblem, pwReady } from '../domain/sifre';
 import { clearLinkFromUrl, useAuthLink } from '../auth/auth-link';
 import * as backend from '../domain/backend';
 import { t } from '../domain/i18n';
@@ -37,8 +39,7 @@ export default function YeniSifre() {
 
   const submit = async () => {
     setErr(null);
-    if (pw.length < 8) return setErr(t('Şifre en az 8 karakter olmalı.'));
-    if (pw !== pw2) return setErr(t('Şifreler aynı değil.'));
+    const bad = pwProblem(pw, pw2); if (bad) return setErr(bad);
     setBusy(true);
     try {
       const cl = await backend.client();
@@ -68,9 +69,10 @@ export default function YeniSifre() {
   );
   return (
     <AuthShell title={t('Yeni şifre belirle')} lead={t('Hesabın için yeni bir şifre yaz.')}>
-      <Field label={t('Yeni şifre')} value={pw} onChangeText={setPw} secureTextEntry autoComplete="new-password" hint={t('En az 8 karakter.')} />
+      <Field label={t('Yeni şifre')} value={pw} onChangeText={setPw} secureTextEntry autoComplete="new-password" />
       <Field label={t('Şifre (tekrar)')} value={pw2} onChangeText={setPw2} secureTextEntry autoComplete="new-password" onSubmitEditing={submit} error={err} />
-      <Button block title={t('Şifreyi kaydet')} onPress={submit} loading={busy} />
+      <PasswordRules pw={pw} pw2={pw2} />
+      <Button block title={t('Şifreyi kaydet')} onPress={submit} loading={busy} disabled={!pwReady(pw, pw2)} />
     </AuthShell>
   );
 }

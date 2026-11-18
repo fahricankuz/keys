@@ -12,6 +12,7 @@ import { Platform } from 'react-native';
 import { logCaught } from './logs.js';
 import { authStorage, migrateAuthStorage } from './secure-storage';
 import { t } from './i18n.js';
+import { pwServerError } from './sifre.js';
 import { CONFIG, LIVE } from './config.js';
 import { S, ui, VERSION, useStorageKey, replaceState, savedLang, saveLocal, hooks, emit } from './state.js';
 import { buildProperty, diffProperty, pendingMedia, storedPath, isStored, SB, messageFromRow } from './mapping.js';
@@ -541,7 +542,7 @@ export function humanError(e){
   if (/Email not confirmed/i.test(m)) return t('E-posta adresini henüz doğrulamadın. Gelen kutunu kontrol et.');
   if (/User already registered/i.test(m)) return t('Bu e-posta ile bir hesap zaten var. Giriş yapmayı dene.');
   if (/validate email|email address .*invalid/i.test(m)) return t('Geçerli bir e-posta adresi yaz.');
-  if (/Password should be at least/i.test(m)) return t('Şifre en az 8 karakter olmalı.');
+  const pwErr = pwServerError(e); if (pwErr) return pwErr;     // zayıf / sızmış / kısa şifre (Supabase weak_password)
   if (/Günlük başvuru sınırı/.test(m)) return t('Günlük başvuru sınırına ulaştın. Yarın yeniden dene.');     // support_requests günlük sınırı (guard_support_request, 54000)
   if (/rate limit/i.test(m)) return t('Çok fazla deneme yapıldı. Biraz sonra tekrar dene.');
   if (/Failed to fetch|NetworkError|network/i.test(m)) return t('Sunucuya ulaşılamadı. Bağlantını kontrol et.');
