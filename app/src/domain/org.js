@@ -90,6 +90,7 @@ export function sectorSections(org){
   if (!site && hasModule(org, 'ciro_kira')) list.push({ key: 'ciro', label: t('Ciro'), icon: 'chart' });
   if (!site && hasModule(org, 'endeksleme')) list.push({ key: 'artis', label: t('Kira artışları'), icon: 'calendar' });
   if (can('expenses.manage') || can('reports.view')) list.push({ key: 'giderler', label: t('Giderler'), icon: 'doc' });
+  if (can('expenses.manage') || can('reports.view')) list.push({ key: 'sozlesmeler', label: t('Sözleşmeler'), icon: 'doc' });
   if (hasModule(org, 'duyuru')) list.push({ key: 'duyurular', label: t('Duyurular'), icon: 'bell' });
   if (site && hasModule(org, 'duyuru')) list.push({ key: 'genelkurul', label: t('Genel kurul'), icon: 'calendar' });
   if (site) list.push({ key: 'projeler', label: t('Projeler'), icon: 'safe' });

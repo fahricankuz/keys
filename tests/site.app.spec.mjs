@@ -349,6 +349,29 @@ test('yalnız site sakini: "Mülküne bağlan" yok; ana sayfa, ödemeler, talepl
   await expect.poll(async () => (await db(page)).tables.site_documents.find((x) => x.title === 'Sayaç tutanağı')).toMatchObject({ audience: 'daire', unit_id: 'u1' });
 });
 
+test('sözleşmeler: yönetim asansör sözleşmesi ekler, kalan gün görünür, 1 yıl uzatır ve siler', async ({ page }) => {
+  await login(page, 'ev@ornek.com');
+  await page.goto(url('/uygulama/site/sozlesmeler'));
+  await expect(page.getByText('Henüz sözleşme yok.')).toBeVisible();
+  await page.getByRole('button', { name: 'Sözleşme ekle' }).click();
+  await page.getByLabel('Firma').fill('Yükselen Asansör');
+  const end = new Date(); end.setDate(end.getDate() + 20);
+  const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  await page.getByLabel('Bitiş', { exact: true }).fill(iso(end));
+  await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
+  await expect(page.getByText('Sözleşme eklendi.')).toBeVisible();
+  await expect(page.getByText(/^(19|20) gün kaldı$/)).toBeVisible();   // tarayıcı İstanbul saatinde; CI makinesi UTC (gece günü bir kayar)
+  await expect(page.getByText('1 sözleşme 30 gün içinde bitiyor.')).toBeVisible();
+  await page.getByRole('button', { name: '1 yıl uzat' }).click();
+  await expect(page.getByText(/Sözleşme yenilendi/)).toBeVisible();
+  const row = (await db(page)).tables.site_contracts[0];
+  const next = new Date(end); next.setFullYear(next.getFullYear() + 1);
+  expect(row).toMatchObject({ vendor: 'Yükselen Asansör', kind: 'asansor', ends_on: iso(next), remind_days: [30, 15, 7] });
+  await page.getByRole('button', { name: 'Sil', exact: true }).click();
+  await page.getByRole('button', { name: 'Evet, sil' }).click();
+  await expect(page.getByText('Henüz sözleşme yok.')).toBeVisible();
+});
+
 test('aidat: yönetim banka hesabını ekler; sakin havale bilgilerini (IBAN, alıcı, tutar, açıklama kodu) görür', async ({ page }) => {
   await login(page, 'ev@ornek.com');
   await page.evaluate(() => {
