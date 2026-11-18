@@ -92,7 +92,8 @@ test('sandbox: erişim verir (my_access) ama admin_kpis ödeyen/plan/gelir taban
 test('billing_reminders: yarın yenilenecek üretim abonelikleri bildirim alır; sandbox almaz', async () => {
   await as(null);
   await db.exec(`delete from public.subscriptions; delete from public.notifications`);
-  const tomorrowNoon = `((current_date + 1)::timestamp + interval '12 hours') at time zone 'Europe/Istanbul'`;
+  // "Yarın" İstanbul gününe göre (UTC 21:00 sonrası current_date bir gün geride kalıyordu; test gece saatlerinde kırılıyordu).
+  const tomorrowNoon = `((((now() at time zone 'Europe/Istanbul')::date) + 1)::timestamp + interval '12 hours') at time zone 'Europe/Istanbul'`;
   for (const [uid, env] of [[L, 'production'], [L2, 'sandbox']]) {
     await db.query(`insert into public.subscriptions (user_id, product_id, store, expires_at, active, will_renew, environment) values ($1, 'tek_1_aylik', 'app_store', ${tomorrowNoon}, true, true, $2)`, [uid, env]);
   }
