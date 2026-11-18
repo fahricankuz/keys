@@ -1848,4 +1848,16 @@ export const EN_EXTRA = {
   'Birden çok açıklama kodu': 'Several reference codes',
   'Kod ya da ad bulunamadı': 'No code or name found',
   'Dairenin açık borcu yok': 'The unit has no open balance',
+  // Ekstre: çift sayım koruması, kopyala düğmesi
+  'Kopyalandı ✓': 'Copied ✓',
+  '{n} zaten kayıtlı': '{n} already recorded elsewhere',
+  '{n} kart aktarımı': '{n} card settlements',
+  'Zaten kayıtlı': 'Already recorded',
+  'Bu ödemeler dekontla, elle ya da kartla zaten işlenmiş görünüyor; tekrar sayılmaz. Gerçekten ayrı bir ödemeyse "Bu ayrı bir ödeme" de.': 'These payments already appear to be recorded by receipt, by hand or by card, so they are not counted again. If one is really a separate payment, choose "This is a separate payment".',
+  'Bu ayrı bir ödeme': 'This is a separate payment',
+  'Kart tahsilatı aktarımları': 'Card settlements',
+  'Ödeme kuruluşunun ya da POS’un toplu aktarımları. Kart ödemeleri uygulamada tek tek işlendiği için bunlar bir daireye yazılmaz.': 'Bulk transfers from the payment provider or POS. Card payments are recorded one by one in the app, so these are not assigned to a unit.',
+  'Kart tahsilatı aktarımı': 'Card settlement',
+  'Zaten kayıtlı (dekont ya da elle işlenmiş)': 'Already recorded (receipt or by hand)',
+  'Aynı tutar ve tarihte kayıtlı ödeme var': 'A recorded payment has the same amount and date',
 };

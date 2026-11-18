@@ -97,6 +97,24 @@ export function incoming(rows, header) {
 }
 
 const OPEN = ['open', 'partial', 'rejected', 'review'];
+const PAID = ['paid', 'partial', 'approved'];
+
+/** Kart tahsilatı aktarımı: ödeme kuruluşu ya da POS'tan gelen toplu (komisyonu düşülmüş) tutar. Kart ödemeleri uygulamada tek tek
+    işlendiği için bu satırlar hiçbir zaman bir daireye yazılmaz. */
+const CARD_WORDS = ['POS', 'SANALPOS', 'VPOS'];
+const CARD_PARTS = ['IYZICO', 'IYZIPAY', 'PAYTR', 'PARAMPOS', 'PARAODEME', 'SIPAY', 'PAYU', 'CRAFTGATE', 'STRIPE', 'UYEISYERI', 'KREDIKARTI', 'BANKAKARTI', 'POSBLOKE', 'POSTAHSILAT'];
+export function isCardSettlement(desc) {
+  const flat = compact(desc), w = new Set(words(desc));
+  return CARD_WORDS.some((x) => w.has(x)) || CARD_PARTS.some((x) => flat.includes(x));
+}
+
+const daysApart = (a, b) => Math.abs((Date.parse(a) - Date.parse(b)) / 86400000);
+/** Başka yolla (dekont onayı, "Ödendi işaretle", kart) zaten işlenmiş ödeme: aynı tutar, ödeme tarihi işlem tarihine ±7 gün.
+    Böyle bir satır sonraki açık aya yazılmaz (çift sayım). used: bu dosyada başka bir satırla eşleşmiş kayıtlar. */
+function knownPayment(t, list, used) {
+  return list.find((c) => !used.has(c.id) && PAID.includes(c.status) && c.paid_on && daysApart(t.date, String(c.paid_on).slice(0, 10)) <= 7
+    && Math.abs((Number(c.paid_amount) || 0) - t.amount) <= 0.005) || null;
+}
 const unpaid = (c) => Math.max(0, Number(c.amount) - (c.status === 'partial' ? Number(c.paid_amount) || 0 : 0));
 
 /** Tutarı dairenin en eski açık tahakkuklarından başlayarak dağıtır. exact: tutar tam olarak k tahakkuku kapatıyor. */
@@ -115,12 +133,17 @@ function allocate(amount, charges, left) {
 
 /**
  * Eşleştirme. units: [{ id, pay_code, label }], residents: [{ unit_id, name }], charges: site_charges satırları.
- * Dönen her hareket için { txn, kind: 'exact' | 'suggest' | 'none', unit, parts: [{ charge, amount }], why }.
+ * Dönen her hareket için { txn, kind: 'exact' | 'suggest' | 'none' | 'known' | 'card', unit, parts: [{ charge, amount }], why }.
+ * known: aynı tutarda ve tarihte zaten işlenmiş bir ödeme var (dekont, elle, kart); card: kart tahsilatı toplu aktarımı. İkisi de işlenmez.
+ * separate: yöneticinin "bu ayrı bir ödeme" dediği hareketlerin parmak izleri (known denetimi atlanır, normal eşleştirilir).
  * exact: açıklama kodu bulundu ve tutar en eski açık tahakkukları tam kapatıyor. suggest: kod bulundu ama tutar farklı, ya da
  * yalnız ad-soyad eşleşti. Aynı dosyadaki hareketler aynı tahakkuku iki kez kapatamaz (tarih sırasıyla dağıtılır).
  */
-export function matchTxns(txns, { units, residents, charges }) {
+export function matchTxns(txns, { units, residents, charges }, { separate = new Set() } = {}) {
   const open = charges.filter((c) => OPEN.includes(c.status));
+  const paidByUnit = new Map(); charges.filter((c) => PAID.includes(c.status)).forEach((c) => { if (!paidByUnit.has(c.unit_id)) paidByUnit.set(c.unit_id, []); paidByUnit.get(c.unit_id).push(c); });
+  const allPaid = charges.filter((c) => PAID.includes(c.status));
+  const used = new Set();
   const byUnit = new Map(); open.forEach((c) => { if (!byUnit.has(c.unit_id)) byUnit.set(c.unit_id, []); byUnit.get(c.unit_id).push(c); });
   const codes = units.filter((u) => u.pay_code).map((u) => ({ u, code: compact(u.pay_code) }));
   const names = new Map(); residents.forEach((r) => {
@@ -131,6 +154,7 @@ export function matchTxns(txns, { units, residents, charges }) {
   const sorted = [...txns].sort((a, b) => a.date.localeCompare(b.date) || a.line - b.line);
   const res = [];
   for (const t of sorted) {
+    if (isCardSettlement(t.desc)) { res.push({ txn: t, kind: 'card', unit: null, parts: [], why: 'Kart tahsilatı aktarımı' }); continue; }
     const flat = compact(t.desc), dw = new Set(words(t.desc));
     const hit = codes.filter((x) => flat.includes(x.code));
     let unit = null, how = '';
@@ -140,7 +164,14 @@ export function matchTxns(txns, { units, residents, charges }) {
       if (byName.length === 1) { unit = byName[0]; how = 'name'; }
       else if (byName.length > 1) { res.push({ txn: t, kind: 'none', unit: null, parts: [], why: 'Birden çok daireyle aynı ad' }); continue; }
     }
-    if (!unit) { res.push({ txn: t, kind: 'none', unit: null, parts: [], why: hit.length > 1 ? 'Birden çok açıklama kodu' : 'Kod ya da ad bulunamadı' }); continue; }
+    if (!unit) {
+      // Daire bilinmiyor ama aynı tutar ve tarihte kurumda tek bir işlenmiş ödeme varsa büyük olasılıkla odur: elle tekrar girilmesin.
+      const same = allPaid.filter((c) => !used.has(c.id) && c.paid_on && daysApart(t.date, String(c.paid_on).slice(0, 10)) <= 3 && Math.abs((Number(c.paid_amount) || 0) - t.amount) <= 0.005);
+      if (same.length === 1 && !separate.has(t.fp)) { used.add(same[0].id); res.push({ txn: t, kind: 'known', unit: { id: same[0].unit_id }, parts: [{ charge: same[0], amount: t.amount }], why: 'Aynı tutar ve tarihte kayıtlı ödeme var' }); continue; }
+      res.push({ txn: t, kind: 'none', unit: null, parts: [], why: hit.length > 1 ? 'Birden çok açıklama kodu' : 'Kod ya da ad bulunamadı' }); continue;
+    }
+    const known = separate.has(t.fp) ? null : knownPayment(t, paidByUnit.get(unit.id) || [], used);
+    if (known) { used.add(known.id); res.push({ txn: t, kind: 'known', unit, parts: [{ charge: known, amount: t.amount }], why: 'Zaten kayıtlı (dekont ya da elle işlenmiş)' }); continue; }
     const a = allocate(t.amount, byUnit.get(unit.id) || [], left);
     if (!a.parts.length) { res.push({ txn: t, kind: 'none', unit, parts: [], why: 'Dairenin açık borcu yok' }); continue; }
     a.parts.forEach((p) => left.set(p.charge.id, Math.round(((left.get(p.charge.id) ?? unpaid(p.charge)) - p.amount) * 100) / 100));

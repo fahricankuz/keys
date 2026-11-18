@@ -1,6 +1,7 @@
-// Banka ekstresinden tahsilat: yönetim ekstreyi (Excel .xls/.xlsx ya da CSV) yükler; gelen ödemeler dairelerin açıklama koduna ve
-// sakin adına göre eşleştirilir. Kesin eşleşenler toplu onaylanır, öneriler tek tek; onaysız hiçbir ödeme işlenmez.
-// Dosya cihazda okunur ve sunucuya gönderilmez (yalnız işlenen hareketin parmak izi, tarihi ve tutarı: site_bank_apply).
+// Banka ekstresinden tahsilat (kurum paneli ve bireysel mülk sahibi aynı ekranı kullanır): ekstre (Excel .xls/.xlsx ya da CSV) yüklenir;
+// gelen ödemeler açıklama koduna ve kişi adına göre eşleştirilir. Kesin eşleşenler toplu onaylanır, öneriler tek tek; onaysız hiçbir
+// ödeme işlenmez. Başka yolla (dekont, elle, kart) zaten işlenmiş ödemeler ve kart tahsilatı aktarımları ayrı listelenir, işlenmez.
+// Dosya cihazda okunur ve sunucuya gönderilmez (yalnız işlenen hareketin parmak izi, tarihi ve tutarı).
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { t } from '../domain/i18n';
@@ -18,30 +19,37 @@ import { Pill } from './org';
 type Header = { row: number; map: Record<string, number> };
 const KEYS: [string, () => string][] = [['date', () => t('Tarih')], ['desc', () => t('Açıklama')], ['amount', () => t('Tutar')]];
 
-export function BankImport({ d, oid, reload }: { d: any; oid: string; reload: () => void }) {
+/** Eşleştirme kaynağı: units [{ id, pay_code }], residents [{ unit_id, name }], charges (tahakkuk benzeri: id, unit_id, month, kind,
+    title, amount, status, paid_amount, paid_on). target: eşleşmenin ekrandaki adı. */
+export type Source = { units: any[]; residents: any[]; charges: any[]; target: (m: any) => string };
+
+export function StatementImport({ source, seen: loadSeen, apply: applyOne, reload, lead }: {
+  source: Source; seen: (fps: string[]) => Promise<Set<string>>; apply: (m: any, bank: string) => Promise<boolean>; reload: () => void; lead: string;
+}) {
   const c = useColors();
   const [rows, setRows] = useState<any[][] | null>(null);
   const [guess, setGuess] = useState<Header | null>(null);   // başlık tanınmadıysa yöneticinin seçtiği sütunlar
-  const [res, setRes] = useState<any[] | null>(null);
+  const [fresh, setFresh] = useState<any[] | null>(null);
+  const [res, setRes] = useState<any[] | null>(null);   // eşleşme yükleme anında dondurulur: işlenen satır yeniden "zaten kayıtlı"ya kaymaz
+  const [separate, setSeparate] = useState<Set<string>>(new Set());
   const [seen, setSeen] = useState(0);
   const [bank, setBank] = useState('');
   const [pick, setPick] = useState<Set<string>>(new Set());
   const [done, setDone] = useState<Record<string, 'ok' | 'skip' | 'dup'>>({});
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const unitBy = Object.fromEntries(d.units.map((u: any) => [u.id, u]));
 
   const run = async (rs: any[][], h: Header) => {
     const txns = incoming(rs, h);
     if (!txns.length) { setErr(t('Dosyada gelen ödeme bulunamadı.')); return; }
-    const s = await seenBankTxns(oid, txns.map((x) => x.fp));
-    const fresh = txns.filter((x) => !s.has(x.fp));
-    const r = matchTxns(fresh, { units: d.units, residents: d.residents, charges: d.charges });
-    setSeen(txns.length - fresh.length); setRes(r); setDone({}); setGuess(null);
+    const s = await loadSeen(txns.map((x) => x.fp));
+    const f = txns.filter((x) => !s.has(x.fp));
+    const r = matchTxns(f, source);
+    setSeen(txns.length - f.length); setFresh(f); setRes(r); setSeparate(new Set()); setDone({}); setGuess(null);
     setPick(new Set(r.filter((x) => x.kind === 'exact').map((x) => x.txn.fp)));
   };
   const load = async () => {
-    setErr(null); setRes(null); setGuess(null);
+    setErr(null); setFresh(null); setRes(null); setGuess(null);
     const f = await pickTable();
     if (!f) return;
     setBusy(true);
@@ -63,22 +71,32 @@ export function BankImport({ d, oid, reload }: { d: any; oid: string; reload: ()
     setBusy(true); setErr(null);
     const next = { ...done };
     for (const m of list) {
-      try { next[m.txn.fp] = (await applyBankTxn(oid, m, bank)) ? 'ok' : 'dup'; }
+      try { next[m.txn.fp] = (await applyOne(m, bank)) ? 'ok' : 'dup'; }
       catch (e) { setErr(humanError(e)); break; }
     }
     setDone(next); setBusy(false); reload();
   };
 
+  /** "Bu ayrı bir ödeme": yalnız işlenmemiş satırlar yeniden eşleştirilir; işlenenler olduğu gibi kalır. */
+  const separateOne = (fp: string) => {
+    const sep = new Set(separate); sep.add(fp); setSeparate(sep);
+    const open = (fresh || []).filter((x) => !done[x.fp]);
+    const again = new Map(matchTxns(open, source, { separate: sep }).map((x) => [x.txn.fp, x]));
+    const next = (res || []).map((x) => again.get(x.txn.fp) || x);
+    setRes(next);
+    const m = again.get(fp); if (m?.kind === 'exact') setPick(new Set([...pick, fp]));
+  };
   const line = (m: any) => [fmtFull(parse(m.txn.date)), tl(m.txn.amount)].join(' · ');
-  const target = (m: any) => (m.unit ? unitLabel(unitBy[m.unit.id] || m.unit) : '') + (m.parts.length ? ' · ' + m.parts.map((p: any) => monthYear(p.charge.month) + ' ' + kindLabel(p.charge.kind, p.charge.title)).join(', ') : '');
   const state = (fp: string) => done[fp] === 'ok' ? <Chip label={t('İşlendi')} tone="ok" /> : done[fp] === 'dup' ? <Chip label={t('Daha önce işlenmiş')} /> : done[fp] === 'skip' ? <Chip label={t('Atlandı')} /> : null;
-  const exact = (res || []).filter((x) => x.kind === 'exact'), sug = (res || []).filter((x) => x.kind === 'suggest'), none = (res || []).filter((x) => x.kind === 'none');
+  const of = (k: string) => (res || []).filter((x) => x.kind === k);
+  const exact = of('exact'), sug = of('suggest'), none = of('none'), known = of('known'), card = of('card');
   const todo = exact.filter((x) => pick.has(x.txn.fp) && !done[x.txn.fp]);
+  const head = (s: string) => <Text style={{ fontFamily: fonts.bodyXBold }}>{s}</Text>;
 
   return (
     <Card gap={12}>
       <H2>{t('Banka ekstresinden tahsilat')}</H2>
-      <Muted>{t('Bankadan indirdiğin hesap hareketlerini (Excel ya da CSV) yükle; gelen ödemeler dairelerin açıklama koduna ve adına göre eşleşir. Onaylamadan hiçbir ödeme işlenmez; dosya sunucuya gönderilmez.')}</Muted>
+      <Muted>{lead}</Muted>
       <Button kind={res ? 'ghost' : 'primary'} style={{ alignSelf: 'flex-start' }} loading={busy && !res} title={res ? t('Başka ekstre yükle') : t('Ekstre yükle')} onPress={load} />
       {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
 
@@ -100,11 +118,12 @@ export function BankImport({ d, oid, reload }: { d: any; oid: string; reload: ()
       {res ? (
         <View style={{ gap: 14 }}>
           <Muted>{[bank, t('{n} gelen ödeme', { n: res.length + seen }), t('{n} kesin', { n: exact.length }), t('{n} öneri', { n: sug.length }), t('{n} eşleşmeyen', { n: none.length }),
+            known.length ? t('{n} zaten kayıtlı', { n: known.length }) : '', card.length ? t('{n} kart aktarımı', { n: card.length }) : '',
             seen ? t('{n} daha önce işlenmiş', { n: seen }) : ''].filter(Boolean).join(' · ')}</Muted>
 
           {exact.length ? (
             <View style={{ gap: 8 }}>
-              <Text style={{ fontFamily: fonts.bodyXBold }}>{t('Kesin eşleşenler')}</Text>
+              {head(t('Kesin eşleşenler'))}
               {exact.map((m) => {
                 const on = pick.has(m.txn.fp);
                 return (
@@ -114,7 +133,7 @@ export function BankImport({ d, oid, reload }: { d: any; oid: string; reload: ()
                     <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: on ? c.accent : c.line, backgroundColor: on ? c.accent : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
                       {on ? <Text v="small" color={c.accentInk} style={{ fontSize: 12, lineHeight: 14 }}>✓</Text> : null}
                     </View>
-                    <View style={{ flex: 1, minWidth: 0 }}><Text v="small" style={{ fontFamily: fonts.bodyBold }}>{target(m)}</Text><Muted>{line(m)}</Muted></View>
+                    <View style={{ flex: 1, minWidth: 0 }}><Text v="small" style={{ fontFamily: fonts.bodyBold }}>{source.target(m)}</Text><Muted>{line(m)}</Muted></View>
                     {state(m.txn.fp)}
                   </Pressable>
                 );
@@ -125,10 +144,10 @@ export function BankImport({ d, oid, reload }: { d: any; oid: string; reload: ()
 
           {sug.length ? (
             <View style={{ gap: 8 }}>
-              <Text style={{ fontFamily: fonts.bodyXBold }}>{t('Öneriler: kontrol et')}</Text>
+              {head(t('Öneriler: kontrol et'))}
               {sug.map((m) => (
                 <View key={m.txn.fp} style={{ gap: 6, paddingVertical: 6, borderTopWidth: 1, borderColor: c.line }}>
-                  <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{target(m)}</Text>
+                  <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{source.target(m)}</Text>
                   <Muted>{line(m) + ' · ' + t(m.why) + (m.extra ? ' · ' + t('{x} fazla', { x: tl(m.extra) }) : '')}</Muted>
                   <Muted>{m.txn.desc}</Muted>
                   {state(m.txn.fp) || (
@@ -142,9 +161,31 @@ export function BankImport({ d, oid, reload }: { d: any; oid: string; reload: ()
             </View>
           ) : null}
 
+          {known.length ? (
+            <View style={{ gap: 6 }}>
+              {head(t('Zaten kayıtlı'))}
+              <Muted>{t('Bu ödemeler dekontla, elle ya da kartla zaten işlenmiş görünüyor; tekrar sayılmaz. Gerçekten ayrı bir ödemeyse "Bu ayrı bir ödeme" de.')}</Muted>
+              {known.map((m) => (
+                <View key={m.txn.fp} style={{ gap: 4, paddingVertical: 6, borderTopWidth: 1, borderColor: c.line }}>
+                  <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{source.target(m)}</Text>
+                  <Muted>{line(m) + ' · ' + t(m.why) + ' · ' + m.txn.desc}</Muted>
+                  <Button kind="quiet" style={{ alignSelf: 'flex-start' }} title={t('Bu ayrı bir ödeme')} onPress={() => separateOne(m.txn.fp)} />
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {card.length ? (
+            <View style={{ gap: 6 }}>
+              {head(t('Kart tahsilatı aktarımları'))}
+              <Muted>{t('Ödeme kuruluşunun ya da POS’un toplu aktarımları. Kart ödemeleri uygulamada tek tek işlendiği için bunlar bir daireye yazılmaz.')}</Muted>
+              {card.map((m) => <Muted key={m.txn.fp}>{line(m) + ' · ' + m.txn.desc}</Muted>)}
+            </View>
+          ) : null}
+
           {none.length ? (
             <View style={{ gap: 6 }}>
-              <Text style={{ fontFamily: fonts.bodyXBold }}>{t('Eşleşmeyenler')}</Text>
+              {head(t('Eşleşmeyenler'))}
               <Muted>{t('Bu ödemeleri dairenin satırındaki "Ödendi işaretle" ile elle işleyebilirsin. Sakinlerden açıklamaya daire kodunu yazmalarını iste.')}</Muted>
               {none.map((m) => <Muted key={m.txn.fp}>{line(m) + ' · ' + m.txn.desc + ' · ' + t(m.why)}</Muted>)}
             </View>
@@ -152,5 +193,17 @@ export function BankImport({ d, oid, reload }: { d: any; oid: string; reload: ()
         </View>
       ) : null}
     </Card>
+  );
+}
+
+/** Kurum paneli (site aidatı, AVM/depo/GYO kirası): Aidat / Kira sekmesinde. Yetki: "Dekont onayı". */
+export function BankImport({ d, oid, reload }: { d: any; oid: string; reload: () => void }) {
+  const unitBy = Object.fromEntries(d.units.map((u: any) => [u.id, u]));
+  const target = (m: any) => (m.unit && unitBy[m.unit.id] ? unitLabel(unitBy[m.unit.id]) : '')
+    + (m.parts.length ? ' · ' + m.parts.map((p: any) => monthYear(p.charge.month) + ' ' + kindLabel(p.charge.kind, p.charge.title)).join(', ') : '');
+  return (
+    <StatementImport source={{ units: d.units, residents: d.residents, charges: d.charges, target }} reload={reload}
+      seen={(fps) => seenBankTxns(oid, fps)} apply={(m, bank) => applyBankTxn(oid, m, bank)}
+      lead={t('Bankadan indirdiğin hesap hareketlerini (Excel ya da CSV) yükle; gelen ödemeler dairelerin açıklama koduna ve adına göre eşleşir. Onaylamadan hiçbir ödeme işlenmez; dosya sunucuya gönderilmez.')} />
   );
 }
