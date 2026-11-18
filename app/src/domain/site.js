@@ -4,6 +4,7 @@
    Sunucu kuralları: supabase/schema.sql 17. bölüm (RLS ve guard_site_charges). */
 
 import { t } from './i18n.js';
+import { normalizeIban } from './iban.js';
 import { logCaught } from './logs.js';
 import { client, live, storeFile, inviteLink, inviteRejected } from './backend.js';
 import { waLink } from './wa.js';
@@ -258,6 +259,18 @@ export async function saveUnit(oid, u){
     index_rate: numOrNull(u.index_rate), vat: !!u.vat, stopaj: !u.vat && !!u.stopaj, due_day: numOrNull(u.due_day), ...depositRow(u) };
   if (u.id) return must(await c.from('site_units').update(row).eq('id', u.id));
   return must(await c.from('site_units').insert(row).select().single());
+}
+/** Kurumun banka hesabı (sakinlerin Havale / EFT bilgileri). Migration havale_bilgileri öncesinde sütun yoksa null döner (kart gizlenir). */
+export async function loadOrgBank(oid){
+  const c = await db();
+  const { data, error } = await c.from('organizations').select('name, bank_iban, bank_holder').eq('id', oid).maybeSingle();
+  if (error || !data) return null;
+  return { name: data.name || '', iban: data.bank_iban || '', holder: data.bank_holder || '' };
+}
+/** Banka hesabını kaydeder ("Kurum bilgileri" yetkisi; sunucu IBAN biçimini de denetler). Boş IBAN hesabı kaldırır. */
+export async function saveOrgBank(oid, iban, holder){
+  const c = await db();
+  must(await c.rpc('org_bank_save', { oid, iban: normalizeIban(iban), holder: String(holder || '').trim() }));
 }
 /** Depozito alanları (migration depozito_otomatik_kira): yalnız depozito girilmişse ya da önceden varsa yazılır; böylece
     migration'dan önce yayınlanan sürüm eski veritabanında sözleşme kaydederken hata vermez. */

@@ -348,3 +348,23 @@ test('yalnız site sakini: "Mülküne bağlan" yok; ana sayfa, ödemeler, talepl
   await page.getByRole('button', { name: 'Paylaş', exact: true }).click();
   await expect.poll(async () => (await db(page)).tables.site_documents.find((x) => x.title === 'Sayaç tutanağı')).toMatchObject({ audience: 'daire', unit_id: 'u1' });
 });
+
+test('aidat: yönetim banka hesabını ekler; sakin havale bilgilerini (IBAN, alıcı, tutar, açıklama kodu) görür', async ({ page }) => {
+  await login(page, 'ev@ornek.com');
+  await page.evaluate(() => {
+    const d = JSON.parse(localStorage.getItem('__fakedb'));
+    d.tables.site_units = [{ id: 'u1', org_id: 'o1', block: 'A', no: '1', area: 100, share: 1, aidat: 1500, payer: 'kiraci', note: '', currency: 'TRY', index_kind: 'tufe', vat: false, stopaj: false, pay_code: 'K7MXRP', created_at: new Date().toISOString() }];
+    localStorage.setItem('__fakedb', JSON.stringify(d));
+  });
+  await page.goto(url('/uygulama/site/tahakkuk'));
+  await page.getByRole('button', { name: 'IBAN ekle' }).click();
+  await page.getByLabel('IBAN', { exact: true }).fill('TR12 3456');
+  await page.getByLabel('Alıcı adı (hesap sahibi)').fill('Atakum Sitesi Yönetimi');
+  await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
+  await expect(page.getByText('IBAN geçersiz. TR ile başlayan 26 karakteri kontrol et.')).toBeVisible();
+  await page.getByLabel('IBAN', { exact: true }).fill('tr42 0001 0000 0000 0000 0000 01');   // uydurma, mod-97 tutarlı
+  await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
+  await expect(page.getByText('Atakum Sitesi Yönetimi · TR42 0001 0000 0000 0000 0000 01')).toBeVisible();
+  const o = (await db(page)).tables.organizations.find((x) => x.id === 'o1');
+  expect(o).toMatchObject({ bank_iban: 'TR420001000000000000000001', bank_holder: 'Atakum Sitesi Yönetimi' });
+});
