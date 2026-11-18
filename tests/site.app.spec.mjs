@@ -360,7 +360,7 @@ test('sözleşmeler: yönetim asansör sözleşmesi ekler, kalan gün görünür
   await page.getByLabel('Bitiş', { exact: true }).fill(iso(end));
   await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
   await expect(page.getByText('Sözleşme eklendi.')).toBeVisible();
-  await expect(page.getByText('20 gün kaldı')).toBeVisible();
+  await expect(page.getByText(/^(19|20) gün kaldı$/)).toBeVisible();   // tarayıcı İstanbul saatinde; CI makinesi UTC (gece günü bir kayar)
   await expect(page.getByText('1 sözleşme 30 gün içinde bitiyor.')).toBeVisible();
   await page.getByRole('button', { name: '1 yıl uzat' }).click();
   await expect(page.getByText(/Sözleşme yenilendi/)).toBeVisible();
