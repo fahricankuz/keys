@@ -285,6 +285,21 @@ export async function renameBlock(oid, from, to, existing){
   const rows = must(await c.from('site_units').update({ block: to }).eq('org_id', oid).eq('block', from).select('id'));
   return (rows || []).length;
 }
+/** Ekstredeki hareketlerden daha önce işlenmiş olanların parmak izleri (migration ekstre_eslestirme). */
+export async function seenBankTxns(oid, fps){
+  const c = await db(), seen = new Set();
+  for (let i = 0; i < fps.length; i += 200){
+    const rows = must(await c.from('site_bank_txns').select('fp').eq('org_id', oid).in('fp', fps.slice(i, i + 200)));
+    (rows || []).forEach((r) => seen.add(r.fp));
+  }
+  return seen;
+}
+/** Eşleşen ödemeyi işler (sunucu: site_bank_apply). Aynı hareket daha önce işlendiyse false döner. */
+export async function applyBankTxn(oid, m, bank){
+  const c = await db();
+  return must(await c.rpc('site_bank_apply', { oid, fp: m.txn.fp, txn_date: m.txn.date, amount: m.txn.amount, bank: bank || '',
+    charge_ids: m.parts.map((p) => p.charge.id), amounts: m.parts.map((p) => p.amount) }));
+}
 /** Depozito alanları (migration depozito_otomatik_kira): yalnız depozito girilmişse ya da önceden varsa yazılır; böylece
     migration'dan önce yayınlanan sürüm eski veritabanında sözleşme kaydederken hata vermez. */
 export function depositRow(u){

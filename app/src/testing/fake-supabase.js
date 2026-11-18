@@ -10,7 +10,7 @@ const TABLES = ['profiles','properties','property_shared','memberships','invites
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
                 'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes','site_documents','site_investor_notes','mail_outbox','site_cash','site_recurring_expenses',
-                'site_projects','site_project_updates','site_request_messages','site_project_costs','site_contracts',
+                'site_projects','site_project_updates','site_request_messages','site_project_costs','site_contracts','site_bank_txns',
                 'app_config','fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_costs','admin_revenue_months','crm_leads','crm_notes','admin_emails'];
 
 /** Açıklama kodu (migration havale_bilgileri → gen_pay_code): 6 karakter, karışan harf/rakam yok. */
@@ -629,7 +629,7 @@ export function createClient(url, key, opts){
         return { data:id, error:null };
       }
       // Kurumlar: schema.sql 16. bölüm ile aynı kurallar (özet).
-      if (/^(my_orgs|org_|accept_org_invite|admin_org|admin_add_property|investor_report_mail)/.test(name)){
+      if (/^(my_orgs|org_|accept_org_invite|admin_org|admin_add_property|investor_report_mail|site_bank_apply$)/.test(name)){
         const T = db.tables, A = args || {};
         const PERMS = ['org.settings','org.members','units.manage','residents.manage','charges.manage','payments.approve','expenses.manage','requests.manage','announce','documents.manage','reports.view'];
         const MODS = ['kira','aidat','gider_dagitim','duyuru','ciro_kira','ortak_gider','endeksleme','doluluk','onay_akisi','rapor','api','yatirimci'];
@@ -666,6 +666,20 @@ export function createClient(url, key, opts){
             members: T.org_members.filter(m => m.org_id === A.oid).map(m => ({ user_id:m.user_id, name:pname(m.user_id), email:pmail(m.user_id), role_id:m.role_id, master:m.is_master, since:m.created_at }))
               .sort((a, b) => (b.master - a.master) || a.name.localeCompare(b.name)),
             invites: (adm || can(A.oid, 'org.members')) ? T.org_invites.filter(i => i.org_id === A.oid && !i.accepted_by).map(i => ({ code:i.code, role_id:i.role_id, master:i.master, email:i.email, expires_at:i.expires_at })) : [] });
+        }
+        if (name === 'site_bank_apply'){   // migration ekstre_eslestirme
+          if (!can(A.oid, 'payments.approve')) return err('Bu işlem için yetkin yok');
+          const ids = A.charge_ids || [], amts = A.amounts || [];
+          if (!ids.length || ids.length !== amts.length) return err('Eşleşen tahakkuk yok', '22023');
+          if (amts.reduce((s, x) => s + Number(x), 0) > Number(A.amount) + 0.005) return err('Dağıtılan tutar ödemeyi aşıyor', '22023');
+          T.site_bank_txns = T.site_bank_txns || [];
+          if (T.site_bank_txns.some(x => x.org_id === A.oid && x.fp === A.fp)) return ok(false);
+          const list = ids.map(id => T.site_charges.find(c => c.id === id && c.org_id === A.oid));
+          if (list.some(c => !c || !['open','partial','rejected','review'].includes(c.status))) return err('Tahakkuk bulunamadı ya da zaten ödenmiş', '22023');
+          T.site_bank_txns.push({ id: uuid(), org_id: A.oid, fp: A.fp, txn_date: A.txn_date, amount: A.amount, bank: A.bank || '', charge_ids: ids, created_at: now() });
+          list.forEach((c, i) => { const paid = (c.status === 'partial' ? Number(c.paid_amount) || 0 : 0) + Number(amts[i]);
+            Object.assign(c, { status: paid >= Number(c.amount) ? 'paid' : 'partial', paid_amount: paid, paid_on: A.txn_date, method: 'havale', reject_reason: null }); });
+          return ok(true);
         }
         if (name === 'org_bank_save'){   // migration havale_bilgileri
           if (!can(A.oid, 'org.settings')) return err('Bu işlem için yetkin yok');

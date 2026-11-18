@@ -62,7 +62,7 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
     // site_invite_info → kodu bilen (kullanılmış kodda kişisel bilgi yok); site_invite_mail → "Malik ve kiracılar" yetkisi.
     // create_rent_certificate → yalnız mülkün kiracısı; verify_rent_certificate → 10 haneli kodu bilen (belgenin anlık görüntüsü).
     // site_meeting_reply → dairenin maliki; site_poll_vote → dairenin maliki (ya da "herkes" yoklamasında kiracısı); site_poll_results → kurum üyesi ya da sitenin sakini.
-    // site_linked → yalnız çağıranın site bağlantısını sorar. site_cash_summary → yönetim (Raporlar/Giderler) ya da yönetim paylaştıysa sakin.
+    // site_bank_apply → "Dekont onayı" yetkisi (ekstreden tahsilat; tahakkuk kurumun ve açık olmalı). site_linked → yalnız çağıranın site bağlantısını sorar. site_cash_summary → yönetim (Raporlar/Giderler) ya da yönetim paylaştıysa sakin.
     // site_project_vote_open / _close → "Site projeleri" yetkisi; site_project_vote_sync → kurum üyesi ya da sitenin sakini (süresi dolan oylamaların sonucunu uygular, idempotent).
     // file_in_locked_inspect → depo yolunun kilitli giriş tutanağında olup olmadığını sorar (dosya silme politikası; kişisel veri dönmez).
     // link_site_unit → mülk sahibi ve dairenin maliki; site_linked_tenants → kurum üyesi; site_report → Raporlar yetkisi.
@@ -82,7 +82,7 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
     'org_bank_save', 'org_can', 'org_detail', 'org_invite_create', 'org_invite_delete', 'org_member_remove', 'org_member_set', 'org_role_delete', 'org_role_save',
     'org_transfer_master',
     'post_system_message',
-    'register_device_token', 'report_error', 'reports_today', 'review_ok', 'shares_property', 'signup_code_ok', 'site_cash_summary', 'site_file_read_ok', 'site_file_write_ok', 'site_folder_ok', 'site_invite_info', 'site_invite_mail', 'site_linked', 'site_linked_tenants', 'site_meeting_reply', 'site_poll_results', 'site_poll_vote', 'site_project_vote_close', 'site_project_vote_open', 'site_project_vote_sync', 'site_report', 'site_resident_code', 'site_role', 'storage_quota_ok', 'submit_lead', 'team_list', 'team_remove', 'team_set', 'unregister_device_token', 'verify_rent_certificate'
+    'register_device_token', 'report_error', 'reports_today', 'review_ok', 'shares_property', 'signup_code_ok', 'site_bank_apply', 'site_cash_summary', 'site_file_read_ok', 'site_file_write_ok', 'site_folder_ok', 'site_invite_info', 'site_invite_mail', 'site_linked', 'site_linked_tenants', 'site_meeting_reply', 'site_poll_results', 'site_poll_vote', 'site_project_vote_close', 'site_project_vote_open', 'site_project_vote_sync', 'site_report', 'site_resident_code', 'site_role', 'storage_quota_ok', 'submit_lead', 'team_list', 'team_remove', 'team_set', 'unregister_device_token', 'verify_rent_certificate'
   ]);
 });
 
