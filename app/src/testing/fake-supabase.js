@@ -950,7 +950,7 @@ export function createClient(url, key, opts){
         const T = db.tables, r = T.site_residents.find(x => inviteNorm(x.code) === inviteNorm(args.invite_code));
         if (!r || r.user_id) return { data:null, error:null };
         const u = T.site_units.find(x => x.id === r.unit_id) || {}, o = (T.organizations || []).find(x => x.id === r.org_id) || {};
-        const unit = o.sector === 'site' ? (u.block ? u.block + ' Blok ' : '') + (/^\d/.test(String(u.no)) ? 'No ' : '') + u.no : (u.block ? u.block + ' · ' : '') + u.no;
+        const unit = o.sector === 'site' ? (u.block ? u.block + (/(^|\s)(blok|bloğu|block)$/i.test(u.block) ? ' ' : ' Blok ') : '') + (/^\d/.test(String(u.no)) ? 'No ' : '') + u.no : (u.block ? u.block + ' · ' : '') + u.no;
         // migration davet_kodlari: ad maskeli (mask_name), telefon ve e-posta yok.
         return { data:{ org:o.name, sector:o.sector, unit, role:r.role, name:maskName(r.name), email_bound:!!String(r.email || '').trim(), used:false }, error:null };
       }

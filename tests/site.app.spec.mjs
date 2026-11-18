@@ -368,3 +368,31 @@ test('aidat: yönetim banka hesabını ekler; sakin havale bilgilerini (IBAN, al
   const o = (await db(page)).tables.organizations.find((x) => x.id === 'o1');
   expect(o).toMatchObject({ bank_iban: 'TR420001000000000000000001', bank_holder: 'Atakum Sitesi Yönetimi' });
 });
+
+test('daireler: bloğu toplu yeniden adlandırma; "Blok" tekrar etmez', async ({ page }) => {
+  await login(page, 'ev@ornek.com');
+  await expect(page).toHaveURL(/\/uygulama\/site$/);
+  await page.evaluate(() => {
+    const d = JSON.parse(localStorage.getItem('__fakedb'));
+    const u = (id, block, no) => ({ id, org_id: 'o1', block, no, area: 100, share: 1, aidat: 1000, payer: 'kiraci', note: '', currency: 'TRY', index_kind: 'tufe', vat: false, stopaj: false, created_at: new Date().toISOString() });
+    d.tables.site_units = [u('u1', 'A', '1'), u('u2', 'B', '1'), u('u3', 'B', '2')];
+    localStorage.setItem('__fakedb', JSON.stringify(d));
+  });
+  await page.reload();
+  await page.getByRole('link', { name: 'Daireler', exact: true }).first().click();
+  await expect(page.getByRole('button', { name: 'Bloğu yeniden adlandır' })).toHaveCount(0);   // "Tümü" seçiliyken (çok bloklu) çıkmaz
+  await page.getByText('B Blok', { exact: true }).click();
+  await page.getByRole('button', { name: 'Bloğu yeniden adlandır' }).click();
+  await page.getByLabel('Yeni blok adı').fill('A');
+  await page.getByRole('button', { name: 'Kaydet' }).click();
+  await expect(page.getByText('Bu adla bir blok zaten var. Başka bir ad seç.')).toBeVisible();   // birleştirme yok
+  await page.getByLabel('Yeni blok adı').fill('Lale Blok');
+  await expect(page.getByText('Görünüm: Lale Blok No 1')).toBeVisible();
+  await page.getByRole('button', { name: 'Kaydet' }).click();
+  await expect(page.getByText('2 daire güncellendi.')).toBeVisible();
+  const units = (await db(page)).tables.site_units;
+  expect(units.filter((x) => x.block === 'Lale Blok').map((x) => x.no).sort()).toEqual(['1', '2']);
+  expect(units.find((x) => x.id === 'u1').block).toBe('A');
+  await expect(page.getByText(/Lale Blok No 1/).first()).toBeVisible();
+  await expect(page.getByText(/Blok Blok/)).toHaveCount(0);
+});

@@ -104,21 +104,27 @@ async function signupForm(page, { name = 'Deneme Kişi', email = 'yeni@ornek.com
   await page.getByLabel('Şifre', { exact: true }).fill(pass);
   await page.getByLabel('Şifre (tekrar)').fill(pass2);
   if (accept) await page.getByRole('checkbox').click({ position: { x: 10, y: 10 } });
-  await page.getByRole('button', { name: /Hesap oluştur|ücretsiz başla/ }).click();
+  const btn = page.getByRole('button', { name: /Hesap oluştur|ücretsiz başla/ });
+  // Şifre kuralları tamamlanmadan düğme kapalıdır (PasswordRules); kapalıysa basılmaz, test kapalı olduğunu ayrıca doğrular.
+  if (await btn.isEnabled()) await btn.click();
+  return btn;
 }
 const stillOnSignup = (page) => expect(page).toHaveURL(/\/kayit/);
 
 test('K1 kayıt: şifreler uyuşmuyorsa hesap açılmaz, sebep söylenir', async ({ page }) => {
   await seedDb(page);
-  await signupForm(page, { pass2: 'baska-sifre-2' });
-  await expect(page.getByText(/eşleşmiyor|uyuşmuyor|aynı değil/i).first()).toBeVisible();
+  const btn = await signupForm(page, { pass2: 'baska-sifre-2' });
+  await expect(page.getByText('İki şifre aynı')).toBeVisible();
+  await expect(btn).toBeDisabled();
   await stillOnSignup(page);
   expect((await db(page)).users.map((u) => u.email)).not.toContain('yeni@ornek.com');
 });
 
 test('K2 kayıt: kısa şifre reddedilir', async ({ page }) => {
   await seedDb(page);
-  await signupForm(page, { pass: '123' });
+  const btn = await signupForm(page, { pass: '123' });
+  await expect(page.getByText('En az 8 karakter', { exact: true })).toBeVisible();
+  await expect(btn).toBeDisabled();
   await stillOnSignup(page);
   expect((await db(page)).users.map((u) => u.email)).not.toContain('yeni@ornek.com');
 });
