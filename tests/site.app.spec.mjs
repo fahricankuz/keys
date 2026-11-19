@@ -437,7 +437,7 @@ test('aidat: banka ekstresi (Garanti .xls) yüklenir; kodlu ödeme kesin eşleş
   const xls = readFileSync(new URL('./fixtures/garanti-ornek.xls', import.meta.url));
   const upload = async () => {
     const pick = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: /^(Ekstre yükle|Başka ekstre yükle)$/ }).click();
+    await page.getByRole('button', { name: /^(Ekstre yükle|Ekstre ekle)$/ }).click();
     await (await pick).setFiles({ name: 'ekstre.xls', mimeType: 'application/vnd.ms-excel', buffer: xls });
   };
   await upload();
@@ -449,6 +449,11 @@ test('aidat: banka ekstresi (Garanti .xls) yüklenir; kodlu ödeme kesin eşleş
   expect(d1.site_charges.find((x) => x.id === 'c2').status).toBe('open');                 // öneri onaysız işlenmez
   expect(d1.site_bank_txns).toHaveLength(1);
   expect(JSON.stringify(d1.site_bank_txns)).not.toContain('AYŞE');                        // açıklama sunucuya gitmez
+  // Aynı dosyayı yeniden eklemek: hareketler zaten listede, bir kez sayılır.
+  await upload();
+  await expect(page.getByText(/4 hareket birden çok dosyada \(bir kez sayıldı\)/)).toBeVisible();
+  // Temizleyip yeniden yüklemek: işlenen hareket "daha önce işlenmiş".
+  await page.getByRole('button', { name: 'Temizle' }).click();
   await upload();
   await expect(page.getByText(/4 gelen ödeme · 0 kesin · 1 öneri · 2 eşleşmeyen · 1 daha önce işlenmiş/)).toBeVisible();
 });

@@ -31,7 +31,7 @@ function statement(rows) {
   return ['T. GARANTİ BANKASI A.Ş.', '', 'Tarih;Açıklama;Etiket;Tutar;Bakiye;Dekont No', ...rows.map((r) => r.join(';'))].join('\n');
 }
 
-test('kira: kodlu ödeme kesin eşleşir ve onaylanır; dekontla kayıtlı ödeme ve kart aktarımı sayılmaz; ikinci yüklemede tekrar yok', async ({ page }) => {
+test('kira: kodlu ödeme kesin eşleşir ve onaylanır; dekontla kayıtlı ödeme ve kart aktarımı sayılmaz; birden çok ekstre birlikte; ikinci yüklemede tekrar yok', async ({ page }) => {
   await page.goto(url('/giris/mulk-sahibi'));
   await page.getByLabel('E-posta').fill('ev@ornek.com');
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
@@ -53,13 +53,15 @@ test('kira: kodlu ödeme kesin eşleşir ve onaylanır; dekontla kayıtlı ödem
     [tr(d2), 'IYZICO TOPLU AKTARIM', 'Para Transferi', '980', '0', '3'],
     [tr(d2), 'MARKET', 'Harcama', '-250', '0', '4']
   ]);
-  const upload = async () => {
+  // İkinci hesabın ekstresi: biri ilk dosyadakiyle aynı hareket (çakışan dönem), biri kodsuz ve tanınmayan gönderen.
+  const csv2 = statement([[tr(d2), 'AHMET YILMAZ K7MXRP KİRA', 'Para Transferi', '30000', '0', '2'], [tr(d2), 'BİLİNMEYEN', 'Para Transferi', '500', '0', '9']]);
+  const upload = async (list) => {
     const pick = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: /^(Ekstre yükle|Başka ekstre yükle)$/ }).click();
-    await (await pick).setFiles({ name: 'ekstre.csv', mimeType: 'text/csv', buffer: Buffer.from(csv, 'utf8') });
+    await page.getByRole('button', { name: /^(Ekstre yükle|Ekstre ekle)$/ }).click();
+    await (await pick).setFiles(list.map((b, i) => ({ name: 'ekstre-' + i + '.csv', mimeType: 'text/csv', buffer: Buffer.from(b, 'utf8') })));
   };
-  await upload();
-  await expect(page.getByText(/Garanti BBVA · 3 gelen ödeme · 1 kesin · 0 öneri · 0 eşleşmeyen · 1 zaten kayıtlı · 1 kart aktarımı/)).toBeVisible();
+  await upload([csv, csv2]);   // iki dosya birlikte seçilir
+  await expect(page.getByText(/Garanti BBVA · 2 dosya · 4 gelen ödeme · 1 kesin · 0 öneri · 1 eşleşmeyen · 1 zaten kayıtlı · 1 kart aktarımı · 1 hareket birden çok dosyada/)).toBeVisible();
   await expect(page.getByRole('checkbox', { name: /Moda Dairesi · .* kira/ })).toBeVisible();
   await page.getByRole('button', { name: 'Seçilenleri onayla (1)' }).click();
   await expect(page.getByText('İşlendi')).toBeVisible();
@@ -69,6 +71,7 @@ test('kira: kodlu ödeme kesin eşleşir ve onaylanır; dekontla kayıtlı ödem
   expect(d.tables.payments.filter((x) => x.status === 'approved')).toHaveLength(2);
   expect(d.tables.rent_bank_txns).toHaveLength(1);
   expect(JSON.stringify(d.tables.rent_bank_txns)).not.toContain('AHMET');
-  await upload();
+  await page.getByRole('button', { name: 'Temizle' }).click();
+  await upload([csv]);
   await expect(page.getByText(/3 gelen ödeme · 0 kesin .* 1 daha önce işlenmiş/)).toBeVisible();
 });
