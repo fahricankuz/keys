@@ -31,7 +31,7 @@ function statement(rows) {
   return ['T. GARANTİ BANKASI A.Ş.', '', 'Tarih;Açıklama;Etiket;Tutar;Bakiye;Dekont No', ...rows.map((r) => r.join(';'))].join('\n');
 }
 
-test('kira: kodlu ödeme kesin eşleşir ve onaylanır; dekontla kayıtlı ödeme ve kart aktarımı sayılmaz; birden çok ekstre birlikte; ikinci yüklemede tekrar yok', async ({ page }) => {
+test('kira: kodlu ödeme kesin eşleşir ve onaylanır; dekontla kayıtlı ödeme ve kart aktarımı sayılmaz; birden çok ekstre birlikte; döviz hesabı eşleştirilmez; ikinci yüklemede tekrar yok', async ({ page }) => {
   await page.goto(url('/giris/mulk-sahibi'));
   await page.getByLabel('E-posta').fill('ev@ornek.com');
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
@@ -60,7 +60,10 @@ test('kira: kodlu ödeme kesin eşleşir ve onaylanır; dekontla kayıtlı ödem
     await page.getByRole('button', { name: /^(Ekstre yükle|Ekstre ekle)$/ }).click();
     await (await pick).setFiles(list.map((b, i) => ({ name: 'ekstre-' + i + '.csv', mimeType: 'text/csv', buffer: Buffer.from(b, 'utf8') })));
   };
-  await upload([csv, csv2]);   // iki dosya birlikte seçilir
+  // Döviz hesabının ekstresi: kodlu ve tutarı tutsa bile eşleştirilmez (kira TL), uyarı gösterilir.
+  const usd = ['T. GARANTİ BANKASI A.Ş.', '', 'Tarih;Açıklama;Etiket;Tutar (USD);Bakiye (USD);Dekont No', [tr(d2), 'K7MXRP', 'Para Transferi', '30000', '0', '7'].join(';')].join('\n');
+  await upload([csv, csv2, usd]);   // birden çok dosya birlikte seçilir
+  await expect(page.getByText('Döviz hesabı, eşleştirilmedi (aidat ve kira TL): ekstre-2.csv (USD)')).toBeVisible();
   await expect(page.getByText(/Garanti BBVA · 2 dosya · 4 gelen ödeme · 1 kesin · 0 öneri · 1 eşleşmeyen · 1 zaten kayıtlı · 1 kart aktarımı · 1 hareket birden çok dosyada/)).toBeVisible();
   await expect(page.getByRole('checkbox', { name: /Moda Dairesi · .* kira/ })).toBeVisible();
   await page.getByRole('button', { name: 'Seçilenleri onayla (1)' }).click();

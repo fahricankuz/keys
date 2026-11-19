@@ -1864,6 +1864,7 @@ export const EN_EXTRA = {
   'Birden çok ekstre seçebilirsin (farklı hesaplar ya da aylar); aynı hareket birden çok dosyada varsa bir kez sayılır.': 'You can choose several statements (different accounts or months); a transaction that appears in more than one file is counted once.',
   '{f} okunamadı. Bankadan Excel ya da CSV olarak indir.': '{f} could not be read. Download it from your bank as Excel or CSV.',
   'Gelen ödeme bulunamadı: {f}': 'No incoming payments found: {f}',
+  'Döviz hesabı, eşleştirilmedi (aidat ve kira TL): {f}': 'Foreign-currency account, not matched (dues and rent are in TRY): {f}',
   '{f}: bu bankanın biçimini henüz tanımıyoruz. Hangi sütunun tarih, açıklama ve tutar olduğunu seç.': '{f}: we do not recognise this bank’s format yet. Choose which columns hold the date, description and amount.',
   '{n} dosya': '{n} files',
   '{n} hareket birden çok dosyada (bir kez sayıldı)': '{n} transactions in more than one file (counted once)',

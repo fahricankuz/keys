@@ -12,7 +12,7 @@ import { applyRentTxn, rentSource, seenRentTxns } from '../domain/rent-ekstre';
 import { S } from '../domain/state';
 import { can } from '../domain/team';
 import { readTable } from '../domain/importer';
-import { bankOf, findHeader, incoming, matchTxns } from '../domain/ekstre';
+import { bankOf, currencyOf, findHeader, incoming, matchTxns } from '../domain/ekstre';
 import { applyBankTxn, kindLabel, seenBankTxns, unitLabel } from '../domain/site';
 import { fmtFull, monthYear, parse, tl } from '../domain/util';
 import { Button, Chip, Text } from '../ui/kit';
@@ -77,11 +77,14 @@ export function StatementImport({ source, seen: loadSeen, apply: applyOne, reloa
     const picked = await pickTables();
     if (!picked.length) return;
     setBusy(true);
-    let cur = { fresh, res: res || [] }, empty: string[] = [];
+    let cur = { fresh, res: res || [] }, empty: string[] = [], foreign: string[] = [];
     const queue: { name: string; rows: any[][]; bank: string }[] = [];
     try {
       for (const f of picked) {
-        const rs = await readTable(f.bytes), bank = bankOf(rs), h = findHeader(rs);
+        const rs = await readTable(f.bytes), h = findHeader(rs), bank = bankOf(rs, { name: f.name, upto: h?.row });
+        // Aidat ve kira TL: döviz hesabının hareketi (ör. 1.000 USD) 1.000 TL'lik borçla eşleşmesin.
+        const cy = currencyOf(rs, h, f.name);
+        if (cy !== 'TRY') { foreign.push(`${f.name} (${cy})`); continue; }
         setFiles((x) => [...x, f.name]); if (bank) setBanks((x) => (x.includes(bank) ? x : [...x, bank]));
         if (!h) { queue.push({ name: f.name, rows: rs, bank }); continue; }
         const txns = incoming(rs, h as Header).map((x) => ({ ...x, bank }));
@@ -89,15 +92,18 @@ export function StatementImport({ source, seen: loadSeen, apply: applyOne, reloa
         cur = await addTxns(txns, cur);
       }
       if (!cur.res.length && !queue.length) setRes(null);
-      if (empty.length) setErr(t('Gelen ödeme bulunamadı: {f}', { f: empty.join(', ') }));
+      setErr([empty.length ? t('Gelen ödeme bulunamadı: {f}', { f: empty.join(', ') }) : '',
+        foreign.length ? t('Döviz hesabı, eşleştirilmedi (aidat ve kira TL): {f}', { f: foreign.join(', ') }) : ''].filter(Boolean).join('\n') || null);
       askColumns(queue);
     } catch (e) { setErr(humanError(e)); }
     setBusy(false);
   };
   const runGuess = async () => {
     if (!guess) return;
-    const txns = incoming(guess.rows, guess).map((x) => ({ ...x, bank: guess.bank }));
-    if (!txns.length) setErr(t('Gelen ödeme bulunamadı: {f}', { f: guess.name }));
+    const cy = currencyOf(guess.rows, guess, guess.name);
+    const txns = cy === 'TRY' ? incoming(guess.rows, guess).map((x) => ({ ...x, bank: guess.bank })) : [];
+    if (cy !== 'TRY') setErr(t('Döviz hesabı, eşleştirilmedi (aidat ve kira TL): {f}', { f: `${guess.name} (${cy})` }));
+    else if (!txns.length) setErr(t('Gelen ödeme bulunamadı: {f}', { f: guess.name }));
     else await addTxns(txns, { fresh, res: res || [] });
     askColumns(pending);
   };
