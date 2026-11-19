@@ -15,6 +15,7 @@ export const I = {
   wrench:   svg('<path d="M14.5 6.5a4 4 0 0 0-5 5L4 17l3 3 5.5-5.5a4 4 0 0 0 5-5l-2.5 2.5-2.5-.5-.5-2.5z"/><circle fill="{RING}" stroke="none" cx="18" cy="18" r="1.8"/>'),
   chat:     svg('<path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-5 4z"/><circle fill="{RING}" stroke="none" cx="12" cy="10.5" r="1.8"/>'),
   doc:      svg('<path d="M6 3h8l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 11h7M8 15h4"/><circle fill="{RING}" stroke="none" cx="16" cy="15.2" r="1.36"/><path fill="{RING}" stroke="none" d="M15.2 15.84 L14.88 18.08 H17.12 L16.8 15.84Z"/>'),
+  copy:     svg('<rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2.5"/><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"/>'),
   chart:    svg('<path d="M4 18 9.5 12.5l3.5 3 3.2-4.2"/>' + R(18.6, 8, 1.9)),
   mail:     svg('<rect x="3" y="5.5" width="18" height="13" rx="3"/><path d="m4 7.5 8 6 8-6"/><circle fill="{RING}" stroke="none" cx="19" cy="6" r="2.2"/>'),
   bell:     svg('<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 21h4"/><circle fill="{RING}" stroke="none" cx="17.5" cy="6" r="2.2"/>'),

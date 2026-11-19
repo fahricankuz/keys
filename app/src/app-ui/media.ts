@@ -161,6 +161,22 @@ export async function pickJson(): Promise<string | null> {
 }
 
 /** Excel ya da CSV dosyası seçtirir; içeriği bayt olarak döner (toplu içe aktarma). */
+/** Birden çok tablo dosyası (banka ekstreleri: farklı hesaplar ya da dönemler). Okunamayan dosya atlanır. */
+export async function pickTables(): Promise<{ name: string; bytes: Uint8Array }[]> {
+  const r = await DocumentPicker.getDocumentAsync({
+    type: ['text/csv', 'text/comma-separated-values', 'text/plain', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+    copyToCacheDirectory: true, multiple: true
+  });
+  if (r.canceled || !r.assets?.length) return [];
+  const out: { name: string; bytes: Uint8Array }[] = [];
+  for (const a of r.assets) {
+    try {
+      const buf = (a as any).file ? await (a as any).file.arrayBuffer() : await (await fetch(a.uri)).arrayBuffer();
+      out.push({ name: a.name, bytes: new Uint8Array(buf) });
+    } catch {}
+  }
+  return out;
+}
 export async function pickTable(): Promise<{ name: string; bytes: Uint8Array } | null> {
   const r = await DocumentPicker.getDocumentAsync({
     type: ['text/csv', 'text/comma-separated-values', 'text/plain', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],

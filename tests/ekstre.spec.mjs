@@ -80,3 +80,32 @@ test('eşleştirme: kod + tam tutar kesin; kod + farklı tutar öneri; yalnız a
 test('Türkçe harf sadeleştirme', () => {
   expect(M.fold('Gül Bloğu İĞÜŞÖÇ ığüşöç')).toBe('GUL BLOGU IGUSOC IGUSOC');
 });
+
+test('çift sayım yok: dekontla/elle zaten işlenmiş ödeme sonraki aya yazılmaz; "ayrı ödeme" denirse eşleşir; kart aktarımı hiç eşleşmez', () => {
+  const units = [{ id: 'u1', pay_code: 'K7MXRP' }];
+  const residents = [{ unit_id: 'u1', name: 'Ayşe Yılmaz' }];
+  const charges = [
+    { id: 'nov', unit_id: 'u1', month: '2026-11', kind: 'aidat', amount: 1500, status: 'paid', paid_amount: 1500, paid_on: '2026-11-15' },   // dekontla onaylandı
+    { id: 'dec', unit_id: 'u1', month: '2026-12', kind: 'aidat', amount: 1500, status: 'open', paid_amount: 0 }
+  ];
+  const tx = { date: '2026-11-16', amount: 1500, desc: 'AYŞE YILMAZ K7MXRP', ref: '', line: 1, fp: 'f1' };
+  const [a] = M.matchTxns([tx], { units, residents, charges });
+  expect(a).toMatchObject({ kind: 'known', unit: { id: 'u1' } });
+  expect(a.parts[0].charge.id).toBe('nov');
+  // Yönetici "bu ayrı bir ödeme" derse Aralık'a kesin eşleşir.
+  const [b] = M.matchTxns([tx], { units, residents, charges }, { separate: new Set(['f1']) });
+  expect(b).toMatchObject({ kind: 'exact' });
+  expect(b.parts[0].charge.id).toBe('dec');
+  // Aynı dosyada iki ödeme: ilki kayıtlı olanla, ikincisi Aralık'la eşleşir (bir kayıt iki satırı yutmaz).
+  const two = M.matchTxns([tx, { ...tx, date: '2026-11-18', line: 2, fp: 'f2' }], { units, residents, charges });
+  expect(two.map((x) => [x.kind, x.parts[0]?.charge.id])).toEqual([['known', 'nov'], ['exact', 'dec']]);
+  // 7 günden eski kayıt eşleştirmeyi durdurmaz.
+  expect(M.matchTxns([{ ...tx, date: '2026-11-30' }], { units, residents, charges })[0].kind).toBe('exact');
+  // Kodu ya da adı olmayan satır: aynı tutar ve tarihte tek kayıtlı ödeme varsa "zaten kayıtlı".
+  expect(M.matchTxns([{ ...tx, desc: 'HAVALE', date: '2026-11-15' }], { units, residents, charges })[0]).toMatchObject({ kind: 'known' });
+  // Kart tahsilatı aktarımı (ödeme kuruluşu / POS) hiçbir daireye yazılmaz, kod geçse bile.
+  for (const desc of ['IYZICO ODEME HIZMETLERI TOPLU AKTARIM', 'POS ÜYE İŞYERİ 123456', 'PayTR Aktarım K7MXRP', 'SANAL POS BLOKE ÇÖZÜM'])
+    expect(M.matchTxns([{ ...tx, desc }], { units, residents, charges })[0]).toMatchObject({ kind: 'card', unit: null });
+  // "POSTA" gibi kelimeler kart sayılmaz.
+  expect(M.isCardSettlement('POSTA ÇEKİ AYŞE')).toBe(false);
+});

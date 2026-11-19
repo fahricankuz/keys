@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { formatIban, normalizeIban } from '../domain/iban';
@@ -12,8 +13,13 @@ import { Icon } from './blocks';
     IBAN boşluksuz kopyalanır (banka uygulamaları öyle ister), ekranda dörtlü gruplarla gösterilir. */
 export default function TransferInfo({ iban, holder, amount, code }: { iban: string; holder: string; amount?: number | null; code?: string | null }) {
   const c = useColors();
+  const [copied, setCopied] = useState('');
   const copy = async (label: string, value: string) => {
-    try { await Clipboard.setStringAsync(value); host.notify({ title: t('Kopyalandı'), body: t('{x} panoya alındı.', { x: label }), icon: 'doc' }); } catch {}
+    try {
+      await Clipboard.setStringAsync(value);
+      setCopied(label); setTimeout(() => setCopied((x) => (x === label ? '' : x)), 2000);
+      host.notify({ title: t('Kopyalandı'), body: t('{x} panoya alındı.', { x: label }), icon: 'copy' });
+    } catch {}
   };
   const rows: [string, string, string][] = [
     [t('Alıcı'), holder, holder],
@@ -31,7 +37,12 @@ export default function TransferInfo({ iban, holder, amount, code }: { iban: str
               <Text v="small" muted>{label}</Text>
               <Text style={{ fontFamily: label === t('Açıklama kodu') ? fonts.bodyXBold : fonts.bodyBold, letterSpacing: label === t('Açıklama kodu') ? 1.5 : 0 }} selectable>{shown}</Text>
             </View>
-            <Icon name="doc" size={18} color={c.accentText} />
+            {/* Kopyala düğmesi: ikon + yazı, kopyalanınca kısa süre "Kopyalandı ✓". */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, minHeight: 32, borderRadius: 999,
+              borderWidth: 1, borderColor: copied === label ? c.okInk : c.accentText, backgroundColor: copied === label ? c.okBg : 'transparent' }}>
+              {copied === label ? null : <Icon name="copy" size={16} color={c.accentText} />}
+              <Text v="small" color={copied === label ? c.okInk : c.accentText} style={{ fontFamily: fonts.bodyBold }}>{copied === label ? t('Kopyalandı ✓') : t('Kopyala')}</Text>
+            </View>
           </Pressable>
         ))}
       </View>
