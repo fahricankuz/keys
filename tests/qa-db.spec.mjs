@@ -67,6 +67,7 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
     // file_in_locked_inspect → depo yolunun kilitli giriş tutanağında olup olmadığını sorar (dosya silme politikası; kişisel veri dönmez).
     // link_site_unit → mülk sahibi ve dairenin maliki; site_linked_tenants → kurum üyesi; site_report → Raporlar yetkisi.
     // register_device_token / unregister_device_token → çağıranın kendi cihaz anahtarı (native push; yetim anahtar yalnız sahibinin açık oturumu yoksa silinir).
+    // rent_bank_apply → mülkte karar yetkisi (ekstreden kira tahsilatı; onaylı ay değişmez).
     // reports_today → content_reports politikası günlük sınırı için çağıranın kendi bildirim sayısını sorar.
     // site_file_read_ok / site_file_write_ok / storage_quota_ok → depolama politikaları (storage.objects) bu işlevleri çağırır; yalnız çağıranı sorarlar.
     // post_system_message → mülkte mesaj yazma yetkisi, bilinen tür, çağıranın tarafı ve metin kalıbı denetlenir (sohbet olay satırları).
@@ -82,7 +83,7 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
     'org_bank_save', 'org_can', 'org_detail', 'org_invite_create', 'org_invite_delete', 'org_member_remove', 'org_member_set', 'org_role_delete', 'org_role_save',
     'org_transfer_master',
     'post_system_message',
-    'register_device_token', 'report_error', 'reports_today', 'review_ok', 'shares_property', 'signup_code_ok', 'site_bank_apply', 'site_cash_summary', 'site_file_read_ok', 'site_file_write_ok', 'site_folder_ok', 'site_invite_info', 'site_invite_mail', 'site_linked', 'site_linked_tenants', 'site_meeting_reply', 'site_poll_results', 'site_poll_vote', 'site_project_vote_close', 'site_project_vote_open', 'site_project_vote_sync', 'site_report', 'site_resident_code', 'site_role', 'storage_quota_ok', 'submit_lead', 'team_list', 'team_remove', 'team_set', 'unregister_device_token', 'verify_rent_certificate'
+    'register_device_token', 'rent_bank_apply', 'report_error', 'reports_today', 'review_ok', 'shares_property', 'signup_code_ok', 'site_bank_apply', 'site_cash_summary', 'site_file_read_ok', 'site_file_write_ok', 'site_folder_ok', 'site_invite_info', 'site_invite_mail', 'site_linked', 'site_linked_tenants', 'site_meeting_reply', 'site_poll_results', 'site_poll_vote', 'site_project_vote_close', 'site_project_vote_open', 'site_project_vote_sync', 'site_report', 'site_resident_code', 'site_role', 'storage_quota_ok', 'submit_lead', 'team_list', 'team_remove', 'team_set', 'unregister_device_token', 'verify_rent_certificate'
   ]);
 });
 

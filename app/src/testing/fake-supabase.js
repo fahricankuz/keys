@@ -10,7 +10,7 @@ const TABLES = ['profiles','properties','property_shared','memberships','invites
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
                 'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes','site_documents','site_investor_notes','mail_outbox','site_cash','site_recurring_expenses',
-                'site_projects','site_project_updates','site_request_messages','site_project_costs','site_contracts','site_bank_txns',
+                'site_projects','site_project_updates','site_request_messages','site_project_costs','site_contracts','site_bank_txns','rent_bank_txns',
                 'app_config','fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_costs','admin_revenue_months','crm_leads','crm_notes','admin_emails'];
 
 /** Açıklama kodu (migration havale_bilgileri → gen_pay_code): 6 karakter, karışan harf/rakam yok. */
@@ -629,7 +629,7 @@ export function createClient(url, key, opts){
         return { data:id, error:null };
       }
       // Kurumlar: schema.sql 16. bölüm ile aynı kurallar (özet).
-      if (/^(my_orgs|org_|accept_org_invite|admin_org|admin_add_property|investor_report_mail|site_bank_apply$)/.test(name)){
+      if (/^(my_orgs|org_|accept_org_invite|admin_org|admin_add_property|investor_report_mail|site_bank_apply$|rent_bank_apply$)/.test(name)){
         const T = db.tables, A = args || {};
         const PERMS = ['org.settings','org.members','units.manage','residents.manage','charges.manage','payments.approve','expenses.manage','requests.manage','announce','documents.manage','reports.view'];
         const MODS = ['kira','aidat','gider_dagitim','duyuru','ciro_kira','ortak_gider','endeksleme','doluluk','onay_akisi','rapor','api','yatirimci'];
@@ -666,6 +666,29 @@ export function createClient(url, key, opts){
             members: T.org_members.filter(m => m.org_id === A.oid).map(m => ({ user_id:m.user_id, name:pname(m.user_id), email:pmail(m.user_id), role_id:m.role_id, master:m.is_master, since:m.created_at }))
               .sort((a, b) => (b.master - a.master) || a.name.localeCompare(b.name)),
             invites: (adm || can(A.oid, 'org.members')) ? T.org_invites.filter(i => i.org_id === A.oid && !i.accepted_by).map(i => ({ code:i.code, role_id:i.role_id, master:i.master, email:i.email, expires_at:i.expires_at })) : [] });
+        }
+        if (name === 'rent_bank_apply'){   // migration ekstre_kira
+          const pr = T.properties.find(x => x.id === A.pid);
+          const mrole = (T.memberships.find(m => m.property_id === A.pid && m.user_id === me) || {}).role;
+          if (!pr || !(pr.owner_id === me || mrole === 'agent')) return err('Bu işlem için yetkin yok');
+          const n = (A.months || []).length;
+          if (!n) return err('Eşleşen ay yok', '22023');
+          if (A.amounts.reduce((s, x) => s + Number(x), 0) > Number(A.amount) + 0.005) return err('Dağıtılan tutar ödemeyi aşıyor', '22023');
+          T.rent_bank_txns = T.rent_bank_txns || [];
+          if (T.rent_bank_txns.some(x => x.owner_id === pr.owner_id && x.fp === A.fp)) return ok(false);
+          for (let i = 0; i < n; i++){
+            const cur = T.payments.find(x => x.property_id === A.pid && x.month === A.months[i] && (x.kind || 'kira') === A.kinds[i]);
+            if (cur && cur.status === 'approved') return err('Bu ay zaten onaylanmış', '22023');
+          }
+          T.rent_bank_txns.push({ id: uuid(), owner_id: pr.owner_id, property_id: A.pid, fp: A.fp, txn_date: A.txn_date, amount: A.amount, bank: A.bank || '', refs: A.months.map((m, i) => A.kinds[i] + ':' + m), created_at: now() });
+          for (let i = 0; i < n; i++){
+            let cur = T.payments.find(x => x.property_id === A.pid && x.month === A.months[i] && (x.kind || 'kira') === A.kinds[i]);
+            const base = cur && cur.status === 'partial' ? Number(cur.amount) || 0 : 0;
+            if (!cur){ cur = { property_id: A.pid, month: A.months[i], kind: A.kinds[i], receipt_name: '' }; T.payments.push(cur); }
+            Object.assign(cur, { status: A.complete[i] ? 'approved' : 'partial', amount: base + Number(A.amounts[i]), paid_on: A.txn_date, method: 'havale',
+              approved_at: A.complete[i] ? now() : null, reject_reason: null, updated_at: now() });
+          }
+          return ok(true);
         }
         if (name === 'site_bank_apply'){   // migration ekstre_eslestirme
           if (!can(A.oid, 'payments.approve')) return err('Bu işlem için yetkin yok');
