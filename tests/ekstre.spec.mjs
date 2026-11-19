@@ -109,3 +109,53 @@ test('çift sayım yok: dekontla/elle zaten işlenmiş ödeme sonraki aya yazıl
   // "POSTA" gibi kelimeler kart sayılmaz.
   expect(M.isCardSettlement('POSTA ÇEKİ AYŞE')).toBe(false);
 });
+
+// Banka biçimleri: satırlar uydurmadır (gerçek kişi, hesap ya da IBAN yok); yalnız bankaların başlık ve hesap bilgisi düzeni örneklenir.
+const IBAN = (code) => `TR00 ${code.slice(0, 4)} ${code.slice(4)}000 0000 0000 0000 01`;
+const FORMATS = [
+  // [ad, satırlar, beklenen banka, para birimi, gelen ödeme sayısı]
+  ['Ziraat Katılım: "Tutar (TRY)"', [['AD SOYAD/UNVAN :', 'ÖRNEK SİTE YÖNETİMİ'], ['IBAN :', IBAN('00209')], ['BAKİYE :', '10,00 TRY'], [],
+    ['Tarih', 'Açıklama', 'Kar P. Oranı', 'Tutar (TRY)', 'Güncel Bakiye (TRY)'], ['01.11.2026', 'K7MXRP AIDAT', '0', '1.500,00', '1.510,00'], ['02.11.2026', 'MASRAF', '0', '-5,00', '1.505,00']],
+    'Ziraat Katılım', 'TRY', 1],
+  ['Albaraka: "TUTAR(TL)", fiş no', [['AD SOYAD/UNVAN :', 'ÖRNEK'], ['IBAN:', IBAN('00203')], [], ['Tarih', 'Kanal', 'Fiş No', 'Açıklama', 'Tutar(TL)', 'Güncel Bakiye(TL)'],
+    ['01/11/2026', 'İNTERNET', '123', 'GELEN FAST K7MXRP', '750', '750']], 'Albaraka Türk', 'TRY', 1],
+  ['Albaraka döviz: "Tutar(USD)"', [['IBAN:', IBAN('00203')], ['Tarih', 'Kanal', 'Fiş No', 'Açıklama', 'Tutar(USD)', 'Güncel Bakiye(USD)'],
+    ['01/11/2026', 'İNTERNET', '124', 'GELEN HAVALE', '1000', '1000']], 'Albaraka Türk', 'USD', 1],
+  ['VakıfBank: B/A sütunu, hesap bilgisinde "VADESİZ USD"', [['Hesap Bakiyesi', '9,99 USD'], ['Hesap Türü', 'VADESİZ USD'], ['IBAN', IBAN('00015')],
+    ['Hesap No', 'Fiş No', 'Hareket Tarih', 'İşlem Tarihi', 'Kart No', 'İşlem', 'Tutar', 'Bakiye', 'Kanal', 'İşlem No', 'Referans', 'Havale', 'Ref No', 'TCKN', 'VKN', 'B/A', 'Açıklama'],
+    ['1', '2', '01.11.2026 10:00', '01.11.2026', '', 'ALINAN HAVALE', '500', '500', 'İNTERNET', '3', '', '', '', '', '', 'A', 'ÖRNEK']], 'VakıfBank', 'USD', 1],
+  ['Akbank: "Döviz cinsi: TL"', [['AKBANK T.A.Ş.'], ['Döviz Cinsi', 'TL'], [], ['Tarih', 'Saat', 'Tutar', 'Bakiye', 'Borç/Alacak', 'Açıklama', 'Fiş/Dekont No'],
+    ['01.11.2026', '10:00', '1500', '1500', 'A', 'K7MXRP', '1'], ['02.11.2026', '11:00', '-200', '1300', 'B', 'FATURA', '2']], 'Akbank', 'TRY', 1],
+  ['Hareketlerde başka banka adı ve döviz sözcüğü geçen TL hesabı', [['Hesap', 'VADESİZ TL'], ['IBAN', IBAN('00015')], ['Tarih', 'Açıklama', 'Tutar', 'Bakiye'],
+    ['01.11.2026', "GARANTİ'DEN GELEN EFT K7MXRP", '1500', '1500'], ['02.11.2026', 'DÖVİZ ALIŞ USD', '-100', '1400']], 'VakıfBank', 'TRY', 1]
+];
+
+test('banka biçimleri: başlıktaki para birimi, döviz hesabı ve banka (IBAN kodu → ad) tanınır', () => {
+  for (const [name, rows, bank, cur, n] of FORMATS) {
+    const h = M.findHeader(rows);
+    expect(h, name).not.toBeNull();
+    expect(M.bankOf(rows, { upto: h.row }), name).toBe(bank);
+    expect(M.currencyOf(rows, h), name).toBe(cur);
+    expect(M.incoming(rows, h).length, name).toBe(n);
+  }
+});
+
+test('banka ve para birimi dosya adından: içerikte bilgi yoksa; kısa adlar yalnız ayrı sözcük olarak', () => {
+  const rows = [['İşlem Tarihi', 'Açıklama', 'Tutar', 'Bakiye'], ['01.11.2026', 'ÖRNEK', '100', '100']];
+  const h = M.findHeader(rows);
+  expect(M.bankOf(rows, { upto: h.row })).toBe('');
+  expect(M.currencyOf(rows, h)).toBe('TRY');
+  expect(M.bankOf(rows, { name: 'EMLAK KATILIM  TL.xls', upto: h.row })).toBe('Emlak Katılım');
+  expect(M.bankOf(rows, { name: 'ANADOLUBANK TL HES.xls', upto: h.row })).toBe('Anadolubank');
+  expect(M.bankOf(rows, { name: 'YKB TL.xls', upto: h.row })).toBe('Yapı Kredi');
+  expect(M.bankOf(rows, { name: 'TEB TL.xls', upto: h.row })).toBe('TEB');
+  expect(M.bankOf(rows, { name: 'ŞEKERBANK KMH HESAP.xls', upto: h.row })).toBe('Şekerbank');
+  expect(M.bankOf(rows, { name: 'İŞ BANKASI TL.xls', upto: h.row })).toBe('İş Bankası');
+  expect(M.bankOf(rows, { name: 'KASIM EKSTRESİ.xls', upto: h.row })).toBe('');
+  expect(M.currencyOf(rows, h, 'VAKIFKATILIM USD HESAP.xls')).toBe('USD');
+  expect(M.currencyOf(rows, h, 'ZİRAAT EUR HESAP.xls')).toBe('EUR');
+  expect(M.currencyOf(rows, h, 'İŞ BANKASI YP KREDİLER.xls')).toBe('YP');
+  expect(M.currencyOf(rows, h, 'GARANTİ TL HESAP.xls')).toBe('TRY');
+  // Başlığın içindeki bilgi dosya adından önce gelir.
+  expect(M.currencyOf([['Hesap', 'VADESİZ TL'], ...rows], M.findHeader([['Hesap', 'VADESİZ TL'], ...rows]), 'USD.xls')).toBe('TRY');
+});

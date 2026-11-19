@@ -3,7 +3,7 @@
 import sys, xlwt
 wb = xlwt.Workbook(encoding='utf-8'); ws = wb.add_sheet('hesaphareketleri')
 ws.write(0, 1, 'T. GARANTİ BANKASI A.Ş.\nGenel Müdürlük: Örnek adres')
-top = [('Ad Soyad', 'ÖRNEK SİTE YÖNETİMİ'), ('Hesap', '000 - 0000000 TL'), (None, None), ('IBAN', 'TR42 0001 0000 0000 0000 0000 01'),
+top = [('Ad Soyad', 'ÖRNEK SİTE YÖNETİMİ'), ('Hesap', '000 - 0000000 TL'), (None, None), ('IBAN', 'TR42 0006 2000 0000 0000 0000 01'),
        ('Şube', 'ÖRNEK'), ('Başlangıç', '01/11/2026'), ('Bitiş', '18/11/2026'), ('İndirme Tarihi', '18/11/2026 23:40'),
        ('Bakiye', '0,00 TL'), ('Kullanılabilir Bakiye', '0,00 TL')]
 for i, (a, b) in enumerate(top):

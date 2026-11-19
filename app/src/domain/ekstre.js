@@ -22,12 +22,19 @@ const ALIASES = {
   ref: ['DEKONTNO', 'REFERANS', 'REFERANSNO', 'FISNO', 'ISLEMNO']
 };
 
+/** Para birimi yazımları → ISO kodu. */
+const CUR = { TL: 'TRY', TRY: 'TRY', YTL: 'TRY', USD: 'USD', DOLAR: 'USD', EUR: 'EUR', EURO: 'EUR', AVRO: 'EUR', GBP: 'GBP', STERLIN: 'GBP', CHF: 'CHF' };
+/** Başlığın sonundaki parantezli para birimi: "Tutar (TRY)", "TUTAR(USD)" → kod; yoksa ''. */
+const parenCur = (h) => { const m = /\(([^)]*)\)[\s*]*$/.exec(String(h ?? '')); return m ? CUR[compact(m[1])] || '' : ''; };
+/** Başlık anahtarı: sondaki para birimi atılır ("TUTAR (TRY)" → "TUTAR"), sonra sadeleştirilir. */
+const headerKey = (h) => compact(parenCur(h) ? String(h).replace(/\([^)]*\)[\s*]*$/, '') : h);
+
 /** Başlık satırını bulur: tarih + açıklama + (tutar ya da alacak) sütunları olan ilk satır. Yoksa null. */
 export function findHeader(rows) {
   for (let i = 0; i < Math.min(rows.length, 60); i++) {
     const map = {};
     (rows[i] || []).forEach((h, c) => {
-      const k = compact(h);
+      const k = headerKey(h);
       for (const [key, list] of Object.entries(ALIASES)) if (map[key] === undefined && list.includes(k)) map[key] = c;
     });
     if (map.date !== undefined && map.desc !== undefined && (map.amount !== undefined || map.credit !== undefined)) return { row: i, map };
@@ -35,20 +42,60 @@ export function findHeader(rows) {
   return null;
 }
 
-/** Bankanın adı (üst satırlardan); bilinmiyorsa ''. */
-export function bankOf(rows) {
-  const top = compact(rows.slice(0, 10).map((r) => (r || []).join(' ')).join(' '));
-  if (top.includes('GARANTI')) return 'Garanti BBVA';
-  if (top.includes('ISBANK') || top.includes('TURKIYEISBANKASI')) return 'İş Bankası';
-  if (top.includes('YAPIKREDI')) return 'Yapı Kredi';
-  if (top.includes('AKBANK')) return 'Akbank';
-  if (top.includes('ZIRAAT')) return 'Ziraat Bankası';
-  if (top.includes('HALKBANK')) return 'Halkbank';
-  if (top.includes('VAKIF')) return 'VakıfBank';
-  if (top.includes('QNB') || top.includes('FINANSBANK')) return 'QNB';
-  if (top.includes('DENIZBANK')) return 'DenizBank';
-  if (top.includes('ENPARA')) return 'Enpara';
-  return '';
+/** Hesabın para birimi ('TRY', 'USD', 'EUR', …; dosya adı yalnız "döviz" diyorsa 'YP'). Sıra: tutar sütununun başlığı ("Tutar (USD)"),
+    başlığın üstündeki hesap bilgileri ("VADESİZ USD", "Döviz cinsi: TL"), dosya adı ("… USD HESAP.xls"). Hiçbiri yoksa 'TRY'.
+    Hareket açıklamaları okunmaz ("DÖVİZ ALIŞ USD" gibi satırlar TL hesabı döviz sanılmasın diye).
+    @param {any[][]} rows
+    @param {{ row: number, map: any } | null} header
+    @param {string} [name] dosya adı */
+export function currencyOf(rows, header, name = '') {
+  if (header) for (const k of ['amount', 'credit']) {
+    const c = header.map?.[k];
+    const x = c === undefined ? '' : parenCur(rows[header.row]?.[c]);
+    if (x) return x;
+  }
+  const top = header ? header.row : Math.min(rows.length, 10);
+  for (let i = 0; i < top; i++) for (const cell of rows[i] || []) for (const w of words(cell)) if (CUR[w]) return CUR[w];
+  const fw = words(String(name).replace(/\.[a-z0-9]+$/i, ''));
+  const hit = fw.find((w) => CUR[w]);
+  if (hit) return CUR[hit];
+  return fw.some((w) => w === 'YP' || w === 'DOVIZ') ? 'YP' : 'TRY';
+}
+
+/** IBAN'daki banka kodu (TR + 2 kontrol + 5 hane) → banka. */
+const BANK_CODES = {
+  '00010': 'Ziraat Bankası', '00012': 'Halkbank', '00015': 'VakıfBank', '00032': 'TEB', '00046': 'Akbank', '00059': 'Şekerbank',
+  '00062': 'Garanti BBVA', '00064': 'İş Bankası', '00067': 'Yapı Kredi', '00099': 'ING', '00103': 'Fibabanka', '00111': 'QNB',
+  '00123': 'HSBC', '00124': 'Alternatif Bank', '00134': 'DenizBank', '00135': 'Anadolubank', '00146': 'Odeabank',
+  '00203': 'Albaraka Türk', '00205': 'Kuveyt Türk', '00206': 'Türkiye Finans', '00209': 'Ziraat Katılım', '00210': 'Vakıf Katılım',
+  '00211': 'Emlak Katılım'
+};
+/** Adla tanıma (sadeleştirilmiş, boşluksuz; özelden genele: "Ziraat Katılım" "Ziraat"ten önce). */
+const BANK_NAMES = [
+  ['ZIRAATKATILIM', 'Ziraat Katılım'], ['VAKIFKATILIM', 'Vakıf Katılım'], ['EMLAKKATILIM', 'Emlak Katılım'], ['KUVEYTTURK', 'Kuveyt Türk'],
+  ['TURKIYEFINANS', 'Türkiye Finans'], ['ALBARAKA', 'Albaraka Türk'], ['GARANTI', 'Garanti BBVA'], ['ISBANK', 'İş Bankası'],
+  ['YAPIKREDI', 'Yapı Kredi'], ['AKBANK', 'Akbank'], ['ZIRAAT', 'Ziraat Bankası'], ['HALKBANK', 'Halkbank'], ['VAKIF', 'VakıfBank'],
+  ['FINANSBANK', 'QNB'], ['DENIZBANK', 'DenizBank'], ['ENPARA', 'Enpara'], ['ANADOLUBANK', 'Anadolubank'], ['FIBA', 'Fibabanka'],
+  ['SEKERBANK', 'Şekerbank'], ['ODEABANK', 'Odeabank'], ['TURKEKONOMI', 'TEB'], ['ALTERNATIFBANK', 'Alternatif Bank']
+];
+/** Kısa adlar yalnız ayrı sözcük olarak ("TEB", başka bir sözcüğün içinde değil). */
+const BANK_WORDS = { TEB: 'TEB', ING: 'ING', QNB: 'QNB', YKB: 'Yapı Kredi', HSBC: 'HSBC' };
+const bankIn = (text) => {
+  const flat = compact(text), w = new Set(words(text));
+  return (BANK_NAMES.find(([k]) => flat.includes(k)) || [])[1] || Object.entries(BANK_WORDS).find(([k]) => w.has(k))?.[1] || '';
+};
+
+/** Bankanın adı; bilinmiyorsa ''. Sıra: başlığın üstündeki hesap IBAN'ının banka kodu, başlığın üstündeki banka adı, dosya adı.
+    Hareket satırlarına bakılmaz (karşı tarafın bankası, ör. "GARANTİ'DEN GELEN EFT", ekstrenin bankası sanılmasın).
+    @param {any[][]} rows
+    @param {{ name?: string, upto?: number }} [opts] name: dosya adı; upto: başlık satırının sırası (üstündeki satırlar hesap bilgisidir) */
+export function bankOf(rows, { name = '', upto } = {}) {
+  const top = rows.slice(0, upto ?? 10);
+  for (const r of top) for (const cell of r || []) {
+    const m = /TR\d{2}(\d{5})\d{17}/.exec(String(cell ?? '').replace(/\s/g, '').toUpperCase());
+    if (m && BANK_CODES[m[1]]) return BANK_CODES[m[1]];
+  }
+  return bankIn(top.map((r) => (r || []).join(' ')).join(' ')) || bankIn(String(name).replace(/\.[a-z0-9]+$/i, ''));
 }
 
 /** "1.980,00", "1980.5", "-1443.06", "1.980,00 TL" → sayı; okunamazsa NaN. */
