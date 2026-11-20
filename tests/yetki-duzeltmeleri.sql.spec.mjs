@@ -109,13 +109,12 @@ test('engelleme: engellenen kişi system rolüyle yazsa da engelleyen göremez; 
   // uygulama sistem mesajlarını post_system_message ile yazar (satır çağıranın kimliğiyle gelir); bu yazma çalışmalıdır
   await q(`select public.post_system_message('p1', 'request_opened', $1::jsonb)`, [JSON.stringify({ id: 'sys-bloklu', text: 'Yeni talep açıldı: Sistem gibi görünen taciz' })]);
   expect((await q(`select id, by_user from public.messages where id = 'sys-bloklu'`))).toEqual([{ id: 'sys-bloklu', by_user: T }]);   // yazanın kendisi görür
-  // yayındaki eski istemci system satırını doğrudan yazar (bu PR'da yol açık; kapatılması specs/followup-migrations içinde): satır yazanın kimliğini taşır,
-  // başkasının kimliğiyle yazılamaz ve engelleyen için aynı biçimde gizlenir
-  await q(`insert into public.messages (id, property_id, from_role, by_user, body) values ('sys-dogrudan', 'p1', 'system', $1, 'x')`, [T]);
+  // system satırını doğrudan yazma yolu kapalı (sistem_mesaji_kapat): ne kendi kimliğiyle ne başkasınınkiyle yazılabilir
+  expect(await tryCall(db, `insert into public.messages (id, property_id, from_role, by_user, body) values ('sys-dogrudan', 'p1', 'system', $1, 'x')`, [T])).toMatch(/row-level security/);
   expect(await tryCall(db, `insert into public.messages (id, property_id, from_role, by_user, body) values ('sys-sahte', 'p1', 'system', $1, 'x')`, [L])).toMatch(/row-level security/);
   for (const [who, saw] of [[L, 0], [L2, 1]]) {
     await as(who);
-    for (const id of ['sys-bloklu', 'sys-dogrudan']) {
+    for (const id of ['sys-bloklu']) {
       expect((await q(`select id from public.messages where id = '${id}'`)).length, id).toBe(saw);
       expect((await q(`select id from public.recent_messages(array['p1'], 200) where id = '${id}'`)).length, id).toBe(saw);
     }
