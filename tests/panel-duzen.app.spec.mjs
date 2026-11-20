@@ -110,7 +110,7 @@ test('yönetici paneli: telefonda bölümlerde taşma ve ekran dışı düğme y
   await expect(page).toHaveURL(/\/admin/);
   const found = {};
   for (const name of ['Genel bakış', 'Büyüme', 'Gelir', 'Gider', 'CRM', 'Hesaplar', 'Müşteri sağlığı', 'Kurumlar', 'Talepler', 'Ödemeler']) {
-    await page.getByRole('button', { name: /^Bölümler: / }).click();
+    await page.getByRole('button', { name: 'Diğer', exact: true }).click();   // telefonda Diğer sekmesi tüm bölümleri listeler
     await page.getByRole('button', { name, exact: true }).first().click();
     await page.waitForTimeout(700);
     const f = await page.evaluate(problems);

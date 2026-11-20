@@ -91,6 +91,7 @@ export default function AdminPanel() {
   return (
     <>
     <AdminShell items={items} active={tab} onPick={setTab} email={user?.email} onReload={load} busy={busy}
+      alerts={legalOpen + reportsOpen} onAlerts={() => setTab(reportsOpen || !legalOpen ? 'reports' : 'legal')}
       onSignOut={async () => { await signOut(); router.replace('/giris/yonetici'); }}>
       {err ? <Card><Text v="small" color={c.badInk}>{err}</Text></Card> : null}
       {!data && !err ? <View style={{ alignItems: 'center', paddingVertical: 40 }}><Loader size={96} /></View> : null}

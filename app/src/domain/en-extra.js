@@ -1868,4 +1868,8 @@ export const EN_EXTRA = {
   '{f}: bu bankanın biçimini henüz tanımıyoruz. Hangi sütunun tarih, açıklama ve tutar olduğunu seç.': '{f}: we do not recognise this bank’s format yet. Choose which columns hold the date, description and amount.',
   '{n} dosya': '{n} files',
   '{n} hareket birden çok dosyada (bir kez sayıldı)': '{n} transactions in more than one file (counted once)',
+  // Yönetici paneli yeni kabuk
+  'Bildirimler ({n})': 'Notifications ({n})',
+  'Açık temaya geç': 'Switch to light theme',
+  'Koyu temaya geç': 'Switch to dark theme',
 };
