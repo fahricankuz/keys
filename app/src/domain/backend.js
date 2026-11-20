@@ -537,6 +537,9 @@ export function humanError(e){
   if (/Sözleşme sınırı/.test(m)) return t('Sözleşmendeki mülk adedine ulaştın. Daha fazla mülk için anahtar ekibine yaz: info@anahtar.io');
   if (e?.code === 'EV403' || /Paket sınırı/.test(m)) return t('Paketinin mülk sınırına ulaştın. Daha fazla mülk için paketini yükselt.');
   if (e?.code === 'EV402' || /Abonelik gerekli/.test(m)) return t('Deneme süren bitti. Kayıtları değiştirmek için abone ol; okuma ve mesajlaşma açık.');
+  // Mağaza satın alması başka bir anahtar hesabına bağlı (RevenueCat: PRODUCT_ALREADY_PURCHASED "6", RECEIPT_ALREADY_IN_USE "7", RECEIPT_IN_USE_BY_OTHER_SUBSCRIBER "13").
+  if (/RECEIPT_ALREADY_IN_USE|PRODUCT_ALREADY_PURCHASED|IN_USE_BY_OTHER/.test(String(e?.readableErrorCode || '')) || (['6', '7', '13'].includes(String(e?.code)) && e && typeof e === 'object' && 'underlyingErrorMessage' in e))
+    return t('Bu satın alma başka bir anahtar hesabına bağlı. Satın aldığın hesapla giriş yap.');
   if (/user is banned|banned/i.test(m)) return t('Hesabın askıya alındı. Bilgi için info@anahtar.io adresine yaz.');
   if (/Invalid login credentials/i.test(m)) return t('E-posta ya da şifre hatalı.');
   if (/Email not confirmed/i.test(m)) return t('E-posta adresini henüz doğrulamadın. Gelen kutunu kontrol et.');
