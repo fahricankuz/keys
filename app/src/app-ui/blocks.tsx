@@ -1,4 +1,5 @@
 import { Grain } from '../ui/Grain';
+import { HERO_BG, HERO_PAD } from '../ui/layers';
 import { ReactNode, useContext, useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleProp, View, ViewStyle, Image } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
@@ -44,13 +45,16 @@ export function Card({ children, onPress, style, gap = 10 }: { children?: ReactN
 export function Hero({ children, style, gap = 12 }: { children?: ReactNode; style?: StyleProp<ViewStyle>; gap?: number }) {
   const c = useColors();
   return (
-    <View style={[{ backgroundColor: c.deepA, borderRadius: radius.xl, padding: 24, gap, overflow: 'hidden' }, style]}>
-      <Svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 400 300" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents="none">
-        <Defs><LinearGradient id="hg" x1="0" y1="0" x2="1" y2="1"><Stop offset="0" stopColor={c.deepA} /><Stop offset="1" stopColor={c.deepB} /></LinearGradient></Defs>
-        <Rect width="400" height="300" fill="url(#hg)" />
-        <Path d="M-10 230 C 90 190, 180 270, 300 215 S 390 190, 420 205" stroke="#fff" strokeOpacity={0.13} strokeWidth={1.5} fill="none" />
-        <Path d="M250 -10 C 300 60, 230 120, 330 190" stroke="#fff" strokeOpacity={0.1} strokeWidth={1.5} fill="none" />
-      </Svg>
+    <View style={[{ backgroundColor: c.deepA, borderRadius: radius.xl, padding: HERO_PAD, gap, overflow: 'hidden' }, style]}>
+      {/* Desen kenar boşluksuz katmanda: telefonda %100 boyut kartın iç alanına göre ölçülüyordu (ui/layers.js). */}
+      <View style={HERO_BG as ViewStyle} pointerEvents="none">
+        <Svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 400 300">
+          <Defs><LinearGradient id="hg" x1="0" y1="0" x2="1" y2="1"><Stop offset="0" stopColor={c.deepA} /><Stop offset="1" stopColor={c.deepB} /></LinearGradient></Defs>
+          <Rect width="400" height="300" fill="url(#hg)" />
+          <Path d="M-10 230 C 90 190, 180 270, 300 215 S 390 190, 420 205" stroke="#fff" strokeOpacity={0.13} strokeWidth={1.5} fill="none" />
+          <Path d="M250 -10 C 300 60, 230 120, 330 190" stroke="#fff" strokeOpacity={0.1} strokeWidth={1.5} fill="none" />
+        </Svg>
+      </View>
       <Grain />
       {children}
     </View>
