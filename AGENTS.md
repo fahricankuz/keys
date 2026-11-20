@@ -185,7 +185,7 @@ Builds, OTA, store submission and notifications are **never started on your own 
 | Tests | [docs/test.md](docs/test.md), [docs/gercek-cihaz-kontrol.md](docs/gercek-cihaz-kontrol.md) |
 | Hostinger | [docs/hostinger.md](docs/hostinger.md) |
 | Roadmap | [docs/yol-haritasi.md](docs/yol-haritasi.md) |
-| Work diaries (what happened when, lessons) | [docs/diary/2026-11-13.md](docs/diary/2026-11-13.md) |
+| Work diaries (what happened when, lessons) | [docs/diary/](docs/diary/) — newest: [2026-11-20](docs/diary/2026-11-20.md) |
 
 Most older docs are in Turkish. If docs conflict with something you see, **code and live state win**; fix the doc or state the conflict in the PR.
 
@@ -223,4 +223,4 @@ Every task ends with a **summary** (Turkish, short):
 6. **Ledger:** repo, branch, commits, PR, what is live where.
 
 Keep claims separate: **local tests**, **CI green**, **merged**, **web deployed**, **function deployed**, **migration applied**, **verified live**.
-When you learn something important (a new trap, a new rule), add it to the relevant doc or to the [diary](docs/diary/2026-11-13.md).
+When you learn something important (a new trap, a new rule), add it to the relevant doc or to a dated file in [docs/diary/](docs/diary/).
