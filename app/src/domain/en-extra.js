@@ -1868,4 +1868,11 @@ export const EN_EXTRA = {
   '{f}: bu bankanın biçimini henüz tanımıyoruz. Hangi sütunun tarih, açıklama ve tutar olduğunu seç.': '{f}: we do not recognise this bank’s format yet. Choose which columns hold the date, description and amount.',
   '{n} dosya': '{n} files',
   '{n} hareket birden çok dosyada (bir kez sayıldı)': '{n} transactions in more than one file (counted once)',
+  'Kira gelirlerinin toplamı {limit} sınırını aştığı için konut istisnası uygulanmaz (GVK md. 21).': 'Your rental income exceeds the {limit} limit, so the residential exemption does not apply (Income Tax Law art. 21).',
+  'Konut kira geliri istisnanın altında kaldığı için beyana girmiyor; kiracının kestiği {tax} stopaj bu tahminde mahsup edilmedi. İade için beyan gerekip gerekmediğini mali müşavirine sor.': 'Residential rent stays below the exemption, so it is not declared; the {tax} withholding your tenant deducted is not offset in this estimate. Ask your accountant whether a return is needed for a refund.',
+  'Kira, ödendiği yılın geliri sayılır (tahsil esası); gelecek yıla ait peşin kira ait olduğu yıla yazılır.': 'Rent counts as income in the year it is paid (cash basis); rent paid in advance for a later year counts in that year.',
+  'KDV dahil tahakkuk {sum}': 'Charge incl. VAT {sum}',
+  'Stopaj düşülmüş tahakkuk {sum}': 'Charge after withholding {sum}',
+  'Kiraya veren şirketse (AVM şirketi, GYO, KDV mükellefi) kiraya KDV eklenir, stopaj kesilmez. Stopaj yalnız kiraya veren gerçek kişiyse (birimin maliki şahıs) ve kiracı şirket ya da esnafsa kesilir.': 'If the lessor is a company (mall company, REIT, VAT payer), VAT is added to the rent and no withholding applies. Withholding applies only when the lessor is an individual (the unit owner is a person) and the tenant is a company or business.',
+  'Stopajı şirket ya da esnaf kiracı keser; şirket unvanını ya da vergi numarasını yaz': 'Only a company or business tenant withholds tax; enter the company name or tax number',
 };

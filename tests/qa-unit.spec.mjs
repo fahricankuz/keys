@@ -108,6 +108,22 @@ test('birim: kira geçmişi, stopaj (net ↔ brüt) ve kısmi ödeme bakiyesi', 
   expect(M.remaining(prop(), '2026-07')).toBe(0);
 });
 
+test('birim: kira vergi yılı tahsil esasına göre — geç ödenen kira ödendiği yıla, peşin kira ait olduğu yıla yazılır', () => {
+  expect(M.incomeYear('2025-12', { date: '2026-01-04' })).toBe('2026');      // Aralık kirası Ocak'ta ödendi
+  expect(M.incomeYear('2026-03', { date: '2025-12-20' })).toBe('2026');      // 2026'ya ait peşin kira 2025'te alındı
+  expect(M.incomeYear('2026-05', { date: '2026-05-03' })).toBe('2026');
+  expect(M.incomeYear('2026-05', {})).toBe('2026');                          // tarih yoksa ait olduğu ay
+  const p = prop({ stopaj: true, type: 'Dükkan',
+    pay: { '2025-12': { status: 'approved', amount: 8000, date: '2026-01-04' }, '2025-11': { status: 'approved', amount: 8000, date: '2025-11-05' } } });
+  M.S.props = { p }; M.S.order = ['p'];
+  const y25 = M.yearNumbers('2025', ['p']), y26 = M.yearNumbers('2026', ['p']);
+  expect(y25.received).toBe(8000);
+  expect(y26.received).toBe(8000);
+  expect(y26.gross).toBe(10000);                                               // stopajlı: 8.000 net → 10.000 brüt
+  expect(y26.withheld).toBe(2000);
+  expect(M.dataYears(['p'])).toContain('2026');
+});
+
 /* ------------------------------------------------------------ yönetici paneli türetmesi */
 
 test('birim: yönetici özeti — bağlantısız kiracı, yasaklı sayısı, mülk sahibi → kiracı ağacı, kuyruk sırası', () => {

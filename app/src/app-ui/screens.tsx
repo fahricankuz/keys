@@ -491,10 +491,12 @@ function TaxCard({ year, yn }: { year: string; yn: any }) {
     <Card gap={10}>
       <Row between><H2>{t('Vergi tahmini')}</H2><Chip label={r.year + ' ' + t('oranları')} /></Row>
       {r.approx ? <Note warn>{year} {t('oranları henüz uygulamada yok;')} {r.year} {t('değerleriyle yaklaşık hesaplandı.')}</Note> : null}
-      {hasK ? <><KV k={t('Konut kira geliri')} v={tl(e.konut.gross)} /><KV k={t('İstisna')} v={noEx ? t('Uygulanmıyor') : '− ' + tl(Math.min(e.istisna, e.konut.gross))} /></> : null}
+      {hasK ? <><KV k={t('Konut kira geliri')} v={tl(e.konut.gross)} /><KV k={t('İstisna')} v={noEx || e.overLimit ? t('Uygulanmıyor') : '− ' + tl(Math.min(e.istisna, e.konut.gross))} /></> : null}
+      {hasK && e.overLimit && !noEx ? <Note warn>{t('Kira gelirlerinin toplamı {limit} sınırını aştığı için konut istisnası uygulanmaz (GVK md. 21).', { limit: tl(r.istisnaSiniri) })}</Note> : null}
       {hasW ? <><KV k={t('İşyeri kira geliri (stopajlı)')} v={tl(e.stopajli.gross)} />
         {e.includeW ? null : <Muted>{t('Beyan sınırının ({limit}) altında; beyana eklenmez, kesilen {tax} stopaj nihai vergidir.', { limit: tl(r.beyanSiniri), tax: tl(e.stopajli.withheld) })}</Muted>}</> : null}
       {hasN ? <KV k={t('İşyeri kira geliri (stopajsız)')} v={tl(e.diger.gross)} /> : null}
+      {e.konutWithheldNotCredited ? <Note warn>{t('Konut kira geliri istisnanın altında kaldığı için beyana girmiyor; kiracının kestiği {tax} stopaj bu tahminde mahsup edilmedi. İade için beyan gerekip gerekmediğini mali müşavirine sor.', { tax: tl(e.konutWithheldNotCredited) })}</Note> : null}
       {e.belowExemption
         ? <Note>{hasW || hasN ? t('Bu yıl için kira geliri beyanı gerekmeyebilir.') : t('Gelir istisna tutarının altında; bu yıl için konut kira geliri beyanı gerekmeyebilir.')}</Note>
         : <>
@@ -505,6 +507,7 @@ function TaxCard({ year, yn }: { year: string; yn: any }) {
             <Card style={{ flex: 1, backgroundColor: c.bg }} gap={4}><Label>{t('Gerçek gider')}</Label><Mid>{payLine(e.gercek)}</Mid><Muted>{t('İndirilebilir gider')} {tl(e.gercek.allowed)}{e.credit ? ' · ' + t('vergi') + ' ' + tl(e.gercek.tax) : ''}</Muted><Pick m="gercek" /></Card>
           </Row>
         </>}
+      <Muted>{t('Kira, ödendiği yılın geliri sayılır (tahsil esası); gelecek yıla ait peşin kira ait olduğu yıla yazılır.')}</Muted>
       {hasK ? <Toggle label={t('İstisnadan yararlanamıyorum')} on={noEx} onChange={(b) => { ui.noExemption = b; setNoEx(b); }} /> : null}
       <Muted>{t('Konut istisnası işyeri kirasına uygulanmaz. Ticari, zirai ya da serbest meslek kazancı beyan edenler veya diğer gelirleri belirli sınırı aşanlar istisnadan yararlanamaz. Tahmin başka gelir olmadığını varsayar; beyan öncesi mali müşavirine danış.')}</Muted>
     </Card>

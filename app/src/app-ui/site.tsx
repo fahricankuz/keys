@@ -11,7 +11,7 @@ import {
   KINDS, MODES, kindLabel, unitLabel, distribute, unpaidOf, lateFee, loadSiteAdmin, saveUnit, deleteUnit, parseUnits, importUnits,
   saveResident, deleteResident, createCharges, deleteCharge, decideCharge, markPaid, addExpense, deleteExpense, announce, deleteAnnouncement,
   answerRequest, mySiteUnits, loadMySite, payCharge, openSiteRequest, loadUnitCharges, budgetTotal, budgetAidat, saveBudget,
-  applyBudgetAidat, loadBudgets, siteReport, unitPays, payerText, depositKindLabel, cashbook, saveCash, SITE_EXPENSE_CATS, saveRecurring, setRecurringActive, deleteRecurring, setCashSharing, loadCashSummary, isCommercial, overdue, occupancy, ciroDiff, reportTurnover, loadTurnovers, decideTurnover,
+  applyBudgetAidat, loadBudgets, siteReport, unitPays, payerText, depositKindLabel, cashbook, saveCash, SITE_EXPENSE_CATS, saveRecurring, setRecurringActive, deleteRecurring, setCashSharing, loadCashSummary, isCommercial, ciroCharge, overdue, occupancy, ciroDiff, reportTurnover, loadTurnovers, decideTurnover,
   dueIncreases, applyIncrease, rentCharge, nextAuto, saveAuto, cardReady, cardTotal, uploadSiteDoc, deleteSiteDoc, loadSiteDocs, loadOrgBank, saveOrgBank
 } from '../domain/site';
 import { loadRates } from '../domain/cpi';
@@ -775,7 +775,9 @@ function Turnovers({ d, can, reload }: { d: any; can: (p: string) => boolean; re
               <View style={{ flex: 1, minWidth: 180 }}>
                 <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{unitLabel(u)} · {monthYear(x.month)}</Text>
                 <Muted>{t('Ciro')} {tl(x.amount)} · %{u.turnover_rate || 0} = {tl(Number(x.amount) * (Number(u.turnover_rate) || 0) / 100)} · {t('Sabit kira')} {money(u.rent, cur)}</Muted>
-                <Muted>{diff == null ? t('Farkı görmek için kuru yaz.') : diff > 0 ? t('Ciro farkı: {sum}', { sum: tl(diff) }) : t('Fark yok: sabit kira yüksek.')}</Muted>
+                <Muted>{diff == null ? t('Farkı görmek için kuru yaz.') : diff > 0 ? (u.vat || u.stopaj
+                  ? t('Ciro farkı: {sum}', { sum: tl(diff) }) + ' · ' + (u.vat ? t('KDV dahil tahakkuk {sum}', { sum: tl(ciroCharge(u, diff)) }) : t('Stopaj düşülmüş tahakkuk {sum}', { sum: tl(ciroCharge(u, diff)) }))
+                  : t('Ciro farkı: {sum}', { sum: tl(diff) })) : t('Fark yok: sabit kira yüksek.')}</Muted>
                 {x.reject_reason ? <Text v="small" color={c.badInk}>{x.reject_reason}</Text> : null}
               </View>
               <Chip tone={x.status === 'approved' ? 'ok' : x.status === 'rejected' ? 'bad' : 'warn'} label={x.status === 'approved' ? t('Onaylandı') : x.status === 'rejected' ? t('Reddedildi') : t('Onay bekliyor')} />

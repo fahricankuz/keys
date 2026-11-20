@@ -251,7 +251,6 @@ export function validate(rows, existing = [], today = new Date().toISOString().s
     const sk = norm(get('stopaj'));
     const stopaj = YES.includes(sk) ? true : NO.includes(sk) ? false : null;
     if (stopaj === null) err('Stopaj Evet ya da Hayır olmalı');
-    else if (stopaj && type === 'Konut') err('Stopaj yalnızca işyeri kiralarında uygulanır');
     const phone = get('tenantPhone');
     if (phone && !/^[+\d\s().-]{7,20}$/.test(phone)) err('Kiracı telefonu okunamadı');
     const email = get('tenantEmail');
@@ -266,6 +265,8 @@ export function validate(rows, existing = [], today = new Date().toISOString().s
     const addr = get('addr');
     const dup = (name && byName.get(norm(name))) || (norm(addr) && byAddr.get(norm(addr))) || null;
     const coName = get('coName');
+    // Stopajı yalnız şirket ya da esnaf kiracı keser (konut ve işyeri kirasında, GVK md. 94/5-a); kiracı şahıssa stopaj olmaz.
+    if (stopaj && !coName && !taxNo) err('Stopajı şirket ya da esnaf kiracı keser; şirket unvanını ya da vergi numarasını yaz');
     items.push({
       line, errors,
       dup: dup ? { id: dup.id, name: dup.name } : null,

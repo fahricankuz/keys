@@ -129,13 +129,15 @@ export const unpaidOf = (c) => (c.status === 'paid' ? 0 : Math.max(0, Number(c.a
 
 /** Birimin bir aylık kira tahakkuku (TL): döviz kirası girilen kurla çevrilir; KDV'li sözleşmede %20 eklenir,
     stopajlı sözleşmede kiracının keseceği %20 düşülür (kiraya verene yatacak net tutar). */
+/** Birimin kira vergisi çarpanı: KDV'li sözleşmede %20 eklenir; stopajlı sözleşmede kiracının keseceği %20 düşülür (ikisi birlikte olmaz).
+    Sunucudaki site_auto_run aynı çarpanı kullanır. */
+export const rentTaxMult = (u) => (u.vat ? 1.2 : u.stopaj ? 0.8 : 1);
+
 export function rentCharge(u, fx = {}){
   const cur = u.currency || 'TRY';
   const rate = cur === 'TRY' ? 1 : Number(fx[cur]) || 0;
   const base = Number(u.rent) || 0;
-  let amount = base * rate;
-  if (u.vat) amount *= 1.2;
-  else if (u.stopaj) amount *= 0.8;
+  const amount = base * rate * rentTaxMult(u);
   return { amount: Math.round(amount * 100) / 100, currency: cur, fx: cur === 'TRY' ? null : rate || null, orig_amount: cur === 'TRY' ? null : base };
 }
 
@@ -880,13 +882,16 @@ export function siteReport(d, period, ref, cur = 'TRY', table = null){
 
 /* ---- Ticari portföy: ciro, kira artışı, doluluk (Faz 3) ----------- */
 
-/** Ciroya bağlı kira farkı (TL): cironun %oranı birimin aylık kirasını (TL karşılığı) aşarsa aradaki fark. */
+/** Ciroya bağlı kira farkı (TL): cironun %oranı birimin aylık kirasını (TL karşılığı, vergisiz) aşarsa aradaki fark.
+    Fark da kiradır: tahakkuku asıl kira gibi KDV'li sözleşmede %20 KDV eklenerek, stopajlı sözleşmede %20 stopaj düşülerek yazılır (ciroCharge). */
 export function ciroDiff(u, turnover, fx = {}){
   const rate = Number(u.turnover_rate) || 0;
   if (!rate) return 0;
   const base = rentCharge({ ...u, vat: false, stopaj: false }, fx).amount;
   return Math.max(0, Math.round((Number(turnover) * rate / 100 - base) * 100) / 100);
 }
+/** Ciro farkının tahakkuk tutarı (KDV/stopaj uygulanmış). */
+export const ciroCharge = (u, diff) => Math.round(Number(diff) * rentTaxMult(u) * 100) / 100;
 
 /** Kiracı (ya da yönetim) aylık ciroyu bildirir; aynı ay için ikinci bildirim düzeltme sayılır. */
 export async function reportTurnover(u, month, amount, note = ''){
@@ -902,7 +907,7 @@ export async function decideTurnover(tv, ok, { unit = null, fx = {}, reason = ''
   const c = await db();
   if (ok){
     const diff = ciroDiff(unit, tv.amount, fx);
-    if (diff > 0) must(await c.from('site_charges').insert({ org_id: tv.org_id, unit_id: tv.unit_id, month: tv.month, kind: 'ciro', title: '', amount: diff,
+    if (diff > 0) must(await c.from('site_charges').insert({ org_id: tv.org_id, unit_id: tv.unit_id, month: tv.month, kind: 'ciro', title: '', amount: ciroCharge(unit, diff),
       due_on: dueOn(unit, tv.month) }));
     must(await c.from('site_turnovers').update({ status: 'approved', reject_reason: null }).eq('id', tv.id));
     return diff;

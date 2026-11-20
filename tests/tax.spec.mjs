@@ -73,3 +73,35 @@ test('verisi olmayan yıl en yakın önceki yıla düşer ve işaretlenir', () =
   expect(r.year).toBe(Math.max(...Object.keys(RATES).map(Number)));
   expect(ratesFor(2024).approx).toBe(false);
 });
+
+test('istisna sınırı (GVK 21/2): kira gelirleri toplamı ücret tarifesinin 3. dilimini aşarsa konut istisnası uygulanmaz', () => {
+  // 2026 sınırı 1.500.000: altında istisna düşülür, üstünde düşülmez.
+  const under = estimate(konut(1500000), { year:2026 });
+  expect(under.overLimit).toBe(false);
+  expect(under.declared).toBe(1500000 - 58000);
+  const over = estimate(konut(2000000), { year:2026 });
+  expect(over.overLimit).toBe(true);
+  expect(over.istisna).toBe(0);
+  expect(over.declared).toBe(2000000);
+  // İşyeri kirası da toplama girer: konut 100.000 + stopajsız işyeri 1.450.000 = 1.550.000 > 1.500.000.
+  const mixed = estimate({ konut:{ gross:100000 }, diger:{ gross:1450000 } }, { year:2026 });
+  expect(mixed.overLimit).toBe(true);
+  expect(mixed.konutTaxable).toBe(100000);
+  // Önceki yılların sınırları: 2025 1.200.000, 2024 870.000, 2023 550.000.
+  expect(estimate(konut(1250000), { year:2025 }).overLimit).toBe(true);
+  expect(estimate(konut(1150000), { year:2025 }).overLimit).toBe(false);
+  expect(RATES[2024].istisnaSiniri).toBe(870000);
+  expect(RATES[2023].istisnaSiniri).toBe(550000);
+  // Her yılın verisi eksiksiz.
+  for (const r of Object.values(RATES)) expect(r.istisnaSiniri).toBeGreaterThan(r.beyanSiniri);
+});
+
+test('şirket kiracının konut kirasından kestiği stopaj: istisna üstünde mahsup edilir, altında ayrıca bildirilir', () => {
+  const above = estimate(konut(120000, 0, 24000), { year:2026 });
+  expect(above.credit).toBe(24000);
+  expect(above.konutWithheldNotCredited).toBe(0);
+  const below = estimate(konut(50000, 0, 10000), { year:2026 });
+  expect(below.belowExemption).toBe(true);
+  expect(below.credit).toBe(0);
+  expect(below.konutWithheldNotCredited).toBe(10000);
+});
