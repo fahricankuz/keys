@@ -323,3 +323,28 @@ test('RevenueCat silme kuyruğu: yalnız gizli başlıklı uzlaştırma çalış
     expect(await res.json()).toMatchObject({ ok: true, deletions: { deleted: 0, retry: 0, gave_up: 0 } });
   });
 });
+
+test('iade (CANCELLATION + CUSTOMER_SUPPORT) ve EXPIRATION: yetkisi kalkan mağaza satırı bitirilir; yönetici paketi, kullanıcı iptali ve yenilenmiş abonelik korunur', async () => {
+  const row = (o = {}) => ({ user_id: U, store: 'app_store', product_id: 'tek_3_aylik', expires_at: FUTURE, active: true, will_renew: true, updated_at: '2026-11-01T00:00:00+00:00', ...o });
+  const empty = net({ subscribers: {} });
+  for (const ev of [{ type: 'CANCELLATION', cancel_reason: 'CUSTOMER_SUPPORT', product_id: 'tek_3_aylik' }, { type: 'EXPIRATION', product_id: 'tek_3_aylik' }]) {
+    const state = { tables: { subscriptions: [row()] } };
+    await setup(state, empty, async ({ handler }) => { await handler(webhook({ ...ev, app_user_id: U })); });
+    expect(state.tables.subscriptions[0]).toMatchObject({ active: false, will_renew: false, product_id: 'tek_3_aylik', store: 'app_store' });
+  }
+  // iade kaydı RevenueCat'te var (olay gelmese de uzlaştırma / uygulama eşitlemesi bitirir)
+  const refunded = net({ subscribers: { [U]: { entitlements: {}, subscriptions: { tek_3_aylik: { store: 'app_store', refunded_at: PAST } } } } });
+  let state = { tables: { subscriptions: [row()] }, users: { 'jeton-u': { id: U } } };
+  await setup(state, refunded, async ({ handler }) => { await handler(userCall()); });
+  expect(state.tables.subscriptions[0].active).toBe(false);
+  // yönetici paketi, kullanıcı iptali, başka ürün: korunur
+  for (const [existing, ev] of [
+    [row({ store: 'admin' }), { type: 'CANCELLATION', cancel_reason: 'CUSTOMER_SUPPORT', product_id: 'tek_3_aylik' }],
+    [row(), { type: 'CANCELLATION', cancel_reason: 'UNSUBSCRIBE', product_id: 'tek_3_aylik' }],
+    [row({ product_id: 'bes_2_aylik' }), { type: 'EXPIRATION', product_id: 'tek_3_aylik' }],
+  ]) {
+    state = { tables: { subscriptions: [existing] } };
+    await setup(state, empty, async ({ handler }) => { await handler(webhook({ ...ev, app_user_id: U })); });
+    expect(state.tables.subscriptions[0].active).toBe(true);
+  }
+});
