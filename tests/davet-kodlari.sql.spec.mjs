@@ -249,16 +249,15 @@ test('önizleme: oturumsuz çağrı yalnız geçerli kod için rol/mülk/sahip a
 });
 
 /* ---------------------------------------------------------------- sakin kodu yetkisi ve sütun yetkileri
-   code sütununun OKUNMASININ kapatılması (revoke select + sütun listesi) bu PR'da değildir: yayındaki eski istemci "select *" kullanır.
-   O kısıt specs/followup-migrations/ içindedir ve tests/followup-migrations.sql.spec.mjs onu uygulayıp sınar. Burada sunucu işlevi yolu
-   (site_resident_code), kodun yazılamaması ve eski istemcinin okuma yollarının çalışması sınanır. */
+   code sütununun okunması site_residents_kod_gizle migrationıyla kapalıdır (revoke select + sütun listesi); kodun okunmasının kapalı olduğu
+   tests/followup-migrations.sql.spec.mjs'te de sınanır. Burada sunucu işlevi yolu (site_resident_code) ve kodun yazılamaması sınanır. */
 
 test('sakin kodu: yalnız "Malik ve kiracılar" yetkisi okur; salt okur kurum rolü, sakin, kiracı, yabancı ve oturumsuz okuyamaz', async () => {
   await as(M);
   const [{ id }] = await q(`insert into public.site_residents (org_id, unit_id, role, name) values ($1, $2, 'malik', 'Kod Sahibi') returning id`, [org, unit]);
   const [{ code }] = await q(`select public.site_resident_code($1) code`, [id]);
   expect(code).toMatch(/^S[0-9A-HJKMNP-TV-Z]{16}$/);
-  // salt okur kurum rolü: satırı görür; sunucu işlevi kodu ona vermez (sütunun doğrudan okunması follow-up migrationıyla kapanır, bkz. üstteki not)
+  // salt okur kurum rolü: satırı görür; sunucu işlevi kodu ona vermez (sütunun doğrudan okunması site_residents_kod_gizle migrationıyla kapalıdır)
   await as(V);
   expect((await q(`select name from public.site_residents where id = $1`, [id]))[0].name).toBe('Kod Sahibi');
   expect(await tryCall(db, `select public.site_resident_code($1)`, [id])).toMatch(/Davet yetkin yok/);
@@ -280,14 +279,18 @@ test('sakin kodu: yalnız "Malik ve kiracılar" yetkisi okur; salt okur kurum ro
   await db.exec(`revoke execute on function public.site_resident_code(uuid) from anon`);
 });
 
-test('site_residents: eski istemcinin okuma yolları çalışır (select *, insert … returning *); code yazılamaz; yönetim normal alanları yazar', async () => {
+test('site_residents: code okunamaz ve yazılamaz (select *, returning * reddedilir); sütun listesi çalışır; yönetim normal alanları yazar', async () => {
   await as(null);
   const cols = (await q(`select column_name from information_schema.columns where table_schema = 'public' and table_name = 'site_residents' order by ordinal_position`)).map((r) => r.column_name);
   expect(cols).toContain('code');
   await as(M);
-  for (const c of cols) expect(await tryCall(db, `select ${c} from public.site_residents limit 1`), c).toBeNull();
-  expect(await tryCall(db, `select * from public.site_residents`)).toBeNull();                      // yayındaki eski istemci
-  const [{ id }] = await q(`insert into public.site_residents (org_id, unit_id, role, name, phone, email) values ($1, $2, 'kiraci', 'Normal', '0555', 'n@ornek.com') returning *`, [org, unit]);
+  for (const c of cols) {
+    const r = await tryCall(db, `select ${c} from public.site_residents limit 1`);
+    if (c === 'code') expect(r).toMatch(/permission denied/); else expect(r, c).toBeNull();
+  }
+  expect(await tryCall(db, `select * from public.site_residents`)).toMatch(/permission denied/);
+  expect(await tryCall(db, `insert into public.site_residents (org_id, unit_id, role, name) values ('${org}', '${unit}', 'kiraci', 'Ret') returning *`)).toMatch(/permission denied/);
+  const [{ id }] = await q(`insert into public.site_residents (org_id, unit_id, role, name, phone, email) values ($1, $2, 'kiraci', 'Normal', '0555', 'n@ornek.com') returning id`, [org, unit]);
   expect(id).toBeTruthy();
   // kod yazılamaz: ne eklemede ne güncellemede (yönetim yetkisi olsa bile)
   expect(await tryCall(db, `insert into public.site_residents (org_id, unit_id, role, name, code) values ('${org}', '${unit}', 'malik', 'Uydurma', 'S1')`)).toMatch(/permission denied/);

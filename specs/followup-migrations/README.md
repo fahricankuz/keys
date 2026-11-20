@@ -1,5 +1,7 @@
 # Sonraki PR'ın migration'ları
 
+> UYGULANDI (2026-11-20): iki migration bu PR'la `supabase/migrations/20261120133515_sistem_mesaji_kapat.sql` ve `20261120133518_site_residents_kod_gizle.sql` olarak taşındı. Aşağıdaki metin tarihçe ve geri alma notu olarak kalır.
+
 Bu klasördeki iki dosya `supabase/migrations` içinde DEĞİLDİR; "Üretim sürümü" PR'ının parçası değildir. Sebep: yeni site
 migration'lardan ÖNCE yayına çıkar ve tarayıcıda açık kalan eski sekmeler eski istemciyi çalıştırmaya devam eder. Bu iki
 migration eski istemciyi bozar:

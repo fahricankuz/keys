@@ -9772,3 +9772,29 @@ begin
 end $$;
 revoke execute on function public.rent_bank_apply(text, text, date, numeric, text, text[], text[], numeric[], boolean[]) from public, anon;
 grant execute on function public.rent_bank_apply(text, text, date, numeric, text, text[], text[], numeric[], boolean[]) to authenticated;
+
+-- ===== migration: 20261120133515_sistem_mesaji_kapat.sql =====
+-- sistem mesaji kapat
+-- Yeni istemci (post_system_message / site_resident_code kullanan) yayında; bu migration eski istemci yollarını kapatır.
+-- Sonuç: from_role = 'system' satırı yalnız post_system_message (security definer) ve sunucu işlevleriyle (accept_invite vb.) yazılır;
+-- Yeniden çalıştırılabilir.
+
+drop policy if exists messages_insert on public.messages;
+create policy messages_insert on public.messages for insert to authenticated
+  with check (public.member_can(property_id, 'message')
+              and by_user = (select auth.uid())
+              and from_role = public.msg_side(property_id));
+
+-- ===== migration: 20261120133518_site_residents_kod_gizle.sql =====
+-- site_residents.code sütununu istemciden gizle
+-- Yeni istemci (post_system_message / site_resident_code kullanan) yayında; bu migration eski istemci yollarını kapatır.
+-- Sonuç: authenticated rolü code dışındaki sütunları okur; code yalnız site_resident_code(p_resident) ile ("Malik ve kiracılar" yetkisi) okunur.
+-- Yazma kısıtı (code yazılamaz) davet_kodlari migrationında zaten vardır; burada yeniden verilir (yeniden çalıştırılabilir).
+-- Yeni bir sütun eklenirse okuma listesine de eklenmelidir (tests/davet-kodlari.sql.spec.mjs bütün sütunların okunabildiğini denetler).
+-- Yeniden çalıştırılabilir.
+
+alter table public.site_residents add column if not exists mailed_at timestamptz;
+revoke select, insert, update on public.site_residents from authenticated;
+grant select (id, org_id, unit_id, user_id, role, name, phone, email, lives_here, created_at, invited_at, mailed_at) on public.site_residents to authenticated;
+grant insert (org_id, unit_id, user_id, role, name, phone, email, lives_here, invited_at) on public.site_residents to authenticated;
+grant update (org_id, unit_id, user_id, role, name, phone, email, lives_here, invited_at) on public.site_residents to authenticated;
