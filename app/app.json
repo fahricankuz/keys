@@ -3,7 +3,7 @@
     "name": "anahtar",
     "slug": "anahtar",
     "scheme": "anahtar",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -260,9 +260,7 @@
     "experiments": {
       "typedRoutes": false
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "extra": {
       "eas": {
         "projectId": "033b708c-b12b-455e-9c8e-10d12531d9f5"
