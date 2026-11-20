@@ -6,6 +6,7 @@ import { Linking, Platform, View } from 'react-native';
 import { t } from '../domain/i18n';
 import { CONFIG } from '../domain/config';
 import { humanError } from '../domain/backend';
+import { useBillingPaused } from '../domain/app-config';
 import { access, ownedCount, planLabel, trialDaysLeft, unitsText } from '../domain/billing';
 import { storeProduct, buyStore, restoreStore, manageStore, storeAvailable, storeReady } from '../domain/iap';
 import { STORE_MAX_UNITS, parseStoreProductId, changeKind } from '../domain/store-ids';
@@ -25,7 +26,13 @@ export function StorePurchaseSheet({ plan: plan0 = 'tek', yearly: y0 = false, un
   const c = useColors();
   const [plan, setPlan] = useState(plan0 === 'bes' ? 'bes' : 'tek');
   const [yearly, setYearly] = useState(!!y0);
-  const [units, setUnits] = useState(Math.min(STORE_MAX_UNITS, Math.max(1, u0 || ownedCount() || 1)));
+  // Paketteki adet, sahip olunan mülk sayısının altına inemez (sunucu da sınırın dışında kalan mülklere yazmayı reddeder).
+  const owned = ownedCount();
+  const minUnits = Math.max(1, Math.min(owned, STORE_MAX_UNITS));
+  const [units, setUnits] = useState(Math.min(STORE_MAX_UNITS, Math.max(minUnits, u0 || owned || 1)));
+  const paused = useBillingPaused();
+  const [pending, setPending] = useState(false);
+  const subscribedNow = !!(access() as any).subscribed;
   const [price, setPrice] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
   const [ready, setReady] = useState<'wait' | 'ok' | 'fail'>('wait');
@@ -48,9 +55,15 @@ export function StorePurchaseSheet({ plan: plan0 = 'tek', yearly: y0 = false, un
       .catch((e: any) => { if (on) { setMissing(true); setErr(humanError(e)); } });
     return () => { on = false; };
   }, [plan, units, yearly, available, ready]);
+  // Satın alma mağazada tamamlandı ama sunucu aboneliği henüz yazmadıysa gerçek zamanlı güncelleme gelince başarı iletisi açılır.
+  useEffect(() => { if (pending && subscribedNow) { setPending(false); setDone(t('Aboneliğin açıldı. Teşekkürler!')); } }, [pending, subscribedNow]);
   const run = async (f: () => Promise<any>, ok: string) => {
-    setBusy(true); setErr(null); setDone(null);
-    try { if (await f()) setDone(ok); } catch (e) { setErr(humanError(e)); }
+    setBusy(true); setErr(null); setDone(null); setPending(false);
+    try {
+      const r = await f();
+      if (r === 'pending') { setPending(true); setDone(t('Satın alma alındı, aboneliğin etkinleştiriliyor…')); }
+      else if (r) setDone(ok);
+    } catch (e) { setErr(humanError(e)); }
     setBusy(false);
   };
   const restore = () => run(async () => { const ok = await restoreStore(); if (!ok) throw new Error(t('Bu mağaza hesabında etkin abonelik bulunamadı.')); return true; }, t('Aboneliğin geri yüklendi.'));
@@ -61,6 +74,19 @@ export function StorePurchaseSheet({ plan: plan0 = 'tek', yearly: y0 = false, un
     </Row>
   );
   if (!available) return <Stack><Title>{t('Paketler')}</Title><Note>{t('Mağaza içi satın alma bu cihazda henüz açık değil.')}</Note>{links}<Button kind="quiet" title={t('Kapat')} onPress={close} /></Stack>;
+  if (paused) {
+    return (
+      <Stack gap={14}>
+        <Title>{t('Paketler')}</Title>
+        <Note warn>{t('Ödeme sistemimizi güncelliyoruz. Paket satın alma kısa süre içinde açılacak; fiyatlar kesinleşince burada görünür.')}</Note>
+        <Button kind="ghost" title={t('Satın alımları geri yükle')} disabled={busy} onPress={restore} />
+        {done ? <Text v="small" color={c.okInk}>{done}</Text> : null}
+        {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
+        {links}
+        <Button kind="quiet" title={t('Kapat')} onPress={close} />
+      </Stack>
+    );
+  }
   if (ready === 'fail') {
     return (
       <Stack gap={14}>
@@ -100,9 +126,11 @@ export function StorePurchaseSheet({ plan: plan0 = 'tek', yearly: y0 = false, un
       <Seg value={yearly ? 'y' : 'm'} onChange={(v) => setYearly(v === 'y')} options={[['m', t('Aylık')], ['y', t('Yıllık · 2 ay ücretsiz')]]} />
       <View style={{ gap: 6 }}>
         <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{t('Mülk sayısı')}</Text>
-        <Stepper name={t('Mülk sayısı')} label={t('{n} mülk', { n: units })} prev={units > 1} next={units < STORE_MAX_UNITS}
+        <Stepper name={t('Mülk sayısı')} label={t('{n} mülk', { n: units })} prev={units > minUnits} next={units < STORE_MAX_UNITS}
           onPrev={() => setUnits(units - 1)} onNext={() => setUnits(units + 1)} />
         <Muted>{t('1-{n} mülk için. 10 ve üstü mülk için Kurumsal paket.', { n: STORE_MAX_UNITS })}</Muted>
+        {owned > 0 ? <Muted>{owned > STORE_MAX_UNITS ? t('{n} mülkün var; mağaza paketleri en çok {max} mülk içindir. Kurumsal paket için info@anahtar.io adresine yaz.', { n: owned, max: STORE_MAX_UNITS })
+          : t('{n} mülkün var; daha az mülk için önce mülk sil/arşivle.', { n: owned })}</Muted> : null}
       </View>
       <Row between>
         <Text v="body" style={{ fontFamily: fonts.bodyXBold }}>{t('Toplam')}</Text>
@@ -111,7 +139,7 @@ export function StorePurchaseSheet({ plan: plan0 = 'tek', yearly: y0 = false, un
       {timing ? <Note>{timing}</Note> : null}
       {a.inTrial && !a.subscribed ? <Muted>{t('Ücretsiz denemen hesabına bağlıdır ve {n} gün daha sürüyor. Abone olduğunda ücret hemen alınır.', { n: trialDaysLeft(a) })}</Muted> : null}
       {missing && !err ? <Note warn>{t('Bu paket mağazada henüz tanımlı değil.')}</Note> : null}
-      <Button block title={kind === 'upgrade' || kind === 'downgrade' ? t('Paketi değiştir') : t('{store} ile abone ol', { store: storeName() })} loading={busy} disabled={!price || kind === 'same'}
+      <Button block title={kind === 'upgrade' || kind === 'downgrade' ? t('Paketi değiştir') : t('{store} ile abone ol', { store: storeName() })} loading={busy} disabled={!price || kind === 'same' || owned > STORE_MAX_UNITS}
         onPress={() => run(() => buyStore(plan, units, yearly), kind === 'downgrade' ? t('Değişikliğin kaydedildi; dönem sonunda başlayacak.') : t('Aboneliğin açıldı. Teşekkürler!'))} />
       {done ? <Text v="small" color={c.okInk}>{done}</Text> : null}
       {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}

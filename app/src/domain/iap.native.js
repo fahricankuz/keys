@@ -28,10 +28,31 @@ async function rc(){
   return Purchases;
 }
 
-/** Sunucudaki aboneliği RevenueCat'ten tazeler, sonra erişim durumunu yeniden okur. */
+/** Sunucudaki aboneliği RevenueCat'ten tazeler, sonra erişim durumunu yeniden okur.
+    Dönen: 'ok' | 'cooldown' (sunucu 30 sn beklemesi: 429, satın almadan hemen sonra geri yüklemede olağan) | 'error'. */
 async function sync(){
-  try { await (await client()).functions.invoke('billing', { body: {} }); } catch (e) { console.warn('Abonelik eşitlenemedi', e); }
+  let res = 'ok';
+  try {
+    const { error } = (await (await client()).functions.invoke('billing', { body: {} })) || {};
+    if (error){
+      res = (error.context && error.context.status === 429) ? 'cooldown' : 'error';
+      if (res === 'error') console.warn('Abonelik eşitlenemedi', error);
+    }
+  } catch (e) { res = 'error'; console.warn('Abonelik eşitlenemedi', e); }
   await refreshAccess();
+  return res;
+}
+
+/** Satın alma sonrası etkinleşme beklemesi: webhook ya da eşitleme gecikebilir; erişim durumu birkaç kez okunur (gerçek zamanlı
+    abonelik değişikliği de live.access'i günceller). Testler süreyi kısaltır. */
+export const settle = { tries: 6, ms: 3000 };
+const subscribedNow = () => !!(live.access && live.access.subscribed);
+async function waitSubscribed(){
+  for (let i = 0; i < settle.tries && !subscribedNow(); i++){
+    await new Promise((r) => setTimeout(r, settle.ms));
+    await refreshAccess();
+  }
+  return subscribedNow();
 }
 
 /* ---- Ürünleri bulma ---------------------------------------------------------------------------------------------- */
@@ -119,10 +140,12 @@ async function androidChangeInfo(P, target){
   };
 }
 
-/** Satın alma. true: abonelik açıldı; false: kullanıcı vazgeçti. */
+/** Satın alma. true: abonelik açıldı (ya da paket değişikliği kaydedildi); 'pending': mağaza satın almayı aldı ama sunucu aboneliği
+    henüz yazmadı (arayüz "etkinleştiriliyor" der, gerçek zamanlı güncelleme erişimi açar); false: kullanıcı vazgeçti. */
 export async function buyStore(plan, units, yearly){
   const p = await storeProduct(plan, units, yearly);
   if (!p) throw new Error(t('Bu paket mağazada bulunamadı.'));
+  const had = subscribedNow();
   try {
     if (android()){
       const change = await androidChangeInfo(Purchases, { plan, units, yearly: !!yearly });
@@ -134,14 +157,15 @@ export async function buyStore(plan, units, yearly){
     }
   } catch (e) { if (e && e.userCancelled) return false; throw e; }
   await sync();
-  return true;
+  if (had || subscribedNow()) return true;     // zaten abone olan kişinin plan değişikliği: erişim baştan var
+  return (await waitSubscribed()) ? true : 'pending';
 }
 
 /** Satın alımları geri yükle (yeni telefon, uygulamayı yeniden kurma). true: etkin abonelik bulundu. */
 export async function restoreStore(){
   const P = await rc();
   const info = await P.restorePurchases();
-  await sync();
+  await sync();      // satın almadan hemen sonraysa sunucu 429 verebilir: sorun değil, abonelik zaten az önce eşitlendi
   return !!(info && info.entitlements && Object.keys(info.entitlements.active || {}).length);
 }
 

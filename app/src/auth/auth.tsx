@@ -280,7 +280,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         host.notify({ title: t('Hesap silinemedi'), body: m, icon: 'bell' });
         return m;
       }
-      leaving = false; storage.removeItem(SESSION); closeLocal(); leave(); setUser(null); return null;
+      leaving = false; try { await logOutStore(); } catch {}      // RevenueCat kimliği silinen hesapla birlikte bırakılır
+      storage.removeItem(SESSION); closeLocal(); leave(); setUser(null); return null;
     }
     if (id) {
       storage.setItem(ACCOUNTS, JSON.stringify(readAccounts().filter((x) => x.id !== id)));
