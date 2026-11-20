@@ -535,6 +535,7 @@ async function apply(op){
 export function humanError(e){
   const m = String(e?.message || e || '');
   if (/Sözleşme sınırı/.test(m)) return t('Sözleşmendeki mülk adedine ulaştın. Daha fazla mülk için anahtar ekibine yaz: info@anahtar.io');
+  if (/paketinin dışında kaldı/.test(m)) return t('Bu mülk paketindeki mülk sayısının dışında kaldı; düzenlemek için mülk sayısını artır ya da bir mülkü sil.');
   if (e?.code === 'EV403' || /Paket sınırı/.test(m)) return t('Paketinin mülk sınırına ulaştın. Daha fazla mülk için paketini yükselt.');
   if (e?.code === 'EV402' || /Abonelik gerekli/.test(m)) return t('Deneme süren bitti. Kayıtları değiştirmek için abone ol; okuma ve mesajlaşma açık.');
   // Mağaza satın alması başka bir anahtar hesabına bağlı (RevenueCat: PRODUCT_ALREADY_PURCHASED "6", RECEIPT_ALREADY_IN_USE "7", RECEIPT_IN_USE_BY_OTHER_SUBSCRIBER "13").

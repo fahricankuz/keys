@@ -22,5 +22,6 @@ test('humanError: başka hesaba bağlı satın alma Türkçe açıklanır; Reven
   expect(humanError({ code: '6', message: 'x', underlyingErrorMessage: 'y' })).toBe(msg);
   expect(humanError({ code: '13', message: 'x', underlyingErrorMessage: 'y' })).toBe(msg);
   expect(humanError({ code: '7', message: 'Başka bir hata' })).toBe('Başka bir hata');
-  expect(humanError({ code: 'EV403', message: 'Paket sınırı: en fazla 2 mülk; bu mülk paketinin dışında kaldı' })).toContain('mülk sınırına');
+  expect(humanError({ code: 'EV403', message: 'Paket sınırı: en fazla 2 mülk; bu mülk paketinin dışında kaldı (salt okunur)' })).toContain('dışında kaldı; düzenlemek için');
+  expect(humanError({ code: 'EV403', message: 'Paket sınırı: en fazla 2 mülk' })).toContain('mülk sınırına');
 });

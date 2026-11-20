@@ -1258,6 +1258,7 @@ export const EN_PAKET = {
   "Satın alma alındı, aboneliğin etkinleştiriliyor…": "Purchase received, your subscription is being activated…",
   "{n} mülkün var; daha az mülk için önce mülk sil/arşivle.": "You have {n} properties; to go lower, delete or archive properties first.",
   "{n} mülkün var; mağaza paketleri en çok {max} mülk içindir. Kurumsal paket için info@anahtar.io adresine yaz.": "You have {n} properties; store plans cover up to {max} properties. For the Enterprise plan write to info@anahtar.io.",
+  "Bu mülk paketindeki mülk sayısının dışında kaldı; düzenlemek için mülk sayısını artır ya da bir mülkü sil.": "This property is outside the number of properties in your plan; to edit it, increase the property count or delete a property.",
   "Roller ({n})": "Roles ({n})",
   "Site sakini": "Site resident",
   "Kurum yöneticisi": "Organisation manager",

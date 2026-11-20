@@ -27,7 +27,8 @@ export function PlanCard({ p, cta, badge, eqLine, side, compact }: {
   const { phone } = useBreakpoint();
   const small = phone || compact;
   // "1 ay ücretsiz deneme" yalnız oturumsuz ziyaretçiye ve denemesi süren kişiye gösterilir (abone ya da denemesi bitmiş kişiye değil).
-  const showTrial = !live.user || !!(access() as any).inTrial;
+  const acc: any = access();
+  const showTrial = !live.user || !!acc.inTrial || !!acc.pending;     // erişim henüz okunurken gizlenmez (titreme olmasın)
   const dark = p.best;
   const ink = dark ? c.heroInk : c.ink, soft = dark ? c.heroMuted : c.muted;
   const rule = dark ? 'rgba(250,245,240,0.14)' : c.line;

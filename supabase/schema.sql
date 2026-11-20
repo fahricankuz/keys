@@ -9805,8 +9805,8 @@ grant update (org_id, unit_id, user_id, role, name, phone, email, lives_here, in
 --    (add_landlord_role) deneme süresi bitince, kiracı olduğu evde dekont yüklemesi / talep açması artık engellenmez.
 -- 2. guard_unit_limit_update: satın alınan adetten fazla mülkü olan sahibin, sınırın dışında kalan (en yeni) mülklerine yazması reddedilir
 --    (EV403, "Paket sınırı"); okuma ve silme serbest. Mülk eklemeyi zaten guard_unit_limit sınırlıyordu (yalnız INSERT).
--- 3. trial_reminders: uygulama içi (30 gün) deneme bitmeden 3 gün ve 1 gün kala, bitince bildirim + e-posta; her aşama bir kez.
---    Günlük billing_reminders cron'una eklendi (yeni gizli anahtar yok). E-posta mail_outbox 'admin_message' türüyle gider (mail-send değişmez).
+-- 3. trial_reminders: uygulama içi (30 gün) deneme bitmeden 3 gün ve 1 gün kala, bitince bildirim; her aşama bir kez.
+--    Günlük billing_reminders cron'una eklendi (yeni gizli anahtar yok). E-posta ayrıca yazılmaz: bildirim eklenince push işlevi e-postayı zaten gönderir ve kullanıcının e-posta kapatma tercihine uyar (etiket trial-N; yalnız bill-/acct- etiketleri tercihi aşar).
 
 -- ---- 1. require_access -----------------------------------------------------------------------------------------------------
 create or replace function public.require_access()
@@ -9860,11 +9860,11 @@ create table if not exists public.trial_reminder_log (
 alter table public.trial_reminder_log enable row level security;   -- kural yok: yalnız sunucu yazar ve okur
 revoke all on public.trial_reminder_log from anon, authenticated;
 
-/** Aboneliği ve kurumu olmayan mülk sahiplerine deneme bitişinden 3 gün / 1 gün önce ve bitince bildirim + e-posta. Kaç kişiye yazıldığını döner. */
+/** Aboneliği ve kurumu olmayan mülk sahiplerine deneme bitişinden 3 gün / 1 gün önce ve bitince bildirim. Kaç kişiye yazıldığını döner. */
 create or replace function public.trial_reminders(today date default (now() at time zone 'Europe/Istanbul')::date)
 returns int language plpgsql security definer set search_path = public as $$
 declare
-  r record; left_d int; stg int; ttl text; msg text; mail text; en boolean; n int := 0;
+  r record; left_d int; stg int; ttl text; msg text; en boolean; n int := 0;
   cf timestamptz := public.card_trial_from();
 begin
   for r in
@@ -9881,7 +9881,7 @@ begin
     continue when cf is not null and r.started >= cf;                       -- kartlı deneme: uygulama içi deneme yok
     continue when lower(coalesce(r.email, '')) like '%@anahtar.io';          -- iç hesaplar
     left_d := (r.trial_end at time zone 'Europe/Istanbul')::date - today;
-    stg := case when left_d in (2, 3) then 3 when left_d = 1 then 1 when left_d between -2 and 0 then 0 end;
+    stg := case when left_d in (2, 3) then 3 when left_d = 1 then 1 when left_d between -2 and 0 and r.trial_end <= now() then 0 end;   -- bitti: yalnız süre gerçekten dolunca
     continue when stg is null;
     continue when exists (select 1 from public.trial_reminder_log where user_id = r.id and stage = stg);
     en := r.lang = 'en';
@@ -9898,17 +9898,6 @@ begin
     insert into public.trial_reminder_log (user_id, stage) values (r.id, stg) on conflict do nothing;
     insert into public.notifications (user_id, title, body, url, tag)
     values (r.id, ttl, msg, '/uygulama/ayarlar', 'trial-' || stg) on conflict do nothing;
-    if r.email is not null then
-      insert into public.mail_outbox (kind, to_email, lang, data, dedupe)
-      values ('admin_message', r.email, r.lang,
-              jsonb_build_object('subject', ttl,
-                'body', case when en then
-                    'Hi ' || coalesce(nullif(split_part(btrim(r.name), ' ', 1), ''), 'there') || E',\n\n' || msg || E'\n\nOpen the anahtar app (App Store / Google Play) or go to https://anahtar.io to pick a plan.'
-                  else
-                    'Merhaba ' || coalesce(nullif(split_part(btrim(r.name), ' ', 1), ''), '') || E',\n\n' || msg || E'\n\nanahtar uygulamasını (App Store / Google Play) aç ya da https://anahtar.io adresinden paketini seç.' end),
-              'trial:' || r.id || ':' || stg)
-      on conflict do nothing;
-    end if;
     n := n + 1;
   end loop;
   return n;
@@ -9945,7 +9934,13 @@ begin
     returning 1
   )
   select count(*) into n from ins;
-  perform public.trial_reminders(today);   -- uygulama içi deneme bitiş hatırlatması
+  -- Deneme hatırlatması başarısız olsa da mağaza yenileme bildirimleri etkilenmez.
+  begin
+    perform public.trial_reminders(today);
+  exception when others then
+    raise warning 'trial_reminders başarısız: %', sqlerrm;
+    insert into public.function_logs (fn, level, message, detail) values ('billing_reminders', 'error', 'trial_reminders başarısız', left(sqlerrm, 500));
+  end;
   return n;
 end $function$;
 revoke execute on function public.billing_reminders(date) from public, anon, authenticated;

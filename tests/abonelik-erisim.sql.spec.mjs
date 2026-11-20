@@ -93,20 +93,19 @@ test('deneme bitiş hatırlatması: 3 gün, 1 gün ve bitince bildirim + e-posta
   expect(n3).toBeGreaterThanOrEqual(1);
   const notes = await q(`select title, tag, url from public.notifications where user_id = $1`, [L]);
   expect(notes).toEqual([{ title: 'Deneme süren 3 gün sonra bitiyor', tag: 'trial-3', url: '/uygulama/ayarlar' }]);
-  const mail = await q(`select kind, to_email, data from public.mail_outbox where to_email = 'ev@ornek.com'`);
-  expect(mail).toHaveLength(1);
-  expect(mail[0].kind).toBe('admin_message');
-  expect(mail[0].data.subject).toBe('Deneme süren 3 gün sonra bitiyor');
-  expect(mail[0].data.body).toContain('https://anahtar.io');
+  expect((await q(`select count(*)::int n from public.mail_outbox`))[0].n).toBe(0);     // e-postayı bildirimin push işlevi gönderir (tercihe uyar); kuyruğa ayrıca yazılmaz
   expect(await run(day(27))).toBe(0);                              // aynı aşama tekrar gitmez
   expect(await run(day(26.9))).toBe(0);
   // Aşama 1 ve 0.
   expect(await run(day(29))).toBeGreaterThanOrEqual(1);
   expect((await q(`select title from public.notifications where user_id = $1 and tag = 'trial-1'`, [L]))[0].title).toBe('Deneme süren 1 gün sonra bitiyor');
-  expect(await run(day(30))).toBeGreaterThanOrEqual(1);
+  // Bitiş gününde ama süre henüz dolmadan (1 saat kala) "bitti" gitmez; dolunca gider.
+  await db.query(`update public.profiles set created_at = now() - interval '29 days 23 hours' where id = $1`, [L]);
+  expect(await run(day(0))).toBe(0);
+  await db.query(`update public.profiles set created_at = now() - interval '30 days 1 hour' where id = $1`, [L]);
+  expect(await run(day(0))).toBeGreaterThanOrEqual(1);
   expect((await q(`select title from public.notifications where user_id = $1 and tag = 'trial-0'`, [L]))[0].title).toBe('Deneme süren bitti');
-  expect(await run(day(31))).toBe(0);
-  expect((await q(`select count(*)::int n from public.mail_outbox where to_email = 'ev@ornek.com'`))[0].n).toBe(3);
+  expect(await run(day(1))).toBe(0);
   // Kiracı hesap (rol tenant) hiç hatırlatma almaz; yönetici paketi olanlar da.
   expect((await q(`select count(*)::int n from public.notifications where user_id in ($1, $2)`, [X, ID.A]))[0].n).toBe(0);
 });
