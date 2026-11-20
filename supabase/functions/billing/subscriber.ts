@@ -76,7 +76,7 @@ export function rowFromSubscriber(userId: string, subscriber: any, entitlement =
     expires_at: null, active: false, will_renew: false, billing_issue: false,
     environment: null, updated_at: new Date(now).toISOString(),
   };
-  if (!ent) return base;
+  if (!ent) return refundedRow(base, subscriber, now) ?? base;
 
   // Google Play'de abonelikler soneksiz kimlikle ("tek") anahtarlanır; temel plan ayrı alandadır. Sonekli anahtar da denenir.
   const subs = subscriber?.subscriptions || {};
@@ -96,6 +96,50 @@ export function rowFromSubscriber(userId: string, subscriber: any, entitlement =
     // Sandbox (test) satın alımları erişim verir; ortam kaydedilir, gelir göstergelerinden veritabanı ayıklar.
     environment: sub.is_sandbox ? 'sandbox' : 'production',
   });
+}
+
+/**
+ * Yetki yok ama abonelik kaydında iade tarihi (refunded_at) var: RevenueCat iade edilen aboneliğin yetkisini kaldırır. Satır, aynı
+ * ürünün bitmiş durumu olarak döner (decideWrite aynı ürün + mağaza için yazar); erişim iade anında biter.
+ */
+// deno-lint-ignore no-explicit-any
+function refundedRow(base: Row, subscriber: any, now: number): Row | null {
+  const subs = subscriber?.subscriptions || {};
+  let best: { key: string; sub: any; at: number } | null = null; // deno-lint-ignore no-explicit-any
+  for (const [key, sub] of Object.entries<any>(subs)) { // deno-lint-ignore no-explicit-any
+    const at = Date.parse(sub?.refunded_at ?? '');
+    if (Number.isFinite(at) && at <= now && (!best || at > best.at)) best = { key, sub, at };
+  }
+  if (!best) return null;
+  const [id, colonPlan] = best.key.split(':');
+  const plan = best.sub.product_plan_identifier ?? colonPlan;
+  return Object.assign(base, {
+    product_id: normalizeProduct(id, plan), store: best.sub.store || null, period_type: best.sub.period_type || null,
+    expires_at: new Date(best.at).toISOString(), environment: best.sub.is_sandbox ? 'sandbox' : 'production',
+  });
+}
+
+/** Webhook olayı aboneliği geri aldıysa (iade/destek iptali ya da süre bitimi) ürünü; değilse null. */
+export type Revocation = { product: string | null };
+export function revocationOf(event: Record<string, unknown>): Revocation | null {
+  const t = event.type, reason = event.cancel_reason;
+  const refund = t === 'CANCELLATION' && reason === 'CUSTOMER_SUPPORT';
+  if (!refund && t !== 'EXPIRATION') return null;
+  const pid = typeof event.product_id === 'string' ? event.product_id : null;
+  return { product: pid ? normalizeProduct(pid) : null };
+}
+
+/**
+ * Olay iade/bitiş bildirdi ama RevenueCat anlık görüntüsünde yetki de, iade kaydı da yok: erişim veren mağaza satırı (admin/promosyon
+ * hariç) olayın ürünüyle eşleşiyorsa bitmiş yazılır; aksi halde null (decideWrite karar verir).
+ */
+export function revokedRow(existing: Existing | null | undefined, incoming: Row, rev: Revocation | null, now = Date.now()): Row | null {
+  if (!existing || !rev || incoming.active || incoming.product_id !== null) return null;
+  if (!isCurrent(existing, now)) return null;
+  const store = existing.store ?? '';
+  if (!store || store === 'admin' || store === 'promotional') return null;
+  if (rev.product && existing.product_id !== rev.product) return null;
+  return { ...incoming, product_id: existing.product_id, store: existing.store, expires_at: new Date(now).toISOString(), active: false };
 }
 
 /** Tablodaki mevcut satırın karar için gereken alanları. */

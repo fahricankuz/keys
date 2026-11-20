@@ -21,7 +21,7 @@
 //   REVENUECAT_ENTITLEMENT   — yetki kimliği (varsayılan: pro)
 // SUPABASE_URL ve SUPABASE_SECRET_KEYS (yoksa SUPABASE_SERVICE_ROLE_KEY) Supabase tarafından otomatik sağlanır.
 
-import { decideWrite, isUserId, rowFromSubscriber, affectedUsers, transferredAway, type Existing } from './subscriber.ts';
+import { decideWrite, isUserId, rowFromSubscriber, affectedUsers, transferredAway, revocationOf, revokedRow, type Existing, type Revocation } from './subscriber.ts';
 import { serviceClient } from '../_shared/keys.ts';
 import { logger } from '../_shared/log.ts';
 import { sentryServe } from '../_shared/sentry.ts';
@@ -75,16 +75,18 @@ async function fetchSubscriber(userId: string) {
 type SyncResult = { active: boolean; expires_at: string | null; kept?: 'grant' | 'stale' };
 
 /** Kullanıcıyı RevenueCat'ten okuyup tabloya yazar (korunan ya da daha yeni satır ezilmez); tablodaki geçerli durumu döndürür. */
-async function syncUser(userId: string, authoritative = false): Promise<SyncResult> {
-  const incoming = rowFromSubscriber(userId, await fetchSubscriber(userId), ENTITLEMENT);
-  // Satırın units/sector alanları yöneticinin verdiği paketlere aittir; mağaza satırında adet ürün kimliğinden gelir.
-  const payload = { ...incoming, units: null, sector: null };
+async function syncUser(userId: string, authoritative = false, revocation: Revocation | null = null): Promise<SyncResult> {
+  const fetched = rowFromSubscriber(userId, await fetchSubscriber(userId), ENTITLEMENT);
 
   // Okuma ile yazma arasında başka bir eşitleme (webhook + uygulama) araya girerse updated_at değişir; yeniden okunur.
   for (let attempt = 0; attempt < 3; attempt++) {
     const { data: existing, error: readErr } = await admin.from('subscriptions')
       .select('store, product_id, expires_at, active, updated_at').eq('user_id', userId).maybeSingle();
     if (readErr) throw readErr;
+    // İade / süre bitimi olayı: yetki kaydı yoksa bile eşleşen mağaza satırı bitirilir (iade sonrası erişim sürmesin).
+    const incoming = revokedRow(existing as Existing | null, fetched, revocation) ?? fetched;
+    // Satırın units/sector alanları yöneticinin verdiği paketlere aittir; mağaza satırında adet ürün kimliğinden gelir.
+    const payload = { ...incoming, units: null, sector: null };
     const d = decideWrite(existing as Existing | null, incoming, Date.now(), authoritative);
     if (!d.write) {
       await log.info('abonelik satırı korundu', { reason: d.reason, user: userId });
@@ -212,7 +214,8 @@ sentryServe('billing', async (req) => {
       if (event.type === 'TEST') return json({ ok: true, test: true });
       const users = affectedUsers(event);
       const away = new Set(transferredAway(event));
-      for (const id of users) await syncUser(id, away.has(id));
+      const rev = revocationOf(event);
+      for (const id of users) await syncUser(id, away.has(id), rev);
       return json({ ok: true, users: users.length });
     }
 

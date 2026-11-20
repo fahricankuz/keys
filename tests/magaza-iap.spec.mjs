@@ -52,7 +52,7 @@ async function load(entry) {
         b.onLoad({ filter: /.*/, namespace: 'fake' }, (a) => ({
           loader: 'js',
           contents: a.path === 'backend'
-            ? `export const live = globalThis.__live; export async function client(){ return globalThis.__client; } export async function refreshAccess(){ globalThis.__refreshed++; }`
+            ? `export const live = globalThis.__live; export async function client(){ return globalThis.__client; } export async function refreshAccess(){ globalThis.__refreshed++; if (globalThis.__activate && globalThis.__activate()) globalThis.__live.access = { ...(globalThis.__live.access || {}), subscribed: true }; }`
             : FAKES[a.path]
         }));
       }
@@ -75,6 +75,7 @@ function world(os) {
   globalThis.__platform = { OS: os };
   globalThis.__live = { user: { id: 'u1' }, access: null };
   globalThis.__refreshed = 0;
+  globalThis.__activate = () => true;               // sunucu satın almayı yazdı (erişim durumu abone)
   globalThis.__invoked = [];
   globalThis.__client = { functions: { invoke: async (name) => { globalThis.__invoked.push(name); return {}; } } };
   globalThis.__rc = { asked: [], calls: [], products: {}, info: { entitlements: { active: {} } }, configured: null };
@@ -298,4 +299,28 @@ test('billing_paused: değer sunucudan okunur ve önbelleğe alınır; hata ya d
   M = await load(CFG);
   expect(await M.loadAppConfig()).toBe(true);                                 // anlaşılmayan değer: yedek
   expect([true, false, 'true', 'false', 1, 0, { paused: false }, { value: 'true' }, 'x', null].map(M.parsePaused)).toEqual([true, false, true, false, true, false, false, true, null, null]);
+});
+
+test('satın alma sonrası: sunucu henüz yazmadıysa "pending" döner (başarı denmez); geç de olsa erişim açılırsa true; 429 bekleme hata sayılmaz', async () => {
+  world('android');
+  const M = await load(IAP);
+  M.settle.tries = 3; M.settle.ms = 5;
+  globalThis.__rc.products.bes = [playProduct('bes', 2, 'yillik', '₺3.999,99')];
+  globalThis.__activate = () => false;
+  expect(await M.buyStore('bes', 2, true)).toBe('pending');                 // webhook gelmedi: arayüz "etkinleştiriliyor" der
+  expect(globalThis.__refreshed).toBeGreaterThanOrEqual(4);                 // eşitleme + bekleme sırasında yeniden okuma
+  let n = 0;
+  globalThis.__activate = () => ++n >= 3;                                   // 2. bekleme turunda abonelik yazılır
+  globalThis.__live.access = null;
+  expect(await M.buyStore('bes', 2, true)).toBe(true);
+  // Zaten abone olan kişinin plan değişikliği beklemeden true döner
+  globalThis.__activate = () => false;
+  globalThis.__live.access = { subscribed: true };
+  expect(await M.buyStore('bes', 2, true)).toBe(true);
+  // billing 429 (30 sn bekleme): hata değil; erişim yine okunur
+  globalThis.__client.functions.invoke = async (name) => { globalThis.__invoked.push(name); return { error: { context: { status: 429 } } }; };
+  const before = globalThis.__refreshed;
+  globalThis.__rc.info = { entitlements: { active: { pro: { isActive: true } } } };
+  expect(await M.restoreStore()).toBe(true);
+  expect(globalThis.__refreshed).toBe(before + 1);
 });
