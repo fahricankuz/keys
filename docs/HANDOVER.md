@@ -1,7 +1,7 @@
 # HANDOVER: anahtar, state after the 2026-11-13 launch day
 
 > **Living document.** It is updated whenever the release moves forward; the change log at the bottom says what changed and when.
-> Last updated: **2026-11-14 00:15 (Istanbul, UTC+3)**.
+> Last updated: **2026-11-20 21:15 (Istanbul, UTC+3)**. What happened 14–20 November: [diary/2026-11-20.md](diary/2026-11-20.md).
 > Audience: the repo owners and their AI agents. This is a **handover back**: on 2026-11-13 Erdem (DevirVentures) hardened,
 > extended and prepared this repo for the stores; this file says what changed, what is live, what is still in review and what is left.
 > The repo is **public**: this file contains IDs and names, never secret values. Do not add any.
@@ -13,7 +13,7 @@
 1. Read in this order: **this file** → [`AGENTS.md`](../AGENTS.md) (rules, how to run and test, approval matrix) →
    [`CLAUDE.md`](../CLAUDE.md) (owners' Turkish rules: migrations, release, commits) → [`docs/README.md`](README.md) (index of every doc).
 2. **Talk to the owners in Turkish**, in plain language. They are partly non-technical. Prove every claim (command + output, PR link).
-3. **You do not merge.** Open a PR into `main` and stop. Erdem (DevirVentures, he runs the release) merges. The owners agreed not to merge.
+3. **The owners merge their own work** (decided 2026-11-17). Open a PR into `main`; when CI is green an owner merges it (or tells you to). Erdem no longer reviews or merges routine PRs.
 4. **Release 1.0.0 is in flight from Erdem's session** (section 4). Until this file says the store submissions are done:
    do **not** start EAS builds, store submissions, OTA updates, migrations, Edge Function deploys or production data changes.
    Opening PRs is fine.
@@ -27,14 +27,14 @@
 | Area | State | Details |
 |---|---|---|
 | Web `anahtar.io` | **Live**, new site since 2026-11-13 ~16:14 UTC | Static Expo web export on Hostinger, published from the `site` branch by `hostinger.yml` on every push to `main` |
-| Backend (Supabase production `nfpefnrgtnwvclwbriaw`, Frankfurt) | **Live**: 51 migrations, 9 Edge Functions, Vault-based cron/webhooks | 21 real users. Compute Micro. Daily backups |
-| Payments | **On** (`app_config.billing_paused = false` since 18:17 UTC) | In-app purchase via RevenueCat, phones only. Web points to the app |
+| Backend (Supabase production `nfpefnrgtnwvclwbriaw`, Frankfurt) | **Live**: 59 migrations (staging identical), 9 Edge Functions (`billing` v13), Vault-based cron/webhooks | Compute Micro. Daily backups |
+| Payments | **On** (`app_config.billing_paused = false`) | In-app purchase via RevenueCat, phones only. Web points to the app. **No store purchase has gone through yet** (only admin grants); first trials end 2026-11-28 |
 | Monitoring | **On**: Sentry EU org `anahtar` (web, mobile, edge) | Alerts, error-spike and crash-rate monitors, uptime on `https://anahtar.io/` |
-| iOS | **In App Review** since 2026-11-13 ~23:55: version **1.0.0 build (5)** + all **36 subscriptions** = `WAITING_FOR_REVIEW`, release **MANUAL** | TestFlight: build (5) for group "Ekip"; build (2) in external beta review |
-| Android | **In Google review** since 2026-11-14 00:12: production **1.0.0 (4)**, **managed publishing ON** (nothing goes live until someone presses Publish) | Internal testing: build (4) live for testers |
-| Store subscriptions | App Store: 36 products, all 175 territories priced, in review with the app | Play: `tek` + `bes`, 36 base plans **ACTIVE**, 174 regions (created in the Console UI); RevenueCat `pro` has all **72** products (36 iOS + 36 Android) |
-| OTA updates | `expo-updates` merged (#117). iOS **(5)** and Android **(4)** are the first builds that can receive OTA | EAS env variables for OTA fixed 2026-11-13 (section 5.6); first OTA must be tested on `preview` |
-| Repo | `main` = #112–#114, #116–#121 merged; #115 closed | Open: Dependabot #105 #106 #108 |
+| iOS | **Live**: 1.0.0 (5) released 2026-11-20 (36 subscriptions approved). **1.0.1** (new store name) created, build 1.0.1 (6) auto-submitting → App Review, manual release | https://apps.apple.com/tr/app/id6834434284 |
+| Android | **Live** on Google Play: 1.0.0 (4), managed publishing ON. New store title sent to review → needs **Publish** | https://play.google.com/store/apps/details?id=io.anahtar.app |
+| Store subscriptions | App Store: 36 products **approved**, all territories priced; Apple server notifications (V2, prod + sandbox) → RevenueCat | Play: `tek` + `bes`, 36 base plans **ACTIVE**; RevenueCat `pro` has all **72** products; Google RTDN connected |
+| OTA updates | Production channel, runtime **1.0.0** (pinned in `app.json`): `6f0ba226…` (#126–#132), `d3b0e14a…` (#133), `5df070f1…` (#135) | Both 1.0.0 and 1.0.1 installs receive the same OTAs. Raise `runtimeVersion` only with a native change + store build |
+| Repo | `main` up to #136 (owners merge their own PRs since #125) | Open: #124 (owners' tax fixes), Dependabot #105 #106 #108 |
 
 ---
 
@@ -67,7 +67,7 @@
 - Sentry in the **EU** region. No session replay, no analytics, no cookies today (any analytics needs a KVKK/consent decision first).
 - Universal links for `/katil`, `/dogrula`, `/yeni-sifre`. Native push yes, SMS no.
 - **Manual release** after store approval. Age rating 4+ (no 18+ override). Available in all countries; subscriptions in all countries with store-converted prices.
-- **No branch protection rules** on GitHub (owner decision); the rule is process: PRs only, Erdem merges.
+- **No branch protection rules** on GitHub (owner decision); the rule is process: PRs only, CI green, an owner merges.
 
 ---
 
@@ -75,13 +75,13 @@
 
 | Step | State | Next (who) |
 |---|---|---|
-| **App Review** (iOS 1.0.0 (5) + 36 subscriptions) | `WAITING_FOR_REVIEW` | Apple answers in ~1–3 days. If rejected: read the reason in App Store Connect → App Review, fix, resubmit (Erdem). After approval press **Release** (manual) |
-| **Google review** (production 1.0.0 (4)) | Sent 2026-11-14 ~00:12 with managed publishing ON | Usually up to 7 days. After approval: Play Console → Publishing overview → **Publish** (manual) |
-| TestFlight external beta (build 2) | Waiting for Apple | Public link `https://testflight.apple.com/join/zhpWEbFX` after approval; add build (5) to the "Dış test" group then |
-| Play API write access for `eas-submit@anahtario` | **Fixed 2026-11-14 00:25**: "View financial data" + "Manage orders and subscriptions" added on app anahtar; `pricing:convertRegionPrices` now 200 | Repo scripts can change the Play catalog again (dry run first, owner approval for `--apply`) |
-| Test accounts for end-to-end testing | 5 accounts seeded in production (`test-mulk`, `test-kiraci`, `test-yeni`, `test-yonetici`, `test-sakin` @anahtar.io); emails/notifications off for them | Password only in Erdem's local secrets folder. Re-seed: `app/scripts/test-hesaplari.mjs` |
+| **iOS 1.0.1** (store name "Anahtar: Kiranın Anahtarı" / "Anahtar: The Key to Renting") | Version created with names + release notes; build 1.0.1 (6) on EAS with auto-submit; then App Review | After approval press **Release** (manual). Check: `npm run magaza:durum --prefix app` |
+| **Play store title** (same rename) | Sent to Google review (managed publishing ON) | After approval: Play Console → Publishing overview → **Publish** |
+| **First real purchase** | Never happened yet; sandbox test skipped | Watch RevenueCat event → `billing` → `subscriptions` row → access; check Sentry `anahtar-edge` |
+| **Trial reminders** (#135) | Live in the daily `billing_reminders` cron (06:30 UTC) | First ones around 2026-11-25 (trials end from 2026-11-28); check notifications and mails then |
+| Test accounts | 5 accounts in production (`test-mulk`, `test-kiraci`, `test-yeni`, `test-yonetici`, `test-sakin` @anahtar.io); emails/notifications off | Password only in Erdem's local secrets folder. Re-seed: `app/scripts/test-hesaplari.mjs` |
 
-Until both stores approve, still **no** new store builds, submissions or OTA without Erdem.
+Store builds, submissions and OTAs follow [release-and-ota.md](release-and-ota.md); OTA only for JS/UI changes (runtime `1.0.0`).
 
 ---
 
@@ -97,14 +97,12 @@ Until both stores approve, still **no** new store builds, submissions or OTA wit
 
 ### 5.2 P0/P1: store and launch
 - **Play trader status** (EU DSA): only the Play account owner can declare it; deadline **February 2027**, otherwise the app is removed from EU storefronts.
-- After Apple/Google approval, the release is **manual**: someone must press "Release" (App Store) and "Publish" (Play managed publishing).
+- Releases are **manual** on both stores: "Release" (App Store) and "Publish" (Play managed publishing). 1.0.0 was released on 2026-11-20; every later version/listing change needs the same press.
 - `info@anahtar.io` must **accept the invites** (App Store Connect, Play Console, RevenueCat) and turn on **2FA** (also Sentry, Expo).
 - iOS distribution certificate expires **2027-11-13**.
 
 ### 5.3 P1: security follow-ups ([`docs/security-guidelines.md`](security-guidelines.md) section 14)
-1. **Follow-up migrations** in `specs/followup-migrations/` (`sistem_mesaji_kapat`: closes direct inserts of system messages; `site_residents_kod_gizle`:
-   hides `site_residents.code`). Allowed only after the new site has been live ≥24 h: **from 2026-11-14 16:14 UTC**. New PR, **fresh timestamps**
-   (`npm run db:yeni`), then the four-step Actions apply (staging plan → apply → production plan → apply, plan shown to the owners each time). See its README.
+1. ~~Follow-up migrations~~ **Done 2026-11-20** (#134): `sistem_mesaji_kapat` and `site_residents_kod_gizle` applied on staging and production and verified.
 2. **Disable Supabase legacy JWT API keys** after function logs are clean on the new keys (Supabase dashboard, Erdem).
 3. **Rotate the `info@anahtar.io` mailbox password** and update `SMTP_PASS` (function secret) and the Supabase Auth SMTP password together.
 4. **Edge Functions still return raw error text** to callers: `invite-mail`, `site-invite`, `welcome`, `lead-mail` (only `billing` is generic). Fix in a PR
@@ -123,7 +121,7 @@ Until both stores approve, still **no** new store builds, submissions or OTA wit
 - **P1-6/7/8** internal links to `/cozumler/*`, slash-consistent hrefs, truthful sitemap `lastmod`, blog template with sources and publisher line.
 
 ### 5.5 P2: housekeeping
-- Dependabot **#105, #106, #108**: review and test; Erdem merges. No major-version jumps.
+- Dependabot **#105, #106, #108**: review and test; an owner merges. No major-version jumps.
 - `docs/test.md` mentions `tests/i18n.spec.mjs`, which does not exist (English checks are in `tests/app-admin.spec.mjs`, `tests/paketler.spec.mjs`).
 - `docs/guvenlik.md`, `docs/yol-haritasi.md`, `docs/magaza.md` are being updated by the native-fix PR (no CAPTCHA on phones). Check after it merges.
 
@@ -190,9 +188,9 @@ End-to-end test accounts (production, seeded data, notification e-mails off): `t
 
 1. SEO P1-1 and P1-2 (noindex + sitemap, real `<h1>`/`<a href>`): web only, no store impact. Verify raw HTML with the commands in `docs/seo-geo.md` section 11.
 2. Generic error bodies in the four Edge Functions + shared `safeEqual` (deploy later, by Erdem).
-3. Follow-up migrations PR **after 2026-11-14 16:14 UTC** (fresh timestamps; SQL tests per migration).
+3. Sandbox purchase test on TestFlight / Play internal with `test-yeni@anahtar.io` (buy, restore, change plan, cancel) and save the real RevenueCat payloads as test fixtures.
 4. Fix `docs/test.md` reference; review Dependabot PRs.
-5. **Hold native app changes** until builds (5)/(4) are submitted; after launch, JS/UI fixes can ship by OTA (with approval).
+5. JS/UI fixes ship by OTA (runtime `1.0.0`); native changes need a store build, a `runtimeVersion` bump and review.
 
 ---
 
@@ -203,3 +201,6 @@ End-to-end test accounts (production, seeded data, notification e-mails off): `t
 | 2026-11-13 22:45 | First version: launch-day state, in-flight release steps, critical items (SEO, security, store), traps, ownership |
 | 2026-11-14 00:15 | Handover back to owners: iOS + 36 subscriptions in App Review; Android 1.0.0 (4) in Google review with managed publishing; Play catalog (36 plans) + RevenueCat (72 products) done; store scripts (#120) and test accounts (#121) |
 | 2026-11-14 00:30 | Play API write permission for `eas-submit` fixed (convertRegionPrices 200) |
+| 2026-11-17 | Owners now merge their own PRs (Erdem's decision); merge rules updated in AGENTS.md, HANDOVER.md, release-and-ota.md, infrastructure.md |
+| 2026-11-20 | Store name changed to "Anahtar: Kiranın Anahtarı" / "Anahtar: The Key to Renting" (Play listing; iOS via version 1.0.1). `app.json` runtimeVersion is now pinned to `"1.0.0"` (was policy appVersion) so OTAs keep reaching 1.0.0 and 1.0.1 installs; change it only together with a native change and a new store build |
+| 2026-11-20 21:15 | Both apps live; follow-up security migrations (#134) and subscription/access fixes (#135, `billing` v13, OTA `5df070f1…`) applied; Apple server notifications → RevenueCat; iOS 1.0.1 rename in flight. Diary: [diary/2026-11-20.md](diary/2026-11-20.md) |

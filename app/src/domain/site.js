@@ -4,6 +4,8 @@
    Sunucu kuralları: supabase/schema.sql 17. bölüm (RLS ve guard_site_charges). */
 
 import { t } from './i18n.js';
+import { normalizeIban } from './iban.js';
+import { blockTitle } from './blok.js';
 import { logCaught } from './logs.js';
 import { client, live, storeFile, inviteLink, inviteRejected } from './backend.js';
 import { waLink } from './wa.js';
@@ -53,7 +55,7 @@ export const MODES = (sector) => (isCommercial(sector) ? [
 /** Birim etiketi: sitede "A Blok No 3" (villada "Villa 3"), ticaride "Zemin kat · Z-12" (schema.sql → unit_label ile aynı). */
 export const unitLabel = (u) => (isCommercial(u.sector)
   ? (u.block ? u.block + ' · ' : '') + u.no
-  : (u.block ? u.block + ' ' + t('Blok') + ' ' : '') + (/^\d/.test(String(u.no)) ? t('No') + ' ' : '') + u.no);
+  : (u.block ? blockTitle(u.block) + ' ' : '') + (/^\d/.test(String(u.no)) ? t('No') + ' ' : '') + u.no);
 /** Kurum içi arama (yönetici paneli): daire (blok/no/malik/kiracı), talep, duyuru. d: loadSiteAdmin verisi; go: bölüm adresi. Sonuç ≤ 24. */
 export function siteSearch(d, q, sectionPath){
   const k = String(q || '').trim();
@@ -260,6 +262,45 @@ export async function saveUnit(oid, u){
     index_rate: numOrNull(u.index_rate), vat: !!u.vat, stopaj: !u.vat && !!u.stopaj, due_day: numOrNull(u.due_day), ...depositRow(u) };
   if (u.id) return must(await c.from('site_units').update(row).eq('id', u.id));
   return must(await c.from('site_units').insert(row).select().single());
+}
+/** Kurumun banka hesabı (sakinlerin Havale / EFT bilgileri). Migration havale_bilgileri öncesinde sütun yoksa null döner (kart gizlenir). */
+export async function loadOrgBank(oid){
+  const c = await db();
+  const { data, error } = await c.from('organizations').select('name, bank_iban, bank_holder').eq('id', oid).maybeSingle();
+  if (error || !data) return null;
+  return { name: data.name || '', iban: data.bank_iban || '', holder: data.bank_holder || '' };
+}
+/** Banka hesabını kaydeder ("Kurum bilgileri" yetkisi; sunucu IBAN biçimini de denetler). Boş IBAN hesabı kaldırır. */
+export async function saveOrgBank(oid, iban, holder){
+  const c = await db();
+  must(await c.rpc('org_bank_save', { oid, iban: normalizeIban(iban), holder: String(holder || '').trim() }));
+}
+/** Bloğu toplu yeniden adlandırır: kurumdaki o bloğun bütün birimleri tek sorguda (tek işlem) güncellenir.
+    Aynı adla başka bir blok varsa birleştirmez, hata verir (aynı daire numarası çakışabilir). Dönen: güncellenen birim sayısı. */
+export async function renameBlock(oid, from, to, existing){
+  from = String(from ?? ''); to = String(to || '').trim();
+  if (!to) throw new Error(t('Yeni blok adını yaz.'));
+  if (to.length > 40) throw new Error(t('Blok adı en fazla 40 karakter olabilir.'));
+  if (to === from) throw new Error(t('Yeni ad eskisiyle aynı.'));
+  if ((existing || []).some((x) => x !== from && String(x).trim().toLocaleLowerCase('tr') === to.toLocaleLowerCase('tr'))) throw new Error(t('Bu adla bir blok zaten var. Başka bir ad seç.'));
+  const c = await db();
+  const rows = must(await c.from('site_units').update({ block: to }).eq('org_id', oid).eq('block', from).select('id'));
+  return (rows || []).length;
+}
+/** Ekstredeki hareketlerden daha önce işlenmiş olanların parmak izleri (migration ekstre_eslestirme). */
+export async function seenBankTxns(oid, fps){
+  const c = await db(), seen = new Set();
+  for (let i = 0; i < fps.length; i += 200){
+    const rows = must(await c.from('site_bank_txns').select('fp').eq('org_id', oid).in('fp', fps.slice(i, i + 200)));
+    (rows || []).forEach((r) => seen.add(r.fp));
+  }
+  return seen;
+}
+/** Eşleşen ödemeyi işler (sunucu: site_bank_apply). Aynı hareket daha önce işlendiyse false döner. */
+export async function applyBankTxn(oid, m, bank){
+  const c = await db();
+  return must(await c.rpc('site_bank_apply', { oid, fp: m.txn.fp, txn_date: m.txn.date, amount: m.txn.amount, bank: bank || '',
+    charge_ids: m.parts.map((p) => p.charge.id), amounts: m.parts.map((p) => p.amount) }));
 }
 /** Depozito alanları (migration depozito_otomatik_kira): yalnız depozito girilmişse ya da önceden varsa yazılır; böylece
     migration'dan önce yayınlanan sürüm eski veritabanında sözleşme kaydederken hata vermez. */

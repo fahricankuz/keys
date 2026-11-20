@@ -30,7 +30,7 @@ Rules and who must approve what: [../AGENTS.md](../AGENTS.md) sections 4 and 7. 
 
 **Steps**
 
-1. Erdem says "merge" for this PR. Merge into `main` (never push to `main`).
+1. CI is green and an owner merges the PR into `main` (never push to `main`).
 2. The push to `main` starts **Hostinger paketi** (`.github/workflows/hostinger.yml`; docs-only changes are skipped). It runs `test` (calls `ci.yml`, two shards), then `package`:
    `npm ci`, `tsc --noEmit`, `npm run build:hostinger` (static web export with source maps → `harden-html.mjs` CSP → upload source maps to Sentry and delete the `.map` files → `well-known.mjs` → copy to `hostinger-site`),
    zip artifact `anahtar-hostinger` (kept 30 days), then force-write the `site` branch (commit "Site derlemesi `<sha7>`").

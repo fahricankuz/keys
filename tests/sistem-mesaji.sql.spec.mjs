@@ -1,7 +1,7 @@
 // Migration sistem_mesaji: sohbet olay satırları için post_system_message işlevi (yeni istemci yalnız bunu kullanır).
 // Üyelik, tür, taraf ve metin kalıbı denetlenir; satır çağıranın kimliğiyle yazılır (engelleyen göremez); doğrudan system insert'ü
-// bu PR'da hâlâ çalışır (yayındaki eski istemci için); kapatılması specs/followup-migrations/sistem_mesaji_kapat.sql içindedir ve
-// tests/followup-migrations.sql.spec.mjs'te sınanır. JS kalıp tablosu (system-message.js) ile sunucu kalıpları her türün örnekleriyle karşılaştırılır.
+// sistem_mesaji_kapat migrationıyla kapatılmıştır; kapalı olduğu
+// tests/followup-migrations.sql.spec.mjs'te de sınanır. JS kalıp tablosu (system-message.js) ile sunucu kalıpları her türün örnekleriyle karşılaştırılır.
 import { test, expect } from '@playwright/test';
 import { newDb, tryCall, ID, SCHEMA } from './db-helpers.mjs';
 import { SYSTEM_KINDS, kindOfText } from '../app/src/domain/system-message.js';
@@ -100,17 +100,17 @@ test('engellenen kişinin sistem satırı engelleyene görünmez (satır yazanı
   expect((await q(`select id from public.messages where id = 'blk-1'`)).length).toBe(1);
 });
 
-test('bu PR\'ın şeması (kapat migrationı yok): eski istemcinin doğrudan system insert\'ü çalışır (yayın sırası güvenliği), karşı tarafın rolü yazılamaz; kapatma follow-up\'tadır', async () => {
-  expect(SCHEMA).not.toMatch(/-- ===== migration: \d{14}_sistem_mesaji_kapat\.sql =====/);
+test('sistem_mesaji_kapat: doğrudan system insert\'ü reddedilir; post_system_message ve kendi tarafının mesajı çalışır; karşı tarafın rolü yazılamaz', async () => {
+  expect(SCHEMA).toMatch(/-- ===== migration: \d{14}_sistem_mesaji_kapat\.sql =====/);
   await as(T);
-  await q(`insert into public.messages (id, property_id, from_role, by_user, body) values ('eski-sys', 'p1', 'system', $1, 'Talep durumu: Musluk · İşlemde')`, [T]);   // eski istemci
+  expect(await tryCall(db, `insert into public.messages (id, property_id, from_role, by_user, body) values ('eski-sys', 'p1', 'system', $1, 'Talep durumu: Musluk · İşlemde')`, [T])).toMatch(/row-level security/);
   await q(`select public.post_system_message('p1', 'request_status', '{"id":"yeni-sys","text":"Talep durumu: Musluk · İşlemde"}'::jsonb)`);                    // yeni istemci
   expect(await tryCall(db, `insert into public.messages (id, property_id, from_role, by_user, body) values ('d2', 'p1', 'landlord', $1, 'x')`, [T])).toMatch(/row-level security/);
   expect(await tryCall(db, `insert into public.messages (id, property_id, from_role, by_user, body) values ('d2b', 'p1', 'system', $1, 'x')`, [L])).toMatch(/row-level security/);   // başkası adına yazamaz
   await q(`insert into public.messages (id, property_id, from_role, by_user, body) values ('d3', 'p1', 'tenant', $1, 'merhaba')`, [T]);
   await as(L);
   await q(`insert into public.messages (id, property_id, from_role, by_user, body) values ('d4', 'p1', 'landlord', $1, 'merhaba')`, [L]);
-  expect((await q(`select id from public.messages where from_role = 'system' and id in ('eski-sys', 'yeni-sys') order by id`)).map((r) => r.id)).toEqual(['eski-sys', 'yeni-sys']);
+  expect((await q(`select id from public.messages where from_role = 'system' and id in ('eski-sys', 'yeni-sys') order by id`)).map((r) => r.id)).toEqual(['yeni-sys']);
   // sunucu işlevleri system satırı yazmaya devam eder (accept_invite: "… eve katıldı")
   await as(null);
   expect((await q(`select count(*)::int c from public.messages where from_role = 'system' and body like '% eve katıldı'`))[0].c).toBeGreaterThanOrEqual(1);

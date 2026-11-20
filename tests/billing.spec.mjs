@@ -1,6 +1,6 @@
 // Abonelik: RevenueCat kaydının tablo satırına çevrilmesi.
 import { test, expect } from '@playwright/test';
-import { rowFromSubscriber, affectedUsers, isUserId, normalizeProduct, decideWrite, isCurrent, transferredAway } from '../supabase/functions/billing/subscriber.ts';
+import { rowFromSubscriber, affectedUsers, isUserId, normalizeProduct, decideWrite, isCurrent, transferredAway, revocationOf, revokedRow } from '../supabase/functions/billing/subscriber.ts';
 
 const U = '11111111-2222-3333-4444-555555555555';
 const NOW = Date.parse('2026-09-23T12:00:00Z');
@@ -155,4 +155,43 @@ test('TRANSFER olayında aboneliği kaybeden kullanıcılar ayrılır', () => {
   const V = '99999999-2222-3333-4444-555555555555';
   expect(transferredAway({ type: 'TRANSFER', transferred_from: [U, '$RCAnonymousID:x'], transferred_to: [V] })).toEqual([U]);
   expect(transferredAway({ type: 'RENEWAL', transferred_from: [U] })).toEqual([]);
+});
+
+test('iade: yetki kaldırılmış ama abonelikte refunded_at var → aynı ürünün bitmiş satırı (erişim iade anında biter); eski iade bitiş yazmaz', () => {
+  const refunded = { entitlements: {}, subscriptions: { evim_aylik: { store: 'app_store', period_type: 'normal', refunded_at: '2026-09-22T10:00:00Z', expires_date: '2026-10-22T10:00:00Z' } } };
+  const row = rowFromSubscriber(U, refunded, 'pro', NOW);
+  expect(row).toMatchObject({ active: false, will_renew: false, store: 'app_store', product_id: 'evim_aylik', expires_at: '2026-09-22T10:00:00.000Z' });
+  // Aynı ürün + mağaza: mevcut güncel satırın üzerine yazılır (decideWrite "bitmiş aynı ürün")
+  expect(decideWrite({ store: 'app_store', product_id: 'evim_aylik', expires_at: '2026-10-22T10:00:00Z', active: true }, row, NOW)).toEqual({ write: true });
+  // Google Play (soneksiz kimlik + temel plan)
+  const play = { entitlements: {}, subscriptions: { tek: { store: 'play_store', refunded_at: '2026-09-22T10:00:00Z', product_plan_identifier: '3-aylik' } } };
+  expect(rowFromSubscriber(U, play, 'pro', NOW)).toMatchObject({ active: false, product_id: 'tek_3_aylik', store: 'play_store' });
+  // Gelecekteki / geçersiz iade tarihi ve iadesiz boş kayıt: eski davranış (boş satır)
+  expect(rowFromSubscriber(U, { entitlements: {}, subscriptions: { tek: { refunded_at: '2099-01-01T00:00:00Z' } } }, 'pro', NOW).product_id).toBeNull();
+  expect(rowFromSubscriber(U, { entitlements: {}, subscriptions: { tek: { refunded_at: null } } }, 'pro', NOW).product_id).toBeNull();
+  // Yetki varsa iade alanı satırı bozmaz (yeni satın alma geçerli)
+  const active = { entitlements: { pro: { expires_date: '2026-10-23T12:00:00Z', product_identifier: 'evim_aylik' } }, subscriptions: { evim_aylik: { store: 'app_store', refunded_at: '2026-08-01T00:00:00Z' } } };
+  expect(rowFromSubscriber(U, active, 'pro', NOW).active).toBe(true);
+});
+
+test('iade / süre bitimi olayı: yetki kaydı yoksa eşleşen mağaza satırı bitirilir; admin, promosyon, başka ürün ve olaysız eşitleme korunur', () => {
+  const none = rowFromSubscriber(U, { entitlements: {}, subscriptions: {} }, 'pro', NOW);
+  const ex = (o = {}) => ({ store: 'app_store', product_id: 'tek_3_aylik', expires_at: '2026-10-22T10:00:00Z', active: true, ...o });
+  expect(revocationOf({ type: 'CANCELLATION', cancel_reason: 'CUSTOMER_SUPPORT', product_id: 'tek_3_aylik' })).toEqual({ product: 'tek_3_aylik' });
+  expect(revocationOf({ type: 'EXPIRATION', product_id: 'tek:3-aylik' })).toEqual({ product: 'tek_3_aylik' });
+  expect(revocationOf({ type: 'CANCELLATION', cancel_reason: 'UNSUBSCRIBE' })).toBeNull();      // kullanıcı iptali: süre sonuna dek erişim
+  expect(revocationOf({ type: 'RENEWAL' })).toBeNull();
+  const rev = { product: 'tek_3_aylik' };
+  const r = revokedRow(ex(), none, rev, NOW);
+  expect(r).toMatchObject({ active: false, will_renew: false, product_id: 'tek_3_aylik', store: 'app_store', expires_at: new Date(NOW).toISOString() });
+  expect(decideWrite(ex(), r, NOW)).toEqual({ write: true });
+  expect(revokedRow(ex(), none, { product: null }, NOW)).not.toBeNull();                          // ürün bilinmiyorsa mağaza satırı yine bitirilir
+  expect(revokedRow(ex({ product_id: 'bes_2_aylik' }), none, rev, NOW)).toBeNull();               // başka ürün
+  expect(revokedRow(ex({ store: 'admin' }), none, rev, NOW)).toBeNull();
+  expect(revokedRow(ex({ store: 'promotional' }), none, rev, NOW)).toBeNull();
+  expect(revokedRow(ex({ expires_at: '2026-09-01T00:00:00Z' }), none, rev, NOW)).toBeNull();      // zaten bitmiş
+  expect(revokedRow(ex(), none, null, NOW)).toBeNull();                                           // olay yok
+  expect(revokedRow(null, none, rev, NOW)).toBeNull();
+  const live = rowFromSubscriber(U, { entitlements: { pro: { expires_date: '2026-11-23T12:00:00Z', product_identifier: 'tek_3_aylik' } }, subscriptions: {} }, 'pro', NOW);
+  expect(revokedRow(ex(), live, rev, NOW)).toBeNull();                                            // yetki var (yenilenmiş): bitirilmez
 });

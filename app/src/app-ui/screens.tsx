@@ -27,6 +27,7 @@ import { MailReportCard } from './report-mail';
 import { JoinBanner } from './JoinCode';
 import { siteResidentOnly } from '../domain/site';
 import { SiteTeaser } from './site';
+import { RentStatementImport } from './site-ekstre';
 import { SetupChecklist } from './checklist';
 import { CertificateCard } from './certificate';
 import { landlordSteps } from '../domain/checklist';
@@ -246,6 +247,7 @@ export function Portfolio() {
           <Items data={rem} render={(r: any, last) => <LI key={r.t + r.b} last={last} onPress={() => go(r.go)} title={up(r.t)} sub={r.b} right={<Chip tone={r.w > 1 ? 'bad' : 'warn'} label={r.w > 1 ? t('Öncelikli') : t('Yakında')} />} />} />
         </Stack>
       ) : null}
+      <RentStatementImport />
       <Stack gap={10}>
         <H2>{t('Mülklerim')}</H2>
         <MonthLegend />

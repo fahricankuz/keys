@@ -5,7 +5,8 @@ import { useMemo, useState } from 'react';
 import { TextInput, View } from 'react-native';
 import { t } from '../domain/i18n';
 import { humanError } from '../domain/backend';
-import { saveUnit, deleteUnit, unitLabel, isCommercial, inviteState, effectivePayer, payerText, depositKindLabel } from '../domain/site';
+import { blockTitle } from '../domain/blok';
+import { saveUnit, deleteUnit, renameBlock, unitLabel, isCommercial, inviteState, effectivePayer, payerText, depositKindLabel } from '../domain/site';
 import { templateCsv, templateXlsx, readTable } from '../domain/importer';
 import { unitColumns, validateUnits, importUnitItems } from '../domain/unit-import';
 import { pickTable } from './media';
@@ -311,6 +312,9 @@ export function Units({ d, oid, org, orgRow, can, reload }: { d: any; oid: strin
   const [q, setQ] = useState('');
   const blocks = [...new Set(d.units.map((x: any) => x.block))] as string[];
   const [b, setB] = useState('all');
+  const [rename, setRename] = useState<string | null>(null);   // açıkken: yeni blok adı
+  // Yeniden adlandırılacak blok: süzgeçte seçili blok; tek bloklu sitede (süzgeç görünmez) o blok. Bloksuz daireler hariç.
+  const renameTarget = blocks.includes(b) && b ? b : b === 'all' && blocks.length === 1 && blocks[0] ? blocks[0] : '';
   const [limitShown, setLimitShown] = useState(50);   // çok daireli sitede liste 50'şer açılır
   const peopleOf = (id: string) => d.residents.filter((r: any) => r.unit_id === id);
   const waiting = d.residents.filter((r: any) => !r.user_id).length;
@@ -370,17 +374,37 @@ export function Units({ d, oid, org, orgRow, can, reload }: { d: any; oid: strin
       {mode === 'bulk' ? <BulkUnits d={d} oid={oid} commercial={commercial} done={(m: string) => { setMode(''); setMsg(m); reload(); }} /> : null}
       <Err e={err} />
       {msg ? <Text v="small" color={c.okInk}>{msg}</Text> : null}
-      {d.units.length ? (
+      {d.units.length ? (<>
         <View style={{ flexDirection: phone || blocks.length > 3 ? 'column-reverse' : 'row', gap: 10, alignItems: phone || blocks.length > 3 ? 'stretch' : 'center' }}>
           <View style={{ flex: phone || blocks.length > 3 ? undefined : 1, minWidth: 0 }}>
-            <Seg scroll value={b} onChange={setB} options={[['all', t('Tümü')], ...(blocks.length > 1 ? blocks.map((x) => [x, x ? (commercial ? x : x + ' ' + t('Blok')) : t('Bloksuz')] as [string, string]) : []), ['__davet', t('Davet edilmemiş')]]} />
+            <Seg scroll value={b} onChange={(v: string) => { setB(v); setRename(null); }} options={[['all', t('Tümü')], ...(blocks.length > 1 ? blocks.map((x) => [x, x ? (commercial ? x : blockTitle(x)) : t('Bloksuz')] as [string, string]) : []), ['__davet', t('Davet edilmemiş')]]} />
           </View>
           <View style={{ width: phone || blocks.length > 3 ? undefined : 240 }}>
             <TextInput value={q} onChangeText={setQ} placeholder={commercial ? t('Birim ya da kiracı ara') : t('Daire ya da kişi ara')} placeholderTextColor={c.muted} accessibilityLabel={t('Ara')}
               style={{ minHeight: 42, borderRadius: radius.pill, borderWidth: 1, borderColor: c.line, paddingHorizontal: 16, color: c.ink, backgroundColor: c.surface, fontFamily: fonts.body, fontSize: 15 } as any} />
           </View>
         </View>
-      ) : null}
+        {can('units.manage') && renameTarget ? (
+          rename === null ? (
+            <Button kind="ghost" style={{ alignSelf: 'flex-start' }} title={commercial ? t('Bu bölümü yeniden adlandır') : t('Bloğu yeniden adlandır')}
+              onPress={() => { setErr(null); setMsg(null); setRename(renameTarget); }} />
+          ) : (
+            <Card gap={10}>
+              <Field label={commercial ? t('Yeni bölüm adı') : t('Yeni blok adı')} value={rename} onChangeText={setRename} maxLength={40} autoFocus
+                hint={t('{n} {w} birlikte güncellenir.', { n: d.units.filter((x: any) => x.block === renameTarget).length, w: W })} />
+              {!commercial && rename.trim() ? <Muted>{t('Görünüm: {x}', { x: blockTitle(rename.trim()) + ' ' + t('No') + ' 1' })}</Muted> : null}
+              <Row wrap>
+                <Button title={t('Kaydet')} disabled={!rename.trim() || rename.trim() === renameTarget} onPress={() => act(async () => {
+                  const to = rename.trim();
+                  const n = await renameBlock(oid, renameTarget, to, blocks);
+                  setRename(null); if (b !== 'all') setB(to); setMsg(t('{n} {w} güncellendi.', { n, w: W }));
+                })} />
+                <Button kind="ghost" title={t('Vazgeç')} onPress={() => setRename(null)} />
+              </Row>
+            </Card>
+          )
+        ) : null}
+      </>) : null}
       {shown.length ? (
         <Card gap={0} style={{ padding: 0, overflow: 'hidden' }}>
           {!phone ? (

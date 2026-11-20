@@ -1,0 +1,161 @@
+// Birim: banka ekstresi okuma ve tahsilat eşleştirmesi (app/src/domain/xls.js, ekstre.js, importer.readTable).
+// tests/fixtures/garanti-ornek.xls uydurmadır: Garanti BBVA "hesap hareketleri" düzeni, gerçek kişi/hesap yok (üretici: garanti-ornek.py).
+import { test, expect } from '@playwright/test';
+import { buildSync } from 'esbuild';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const D = new URL('../app/src/domain/', import.meta.url).pathname;
+const STUBS = new URL('./stubs/', import.meta.url).pathname;
+const XLS = new Uint8Array(readFileSync(new URL('./fixtures/garanti-ornek.xls', import.meta.url)));
+let M;
+
+test.beforeAll(async () => {
+  const out = join(mkdtempSync(join(tmpdir(), 'ekstre-')), 'm.mjs');
+  buildSync({
+    stdin: { contents: `export * from '${D}xls.js'; export * from '${D}ekstre.js'; export { readTable } from '${D}importer.js';`, resolveDir: D, loader: 'js' },
+    bundle: true, format: 'esm', platform: 'node', outfile: out, logLevel: 'silent',
+    alias: { 'react-native': STUBS + 'react-native.js', '@react-native-async-storage/async-storage': STUBS + 'async-storage.js' }
+  });
+  M = await import(pathToFileURL(out).href);
+});
+
+test('xls: Garanti dosyası okunur (paylaşılan metin, sayı); readTable .xls tanır', async () => {
+  expect(M.isXls(XLS)).toBe(true);
+  const rows = M.parseXls(XLS);
+  expect(rows[14]).toEqual(['Tarih', 'Açıklama', 'Etiket', 'Tutar', 'Bakiye', 'Dekont No']);
+  expect(rows[15].slice(0, 4)).toEqual(['16/11/2026', 'AYŞE YILMAZ-K7MXRP KASIM AIDAT', 'Para Transferi', '1500']);
+  expect(rows[17][3]).toBe('-850.25');
+  expect(await M.readTable(XLS)).toEqual(rows);
+});
+
+test('başlık, banka ve gelen ödemeler: giden hareket (fatura) alınmaz; parmak izi kararlı', () => {
+  const rows = M.parseXls(XLS);
+  const h = M.findHeader(rows);
+  expect(h).toEqual({ row: 14, map: { date: 0, desc: 1, amount: 3, ref: 5 } });
+  expect(M.bankOf(rows)).toBe('Garanti BBVA');
+  const tx = M.incoming(rows, h);
+  expect(tx.map((x) => [x.date, x.amount])).toEqual([['2026-11-16', 1500], ['2026-11-15', 1000], ['2026-11-13', 500], ['2026-11-12', 750]]);
+  expect(tx[0].fp).toMatch(/^[0-9a-f]{16}$/);
+  expect(M.incoming(rows, h)[0].fp).toBe(tx[0].fp);
+  expect(new Set(tx.map((x) => x.fp)).size).toBe(4);
+});
+
+test('alacak/borç sütunlu biçim ve Türkçe tutar yazımı', () => {
+  const rows = [['İşlem Tarihi', 'Açıklama', 'Borç', 'Alacak'], ['01.11.2026', 'A', '', '1.250,50'], ['02.11.2026', 'B', '300,00', '']];
+  const h = M.findHeader(rows);
+  expect(h.map).toMatchObject({ date: 0, desc: 1, debit: 2, credit: 3 });
+  expect(M.incoming(rows, h).map((x) => [x.date, x.amount])).toEqual([['2026-11-01', 1250.5]]);
+  expect(M.amountOf('1.980,00 TL')).toBe(1980);
+  expect(M.amountOf('-1443.06')).toBe(-1443.06);
+  expect(M.dateOf('15/11/2026 10:51')).toBe('2026-11-15');
+});
+
+test('eşleştirme: kod + tam tutar kesin; kod + farklı tutar öneri; yalnız ad öneri; bilinmeyen eşleşmez; tahakkuk iki kez kapanmaz', () => {
+  const rows = M.parseXls(XLS);
+  const tx = M.incoming(rows, M.findHeader(rows));
+  const units = [{ id: 'u1', pay_code: 'K7MXRP' }, { id: 'u2', pay_code: 'ABCDEF' }, { id: 'u3', pay_code: 'P3QWHT' }];
+  const residents = [{ unit_id: 'u1', name: 'Ayşe Yılmaz' }, { unit_id: 'u2', name: 'Mehmet Demir' }, { unit_id: 'u3', name: 'Zeynep Kaya' }];
+  const ch = (id, unit_id, month, amount, status = 'open', paid_amount = 0) => ({ id, unit_id, month, kind: 'aidat', amount, status, paid_amount });
+  const charges = [ch('c1', 'u1', '2026-11', 1500), ch('c2', 'u2', '2026-10', 500), ch('c3', 'u2', '2026-11', 500), ch('c4', 'u3', '2026-11', 1500), ch('c5', 'u1', '2026-10', 1500, 'paid', 1500)];
+  const r = Object.fromEntries(M.matchTxns(tx, { units, residents, charges }).map((x) => [x.txn.amount, x]));
+  expect(r[1500]).toMatchObject({ kind: 'exact', unit: { id: 'u1' } });
+  expect(r[1500].parts.map((p) => [p.charge.id, p.amount])).toEqual([['c1', 1500]]);
+  expect(r[1000]).toMatchObject({ kind: 'suggest', unit: { id: 'u2' }, why: 'Ad soyad eşleşti' });   // kodsuz: iki ay birden
+  expect(r[1000].parts.map((p) => [p.charge.id, p.amount])).toEqual([['c2', 500], ['c3', 500]]);
+  expect(r[500]).toMatchObject({ kind: 'suggest', unit: { id: 'u3' } });                            // kod var, kısmi ödeme
+  expect(r[500].parts).toEqual([{ charge: charges[3], amount: 500 }]);
+  expect(r[750]).toMatchObject({ kind: 'none', unit: null });
+  // Aynı daireye iki ödeme: ikincisi kalan borcu aşamaz.
+  const two = M.matchTxns([{ ...tx[0], line: 1 }, { ...tx[0], line: 2, fp: 'x' }], { units, residents, charges });
+  expect(two.map((x) => x.kind)).toEqual(['exact', 'none']);
+  expect(two[1].why).toBe('Dairenin açık borcu yok');
+  // Kısmi ödenmiş tahakkukta kalan tutar esas alınır.
+  const partial = M.matchTxns([{ ...tx[0], amount: 1000 }], { units, residents, charges: [ch('c9', 'u1', '2026-11', 1500, 'partial', 500)] });
+  expect(partial[0]).toMatchObject({ kind: 'exact' });
+});
+
+test('Türkçe harf sadeleştirme', () => {
+  expect(M.fold('Gül Bloğu İĞÜŞÖÇ ığüşöç')).toBe('GUL BLOGU IGUSOC IGUSOC');
+});
+
+test('çift sayım yok: dekontla/elle zaten işlenmiş ödeme sonraki aya yazılmaz; "ayrı ödeme" denirse eşleşir; kart aktarımı hiç eşleşmez', () => {
+  const units = [{ id: 'u1', pay_code: 'K7MXRP' }];
+  const residents = [{ unit_id: 'u1', name: 'Ayşe Yılmaz' }];
+  const charges = [
+    { id: 'nov', unit_id: 'u1', month: '2026-11', kind: 'aidat', amount: 1500, status: 'paid', paid_amount: 1500, paid_on: '2026-11-15' },   // dekontla onaylandı
+    { id: 'dec', unit_id: 'u1', month: '2026-12', kind: 'aidat', amount: 1500, status: 'open', paid_amount: 0 }
+  ];
+  const tx = { date: '2026-11-16', amount: 1500, desc: 'AYŞE YILMAZ K7MXRP', ref: '', line: 1, fp: 'f1' };
+  const [a] = M.matchTxns([tx], { units, residents, charges });
+  expect(a).toMatchObject({ kind: 'known', unit: { id: 'u1' } });
+  expect(a.parts[0].charge.id).toBe('nov');
+  // Yönetici "bu ayrı bir ödeme" derse Aralık'a kesin eşleşir.
+  const [b] = M.matchTxns([tx], { units, residents, charges }, { separate: new Set(['f1']) });
+  expect(b).toMatchObject({ kind: 'exact' });
+  expect(b.parts[0].charge.id).toBe('dec');
+  // Aynı dosyada iki ödeme: ilki kayıtlı olanla, ikincisi Aralık'la eşleşir (bir kayıt iki satırı yutmaz).
+  const two = M.matchTxns([tx, { ...tx, date: '2026-11-18', line: 2, fp: 'f2' }], { units, residents, charges });
+  expect(two.map((x) => [x.kind, x.parts[0]?.charge.id])).toEqual([['known', 'nov'], ['exact', 'dec']]);
+  // 7 günden eski kayıt eşleştirmeyi durdurmaz.
+  expect(M.matchTxns([{ ...tx, date: '2026-11-30' }], { units, residents, charges })[0].kind).toBe('exact');
+  // Kodu ya da adı olmayan satır: aynı tutar ve tarihte tek kayıtlı ödeme varsa "zaten kayıtlı".
+  expect(M.matchTxns([{ ...tx, desc: 'HAVALE', date: '2026-11-15' }], { units, residents, charges })[0]).toMatchObject({ kind: 'known' });
+  // Kart tahsilatı aktarımı (ödeme kuruluşu / POS) hiçbir daireye yazılmaz, kod geçse bile.
+  for (const desc of ['IYZICO ODEME HIZMETLERI TOPLU AKTARIM', 'POS ÜYE İŞYERİ 123456', 'PayTR Aktarım K7MXRP', 'SANAL POS BLOKE ÇÖZÜM'])
+    expect(M.matchTxns([{ ...tx, desc }], { units, residents, charges })[0]).toMatchObject({ kind: 'card', unit: null });
+  // "POSTA" gibi kelimeler kart sayılmaz.
+  expect(M.isCardSettlement('POSTA ÇEKİ AYŞE')).toBe(false);
+});
+
+// Banka biçimleri: satırlar uydurmadır (gerçek kişi, hesap ya da IBAN yok); yalnız bankaların başlık ve hesap bilgisi düzeni örneklenir.
+const IBAN = (code) => `TR00 ${code.slice(0, 4)} ${code.slice(4)}000 0000 0000 0000 01`;
+const FORMATS = [
+  // [ad, satırlar, beklenen banka, para birimi, gelen ödeme sayısı]
+  ['Ziraat Katılım: "Tutar (TRY)"', [['AD SOYAD/UNVAN :', 'ÖRNEK SİTE YÖNETİMİ'], ['IBAN :', IBAN('00209')], ['BAKİYE :', '10,00 TRY'], [],
+    ['Tarih', 'Açıklama', 'Kar P. Oranı', 'Tutar (TRY)', 'Güncel Bakiye (TRY)'], ['01.11.2026', 'K7MXRP AIDAT', '0', '1.500,00', '1.510,00'], ['02.11.2026', 'MASRAF', '0', '-5,00', '1.505,00']],
+    'Ziraat Katılım', 'TRY', 1],
+  ['Albaraka: "TUTAR(TL)", fiş no', [['AD SOYAD/UNVAN :', 'ÖRNEK'], ['IBAN:', IBAN('00203')], [], ['Tarih', 'Kanal', 'Fiş No', 'Açıklama', 'Tutar(TL)', 'Güncel Bakiye(TL)'],
+    ['01/11/2026', 'İNTERNET', '123', 'GELEN FAST K7MXRP', '750', '750']], 'Albaraka Türk', 'TRY', 1],
+  ['Albaraka döviz: "Tutar(USD)"', [['IBAN:', IBAN('00203')], ['Tarih', 'Kanal', 'Fiş No', 'Açıklama', 'Tutar(USD)', 'Güncel Bakiye(USD)'],
+    ['01/11/2026', 'İNTERNET', '124', 'GELEN HAVALE', '1000', '1000']], 'Albaraka Türk', 'USD', 1],
+  ['VakıfBank: B/A sütunu, hesap bilgisinde "VADESİZ USD"', [['Hesap Bakiyesi', '9,99 USD'], ['Hesap Türü', 'VADESİZ USD'], ['IBAN', IBAN('00015')],
+    ['Hesap No', 'Fiş No', 'Hareket Tarih', 'İşlem Tarihi', 'Kart No', 'İşlem', 'Tutar', 'Bakiye', 'Kanal', 'İşlem No', 'Referans', 'Havale', 'Ref No', 'TCKN', 'VKN', 'B/A', 'Açıklama'],
+    ['1', '2', '01.11.2026 10:00', '01.11.2026', '', 'ALINAN HAVALE', '500', '500', 'İNTERNET', '3', '', '', '', '', '', 'A', 'ÖRNEK']], 'VakıfBank', 'USD', 1],
+  ['Akbank: "Döviz cinsi: TL"', [['AKBANK T.A.Ş.'], ['Döviz Cinsi', 'TL'], [], ['Tarih', 'Saat', 'Tutar', 'Bakiye', 'Borç/Alacak', 'Açıklama', 'Fiş/Dekont No'],
+    ['01.11.2026', '10:00', '1500', '1500', 'A', 'K7MXRP', '1'], ['02.11.2026', '11:00', '-200', '1300', 'B', 'FATURA', '2']], 'Akbank', 'TRY', 1],
+  ['Hareketlerde başka banka adı ve döviz sözcüğü geçen TL hesabı', [['Hesap', 'VADESİZ TL'], ['IBAN', IBAN('00015')], ['Tarih', 'Açıklama', 'Tutar', 'Bakiye'],
+    ['01.11.2026', "GARANTİ'DEN GELEN EFT K7MXRP", '1500', '1500'], ['02.11.2026', 'DÖVİZ ALIŞ USD', '-100', '1400']], 'VakıfBank', 'TRY', 1]
+];
+
+test('banka biçimleri: başlıktaki para birimi, döviz hesabı ve banka (IBAN kodu → ad) tanınır', () => {
+  for (const [name, rows, bank, cur, n] of FORMATS) {
+    const h = M.findHeader(rows);
+    expect(h, name).not.toBeNull();
+    expect(M.bankOf(rows, { upto: h.row }), name).toBe(bank);
+    expect(M.currencyOf(rows, h), name).toBe(cur);
+    expect(M.incoming(rows, h).length, name).toBe(n);
+  }
+});
+
+test('banka ve para birimi dosya adından: içerikte bilgi yoksa; kısa adlar yalnız ayrı sözcük olarak', () => {
+  const rows = [['İşlem Tarihi', 'Açıklama', 'Tutar', 'Bakiye'], ['01.11.2026', 'ÖRNEK', '100', '100']];
+  const h = M.findHeader(rows);
+  expect(M.bankOf(rows, { upto: h.row })).toBe('');
+  expect(M.currencyOf(rows, h)).toBe('TRY');
+  expect(M.bankOf(rows, { name: 'EMLAK KATILIM  TL.xls', upto: h.row })).toBe('Emlak Katılım');
+  expect(M.bankOf(rows, { name: 'ANADOLUBANK TL HES.xls', upto: h.row })).toBe('Anadolubank');
+  expect(M.bankOf(rows, { name: 'YKB TL.xls', upto: h.row })).toBe('Yapı Kredi');
+  expect(M.bankOf(rows, { name: 'TEB TL.xls', upto: h.row })).toBe('TEB');
+  expect(M.bankOf(rows, { name: 'ŞEKERBANK KMH HESAP.xls', upto: h.row })).toBe('Şekerbank');
+  expect(M.bankOf(rows, { name: 'İŞ BANKASI TL.xls', upto: h.row })).toBe('İş Bankası');
+  expect(M.bankOf(rows, { name: 'KASIM EKSTRESİ.xls', upto: h.row })).toBe('');
+  expect(M.currencyOf(rows, h, 'VAKIFKATILIM USD HESAP.xls')).toBe('USD');
+  expect(M.currencyOf(rows, h, 'ZİRAAT EUR HESAP.xls')).toBe('EUR');
+  expect(M.currencyOf(rows, h, 'İŞ BANKASI YP KREDİLER.xls')).toBe('YP');
+  expect(M.currencyOf(rows, h, 'GARANTİ TL HESAP.xls')).toBe('TRY');
+  // Başlığın içindeki bilgi dosya adından önce gelir.
+  expect(M.currencyOf([['Hesap', 'VADESİZ TL'], ...rows], M.findHeader([['Hesap', 'VADESİZ TL'], ...rows]), 'USD.xls')).toBe('TRY');
+});

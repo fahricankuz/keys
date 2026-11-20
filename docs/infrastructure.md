@@ -52,7 +52,7 @@ Names and roles only. Passwords and 2FA devices are with the owners; agents neve
 | Cloudflare (devredin account) | Devredin | | Browser console by Erdem; Turnstile secret key in Supabase Auth settings |
 | Hostinger | Erdem (verify) | Mailbox `info@anahtar.io` has its own owner | Browser console by Erdem |
 
-Branch rules: **no rulesets and no environment reviewers** on GitHub (owner decision). The rule is process-based: changes go through PRs to `main`, nobody pushes to `main`, merges only on Erdem's explicit go ([AGENTS.md](../AGENTS.md) section 4.1).
+Branch rules: **no rulesets and no environment reviewers** on GitHub (owner decision). The rule is process-based: changes go through PRs to `main`, nobody pushes to `main`, CI must be green, and the owners merge their own PRs (decided 2026-11-17).
 
 ## 3. GitHub
 
@@ -95,7 +95,7 @@ Branch rules: **no rulesets and no environment reviewers** on GitHub (owner deci
 | Backups | daily, PITR **off** | |
 | Extras | pg_cron, pg_net, Vault, app secrets | **none** of pg_cron / pg_net / app secrets; on a withdrawn release channel (should be upgraded or recreated) |
 
-- **Migrations:** 51 applied in staging and production through Actions (as of 2026-11-13). Two follow-up migrations wait in `specs/followup-migrations/` (`sistem_mesaji_kapat`, `site_residents_kod_gizle`):
+- **Migrations:** 59 applied in staging and production through Actions (as of 2026-11-20); the two follow-up migrations were applied on 2026-11-20 (#134). `specs/followup-migrations/` holds only its README now.
   apply only in a separate PR once the new site has been live at least 24 hours (live since about 2026-11-13 16:14 UTC), with fresh timestamps.
 - **Edge Functions (9)**, deployed manually with `supabase functions deploy <name> --project-ref nfpefnrgtnwvclwbriaw` (the CLI asks for `--yes` consent):
 
@@ -136,6 +136,7 @@ Check live: `select jobname, schedule from cron.job order by jobname;` (14 jobs 
 | `anahtar-site-recurring` | `15 6 * * *` | recurring site expenses | `duzenli_gider_seffaflik` |
 | `anahtar-site-late` | `0 6 * * 1` | weekly late-payment digest | `odeyen_ve_bildirim_ayarlari` |
 | `anahtar-crm-reminders` | `30 6 * * *` | `crm_reminders()` | `crm` |
+| `anahtar-site-contracts` | `10 6 * * *` | `site_contract_reminders()` | `site_sozlesmeler` |
 | `anahtar-log-prune` | `15 0 * * *` | `prune_logs()` (90-day retention) | `uygulama_loglari` |
 
 Cron and webhook calls never contain a secret: they call `public.anahtar_call(...)` / `public.anahtar_webhook(...)`, which read the Vault entry **at call time**.
@@ -235,7 +236,7 @@ iPhone only. Sentry in the EU. Universal links yes. Invite codes at least 80 bit
 | 1 | Disable the legacy JWT API keys in Supabase (functions already use the new secret keys; verify first) | Erdem (console) | after one clean day of function logs |
 | 2 | Rotate the `info@anahtar.io` mailbox password and update `SMTP_PASS` (and the Supabase Auth SMTP setting) | Mailbox owner + Erdem | soon; it was equal to a plaintext trigger secret before the fix |
 | 3 | Staging parity: upgrade or recreate staging (withdrawn release channel; no pg_cron, pg_net, app secrets) | Erdem | before the next migration that depends on those extensions |
-| 4 | Apply the two follow-up migrations in a separate PR (new site live at least 24 h; earliest 2026-11-14 about 16:14 UTC) | Agent opens PR; Erdem approves merge and applies | from 2026-11-14 |
+| 4 | ~~Apply the two follow-up migrations~~ | Done 2026-11-20 (#134) | done |
 | 5 | Create Play subscriptions `tek` and `bes` (18 base plans each) once Google permission propagates, then add the 36 Play products to RevenueCat entitlement `pro` | Agent (script ready) + Erdem | when permission is active |
 | 6 | Declare Play trader status | Play account owner (Erdem) | before February 2027 |
 | 7 | TestFlight external beta review (`Dış test` opens after approval); then store review submission and manual release | Erdem approves | pending |

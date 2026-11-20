@@ -23,6 +23,7 @@ Language column: **EN** = English (agent-facing), **TR** = Turkish (owner-facing
 | [seo-geo.md](seo-geo.md) | EN | SEO and GEO guide for anahtar.io |
 | [ai-ile-calisma.md](ai-ile-calisma.md) | TR | For non-technical owners: asking an agent safely, what needs approval, what never to paste, reviewing a PR, what to do when something breaks, glossary |
 | [diary/2026-11-13.md](diary/2026-11-13.md) | EN | Work diary of the launch-hardening day: timeline, decisions, lessons, open items |
+| [diary/2026-11-20.md](diary/2026-11-20.md) | EN | 14–20 November: store launch, owners' first features, security follow-ups, subscription fixes, rename, lessons |
 
 ## Release, database and operations
 

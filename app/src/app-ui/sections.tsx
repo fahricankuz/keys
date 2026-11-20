@@ -74,6 +74,9 @@ export function RentHero({ p }: { p: any }) {
   } else if ((per.status === 'late' || per.status === 'partial') && can(pid, 'message')) {
     action = <Button kind="primary" block title={t('Nazik hatırlatma gönder')} onPress={() => act('nudge', { pid })} />;
   }
+  // Mülk sahibi IBAN eklediyse kiracı havale bilgilerini (IBAN, alıcı, tutar, açıklama kodu) kopyalayabilir.
+  const transfer = ui.role === 'tenant' && p.bankIban && ['pending', 'late', 'rejected', 'partial'].includes(per.status)
+    ? <Button kind="onDark" block title={t('Havale / EFT bilgileri')} onPress={() => open('havale', { pid, key })} /> : null;
   return (
     <Hero>
       <Row between align="flex-start">
@@ -88,6 +91,7 @@ export function RentHero({ p }: { p: any }) {
       <View style={{ gap: 10 }}><YearTiles p={p} onDark /><MonthLegend onDark /></View>
       <Muted onDark>{line}</Muted>
       {action}
+      {transfer}
     </Hero>
   );
 }

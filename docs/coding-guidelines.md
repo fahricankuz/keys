@@ -153,7 +153,7 @@ must therefore work in all four combinations of {old, new} client x {old, new} s
 
 **4.1 Migrations are additive.** Add columns, functions, policies. Anything that breaks the old client (removing a write path, hiding a
 column, renaming) is a **follow-up migration** in `specs/followup-migrations/`, shipped in a second PR at least 24 hours after the new site is
-live (`specs/followup-migrations/README.md`). Today it holds `sistem_mesaji_kapat` and `site_residents_kod_gizle`;
+live (`specs/followup-migrations/README.md`). It held `sistem_mesaji_kapat` and `site_residents_kod_gizle` until they were applied on 2026-11-20 (#134);
 `tests/followup-migrations.sql.spec.mjs` already applies them on top of the schema and asserts the end state, so the move is mechanical.
 
 **4.2 A new client calling a new RPC uses `rpcOr`.** `domain/rpc-missing.js` recognises "function does not exist" (HTTP 404, `PGRST202`,

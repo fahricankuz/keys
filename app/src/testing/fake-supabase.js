@@ -10,9 +10,11 @@ const TABLES = ['profiles','properties','property_shared','memberships','invites
                 'requests','messages','documents','expenses','notifications','push_subscriptions','subscriptions','device_tokens','admins','reviews','bans','admin_audit',
                 'organizations','org_roles','org_members','org_invites',
                 'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes','site_documents','site_investor_notes','mail_outbox','site_cash','site_recurring_expenses',
-                'site_projects','site_project_updates','site_request_messages','site_project_costs',
+                'site_projects','site_project_updates','site_request_messages','site_project_costs','site_contracts','site_bank_txns','rent_bank_txns',
                 'app_config','fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_costs','admin_revenue_months','crm_leads','crm_notes','admin_emails'];
 
+/** Açıklama kodu (migration havale_bilgileri → gen_pay_code): 6 karakter, karışan harf/rakam yok. */
+const payCode = () => Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
 function load(){
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d){ TABLES.forEach(t => d.tables[t] = d.tables[t] || []); if (!d.tables.app_config.length) d.tables.app_config.push({ key:'billing_paused', value:true }); d.tables.payments.forEach(r => { r.kind = r.kind || 'kira'; }); return d; } } catch(e){}
   const d = { users:[], session:null, storage:{}, tables:{} };
@@ -42,7 +44,7 @@ const KEYS = {
 
 function defaults(table, row, db){
   const r = Object.assign({}, row);
-  if (table === 'properties'){ r.id = r.id || uuid(); r.created_at = r.created_at || now(); }
+  if (table === 'properties'){ r.id = r.id || uuid(); r.created_at = r.created_at || now(); r.pay_code = r.pay_code || payCode(); }
   if (table === 'payments'){ r.kind = r.kind || 'kira'; r.method = r.method || 'dekont'; }
   if (table.startsWith('site_')){ r.id = r.id || uuid(); r.created_at = r.created_at || now(); }
   if (table === 'customer_contacts'){ r.id = r.id || uuid(); r.created_at = r.created_at || now(); }
@@ -53,7 +55,8 @@ function defaults(table, row, db){
   if (table === 'site_residents'){ r.code = r.code || 'S' + Math.random().toString(16).slice(2, 9).toUpperCase().padEnd(7, '0'); r.user_id = r.user_id || null; r.lives_here = r.lives_here !== false; }
   if (table === 'site_budgets'){ r.updated_at = now(); }
   if (table === 'site_turnovers'){ r.status = r.status || 'reported'; r.reported_by = r.reported_by || db.session?.user.id || null; }
-  if (table === 'site_units'){ r.payer = r.payer || 'kiraci'; r.block = r.block || ''; r.currency = r.currency || 'TRY'; r.index_kind = r.index_kind || 'tufe'; r.vat = !!r.vat; r.stopaj = !!r.stopaj; }
+  if (table === 'site_contracts'){ r.id = r.id || uuid(); r.created_at = r.created_at || now(); r.kind = r.kind || 'diger'; r.period = r.period || 'yillik'; r.phone = r.phone || ''; r.note = r.note || ''; r.remind_days = r.remind_days || [30, 15, 7]; }
+  if (table === 'site_units'){ r.pay_code = r.pay_code || payCode(); r.payer = r.payer || 'kiraci'; r.block = r.block || ''; r.currency = r.currency || 'TRY'; r.index_kind = r.index_kind || 'tufe'; r.vat = !!r.vat; r.stopaj = !!r.stopaj; }
   if (table === 'site_charges'){ r.status = r.status || 'open'; r.paid_amount = r.paid_amount || 0; r.title = r.title || ''; r.method = r.method || 'dekont'; r.currency = r.currency || 'TRY'; }
   if (table === 'site_requests'){ r.status = r.status || 0; r.reply = r.reply || ''; }
   if (table === 'site_meetings'){ r.status = r.status || 'cagrildi'; r.minutes = r.minutes || ''; r.agenda = r.agenda || []; r.kind = r.kind || 'olagan'; r.place = r.place || ''; }
@@ -626,7 +629,7 @@ export function createClient(url, key, opts){
         return { data:id, error:null };
       }
       // Kurumlar: schema.sql 16. bölüm ile aynı kurallar (özet).
-      if (/^(my_orgs|org_|accept_org_invite|admin_org|admin_add_property|investor_report_mail)/.test(name)){
+      if (/^(my_orgs|org_|accept_org_invite|admin_org|admin_add_property|investor_report_mail|site_bank_apply$|rent_bank_apply$)/.test(name)){
         const T = db.tables, A = args || {};
         const PERMS = ['org.settings','org.members','units.manage','residents.manage','charges.manage','payments.approve','expenses.manage','requests.manage','announce','documents.manage','reports.view'];
         const MODS = ['kira','aidat','gider_dagitim','duyuru','ciro_kira','ortak_gider','endeksleme','doluluk','onay_akisi','rapor','api','yatirimci'];
@@ -663,6 +666,50 @@ export function createClient(url, key, opts){
             members: T.org_members.filter(m => m.org_id === A.oid).map(m => ({ user_id:m.user_id, name:pname(m.user_id), email:pmail(m.user_id), role_id:m.role_id, master:m.is_master, since:m.created_at }))
               .sort((a, b) => (b.master - a.master) || a.name.localeCompare(b.name)),
             invites: (adm || can(A.oid, 'org.members')) ? T.org_invites.filter(i => i.org_id === A.oid && !i.accepted_by).map(i => ({ code:i.code, role_id:i.role_id, master:i.master, email:i.email, expires_at:i.expires_at })) : [] });
+        }
+        if (name === 'rent_bank_apply'){   // migration ekstre_kira
+          const pr = T.properties.find(x => x.id === A.pid);
+          const mrole = (T.memberships.find(m => m.property_id === A.pid && m.user_id === me) || {}).role;
+          if (!pr || !(pr.owner_id === me || mrole === 'agent')) return err('Bu işlem için yetkin yok');
+          const n = (A.months || []).length;
+          if (!n) return err('Eşleşen ay yok', '22023');
+          if (A.amounts.reduce((s, x) => s + Number(x), 0) > Number(A.amount) + 0.005) return err('Dağıtılan tutar ödemeyi aşıyor', '22023');
+          T.rent_bank_txns = T.rent_bank_txns || [];
+          if (T.rent_bank_txns.some(x => x.owner_id === pr.owner_id && x.fp === A.fp)) return ok(false);
+          for (let i = 0; i < n; i++){
+            const cur = T.payments.find(x => x.property_id === A.pid && x.month === A.months[i] && (x.kind || 'kira') === A.kinds[i]);
+            if (cur && cur.status === 'approved') return err('Bu ay zaten onaylanmış', '22023');
+          }
+          T.rent_bank_txns.push({ id: uuid(), owner_id: pr.owner_id, property_id: A.pid, fp: A.fp, txn_date: A.txn_date, amount: A.amount, bank: A.bank || '', refs: A.months.map((m, i) => A.kinds[i] + ':' + m), created_at: now() });
+          for (let i = 0; i < n; i++){
+            let cur = T.payments.find(x => x.property_id === A.pid && x.month === A.months[i] && (x.kind || 'kira') === A.kinds[i]);
+            const base = cur && cur.status === 'partial' ? Number(cur.amount) || 0 : 0;
+            if (!cur){ cur = { property_id: A.pid, month: A.months[i], kind: A.kinds[i], receipt_name: '' }; T.payments.push(cur); }
+            Object.assign(cur, { status: A.complete[i] ? 'approved' : 'partial', amount: base + Number(A.amounts[i]), paid_on: A.txn_date, method: 'havale',
+              approved_at: A.complete[i] ? now() : null, reject_reason: null, updated_at: now() });
+          }
+          return ok(true);
+        }
+        if (name === 'site_bank_apply'){   // migration ekstre_eslestirme
+          if (!can(A.oid, 'payments.approve')) return err('Bu işlem için yetkin yok');
+          const ids = A.charge_ids || [], amts = A.amounts || [];
+          if (!ids.length || ids.length !== amts.length) return err('Eşleşen tahakkuk yok', '22023');
+          if (amts.reduce((s, x) => s + Number(x), 0) > Number(A.amount) + 0.005) return err('Dağıtılan tutar ödemeyi aşıyor', '22023');
+          T.site_bank_txns = T.site_bank_txns || [];
+          if (T.site_bank_txns.some(x => x.org_id === A.oid && x.fp === A.fp)) return ok(false);
+          const list = ids.map(id => T.site_charges.find(c => c.id === id && c.org_id === A.oid));
+          if (list.some(c => !c || !['open','partial','rejected','review'].includes(c.status))) return err('Tahakkuk bulunamadı ya da zaten ödenmiş', '22023');
+          T.site_bank_txns.push({ id: uuid(), org_id: A.oid, fp: A.fp, txn_date: A.txn_date, amount: A.amount, bank: A.bank || '', charge_ids: ids, created_at: now() });
+          list.forEach((c, i) => { const paid = (c.status === 'partial' ? Number(c.paid_amount) || 0 : 0) + Number(amts[i]);
+            Object.assign(c, { status: paid >= Number(c.amount) ? 'paid' : 'partial', paid_amount: paid, paid_on: A.txn_date, method: 'havale', reject_reason: null }); });
+          return ok(true);
+        }
+        if (name === 'org_bank_save'){   // migration havale_bilgileri
+          if (!can(A.oid, 'org.settings')) return err('Bu işlem için yetkin yok');
+          const i = String(A.iban || '').replace(/\s+/g, '').toUpperCase();
+          if (i && !/^TR\d{24}$/.test(i)) return err('IBAN geçersiz: TR ile başlayan 26 karakter olmalı', '22023');
+          const o = T.organizations.find(x => x.id === A.oid); o.bank_iban = i || null; o.bank_holder = String(A.holder || '').trim() || null;
+          return ok(null);
         }
         if (name === 'org_role_save'){
           if (!(master(A.oid) && can(A.oid, 'org.members')) && !adm) return err('Rolleri yalnızca master yönetici düzenler');
@@ -789,6 +836,7 @@ export function createClient(url, key, opts){
           return { unit_id:u.id, org_id:o.id, org:o.name, sector:o.sector, block:u.block || '', no:u.no, area:u.area ?? null, aidat:u.aidat ?? null, payer, role:by[id],
                    payer_effective:eff, pays: eff === by[id],
                    rent:u.rent ?? null, currency:u.currency || 'TRY', turnover_rate:u.turnover_rate ?? null, lease_start:u.lease_start || null, lease_end:u.lease_end || null, property_id: prop ? prop.id : null,
+                   bank_iban:o.bank_iban || null, bank_holder:o.bank_holder || o.name, pay_code:u.pay_code || null,
                    deposit: u.deposit_amount == null ? null : { amount:u.deposit_amount, currency:u.deposit_currency || 'TRY', kind:u.deposit_kind || 'nakit', on:u.deposit_on || null,
                      bank:u.deposit_bank || '', until:u.deposit_until || null, returned_on:u.deposit_returned_on || null, returned:u.deposit_returned ?? null, cut_reason:u.deposit_cut_reason || '' } };
         }), error:null };
@@ -940,7 +988,7 @@ export function createClient(url, key, opts){
         const T = db.tables, r = T.site_residents.find(x => inviteNorm(x.code) === inviteNorm(args.invite_code));
         if (!r || r.user_id) return { data:null, error:null };
         const u = T.site_units.find(x => x.id === r.unit_id) || {}, o = (T.organizations || []).find(x => x.id === r.org_id) || {};
-        const unit = o.sector === 'site' ? (u.block ? u.block + ' Blok ' : '') + (/^\d/.test(String(u.no)) ? 'No ' : '') + u.no : (u.block ? u.block + ' · ' : '') + u.no;
+        const unit = o.sector === 'site' ? (u.block ? u.block + (/(^|\s)(blok|bloğu|block)$/i.test(u.block) ? ' ' : ' Blok ') : '') + (/^\d/.test(String(u.no)) ? 'No ' : '') + u.no : (u.block ? u.block + ' · ' : '') + u.no;
         // migration davet_kodlari: ad maskeli (mask_name), telefon ve e-posta yok.
         return { data:{ org:o.name, sector:o.sector, unit, role:r.role, name:maskName(r.name), email_bound:!!String(r.email || '').trim(), used:false }, error:null };
       }

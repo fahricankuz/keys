@@ -5,6 +5,7 @@
 import { test, expect } from '@playwright/test';
 import { serveDist, seed, PW, ensureDist, ID , pickRole } from './app-helpers.mjs';
 import { watchErrors, PNG } from './helpers.mjs';
+import { readFileSync } from 'node:fs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
 const PORT = 8209;
@@ -347,4 +348,112 @@ test('yalnız site sakini: "Mülküne bağlan" yok; ana sayfa, ödemeler, talepl
   await (await pick2).setFiles(PNG);
   await page.getByRole('button', { name: 'Paylaş', exact: true }).click();
   await expect.poll(async () => (await db(page)).tables.site_documents.find((x) => x.title === 'Sayaç tutanağı')).toMatchObject({ audience: 'daire', unit_id: 'u1' });
+});
+
+test('sözleşmeler: yönetim asansör sözleşmesi ekler, kalan gün görünür, 1 yıl uzatır ve siler', async ({ page }) => {
+  await login(page, 'ev@ornek.com');
+  await page.goto(url('/uygulama/site/sozlesmeler'));
+  await expect(page.getByText('Henüz sözleşme yok.')).toBeVisible();
+  await page.getByRole('button', { name: 'Sözleşme ekle' }).click();
+  await page.getByLabel('Firma').fill('Yükselen Asansör');
+  const end = new Date(); end.setDate(end.getDate() + 20);
+  const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  await page.getByLabel('Bitiş', { exact: true }).fill(iso(end));
+  await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
+  await expect(page.getByText('Sözleşme eklendi.')).toBeVisible();
+  await expect(page.getByText(/^(19|20) gün kaldı$/)).toBeVisible();   // tarayıcı İstanbul saatinde; CI makinesi UTC (gece günü bir kayar)
+  await expect(page.getByText('1 sözleşme 30 gün içinde bitiyor.')).toBeVisible();
+  await page.getByRole('button', { name: '1 yıl uzat' }).click();
+  await expect(page.getByText(/Sözleşme yenilendi/)).toBeVisible();
+  const row = (await db(page)).tables.site_contracts[0];
+  const next = new Date(end); next.setFullYear(next.getFullYear() + 1);
+  expect(row).toMatchObject({ vendor: 'Yükselen Asansör', kind: 'asansor', ends_on: iso(next), remind_days: [30, 15, 7] });
+  await page.getByRole('button', { name: 'Sil', exact: true }).click();
+  await page.getByRole('button', { name: 'Evet, sil' }).click();
+  await expect(page.getByText('Henüz sözleşme yok.')).toBeVisible();
+});
+
+test('aidat: yönetim banka hesabını ekler; sakin havale bilgilerini (IBAN, alıcı, tutar, açıklama kodu) görür', async ({ page }) => {
+  await login(page, 'ev@ornek.com');
+  await page.evaluate(() => {
+    const d = JSON.parse(localStorage.getItem('__fakedb'));
+    d.tables.site_units = [{ id: 'u1', org_id: 'o1', block: 'A', no: '1', area: 100, share: 1, aidat: 1500, payer: 'kiraci', note: '', currency: 'TRY', index_kind: 'tufe', vat: false, stopaj: false, pay_code: 'K7MXRP', created_at: new Date().toISOString() }];
+    localStorage.setItem('__fakedb', JSON.stringify(d));
+  });
+  await page.goto(url('/uygulama/site/tahakkuk'));
+  await page.getByRole('button', { name: 'IBAN ekle' }).click();
+  await page.getByLabel('IBAN', { exact: true }).fill('TR12 3456');
+  await page.getByLabel('Alıcı adı (hesap sahibi)').fill('Atakum Sitesi Yönetimi');
+  await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
+  await expect(page.getByText('IBAN geçersiz. TR ile başlayan 26 karakteri kontrol et.')).toBeVisible();
+  await page.getByLabel('IBAN', { exact: true }).fill('tr42 0001 0000 0000 0000 0000 01');   // uydurma, mod-97 tutarlı
+  await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
+  await expect(page.getByText('Atakum Sitesi Yönetimi · TR42 0001 0000 0000 0000 0000 01')).toBeVisible();
+  const o = (await db(page)).tables.organizations.find((x) => x.id === 'o1');
+  expect(o).toMatchObject({ bank_iban: 'TR420001000000000000000001', bank_holder: 'Atakum Sitesi Yönetimi' });
+});
+
+test('daireler: bloğu toplu yeniden adlandırma; "Blok" tekrar etmez', async ({ page }) => {
+  await login(page, 'ev@ornek.com');
+  await expect(page).toHaveURL(/\/uygulama\/site$/);
+  await page.evaluate(() => {
+    const d = JSON.parse(localStorage.getItem('__fakedb'));
+    const u = (id, block, no) => ({ id, org_id: 'o1', block, no, area: 100, share: 1, aidat: 1000, payer: 'kiraci', note: '', currency: 'TRY', index_kind: 'tufe', vat: false, stopaj: false, created_at: new Date().toISOString() });
+    d.tables.site_units = [u('u1', 'A', '1'), u('u2', 'B', '1'), u('u3', 'B', '2')];
+    localStorage.setItem('__fakedb', JSON.stringify(d));
+  });
+  await page.reload();
+  await page.getByRole('link', { name: 'Daireler', exact: true }).first().click();
+  await expect(page.getByRole('button', { name: 'Bloğu yeniden adlandır' })).toHaveCount(0);   // "Tümü" seçiliyken (çok bloklu) çıkmaz
+  await page.getByText('B Blok', { exact: true }).click();
+  await page.getByRole('button', { name: 'Bloğu yeniden adlandır' }).click();
+  await page.getByLabel('Yeni blok adı').fill('A');
+  await page.getByRole('button', { name: 'Kaydet' }).click();
+  await expect(page.getByText('Bu adla bir blok zaten var. Başka bir ad seç.')).toBeVisible();   // birleştirme yok
+  await page.getByLabel('Yeni blok adı').fill('Lale Blok');
+  await expect(page.getByText('Görünüm: Lale Blok No 1')).toBeVisible();
+  await page.getByRole('button', { name: 'Kaydet' }).click();
+  await expect(page.getByText('2 daire güncellendi.')).toBeVisible();
+  const units = (await db(page)).tables.site_units;
+  expect(units.filter((x) => x.block === 'Lale Blok').map((x) => x.no).sort()).toEqual(['1', '2']);
+  expect(units.find((x) => x.id === 'u1').block).toBe('A');
+  await expect(page.getByText(/Lale Blok No 1/).first()).toBeVisible();
+  await expect(page.getByText(/Blok Blok/)).toHaveCount(0);
+});
+
+test('aidat: banka ekstresi (Garanti .xls) yüklenir; kodlu ödeme kesin eşleşir ve toplu onaylanır, adla eşleşen öneri olur, ikinci yüklemede tekrar işlenmez', async ({ page }) => {
+  await login(page, 'ev@ornek.com');
+  await page.evaluate(() => {
+    const d = JSON.parse(localStorage.getItem('__fakedb'));
+    const u = (id, no, pay_code) => ({ id, org_id: 'o1', block: 'A', no, area: 100, share: 1, aidat: 1500, payer: 'kiraci', note: '', currency: 'TRY', index_kind: 'tufe', vat: false, stopaj: false, pay_code, created_at: new Date().toISOString() });
+    d.tables.site_units = [u('u1', '1', 'K7MXRP'), u('u2', '2', 'ABCDEF')];
+    d.tables.site_residents = [{ id: 'r1', org_id: 'o1', unit_id: 'u1', role: 'kiraci', name: 'Ayşe Yılmaz', phone: '', email: '', user_id: null, lives_here: true, code: 'S1111111', created_at: new Date().toISOString() },
+      { id: 'r2', org_id: 'o1', unit_id: 'u2', role: 'kiraci', name: 'Mehmet Demir', phone: '', email: '', user_id: null, lives_here: true, code: 'S2222222', created_at: new Date().toISOString() }];
+    const ch = (id, unit_id, month) => ({ id, org_id: 'o1', unit_id, month, kind: 'aidat', title: '', amount: 1500, status: 'open', paid_amount: 0, method: 'dekont', currency: 'TRY', created_at: new Date().toISOString() });
+    d.tables.site_charges = [ch('c1', 'u1', '2026-11'), ch('c2', 'u2', '2026-11')];
+    localStorage.setItem('__fakedb', JSON.stringify(d));
+  });
+  await page.goto(url('/uygulama/site/tahakkuk'));
+  const xls = readFileSync(new URL('./fixtures/garanti-ornek.xls', import.meta.url));
+  const upload = async () => {
+    const pick = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: /^(Ekstre yükle|Ekstre ekle)$/ }).click();
+    await (await pick).setFiles({ name: 'ekstre.xls', mimeType: 'application/vnd.ms-excel', buffer: xls });
+  };
+  await upload();
+  await expect(page.getByText(/Garanti BBVA · 4 gelen ödeme · 1 kesin · 1 öneri · 2 eşleşmeyen/)).toBeVisible();
+  await page.getByRole('button', { name: 'Seçilenleri onayla (1)' }).click();
+  await expect(page.getByText('İşlendi')).toBeVisible();
+  const d1 = (await db(page)).tables;
+  expect(d1.site_charges.find((x) => x.id === 'c1')).toMatchObject({ status: 'paid', paid_amount: 1500, paid_on: '2026-11-16', method: 'havale' });
+  expect(d1.site_charges.find((x) => x.id === 'c2').status).toBe('open');                 // öneri onaysız işlenmez
+  expect(d1.site_bank_txns).toHaveLength(1);
+  expect(JSON.stringify(d1.site_bank_txns)).not.toContain('AYŞE');                        // açıklama sunucuya gitmez
+  // Aynı dosyayı yeniden eklemek: hareketler zaten listede, bir kez sayılır.
+  await upload();
+  await expect(page.getByText(/4 hareket birden çok dosyada \(bir kez sayıldı\)/)).toBeVisible();
+  // Temizleyip yeniden yüklemek: işlenen hareket "daha önce işlenmiş".
+  await page.getByRole('button', { name: 'Temizle' }).click();
+  await upload();
+  await expect(page.getByText(/4 gelen ödeme · 0 kesin · 1 öneri · 2 eşleşmeyen · 1 daha önce işlenmiş/)).toBeVisible();
 });

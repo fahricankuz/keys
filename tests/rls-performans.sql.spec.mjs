@@ -6,6 +6,8 @@ import { newDb, ID, STUB, SCHEMA } from './db-helpers.mjs';
 
 const parts = SCHEMA.split(/\n-- ===== migration: (\d{14}_rls_performans\.sql) =====\n/);
 const BEFORE = parts[0];
+// Karşılaştırma yalnız bu migration'ın etkisi içindir: sonradan eklenen tabloların politikaları (ör. site_sozlesmeler) hesaba katılmaz.
+const AFTER = BEFORE + `\n-- ===== migration: ${parts[1]} =====\n` + parts[2].split(/\n-- ===== migration: /)[0];
 const WRAPPED = '( SELECT auth.uid() AS uid)';
 const norm = (s) => (s == null ? null : s.split(WRAPPED).join('auth.uid()'));
 const POLICIES = `select schemaname || '.' || tablename || ' :: ' || policyname k, permissive, roles::text r, cmd, qual, with_check from pg_policies
@@ -30,8 +32,11 @@ test('anlam eşdeğerliği: migration öncesi ve sonrası her politika (kapsam, 
   await before.exec(BEFORE);
   await before.exec(BEFORE);
   const a = (await before.query(POLICIES)).rows;
-  await as(null);
-  const b = await q(POLICIES);
+  const after = new PGlite();
+  await after.exec(STUB);
+  await after.exec(AFTER);
+  await after.exec(AFTER);
+  const b = (await after.query(POLICIES)).rows;
   expect(b.map((r) => r.k)).toEqual(a.map((r) => r.k));                                       // politika eklenip silinmedi
   const unwrapped = (await before.query(`select count(*)::int n from pg_policies where schemaname = 'public' and (qual like '%auth.uid()%' or with_check like '%auth.uid()%')`)).rows[0].n;
   expect(unwrapped).toBeGreaterThan(0);                                                       // öncesinde sarılmamış çağrılar vardı (test anlamlı)

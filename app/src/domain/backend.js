@@ -12,6 +12,7 @@ import { Platform } from 'react-native';
 import { logCaught } from './logs.js';
 import { authStorage, migrateAuthStorage } from './secure-storage';
 import { t } from './i18n.js';
+import { pwServerError } from './sifre.js';
 import { CONFIG, LIVE } from './config.js';
 import { S, ui, VERSION, useStorageKey, replaceState, savedLang, saveLocal, hooks, emit } from './state.js';
 import { buildProperty, diffProperty, pendingMedia, storedPath, isStored, SB, messageFromRow } from './mapping.js';
@@ -534,14 +535,18 @@ async function apply(op){
 export function humanError(e){
   const m = String(e?.message || e || '');
   if (/Sözleşme sınırı/.test(m)) return t('Sözleşmendeki mülk adedine ulaştın. Daha fazla mülk için anahtar ekibine yaz: info@anahtar.io');
+  if (/paketinin dışında kaldı/.test(m)) return t('Bu mülk paketindeki mülk sayısının dışında kaldı; düzenlemek için mülk sayısını artır ya da bir mülkü sil.');
   if (e?.code === 'EV403' || /Paket sınırı/.test(m)) return t('Paketinin mülk sınırına ulaştın. Daha fazla mülk için paketini yükselt.');
   if (e?.code === 'EV402' || /Abonelik gerekli/.test(m)) return t('Deneme süren bitti. Kayıtları değiştirmek için abone ol; okuma ve mesajlaşma açık.');
+  // Mağaza satın alması başka bir anahtar hesabına bağlı (RevenueCat: PRODUCT_ALREADY_PURCHASED "6", RECEIPT_ALREADY_IN_USE "7", RECEIPT_IN_USE_BY_OTHER_SUBSCRIBER "13").
+  if (/RECEIPT_ALREADY_IN_USE|PRODUCT_ALREADY_PURCHASED|IN_USE_BY_OTHER/.test(String(e?.readableErrorCode || '')) || (['6', '7', '13'].includes(String(e?.code)) && e && typeof e === 'object' && 'underlyingErrorMessage' in e))
+    return t('Bu satın alma başka bir anahtar hesabına bağlı. Satın aldığın hesapla giriş yap.');
   if (/user is banned|banned/i.test(m)) return t('Hesabın askıya alındı. Bilgi için info@anahtar.io adresine yaz.');
   if (/Invalid login credentials/i.test(m)) return t('E-posta ya da şifre hatalı.');
   if (/Email not confirmed/i.test(m)) return t('E-posta adresini henüz doğrulamadın. Gelen kutunu kontrol et.');
   if (/User already registered/i.test(m)) return t('Bu e-posta ile bir hesap zaten var. Giriş yapmayı dene.');
   if (/validate email|email address .*invalid/i.test(m)) return t('Geçerli bir e-posta adresi yaz.');
-  if (/Password should be at least/i.test(m)) return t('Şifre en az 8 karakter olmalı.');
+  const pwErr = pwServerError(e); if (pwErr) return pwErr;     // zayıf / sızmış / kısa şifre (Supabase weak_password)
   if (/Günlük başvuru sınırı/.test(m)) return t('Günlük başvuru sınırına ulaştın. Yarın yeniden dene.');     // support_requests günlük sınırı (guard_support_request, 54000)
   if (/rate limit/i.test(m)) return t('Çok fazla deneme yapıldı. Biraz sonra tekrar dene.');
   if (/Failed to fetch|NetworkError|network/i.test(m)) return t('Sunucuya ulaşılamadı. Bağlantını kontrol et.');

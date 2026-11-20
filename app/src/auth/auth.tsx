@@ -8,6 +8,7 @@ import { hydrate, storage } from '../domain/storage';
 import { LIVE, CONFIG } from '../domain/config';
 import { closeLocal, openLocal, S, ui } from '../domain/state';
 import { t, getLang } from '../domain/i18n';
+import { pwProblem } from '../domain/sifre';
 import { account, adoptPlanChoice, PLAN_CHOICE } from '../domain/billing';
 import * as backend from '../domain/backend';
 import { playOnNextOpen } from '../app-ui/OpenSplash';
@@ -189,7 +190,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = useCallback(async ({ name, email, password, role, phone = '', invite = '' }: { name: string; email: string; password: string; role: Role; phone?: string; invite?: string }) => {
     email = email.trim().toLowerCase(); name = name.trim(); phone = phone.trim().slice(0, 30); invite = normalizeInviteCode(invite);
-    if (!name || !email || password.length < 8) return t('Adını, e-postanı ve en az 8 karakterli bir şifre gir.');
+    if (!name || !email) return t('Adını ve e-postanı gir.');
+    const pwBad = pwProblem(password); if (pwBad) return pwBad;
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return t('Geçerli bir e-posta adresi yaz.');
     try {
       if (LIVE) {
@@ -278,7 +280,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         host.notify({ title: t('Hesap silinemedi'), body: m, icon: 'bell' });
         return m;
       }
-      leaving = false; storage.removeItem(SESSION); closeLocal(); leave(); setUser(null); return null;
+      leaving = false; try { await logOutStore(); } catch {}      // RevenueCat kimliği silinen hesapla birlikte bırakılır
+      storage.removeItem(SESSION); closeLocal(); leave(); setUser(null); return null;
     }
     if (id) {
       storage.setItem(ACCOUNTS, JSON.stringify(readAccounts().filter((x) => x.id !== id)));
@@ -342,7 +345,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const changePassword = useCallback(async (current: string, next: string) => {
     if (!user) return t('Önce giriş yap.');
-    if (next.length < 8) return t('Yeni şifre en az 8 karakter olmalı.');
+    if (pwProblem(next)) return t('Yeni şifre en az 8 karakter olmalı.');
     if (next === current) return t('Yeni şifre eskisiyle aynı olamaz.');
     try {
       if (LIVE) {

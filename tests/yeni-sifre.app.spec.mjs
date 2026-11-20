@@ -31,15 +31,19 @@ test('sıfırlama e-postası yeni-sifre adresine yönlendirir', async ({ page })
 test('geçerli bağlantı: yeni şifre kaydedilir, oturum kapanır, giriş sayfasına yönlendirir', async ({ page }) => {
   await page.goto(url('/yeni-sifre?code=tok123&sb_flow_id=f1'));
   await expect(page.getByRole('heading', { name: 'Yeni şifre belirle' }).or(page.getByText('Yeni şifre belirle').first())).toBeVisible();
+  const save = page.getByRole('button', { name: 'Şifreyi kaydet' });
+  // Kurallar listesi görünür; kısa ya da uyuşmayan şifrede düğme kapalı kalır.
+  await expect(page.getByText('En az 8 karakter', { exact: true })).toBeVisible();
+  await expect(page.getByText('İki şifre aynı')).toBeVisible();
+  await expect(page.getByText(/sızmış şifreler kabul edilmez/)).toBeVisible();
   await page.getByLabel('Yeni şifre').fill('kisa');
   await page.getByLabel('Şifre (tekrar)').fill('kisa');
-  await page.getByRole('button', { name: 'Şifreyi kaydet' }).click();
-  await expect(page.getByText('Şifre en az 8 karakter olmalı.')).toBeVisible();
+  await expect(save).toBeDisabled();
   await page.getByLabel('Yeni şifre').fill('YeniSifre123');
   await page.getByLabel('Şifre (tekrar)').fill('Farkli12345');
-  await page.getByRole('button', { name: 'Şifreyi kaydet' }).click();
-  await expect(page.getByText('Şifreler aynı değil.')).toBeVisible();
+  await expect(save).toBeDisabled();
   await page.getByLabel('Şifre (tekrar)').fill('YeniSifre123');
+  await expect(save).toBeEnabled();
   await page.getByRole('button', { name: 'Şifreyi kaydet' }).click();
   await expect(page.getByText('Şifren yenilendi')).toBeVisible();
   const d = await db(page);

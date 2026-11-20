@@ -9496,3 +9496,451 @@ begin
   delete from public.support_requests where status = 'done' and created_at < now() - interval '6 months';
   return n + m;
 end $$;
+
+-- ===== migration: 20261118203905_blok_adi_tekrari.sql =====
+-- blok adi tekrari
+-- Birim etiketinde "Blok" tekrarı önlenir: blok adı zaten "Blok" / "Bloğu" / "Block" ile bitiyorsa ("A Blok", "Gül Bloğu")
+-- sona bir daha " Blok" eklenmez ("A Blok Blok No 3" yerine "A Blok No 3"). Bildirim ve e-postalar bu işlevi kullanır.
+-- Uygulamadaki karşılığı: app/src/domain/site.js → blockTitle / unitLabel. Eski istemciyi etkilemez (yalnız işlev gövdesi değişir).
+
+create or replace function public.unit_label(unit uuid)
+returns text language sql stable security definer set search_path = public as $$
+  select case when o.sector = 'site'
+              then case when u.block <> '' then btrim(u.block) || case when btrim(u.block) ~* '(^|[[:space:]])(blok|blo[ğĞ]u|block)$' then ' ' else ' Blok ' end else '' end
+                   || case when u.no ~ '^[0-9]' then 'No ' else '' end || u.no
+              else case when u.block <> '' then u.block || ' · ' else '' end || u.no end
+  from public.site_units u join public.organizations o on o.id = u.org_id where u.id = unit
+$$;
+revoke execute on function public.unit_label(uuid) from public, anon, authenticated;
+
+-- ===== migration: 20261118204243_havale_bilgileri.sql =====
+-- havale bilgileri
+-- "Havale / EFT ile öde" ekranı: alıcı adı, IBAN, tutar ve açıklama kodu kopyalanabilir gösterilir.
+--   * Mülk (kira): properties.bank_iban / bank_holder (mülk sahibi girer), properties.pay_code (açıklama kodu).
+--   * Site (aidat): organizations.bank_iban / bank_holder ("Kurum bilgileri" yetkisiyle org_bank_save), site_units.pay_code.
+-- Açıklama kodu: 6 karakter, büyük harf + rakam, karışan karakterler yok (0/O, 1/I). Ekstre eşleştirmesinde anahtar olarak kullanılacak.
+-- Eski istemciyle uyumlu: yalnız sütun ekler; my_site_units yalnız yeni alan döndürür.
+
+create or replace function public.gen_pay_code()
+returns text language sql volatile set search_path = public as $$
+  select string_agg(substr('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', 1 + floor(random() * 32)::int, 1), '') from generate_series(1, 6)
+$$;
+
+alter table public.properties add column if not exists bank_iban text;
+alter table public.properties add column if not exists bank_holder text;
+alter table public.properties add column if not exists pay_code text default public.gen_pay_code();
+alter table public.properties drop constraint if exists properties_bank_iban_check;
+alter table public.properties add constraint properties_bank_iban_check check (bank_iban is null or bank_iban ~ '^TR[0-9]{24}$');
+alter table public.properties drop constraint if exists properties_bank_holder_check;
+alter table public.properties add constraint properties_bank_holder_check check (bank_holder is null or length(bank_holder) <= 120);
+create unique index if not exists properties_pay_code_key on public.properties (pay_code);
+
+alter table public.site_units add column if not exists pay_code text default public.gen_pay_code();
+create unique index if not exists site_units_pay_code_key on public.site_units (pay_code);
+
+alter table public.organizations add column if not exists bank_iban text;
+alter table public.organizations add column if not exists bank_holder text;
+alter table public.organizations drop constraint if exists organizations_bank_iban_check;
+alter table public.organizations add constraint organizations_bank_iban_check check (bank_iban is null or bank_iban ~ '^TR[0-9]{24}$');
+alter table public.organizations drop constraint if exists organizations_bank_holder_check;
+alter table public.organizations add constraint organizations_bank_holder_check check (bank_holder is null or length(bank_holder) <= 120);
+
+/** Kurumun banka hesabı (sakinlere gösterilen havale bilgileri). Yalnız "Kurum bilgileri" (org.settings) yetkisi. Boş IBAN → kaldırır. */
+create or replace function public.org_bank_save(oid uuid, iban text, holder text)
+returns void language plpgsql security definer set search_path = public as $$
+declare i text := upper(regexp_replace(coalesce(iban, ''), '[[:space:]]', '', 'g'));
+begin
+  if not public.org_can(oid, 'org.settings') then raise exception 'Bu işlem için yetkin yok' using errcode = '42501'; end if;
+  if i <> '' and i !~ '^TR[0-9]{24}$' then raise exception 'IBAN geçersiz: TR ile başlayan 26 karakter olmalı' using errcode = '22023'; end if;
+  update public.organizations set bank_iban = nullif(i, ''), bank_holder = nullif(btrim(coalesce(holder, '')), '') where id = oid;
+end $$;
+revoke execute on function public.org_bank_save(uuid, text, text) from public, anon;
+grant execute on function public.org_bank_save(uuid, text, text) to authenticated;
+
+create or replace function public.my_site_units()
+returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'unit_id', u.id, 'org_id', o.id, 'org', o.name, 'sector', o.sector, 'block', u.block, 'no', u.no, 'area', u.area, 'aidat', u.aidat,
+    'payer', u.payer, 'role', l.role, 'rent', u.rent,
+    'payer_effective', public.site_payer(u.id), 'pays', public.site_payer(u.id) = l.role, 'currency', u.currency, 'turnover_rate', u.turnover_rate,
+    'lease_start', u.lease_start, 'lease_end', u.lease_end,
+    -- havale_bilgileri: yönetimin banka hesabı ve dairenin açıklama kodu (Havale / EFT bilgileri ekranı)
+    'bank_iban', o.bank_iban, 'bank_holder', coalesce(nullif(o.bank_holder, ''), o.name), 'pay_code', u.pay_code,
+    'deposit', case when u.deposit_amount is null then null else jsonb_build_object('amount', u.deposit_amount, 'currency', u.deposit_currency,
+      'kind', u.deposit_kind, 'on', u.deposit_on, 'bank', u.deposit_bank, 'until', u.deposit_until,
+      'returned_on', u.deposit_returned_on, 'returned', u.deposit_returned, 'cut_reason', u.deposit_cut_reason) end,
+    'property_id', (select p.id from public.properties p where p.site_unit_id = u.id
+                     and (p.owner_id = auth.uid() or exists (select 1 from public.memberships m where m.property_id = p.id and m.user_id = auth.uid()))
+                     limit 1)) order by o.name, u.block, u.no), '[]'::jsonb)
+  from (select unit_id, case when bool_or(role = 'malik') then 'malik' else 'kiraci' end as role
+          from public.site_links(auth.uid()) group by unit_id) l
+  join public.site_units u on u.id = l.unit_id join public.organizations o on o.id = u.org_id
+$$;
+grant execute on function public.my_site_units() to authenticated;
+
+-- ===== migration: 20261118214244_site_sozlesmeler.sql =====
+-- site sozlesmeler
+-- Hizmet ve tedarikçi sözleşmeleri (asansör bakımı, sigorta, temizlik, güvenlik…): firma, tür, başlangıç/bitiş, tutar, not.
+-- Bitişe kalan gün sözleşmedeki hatırlatma günlerinden birine eşitse (varsayılan 30, 15, 7) "Giderler" yetkisi olan yöneticilere
+-- bildirim gider (bildirim tetikleyicisi telefon bildirimini ve e-postayı gönderir). Her gün 09:10 İstanbul'da çalışır.
+-- Bitiş tarihi uzatılırsa (yenileme) hatırlatmalar yeni tarihe göre yeniden kurulur (etikette bitiş tarihi var).
+-- Yeni tablo ve işlev; eski kodla uyumlu, yeniden çalıştırılabilir.
+
+create table if not exists public.site_contracts (
+  id          uuid primary key default gen_random_uuid(),
+  org_id      uuid not null references public.organizations(id) on delete cascade,
+  kind        text not null default 'diger' check (kind in ('asansor','sigorta','temizlik','guvenlik','bahce','bakim','diger')),
+  vendor      text not null check (length(btrim(vendor)) between 1 and 120),
+  phone       text not null default '' check (length(phone) <= 30),
+  starts_on   date,
+  ends_on     date not null,
+  amount      numeric check (amount is null or amount >= 0),
+  period      text not null default 'yillik' check (period in ('aylik','yillik','tek')),
+  remind_days int[] not null default '{30,15,7}' check (cardinality(remind_days) between 1 and 5 and 0 < all (remind_days) and 366 > all (remind_days)),
+  note        text not null default '' check (length(note) <= 500),
+  created_by  uuid references public.profiles(id) on delete set null default auth.uid(),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  check (starts_on is null or starts_on <= ends_on)
+);
+create index if not exists site_contracts_org on public.site_contracts (org_id, ends_on);
+alter table public.site_contracts enable row level security;
+drop policy if exists not_banned on public.site_contracts;
+create policy not_banned on public.site_contracts as restrictive for all to authenticated using (not public.is_banned()) with check (not public.is_banned());
+drop policy if exists sc_read on public.site_contracts;
+create policy sc_read on public.site_contracts for select to authenticated
+  using (public.org_can(org_id, 'expenses.manage') or public.org_can(org_id, 'reports.view') or public.is_admin());
+drop policy if exists sc_write on public.site_contracts;
+create policy sc_write on public.site_contracts for all to authenticated
+  using (public.org_can(org_id, 'expenses.manage')) with check (public.org_can(org_id, 'expenses.manage'));
+grant select, insert, update, delete on public.site_contracts to authenticated;
+
+/** Sözleşme bitiş hatırlatması: bitişe kalan gün hatırlatma günlerinden biriyse "Giderler" yetkisi olan yöneticilere bildirim. */
+create or replace function public.site_contract_reminders(today date default (now() at time zone 'Europe/Istanbul')::date)
+returns int language plpgsql security definer set search_path = public as $$
+declare before int;
+begin
+  select count(*) into before from public.notifications;
+  insert into public.notifications (user_id, title, body, url, tag)
+  select p.u, c.vendor || ': sözleşme ' || (c.ends_on - today) || ' gün sonra bitiyor',
+         'Bitiş ' || to_char(c.ends_on, 'DD.MM.YYYY') || '. Yenilemeyi ya da yeni teklif almayı planla.',
+         '/uygulama/site/sozlesmeler', 'contract-' || c.id || '-' || c.ends_on || '-' || (c.ends_on - today)
+  from public.site_contracts c join public.organizations o on o.id = c.org_id and o.status = 'active'
+  cross join lateral public.org_people(c.org_id, 'expenses.manage') p(u)
+  where (c.ends_on - today) = any (c.remind_days)
+  on conflict do nothing;
+  return (select count(*) from public.notifications) - before;
+end $$;
+revoke execute on function public.site_contract_reminders(date) from public, anon, authenticated;
+
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    perform cron.unschedule(jobid) from cron.job where jobname = 'anahtar-site-contracts';
+    perform cron.schedule('anahtar-site-contracts', '10 6 * * *', 'select public.site_contract_reminders()');
+  end if;
+end $$;
+
+-- ===== migration: 20261118230222_ekstre_eslestirme.sql =====
+-- ekstre eslestirme
+-- Banka ekstresinden aidat ve kira tahsilatı: yönetici ekstreyi yükler, uygulama gelen ödemeleri dairelerin açıklama koduna
+-- (havale_bilgileri → site_units.pay_code) ve kişi adına göre eşleştirir; yönetici onaylayınca ödeme işlenir.
+-- Dosya ve açıklama metni saklanmaz: yalnız hareketin parmak izi (tarih, tutar, açıklama ve dekont no'dan istemcide üretilen özet),
+-- tarihi, tutarı ve kapattığı tahakkuklar tutulur; aynı hareket ikinci kez işlenemez.
+-- Yeni tablo ve işlev; eski kodla uyumlu, yeniden çalıştırılabilir.
+
+create table if not exists public.site_bank_txns (
+  id          uuid primary key default gen_random_uuid(),
+  org_id      uuid not null references public.organizations(id) on delete cascade,
+  fp          text not null check (fp ~ '^[0-9a-f]{16}$'),
+  txn_date    date not null,
+  amount      numeric not null check (amount > 0),
+  bank        text not null default '' check (length(bank) <= 40),
+  charge_ids  uuid[] not null default '{}',
+  created_by  uuid references public.profiles(id) on delete set null default auth.uid(),
+  created_at  timestamptz not null default now(),
+  unique (org_id, fp)
+);
+alter table public.site_bank_txns enable row level security;
+drop policy if exists not_banned on public.site_bank_txns;
+create policy not_banned on public.site_bank_txns as restrictive for all to authenticated using (not public.is_banned()) with check (not public.is_banned());
+drop policy if exists sbt_read on public.site_bank_txns;
+create policy sbt_read on public.site_bank_txns for select to authenticated
+  using (public.org_can(org_id, 'payments.approve') or public.is_admin());
+-- Yazma yalnız site_bank_apply ile (tahakkuk güncellemesiyle aynı işlemde).
+grant select on public.site_bank_txns to authenticated;
+
+/** Ekstredeki bir gelen ödemeyi işler: tahakkukların ödenen tutarına ekler (tamamlanırsa "ödendi"), ödeme tarihi işlem tarihi,
+    yöntem havale. Yetki: "Dekont onayı". Tahakkuklar kurumun olmalı ve açık (open / partial / rejected / review) olmalı;
+    dağıtılan toplam hareket tutarını aşamaz. Aynı parmak izi ikinci kez gelirse hiçbir şey değişmez ve false döner. */
+create or replace function public.site_bank_apply(oid uuid, fp text, txn_date date, amount numeric, bank text, charge_ids uuid[], amounts numeric[])
+returns boolean language plpgsql security definer set search_path = public as $$
+declare i int; ch public.site_charges; total numeric := 0; newpaid numeric;
+begin
+  if not public.org_can(oid, 'payments.approve') then raise exception 'Bu işlem için yetkin yok' using errcode = '42501'; end if;
+  if coalesce(array_length(charge_ids, 1), 0) = 0 or array_length(charge_ids, 1) <> coalesce(array_length(amounts, 1), 0) then
+    raise exception 'Eşleşen tahakkuk yok' using errcode = '22023'; end if;
+  if amount is null or amount <= 0 then raise exception 'Tutar geçersiz' using errcode = '22023'; end if;
+  for i in 1 .. array_length(amounts, 1) loop
+    if amounts[i] is null or amounts[i] <= 0 then raise exception 'Tutar geçersiz' using errcode = '22023'; end if;
+    total := total + amounts[i];
+  end loop;
+  if total > amount + 0.005 then raise exception 'Dağıtılan tutar ödemeyi aşıyor' using errcode = '22023'; end if;
+  insert into public.site_bank_txns (org_id, fp, txn_date, amount, bank, charge_ids)
+  values (oid, site_bank_apply.fp, site_bank_apply.txn_date, site_bank_apply.amount, left(coalesce(bank, ''), 40), site_bank_apply.charge_ids)
+  on conflict on constraint site_bank_txns_org_id_fp_key do nothing;
+  if not found then return false; end if;
+  for i in 1 .. array_length(charge_ids, 1) loop
+    select * into ch from public.site_charges c where c.id = charge_ids[i] and c.org_id = oid for update;
+    if not found or ch.status not in ('open','partial','rejected','review') then
+      raise exception 'Tahakkuk bulunamadı ya da zaten ödenmiş' using errcode = '22023'; end if;
+    newpaid := case when ch.status = 'partial' then ch.paid_amount else 0 end + amounts[i];
+    update public.site_charges set status = case when newpaid >= ch.amount then 'paid' else 'partial' end, paid_amount = newpaid,
+           paid_on = site_bank_apply.txn_date, method = 'havale', reject_reason = null, updated_at = now()
+     where id = ch.id;
+  end loop;
+  return true;
+end $$;
+revoke execute on function public.site_bank_apply(uuid, text, date, numeric, text, uuid[], numeric[]) from public, anon;
+grant execute on function public.site_bank_apply(uuid, text, date, numeric, text, uuid[], numeric[]) to authenticated;
+
+-- ===== migration: 20261118235239_ekstre_kira.sql =====
+-- ekstre kira
+-- Bireysel mülk sahibi için banka ekstresinden kira (ve kiracının ödediği aidat) tahsilatı: kurum panelindeki ekstre_eslestirme'nin
+-- mülk sahibi karşılığı. Eşleşen ödeme payments satırına "havale" olarak yazılır (tam ise onaylı, değilse kısmi).
+-- Dosya ve açıklama saklanmaz: yalnız parmak izi, tarih, tutar ve kapatılan aylar. Aynı hareket aynı mülk sahibinde ikinci kez işlenmez.
+-- Yeni tablo ve işlev; eski kodla uyumlu, yeniden çalıştırılabilir.
+
+create table if not exists public.rent_bank_txns (
+  id          uuid primary key default gen_random_uuid(),
+  owner_id    uuid not null references public.profiles(id) on delete cascade,
+  property_id text not null references public.properties(id) on delete cascade,
+  fp          text not null check (fp ~ '^[0-9a-f]{16}$'),
+  txn_date    date not null,
+  amount      numeric not null check (amount > 0),
+  bank        text not null default '' check (length(bank) <= 40),
+  refs        text[] not null default '{}',
+  created_by  uuid references public.profiles(id) on delete set null default auth.uid(),
+  created_at  timestamptz not null default now(),
+  unique (owner_id, fp)
+);
+create index if not exists rent_bank_txns_prop on public.rent_bank_txns (property_id);
+alter table public.rent_bank_txns enable row level security;
+drop policy if exists not_banned on public.rent_bank_txns;
+create policy not_banned on public.rent_bank_txns as restrictive for all to authenticated using (not public.is_banned()) with check (not public.is_banned());
+drop policy if exists rbt_read on public.rent_bank_txns;
+create policy rbt_read on public.rent_bank_txns for select to authenticated
+  using (owner_id = (select auth.uid()) or public.member_can(property_id, 'decide') or public.is_admin());
+grant select on public.rent_bank_txns to authenticated;
+
+/** Ekstredeki bir gelen ödemeyi mülkün kira / aidat aylarına işler. Yetki: mülkte karar yetkisi (mülk sahibi ya da emlakçı).
+    kinds[i] 'kira' | 'aidat', months[i] 'YYYY-MM', amounts[i] bu harekette o aya düşen tutar, complete[i] ay tamamlanıyor mu
+    (beklenen tutarı uygulama hesaplar: kira artışı, stopaj). Onaylanmış ay değiştirilemez; dağıtılan toplam hareketi aşamaz.
+    Aynı parmak izi ikinci kez gelirse hiçbir şey değişmez ve false döner. */
+create or replace function public.rent_bank_apply(pid text, fp text, txn_date date, amount numeric, bank text,
+                                                  kinds text[], months text[], amounts numeric[], complete boolean[])
+returns boolean language plpgsql security definer set search_path = public as $$
+declare i int; n int := coalesce(array_length(months, 1), 0); owner uuid; total numeric := 0; cur public.payments; base numeric; rlist text[] := '{}';
+begin
+  if not public.member_can(pid, 'decide') then raise exception 'Bu işlem için yetkin yok' using errcode = '42501'; end if;
+  if n = 0 or coalesce(array_length(kinds, 1), 0) <> n or coalesce(array_length(amounts, 1), 0) <> n or coalesce(array_length(complete, 1), 0) <> n then
+    raise exception 'Eşleşen ay yok' using errcode = '22023'; end if;
+  if amount is null or amount <= 0 then raise exception 'Tutar geçersiz' using errcode = '22023'; end if;
+  for i in 1 .. n loop
+    if kinds[i] not in ('kira','aidat') or months[i] !~ '^\d{4}-(0[1-9]|1[0-2])$' or amounts[i] is null or amounts[i] <= 0 then
+      raise exception 'Ay ya da tutar geçersiz' using errcode = '22023'; end if;
+    total := total + amounts[i];
+    rlist := rlist || (kinds[i] || ':' || months[i]);
+  end loop;
+  if total > amount + 0.005 then raise exception 'Dağıtılan tutar ödemeyi aşıyor' using errcode = '22023'; end if;
+  select owner_id into owner from public.properties where id = pid;
+  insert into public.rent_bank_txns (owner_id, property_id, fp, txn_date, amount, bank, refs)
+  values (owner, pid, rent_bank_apply.fp, rent_bank_apply.txn_date, rent_bank_apply.amount, left(coalesce(bank, ''), 40), rlist)
+  on conflict on constraint rent_bank_txns_owner_id_fp_key do nothing;
+  if not found then return false; end if;
+  for i in 1 .. n loop
+    select * into cur from public.payments p where p.property_id = pid and p.month = months[i] and p.kind = kinds[i] for update;
+    if found and cur.status = 'approved' then raise exception 'Bu ay zaten onaylanmış' using errcode = '22023'; end if;
+    base := case when found and cur.status = 'partial' then coalesce(cur.amount, 0) else 0 end;
+    insert into public.payments (property_id, month, kind, status, amount, paid_on, method, approved_at, reject_reason, updated_at)
+    values (pid, months[i], kinds[i], case when complete[i] then 'approved' else 'partial' end, base + amounts[i], rent_bank_apply.txn_date, 'havale',
+            case when complete[i] then now() end, null, now())
+    on conflict (property_id, month, kind) do update set status = excluded.status, amount = excluded.amount, paid_on = excluded.paid_on,
+      method = 'havale', approved_at = excluded.approved_at, reject_reason = null, updated_at = now();
+  end loop;
+  return true;
+end $$;
+revoke execute on function public.rent_bank_apply(text, text, date, numeric, text, text[], text[], numeric[], boolean[]) from public, anon;
+grant execute on function public.rent_bank_apply(text, text, date, numeric, text, text[], text[], numeric[], boolean[]) to authenticated;
+
+-- ===== migration: 20261120133515_sistem_mesaji_kapat.sql =====
+-- sistem mesaji kapat
+-- Yeni istemci (post_system_message / site_resident_code kullanan) yayında; bu migration eski istemci yollarını kapatır.
+-- Sonuç: from_role = 'system' satırı yalnız post_system_message (security definer) ve sunucu işlevleriyle (accept_invite vb.) yazılır;
+-- Yeniden çalıştırılabilir.
+
+drop policy if exists messages_insert on public.messages;
+create policy messages_insert on public.messages for insert to authenticated
+  with check (public.member_can(property_id, 'message')
+              and by_user = (select auth.uid())
+              and from_role = public.msg_side(property_id));
+
+-- ===== migration: 20261120133518_site_residents_kod_gizle.sql =====
+-- site_residents.code sütununu istemciden gizle
+-- Yeni istemci (post_system_message / site_resident_code kullanan) yayında; bu migration eski istemci yollarını kapatır.
+-- Sonuç: authenticated rolü code dışındaki sütunları okur; code yalnız site_resident_code(p_resident) ile ("Malik ve kiracılar" yetkisi) okunur.
+-- Yazma kısıtı (code yazılamaz) davet_kodlari migrationında zaten vardır; burada yeniden verilir (yeniden çalıştırılabilir).
+-- Yeni bir sütun eklenirse okuma listesine de eklenmelidir (tests/davet-kodlari.sql.spec.mjs bütün sütunların okunabildiğini denetler).
+-- Yeniden çalıştırılabilir.
+
+alter table public.site_residents add column if not exists mailed_at timestamptz;
+revoke select, insert, update on public.site_residents from authenticated;
+grant select (id, org_id, unit_id, user_id, role, name, phone, email, lives_here, created_at, invited_at, mailed_at) on public.site_residents to authenticated;
+grant insert (org_id, unit_id, user_id, role, name, phone, email, lives_here, invited_at) on public.site_residents to authenticated;
+grant update (org_id, unit_id, user_id, role, name, phone, email, lives_here, invited_at) on public.site_residents to authenticated;
+
+-- ===== migration: 20261120135929_abonelik_erisim.sql =====
+-- Abonelik ve erişim açıkları (denetim, 2026-11-20). Yeniden çalıştırılabilir; eski istemciyle uyumlu.
+-- 1. require_access: yalnız mülk sahibi/yöneticisi olarak yazan kişiyi engeller. Sonradan "mülk sahibi" rolü eklemiş bir kiracının
+--    (add_landlord_role) deneme süresi bitince, kiracı olduğu evde dekont yüklemesi / talep açması artık engellenmez.
+-- 2. guard_unit_limit_update: satın alınan adetten fazla mülkü olan sahibin, sınırın dışında kalan (en yeni) mülklerine yazması reddedilir
+--    (EV403, "Paket sınırı"); okuma ve silme serbest. Mülk eklemeyi zaten guard_unit_limit sınırlıyordu (yalnız INSERT).
+-- 3. trial_reminders: uygulama içi (30 gün) deneme bitmeden 3 gün ve 1 gün kala, bitince bildirim; her aşama bir kez.
+--    Günlük billing_reminders cron'una eklendi (yeni gizli anahtar yok). E-posta ayrıca yazılmaz: bildirim eklenince push işlevi e-postayı zaten gönderir ve kullanıcının e-posta kapatma tercihine uyar (etiket trial-N; yalnız bill-/acct- etiketleri tercihi aşar).
+
+-- ---- 1. require_access -----------------------------------------------------------------------------------------------------
+create or replace function public.require_access()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare pid text;
+begin
+  if auth.uid() is null then return new; end if;
+  if (select role from public.profiles where id = auth.uid()) = 'landlord'
+     and not public.has_access(auth.uid()) then
+    pid := to_jsonb(new) ->> case when tg_table_name = 'properties' then 'id' else 'property_id' end;
+    -- Kiracı olarak yazıyorsa (mülkün sahibi değil, o mülkte kiracı üyeliği var) mülk sahibinin aboneliği aranmaz.
+    if pid is not null
+       and not exists (select 1 from public.properties where id = pid and owner_id = auth.uid())
+       and exists (select 1 from public.memberships where property_id = pid and user_id = auth.uid() and role = 'tenant')
+       and not exists (select 1 from public.memberships where property_id = pid and user_id = auth.uid() and role = 'landlord') then
+      return new;
+    end if;
+    raise exception 'Abonelik gerekli: deneme süren bitti' using errcode = 'EV402';
+  end if;
+  return new;
+end $$;
+
+-- ---- 2. Paket adedinin altına inme ---------------------------------------------------------------------------------------
+create or replace function public.guard_unit_limit_update()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare lim int; o public.organizations; rnk int;
+begin
+  if auth.uid() is null or auth.uid() is distinct from old.owner_id or public.is_admin() then return new; end if;
+  if coalesce(current_setting('anahtar.system', true), '') = '1' then return new; end if;
+  o := public.master_org(old.owner_id);
+  lim := case when o.id is not null then o.units else (public.access_state(old.owner_id) ->> 'units')::int end;
+  if lim is null then return new; end if;
+  select count(*) into rnk from public.properties p
+   where (p.owner_id = old.owner_id or (o.id is not null and p.org_id = o.id))
+     and (p.created_at, p.id) < (old.created_at, old.id);
+  if rnk >= lim then
+    raise exception 'Paket sınırı: en fazla % mülk; bu mülk paketinin dışında kaldı (salt okunur). Mülk sil ya da paketini yükselt', lim using errcode = 'EV403';
+  end if;
+  return new;
+end $$;
+drop trigger if exists guard_unit_limit_update on public.properties;
+create trigger guard_unit_limit_update before update on public.properties for each row execute function public.guard_unit_limit_update();
+
+-- ---- 3. Deneme bitişi hatırlatması ------------------------------------------------------------------------------------------
+create table if not exists public.trial_reminder_log (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  stage   int  not null check (stage in (3, 1, 0)),
+  sent_at timestamptz not null default now(),
+  primary key (user_id, stage)
+);
+alter table public.trial_reminder_log enable row level security;   -- kural yok: yalnız sunucu yazar ve okur
+revoke all on public.trial_reminder_log from anon, authenticated;
+
+/** Aboneliği ve kurumu olmayan mülk sahiplerine deneme bitişinden 3 gün / 1 gün önce ve bitince bildirim. Kaç kişiye yazıldığını döner. */
+create or replace function public.trial_reminders(today date default (now() at time zone 'Europe/Istanbul')::date)
+returns int language plpgsql security definer set search_path = public as $$
+declare
+  r record; left_d int; stg int; ttl text; msg text; en boolean; n int := 0;
+  cf timestamptz := public.card_trial_from();
+begin
+  for r in
+    select p.id, p.name, coalesce(p.lang, 'tr') lang,
+           coalesce(p.landlord_since, p.created_at) + make_interval(days => public.trial_days() + coalesce(p.extra_trial_days, 0)) trial_end,
+           coalesce(p.landlord_since, p.created_at) started, u.email::text email
+      from public.profiles p join auth.users u on u.id = p.id
+     where p.role = 'landlord'
+       and not exists (select 1 from public.subscriptions s where s.user_id = p.id and s.active and (s.expires_at is null or s.expires_at > now()))
+       and not exists (select 1 from public.org_members m where m.user_id = p.id)
+       and not exists (select 1 from public.admins a where a.user_id = p.id)
+       and not exists (select 1 from public.bans b where b.user_id = p.id)
+  loop
+    continue when cf is not null and r.started >= cf;                       -- kartlı deneme: uygulama içi deneme yok
+    continue when lower(coalesce(r.email, '')) like '%@anahtar.io';          -- iç hesaplar
+    left_d := (r.trial_end at time zone 'Europe/Istanbul')::date - today;
+    stg := case when left_d in (2, 3) then 3 when left_d = 1 then 1 when left_d between -2 and 0 and r.trial_end <= now() then 0 end;   -- bitti: yalnız süre gerçekten dolunca
+    continue when stg is null;
+    continue when exists (select 1 from public.trial_reminder_log where user_id = r.id and stage = stg);
+    en := r.lang = 'en';
+    if stg = 0 then
+      ttl := case when en then 'Your free trial has ended' else 'Deneme süren bitti' end;
+      msg := case when en then 'Choose a plan to keep managing your properties. Your data is kept.'
+                  else 'Mülklerini yönetmeye devam etmek için bir paket seç. Verilerin saklanır.' end;
+    else
+      ttl := case when en then 'Your free trial ends in ' || left_d || (case when left_d = 1 then ' day' else ' days' end)
+                  else 'Deneme süren ' || left_d || ' gün sonra bitiyor' end;
+      msg := case when en then 'Choose a plan before it ends to keep managing your properties without interruption.'
+                  else 'Kesinti olmadan devam etmek için bitmeden bir paket seç.' end;
+    end if;
+    insert into public.trial_reminder_log (user_id, stage) values (r.id, stg) on conflict do nothing;
+    insert into public.notifications (user_id, title, body, url, tag)
+    values (r.id, ttl, msg, '/uygulama/ayarlar', 'trial-' || stg) on conflict do nothing;
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+revoke execute on function public.trial_reminders(date) from public, anon, authenticated;
+
+-- Günlük cron (billing_reminders) deneme hatırlatmasını da çalıştırır; dönüş değeri (mağaza yenileme bildirimi sayısı) değişmez.
+CREATE OR REPLACE FUNCTION public.billing_reminders(today date DEFAULT ((now() AT TIME ZONE 'Europe/Istanbul'::text))::date)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare n int;
+begin
+  with due as (
+    select s.user_id, s.product_id, s.period_type, s.store, s.expires_at
+      from public.subscriptions s
+     where s.active and s.will_renew and coalesce(s.store, '') not in ('admin', 'promotional') and coalesce(s.environment, '') <> 'sandbox' and s.expires_at is not null
+       and (s.expires_at at time zone 'Europe/Istanbul')::date = today + 1
+  ), ins as (
+    insert into public.notifications (user_id, title, body, url, tag)
+    select d.user_id,
+      case when d.period_type in ('trial','intro') then 'Ücretsiz denemen yarın bitiyor' else 'Aboneliğin yarın yenilenecek' end,
+      case when d.period_type in ('trial','intro') then 'Yarın ilk ödemen alınacak.' else 'Yarın ödemen alınacak.' end
+        || ' Paket: ' || case public.plan_of(d.product_id) when 'tek' then 'Başlangıç' when 'bes' then 'Profesyonel' when 'kurumsal' then 'Kurumsal' else 'Abonelik' end
+        || coalesce(' · ' || public.product_units(d.product_id)::text || ' mülk', '')
+        || case when d.product_id ~ '_yillik$' then ' · yıllık' when d.product_id ~ '_aylik$' then ' · aylık' else '' end
+        || '. İptal etmek istersen ' || case d.store when 'app_store' then 'App Store' when 'play_store' then 'Google Play' else 'ödeme' end
+        || ' abonelik ayarlarından bugün iptal edebilirsin.',
+      '/uygulama/ayarlar', 'bill-' || to_char(today + 1, 'YYYYMMDD')
+      from due d
+    on conflict do nothing
+    returning 1
+  )
+  select count(*) into n from ins;
+  -- Deneme hatırlatması başarısız olsa da mağaza yenileme bildirimleri etkilenmez.
+  begin
+    perform public.trial_reminders(today);
+  exception when others then
+    raise warning 'trial_reminders başarısız: %', sqlerrm;
+    insert into public.function_logs (fn, level, message, detail) values ('billing_reminders', 'error', 'trial_reminders başarısız', left(sqlerrm, 500));
+  end;
+  return n;
+end $function$;
+revoke execute on function public.billing_reminders(date) from public, anon, authenticated;

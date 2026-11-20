@@ -3,6 +3,7 @@
    Hata metinleri çeviri anahtarıdır ({msg, p}); ekran t() ile gösterir. */
 
 // fflate (zip) yalnız Excel şablonu ve .xlsx okuma anında yüklenir; her sayfanın ortak paketine girmez.
+import { isXls, parseXls } from './xls.js';
 const zip = () => import('fflate');
 
 export const COLUMNS = [
@@ -132,10 +133,12 @@ export async function parseXlsx(bytes){
   return rows;
 }
 
-/** Dosya türünü içerikten anlar: "PK" ile başlıyorsa xlsx, değilse UTF-8 CSV. */
+/** Dosya türünü içerikten anlar: "PK" ile başlıyorsa xlsx, eski Excel (.xls, bankaların ekstreleri) imzasıyla xls, değilse UTF-8 CSV. */
 export async function readTable(bytes){
   const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  return b[0] === 80 && b[1] === 75 ? parseXlsx(b) : parseCsv(new TextDecoder('utf-8').decode(b));
+  if (b[0] === 80 && b[1] === 75) return parseXlsx(b);
+  if (isXls(b)) return parseXls(b);
+  return parseCsv(new TextDecoder('utf-8').decode(b));
 }
 
 /** Başlık satırı → { anahtar: sütun no }. Başlıklar ve eş anlamlılar sadeleştirilerek eşlenir. */

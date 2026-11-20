@@ -66,6 +66,8 @@ export function buildProperty(d){
     rent: num(pr.rent), dueDay: pr.due_day,
     aidat: num(pr.aidat) || 0, aidatPayer: owner(pr.aidat_payer) || 'Kiracı',
     deposit: num(pr.deposit) || 0, depositNote: pr.deposit_note || '',
+    // Havale bilgileri (migration havale_bilgileri). Sütun yoksa (migration öncesi) undefined kalır ve kayıtta yazılmaz.
+    bankIban: pr.bank_iban === undefined ? undefined : pr.bank_iban || '', bankHolder: pr.bank_holder || '', payCode: pr.pay_code || '',
     startDate: pr.start_date, contractEnd: pr.contract_end, dask: pr.dask || null,
     value: num(pr.value),
     bills: (pr.bills || []).map(b => Object.assign({}, b, { who: owner(b.who) })),
@@ -115,7 +117,9 @@ export function propertyRow(p, ownerId){
     rent: p.rent, due_day: p.dueDay, aidat: p.aidat || 0, aidat_payer: p.aidatPayer || 'Kiracı',
     deposit: p.deposit || 0, deposit_note: p.depositNote || '',
     start_date: p.startDate, contract_end: p.contractEnd, dask: p.dask || null,
-    value: p.value ?? null, bills: p.bills || []
+    value: p.value ?? null, bills: p.bills || [],
+    // Yalnız sunucuda sütun varken ya da mülk sahibi IBAN girdiyse yazılır: migration'dan önce yayınlanan istemci eski veritabanında kayıt yaparken hata vermez.
+    ...(p.bankIban !== undefined ? { bank_iban: p.bankIban || null, bank_holder: p.bankHolder || null } : {})
   };
 }
 

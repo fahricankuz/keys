@@ -20,6 +20,7 @@ import { toApp } from './nav.js';
 import { iso, t0, parse, fmtFull, monthYear, tl, daysTo, uid, percent } from './util.js';
 import { formatAddress } from './address.js';
 import { openInspectReport } from './inspect-html.js';
+import { normalizeIban } from './iban.js';
 
 /** Mülk kaydı. Kimlik kullanıcı girdisinden (d.pid, d.updateId) gelebilir; "__proto__" gibi adlar Object.prototype'a çözülüp
     sonraki atamalarla (p.docs = …, p[k] = …) onu bozmasın diye yalnız kendi mülk kayıtları döner (CodeQL js/prototype-polluting-assignment). */
@@ -922,6 +923,8 @@ export async function submit(type, v){
     p.stopaj = lessee.stopaj;
     p.depositKind = String(fd.get('depositKind') || 'Nakit');
     p.depositNote = String(fd.get('depositNote') || '').trim();
+    const iban = normalizeIban(fd.get('bankIban'));
+    if (iban || p.bankIban !== undefined){ p.bankIban = iban; p.bankHolder = String(fd.get('bankHolder') || '').trim().slice(0, 120); }
     const newRent = Number(fd.get('rent')) || p.rent;
     if (newRent !== p.rent){
       const today = iso(t0());

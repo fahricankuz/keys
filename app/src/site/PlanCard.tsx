@@ -6,6 +6,8 @@ import { t } from '../domain/i18n';
 import { Button, Chip, Text } from '../ui/kit';
 import { fonts, useBreakpoint, useColors } from '../ui/theme';
 import { Icon } from '../app-ui/blocks';
+import { live } from '../domain/backend';
+import { access } from '../domain/billing';
 
 const BALANCE: any = Platform.OS === 'web' ? { textWrap: 'balance' } : null;
 
@@ -24,6 +26,9 @@ export function PlanCard({ p, cta, badge, eqLine, side, compact }: {
   const c = useColors();
   const { phone } = useBreakpoint();
   const small = phone || compact;
+  // "1 ay ücretsiz deneme" yalnız oturumsuz ziyaretçiye ve denemesi süren kişiye gösterilir (abone ya da denemesi bitmiş kişiye değil).
+  const acc: any = access();
+  const showTrial = !live.user || !!acc.inTrial || !!acc.pending;     // erişim henüz okunurken gizlenmez (titreme olmasın)
   const dark = p.best;
   const ink = dark ? c.heroInk : c.ink, soft = dark ? c.heroMuted : c.muted;
   const rule = dark ? 'rgba(250,245,240,0.14)' : c.line;
@@ -46,7 +51,7 @@ export function PlanCard({ p, cta, badge, eqLine, side, compact }: {
         {p.monthlyEq || eqLine ? <Text v="small" color={soft}>{p.monthlyEq ? t('mülk başına aylık {price}’ye denk gelir', { price: p.monthlyEq }) : ' '}</Text> : null}
         {p.vat ? <Text v="small" color={soft} style={{ fontSize: 12.5 }}>{t('KDV dahil')}</Text> : p.sub ? <Text v="small" color={soft}>{p.sub}</Text> : null}
       </View>
-      <Text v="small" color={dark ? c.lemon : c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('1 ay ücretsiz deneme')}</Text>
+      {showTrial ? <Text v="small" color={dark ? c.lemon : c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('1 ay ücretsiz deneme')}</Text> : null}
       <View>
         {p.points.map((x, k) => (
           <View key={x} style={{ flexDirection: 'row', gap: 10, alignItems: 'center', minHeight: small ? 0 : 46, paddingVertical: small ? 8 : 6,
