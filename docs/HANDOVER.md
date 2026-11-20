@@ -204,3 +204,4 @@ End-to-end test accounts (production, seeded data, notification e-mails off): `t
 | 2026-11-14 00:15 | Handover back to owners: iOS + 36 subscriptions in App Review; Android 1.0.0 (4) in Google review with managed publishing; Play catalog (36 plans) + RevenueCat (72 products) done; store scripts (#120) and test accounts (#121) |
 | 2026-11-14 00:30 | Play API write permission for `eas-submit` fixed (convertRegionPrices 200) |
 | 2026-11-17 | Owners now merge their own PRs (Erdem's decision); merge rules updated in AGENTS.md, HANDOVER.md, release-and-ota.md, infrastructure.md |
+| 2026-11-20 | Store name changed to "Anahtar: Kiranın Anahtarı" / "Anahtar: The Key to Renting" (Play listing; iOS via version 1.0.1). `app.json` runtimeVersion is now pinned to `"1.0.0"` (was policy appVersion) so OTAs keep reaching 1.0.0 and 1.0.1 installs; change it only together with a native change and a new store build |
