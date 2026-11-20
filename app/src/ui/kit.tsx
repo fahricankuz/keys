@@ -5,6 +5,7 @@ import {
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { fonts, radius, useBreakpoint, useColors } from './theme';
 import { Loader } from './Loader';
+import { pressLayers } from './layers';
 import { t } from '../domain/i18n';
 import { filesPreparing, onFilesPreparing } from '../domain/file-prep';
 
@@ -41,20 +42,14 @@ export function Text({ v = 'body', muted, color, style, children, ...rest }: {
   );
 }
 
-const LAYOUT_KEYS = ['flex', 'flexGrow', 'flexShrink', 'flexBasis', 'alignSelf', 'width', 'maxWidth', 'minWidth', 'height', 'margin', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'marginHorizontal', 'marginVertical'];
-
 /** Tüm dokunulabilir yüzeyler: basınca anında yaylanarak küçülür (apple-design: tepki gecikmesiz).
     Yerleşim (flex, genişlik, kenar boşluğu) dış sarmalayıcıya, görünüm iç katmana gider. */
 export function PressScale({ children, style, wrapStyle, scaleTo = 0.97, hoverScale, ...rest }: PressableProps & { scaleTo?: number; hoverScale?: number; style?: StyleProp<ViewStyle>; wrapStyle?: StyleProp<ViewStyle> }) {
   const s = useSharedValue(1);
   const hovered = useRef(false);
   const a = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
-  const flat: any = StyleSheet.flatten(style) || {};
-  const outer: any = {};
-  const inner: any = {};
-  Object.keys(flat).forEach((key) => { (LAYOUT_KEYS.includes(key) ? outer : inner)[key] = flat[key]; });
-  // Dış sarmalayıcı genişlik/flex alıyorsa iç katman onu doldurur.
-  const fill = outer.flex !== undefined || outer.flexGrow !== undefined || outer.width !== undefined || outer.alignSelf === 'stretch';
+  // Yerleşim dışa, görünüm içe; dış katman flex/genişlik alıyorsa iç katman onu doldurur (kurallar ve telefondaki tuzak: ui/layers.js).
+  const { outer, inner }: { outer: any; inner: any } = pressLayers(StyleSheet.flatten(style) || {});
   return (
     <Pressable
       {...rest}
@@ -64,7 +59,7 @@ export function PressScale({ children, style, wrapStyle, scaleTo = 0.97, hoverSc
       onHoverIn={(e) => { hovered.current = true; if (hoverScale) s.value = withSpring(hoverScale, { damping: 18, stiffness: 300 }); rest.onHoverIn?.(e); }}
       onHoverOut={(e) => { hovered.current = false; if (hoverScale) s.value = withSpring(1, { damping: 18, stiffness: 300 }); rest.onHoverOut?.(e); }}
     >
-      <Animated.View style={[a, fill ? { alignSelf: 'stretch', flexGrow: 1 } : null, inner]}>{children as ReactNode}</Animated.View>
+      <Animated.View style={[a, inner]}>{children as ReactNode}</Animated.View>
     </Pressable>
   );
 }
