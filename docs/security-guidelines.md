@@ -419,7 +419,7 @@ Kept current; remove an item only with evidence that it is closed.
 ## 15. Incident response
 
 **Detect.** Sentry alert for new, regressed or re-occurring issues (e-mail), metric monitors (errors above 20/hour web and mobile, above 10/hour edge, mobile crash rate above 2%), uptime check on
-`https://anahtar.io/`, cron monitor for `tufe-sync`, `function_logs`/`client_errors` in the admin panel, `admin_audit`, gitleaks and CodeQL, Dependabot, user reports to `info@anahtar.io` and `security.txt`.
+`https://anahtar.io/`, cron monitor for `tufe-sync`, `function_logs`/`client_errors` in the admin panel, `admin_audit`, gitleaks and Semgrep, Dependabot, user reports to `info@anahtar.io` and `security.txt`.
 Look at the first signal as an incident until proven otherwise when it concerns auth, payments, invites, storage or personal data.
 
 **Contain** (smallest action first; production writes need Erdem's explicit go, read-only investigation does not).

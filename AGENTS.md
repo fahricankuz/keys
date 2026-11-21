@@ -35,7 +35,7 @@ Publisher: DevirVentures; data controller: Devredin A.S. Store id `io.anahtar.ap
 | `specs/followup-migrations/` | 2 migrations that wait (section 4.2). Files here are never applied automatically. |
 | `tests/` | Playwright: `*.app.spec.mjs` (fake backend), `*.sql.spec.mjs` (PGlite), `*.spec.mjs` (unit). |
 | `scripts/` | `db-yeni.mjs`, `db-derle.mjs`, `db-preflight.sh`, `magaza-ekranlari.mjs`. |
-| `.github/workflows/` | `ci.yml`, `hostinger.yml`, `db-migrate.yml`, `expo-mobile.yml`, `guvenlik.yml`, `codeql.yml`, `safari.yml`. |
+| `.github/workflows/` | `ci.yml`, `hostinger.yml`, `db-migrate.yml`, `expo-mobile.yml`, `guvenlik.yml`, `safari.yml`. |
 | `docs/`, `specs/` | Documentation; index in [docs/README.md](docs/README.md). `hostinger/`: deploy helpers. `yuk/`: k6 load test. |
 
 ## 3. Run and test
@@ -52,11 +52,11 @@ Publisher: DevirVentures; data controller: Devredin A.S. Store id `io.anahtar.ap
 |---|---|---|
 | Migration | Your new test + `tests/migrations.spec.mjs`, `tests/qa-db.spec.mjs`, `tests/sql.spec.mjs` | Full set |
 | Edge Function | The related `*-handler.spec.mjs`, `tests/functions-build.spec.mjs`, `tests/function-keys.spec.mjs`, `tests/functions-deploy.spec.mjs` | Full set |
-| Screen / logic | The related `*.app.spec.mjs` and `*.spec.mjs` + `tsc --noEmit` | Full set, Safari (`@mobil`), CodeQL, Semgrep |
+| Screen / logic | The related `*.app.spec.mjs` and `*.spec.mjs` + `tsc --noEmit` | Full set, Safari (`@mobil`), Semgrep |
 | Docs only | Check links and the absence of secrets by hand | Full set still reports (required check) |
 
 - CI on every PR: **Testler (parça 1/2, 2/2)** and **Testler (tam set)** (required), **Mobil uygulama (Expo)** (`tsc` + iOS/Android bundle export),
-  **Güvenlik taraması** (Semgrep, gitleaks, npm audit), **Safari denemesi** (non-blocking). CodeQL runs on `main` and weekly.
+  **Güvenlik taraması** (Semgrep, gitleaks, npm audit), **Safari denemesi** (non-blocking). No CodeQL: the repo is private and code scanning there needs paid GitHub Code Security; Semgrep covers code scanning.
 - If a test fails locally and you cannot prove it is unrelated, leave it to CI but **say so explicitly** in the PR.
 - Fake-backend tests do not see real-environment paths (static SSR build, real Supabase). In PR #113 such a bug stopped the web deploy
   ([diary](docs/diary/2026-11-13.md)). If you touch session, storage or build code, also run `expo export -p web` with real

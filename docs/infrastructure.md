@@ -66,7 +66,6 @@ Branch rules: **no rulesets and no environment reviewers** on GitHub (owner deci
 | `db-migrate.yml` "Veritabanı migration" | manual only | `environment` = staging or production; `mode` = plan, apply, adopt-existing-baseline |
 | `expo-mobile.yml` "Mobil uygulama (Expo)" | PR/push touching `app/`; manual | `tsc` + iOS/Android bundle export; manual dispatch starts an EAS build (`EXPO_TOKEN`) |
 | `guvenlik.yml` | PR, `main`, weekly | Semgrep, gitleaks, npm audit |
-| `codeql.yml` | `main` (code paths), weekly, manual | CodeQL |
 | `safari.yml` | PR (not docs-only) | WebKit `@mobil` tests, non-blocking |
 
 - **Secrets:** `EXPO_TOKEN` (Expo robot `github-actions`), `SENTRY_AUTH_TOKEN` (Sentry org token, scope `org:ci`). **Environment secrets** `SUPABASE_DB_URL` in `staging` and in `production` (Session pooler address).
