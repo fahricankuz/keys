@@ -84,7 +84,7 @@ test('deneme bitiş hatırlatması: 3 gün, 1 gün ve bitince bildirim + e-posta
   await db.query(`delete from public.memberships where user_id = $1`, [L2]);
   await db.query(`update public.profiles set created_at = now(), landlord_since = null, extra_trial_days = 0 where id in ($1, $2, $3)`, [L, L2, T]);
   const day = (n) => new Date(Date.now() + n * 864e5);
-  const today = (d) => d.toISOString().slice(0, 10);
+  const today = (d) => d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Istanbul' });   // işlev İstanbul gününü sayar (UTC 21:00 sonrası gün değişir)
   const run = async (d) => (await q(`select public.trial_reminders($1::date) n`, [today(d)]))[0].n;
   // L'nin denemesi 30 gün sonra biter; 27. günde (3 gün kala) ilk hatırlatma.
   await db.query(`update public.profiles set extra_trial_days = 0 where id = $1`, [L]);
@@ -118,7 +118,7 @@ test('deneme hatırlatması: abonelik, @anahtar.io ve kartlı deneme hariç; iş
   await sub(L, 'tek_1_aylik');                                     // abonelik var → hatırlatma yok
   await sub(T, 'tek_1_aylik');
   await db.query(`update auth.users set email = 'ekip@anahtar.io' where id = $1`, [L2]);   // iç hesap
-  const d = new Date(Date.now() + 27 * 864e5).toISOString().slice(0, 10);
+  const d = new Date(Date.now() + 27 * 864e5).toLocaleDateString('sv-SE', { timeZone: 'Europe/Istanbul' });
   expect((await q(`select public.trial_reminders($1::date) n`, [d]))[0].n).toBe(0);
   await db.query(`update auth.users set email = 'ev2@ornek.com' where id = $1`, [L2]);
   expect((await q(`select public.trial_reminders($1::date) n`, [d]))[0].n).toBe(1);   // yalnız L2

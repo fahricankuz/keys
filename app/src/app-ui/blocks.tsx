@@ -36,7 +36,7 @@ export function Card({ children, onPress, style, gap = 10 }: { children?: ReactN
   const c = useColors();
   const admin = useContext(AdminUI);
   // Yönetici panelinde kartlar gösterge kutularıyla aynı köşe ve boşlukta (tek tasarım dili).
-  const base: ViewStyle = { backgroundColor: c.surface, borderRadius: admin ? 22 : radius.lg, padding: admin ? 18 : 20, borderWidth: 1, borderColor: c.line, gap };
+  const base: ViewStyle = { backgroundColor: c.surface, borderRadius: admin ? 24 : radius.lg, padding: admin ? 20 : 20, borderWidth: 1, borderColor: c.line, gap };
   if (onPress) return <PressScale onPress={onPress} accessibilityRole="button" scaleTo={0.985} style={[base, style]}>{children}</PressScale>;
   return <View style={[base, style]}>{children}</View>;
 }
@@ -44,6 +44,7 @@ export function Card({ children, onPress, style, gap = 10 }: { children?: ReactN
 /** Koyu vurgu kartı (kira kartı, tahsilat özeti). */
 export function Hero({ children, style, gap = 12 }: { children?: ReactNode; style?: StyleProp<ViewStyle>; gap?: number }) {
   const c = useColors();
+  const admin = useContext(AdminUI);
   return (
     <View style={[{ backgroundColor: c.deepA, borderRadius: radius.xl, padding: HERO_PAD, gap, overflow: 'hidden' }, style]}>
       {/* Desen kenar boşluksuz katmanda: telefonda %100 boyut kartın iç alanına göre ölçülüyordu (ui/layers.js). */}
@@ -55,6 +56,8 @@ export function Hero({ children, style, gap = 12 }: { children?: ReactNode; styl
           <Path d="M250 -10 C 300 60, 230 120, 330 190" stroke="#fff" strokeOpacity={0.1} strokeWidth={1.5} fill="none" />
         </Svg>
       </View>
+      {/* Yönetici panelinde sağ üstte kiremit ışıltısı (marka kiti). */}
+      {admin && Platform.OS === 'web' ? <View pointerEvents="none" style={{ position: 'absolute', right: -70, top: -90, width: 340, height: 340, borderRadius: 170, backgroundImage: 'radial-gradient(circle, rgba(216,64,61,0.30), rgba(216,64,61,0) 65%)' } as any} /> : null}
       <Grain />
       {children}
     </View>
