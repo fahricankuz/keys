@@ -255,7 +255,7 @@ export function PageHead({ label, title, sub, right }: { label?: string; title: 
         <RNText role="heading" aria-level={1} style={{ fontFamily: fonts.siteBold, fontSize: phone ? 32 : 40, lineHeight: phone ? 36 : 44, letterSpacing: phone ? -0.8 : -1.3, color: c.ink }}>{title}</RNText>
         {sub ? <Text v="small" muted style={{ fontSize: phone ? 13.5 : 14.5, lineHeight: phone ? 19 : 21 }}>{sub}</Text> : null}
       </View>
-      {right || bell ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>{right}{bell}</View> : null}
+      {right || bell ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', maxWidth: '100%', minWidth: 0 }}>{right}{bell}</View> : null}
     </View>
   );
 }
@@ -279,25 +279,33 @@ function toneOf(c: ReturnType<typeof useColors>, tone: Tone): [string, string] {
   }
 }
 
+/** Değişim rozeti: "+12%" yeşil ▲, "−5%" kırmızı ▼; koyu zeminde (hero) koyu tema renkleri. */
+export function TrendChip({ trend, onDark, invert }: { trend: string; onDark?: boolean; invert?: boolean }) {
+  const c = useColors();
+  // invert: düşüş iyi (ör. enflasyon) — ok yönü aynı kalır, renk ters döner.
+  const rise = trend.startsWith('+'), fall = trend.startsWith('−');
+  const up = invert ? fall : rise, down = invert ? rise : fall;
+  const dark = onDark || c.bg !== '#FAF5F0';
+  const upBg = dark ? 'rgba(127,196,149,0.15)' : c.okBg, upFg = dark ? '#7FC495' : c.okInk;
+  const dnBg = dark ? 'rgba(242,140,134,0.15)' : c.badBg, dnFg = dark ? '#F28C86' : c.badInk;
+  return (
+    <View style={{ alignSelf: 'flex-start', backgroundColor: up ? upBg : down ? dnBg : onDark ? 'rgba(250,245,240,0.10)' : c.surface2, borderRadius: radius.pill, paddingHorizontal: 9, paddingVertical: 3 }}>
+      <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 12, color: up ? upFg : down ? dnFg : onDark ? c.heroMuted : c.muted }}>{rise ? '▲ ' + trend.slice(1) : fall ? '▼ ' + trend.slice(1) : trend}</RNText>
+    </View>
+  );
+}
+
 /** Gösterge kutusu: renkli simge, sağ üstte değişim rozeti, büyük değer, etiket ve alt bilgi. */
 export function Kpi({ icon, tone = 'sky', label, value, sub, trend }: { icon: string; tone?: Tone; label: string; value: string; sub?: string; trend?: string }) {
   const c = useColors();
   const { phone } = useBreakpoint();
   const [bg, fg] = toneOf(c, tone);
-  const up = trend && trend.startsWith('+'), down = trend && trend.startsWith('−');
-  const dark = c.bg !== '#FAF5F0';
-  const upBg = dark ? 'rgba(127,196,149,0.15)' : c.okBg, upFg = dark ? '#7FC495' : c.okInk;
-  const dnBg = dark ? 'rgba(242,140,134,0.15)' : c.badBg, dnFg = dark ? '#F28C86' : c.badInk;
   return (
     // Telefonda iki sütun: kutular yan yana, sayfa kısa kalır.
     <View style={{ flexGrow: 1, flexBasis: phone ? '46%' : 200, minWidth: 0, backgroundColor: c.surface, borderRadius: phone ? 20 : 24, borderWidth: 1, borderColor: c.line, padding: phone ? 14 : 20, gap: phone ? 10 : 14 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ width: phone ? 34 : 42, height: phone ? 34 : 42, borderRadius: phone ? 11 : 13, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}><Icon name={icon} size={phone ? 16 : 19} color={fg} /></View>
-        {trend ? (
-          <View style={{ backgroundColor: up ? upBg : down ? dnBg : c.surface2, borderRadius: radius.pill, paddingHorizontal: 9, paddingVertical: 3 }}>
-            <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 12, color: up ? upFg : down ? dnFg : c.muted }}>{up ? '▲ ' + trend.slice(1) : down ? '▼ ' + trend.slice(1) : trend}</RNText>
-          </View>
-        ) : null}
+        {trend ? <TrendChip trend={trend} /> : null}
       </View>
       <View style={{ gap: 2 }}>
         <RNText numberOfLines={1} style={{ fontFamily: fonts.siteBold, fontSize: phone ? 24 : 32, lineHeight: phone ? 28 : 36, letterSpacing: -0.9, color: c.ink }}>{value}</RNText>

@@ -36,6 +36,7 @@ export const I = {
   dots:     svg('<circle cx="5" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="19" cy="12" r="1.4" fill="currentColor"/>'),
   chev:     svg('<path d="M9 5l7 7-7 7"/>'),
   mega:     svg('<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12"/>'),
+  pen:      svg('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
   flag:     svg('<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>'),
   calendar: svg('<rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/><rect fill="{RING}" stroke="none" x="14" y="13.5" width="3.5" height="3.5" rx="1"/>'),
   key:      svg('<circle cx="8" cy="8" r="4.5"/><path d="M11.2 11.2 20 20M16.5 16.5l2-2M14 14l2-2"/><circle fill="{RING}" stroke="none" cx="8" cy="8" r="1.8"/>'),

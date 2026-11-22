@@ -10,7 +10,8 @@ import { OPEN_STAGES, SOURCES, STAGES, addLeadNote, deleteLead, followUp, loadLe
 import { planLabel } from '../domain/plans';
 import { SECTORS } from '../domain/org';
 import { waLink } from '../domain/wa';
-import { fmtFull, parse, tl } from '../domain/util';
+import { fmtFull, parse } from '../domain/util';
+import { useMoney } from './admin-money';
 import { Button, Chip, Field, PressScale, Text } from '../ui/kit';
 import { Loader } from '../ui/Loader';
 import { fonts, useBreakpoint, useColors } from '../ui/theme';
@@ -22,6 +23,7 @@ const day = (v?: string) => (v ? fmtFull(parse(String(v).slice(0, 10))) : '');
 const blank = (o: any = {}) => ({ name: '', phone: '', email: '', company: '', sector: '', plan: 'bes', units: '1', yearly: false, monthly_value: '', stage: 'yeni', source: 'diger', next_at: '', lost_reason: '', note: '', ...o });
 
 function LeadCard({ l, onOpen, onMove }: { l: any; onOpen: () => void; onMove: (dir: -1 | 1) => void }) {
+  const { money: tl } = useMoney();
   const c = useColors();
   const p = potential(l);
   const fu = followUp(l);
@@ -46,6 +48,7 @@ function LeadCard({ l, onOpen, onMove }: { l: any; onOpen: () => void; onMove: (
 }
 
 function LeadForm({ init, notes, onDone, onClose }: { init: any; notes: any[]; onDone: () => void; onClose: () => void }) {
+  const { money: tl } = useMoney();
   const c = useColors();
   const [f, setF] = useState<any>({ ...init, units: String(init.units ?? 1), monthly_value: init.monthly_value == null ? '' : String(init.monthly_value), next_at: init.next_at || '' });
   const [note, setNote] = useState('');
@@ -116,6 +119,7 @@ function LeadForm({ init, notes, onDone, onClose }: { init: any; notes: any[]; o
 
 /** CRM sayfası. seed: Talepler'den aktarılan kişi (form dolu açılır). */
 export function Crm({ seed, clearSeed }: { seed?: any; clearSeed?: () => void }) {
+  const { money: tl } = useMoney();
   const c = useColors();
   const { phone } = useBreakpoint();
   const [d, setD] = useState<any>(null);
