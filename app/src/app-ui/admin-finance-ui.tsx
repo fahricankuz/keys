@@ -66,24 +66,36 @@ const INCOME_LABEL = (k: string) => ({ uyelik: t('Üyelik ücreti'), komisyon: t
 export function FinanceCard({ f, prev, period }: { f: any; prev: any; period: Period }) {
   const c = useColors();
   const { phone } = useBreakpoint();
+  const dark = c.bg !== '#FAF5F0';
+  // Üç değer renkli kutularda; net kutusu marka tonunda.
   const big = (label: string, v: number, p: number, tone?: 'net') => (
-    <View style={{ flexGrow: 1, flexBasis: phone ? '100%' : 200, gap: 2 }}>
+    <View style={{ flexGrow: 1, flexBasis: phone ? '100%' : 150, minWidth: 0, gap: 2, borderRadius: 18, padding: 14, backgroundColor: tone === 'net' ? c.accentSoft : dark ? 'rgba(250,245,240,0.05)' : c.surface2 }}>
       <Muted>{label}</Muted>
-      <RNText style={{ fontFamily: fonts.siteBold, fontSize: phone ? 26 : 32, letterSpacing: -0.8, color: tone === 'net' && v < 0 ? c.badInk : c.ink, fontVariant: ['tabular-nums'] }}>{tl(v)}</RNText>
+      <RNText numberOfLines={1} style={{ fontFamily: fonts.siteBold, fontSize: phone ? 26 : 30, letterSpacing: -0.8, color: tone === 'net' && v < 0 ? c.badInk : c.ink, fontVariant: ['tabular-nums'] }}>{tl(v)}</RNText>
       <Muted>{[delta(v, p), prevLabel(period) + ': ' + tl(p)].filter(Boolean).join(' · ')}</Muted>
     </View>
   );
-  const part = (label: string, v: number, total: number, i: number) => (
-    <View key={label} style={{ gap: 3, paddingTop: i ? 8 : 0 }}>
-      <Row between><Text v="small" style={{ fontFamily: fonts.bodyBold }}>{label}</Text><Text v="small" style={{ fontFamily: fonts.bodyXBold, fontVariant: ['tabular-nums'] }}>{tl(v)}</Text></Row>
-      <View style={{ height: 6, borderRadius: 3, backgroundColor: c.line }}><View style={{ width: `${total ? Math.round((v / total) * 100) : 0}%`, height: 6, borderRadius: 3, backgroundColor: c.accent }} /></View>
-    </View>
-  );
+  const DOTS = [c.accent, '#F2B544', c.muted, dark ? '#F28C86' : '#A8231F'];
+  const part = (label: string, v: number, total: number, i: number) => {
+    const share = total ? Math.round((v / total) * 100) : 0;
+    const col = DOTS[i % DOTS.length];
+    return (
+      <View key={label} style={{ gap: 5, paddingTop: i ? 10 : 2 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: col }} />
+          <Text v="small" style={{ flex: 1, fontFamily: fonts.bodyBold }}>{label}</Text>
+          <Text v="small" style={{ fontFamily: fonts.bodyXBold, fontVariant: ['tabular-nums'] }}>{tl(v)}</Text>
+          <Text v="small" muted style={{ width: 40, textAlign: 'right', fontVariant: ['tabular-nums'] }}>{'%' + share}</Text>
+        </View>
+        <View style={{ height: 6, borderRadius: 3, backgroundColor: c.line }}><View style={{ width: `${share}%`, height: 6, borderRadius: 3, backgroundColor: col }} /></View>
+      </View>
+    );
+  };
   const up = f.incomeParts.find((x: any) => x.key === 'uyelik');
   return (
-    <Card gap={14} style={{ borderWidth: 2, borderColor: c.ink }}>
+    <Card gap={16} style={{ flexGrow: 1 }}>
       <H2>{t('Gelir, gider ve net')}</H2>
-      <Row wrap>
+      <Row wrap gap={10}>
         {big(t('Gelir'), f.income, prev.income)}
         {big(t('Gider'), f.expense, prev.expense)}
         {big(t('Net (gelir − gider)'), f.net, prev.net, 'net')}

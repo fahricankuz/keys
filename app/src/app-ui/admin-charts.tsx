@@ -65,7 +65,7 @@ export function MonthChart({ title, rows, labels, fmt, axisFmt, summary, net = t
   const cur = sel != null ? rows[sel] : null;
   const legend: [string, string, 'bar' | 'line'][] = [[col.up, labels.up, 'bar'], ...(hasDown && labels.down ? [[col.down, labels.down, 'bar'] as [string, string, 'bar']] : []), ...(showNet ? [[c.ink, labels.netLong || labels.net || t('Net'), 'line'] as [string, string, 'line']] : [])];
   return (
-    <Card gap={10}>
+    <Card gap={10} style={{ flexGrow: 1 }}>
       <Row between wrap>
         <H2>{title}</H2>
         <Seg value={view} onChange={(v: any) => setView(v)} options={[['chart', t('Grafik')], ['table', t('Tablo')]]} />

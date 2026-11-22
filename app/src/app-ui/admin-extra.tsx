@@ -14,7 +14,7 @@ import { Button, Chip, Field, Text } from '../ui/kit';
 import { Loader } from '../ui/Loader';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 import { Card, Empty, H2, Hero, Label, Muted, Row, Seg, Stack } from './blocks';
-import { GroupTitle, Kpi, KpiGrid, PageHead } from './admin-ui';
+import { GroupTitle, Kpi, KpiGrid, PageHead, TrendChip } from './admin-ui';
 
 const day = (v: any) => (v ? new Date(v).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 const pct = (a: number, b: number) => (b ? percent((a / b) * 100, 0) : '—');
@@ -121,39 +121,50 @@ export function Overview({ ops, go }: { ops?: { pending?: number; banned?: numbe
   const c = useColors();
   const [period, setPeriod] = usePeriod();
   const { data, err, table } = useAdminFinance();
+  const { width, phone } = useBreakpoint();
+  const side = width >= 1280;   // geniş ekranda gelir–gider kutusu ile yıl grafiği yan yana
   const head = <PageHead label={t('Yönetici')} title={t('Genel bakış')} sub={t('Kısa özet; ayrıntılar Büyüme, Gelir ve Gider sayfalarında.')} right={<PeriodSeg value={period} onChange={setPeriod} />} />;
   if (err) return <Stack>{head}<Text v="small" color={c.badInk}>{err}</Text></Stack>;
   if (!data) return <Stack>{head}<Spin /></Stack>;
   const k = data.k, o = k.owners;
   const { cur, prev, vol, volPrev } = periodFinance(data, table, period);
-  const big = (label: string, value: number, before: number, sub: string) => (
-    <View style={{ flexGrow: 1, flexBasis: 260, gap: 4 }}>
-      <Label onDark>{label}</Label>
-      <Text v="num" color={c.heroInk} style={{ fontSize: 40, lineHeight: 46, fontVariant: ['tabular-nums'] }}>{tl(value)}</Text>
-      <Muted onDark>{[delta(value, before), prevLabel(period) + ': ' + tl(before), sub].filter(Boolean).join(' · ')}</Muted>
-    </View>
-  );
+  const big = (label: string, value: number, before: number, sub: string) => {
+    const d = delta(value, before);
+    return (
+      <View style={{ flexGrow: 1, flexBasis: 260, gap: 6 }}>
+        <Label onDark>{label}</Label>
+        <Text v="num" color={c.heroInk} style={{ fontSize: phone ? 34 : 44, lineHeight: phone ? 40 : 50, fontVariant: ['tabular-nums'] }}>{tl(value)}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          {d ? <TrendChip trend={d} onDark /> : null}
+          <Muted onDark>{[prevLabel(period) + ': ' + tl(before), sub].filter(Boolean).join(' · ')}</Muted>
+        </View>
+      </View>
+    );
+  };
   return (
     <Stack gap={16}>
       {head}
-      <Hero gap={14}>
+      <Hero gap={18}>
         <Row gap={22} wrap align="flex-end">
           {big(period === 'year' ? t('Bu yıl onaylı kira hacmi') : t('Bu ay onaylı kira hacmi'), vol.rent, volPrev.rent, vol.orgRent ? t('kurumlar {v}', { v: tl(vol.orgRent) }) : '')}
           {big(period === 'year' ? t('Bu yıl onaylı aidat hacmi') : t('Bu ay onaylı aidat hacmi'), vol.aidat, volPrev.aidat, vol.siteAidat ? t('siteler {v}', { v: tl(vol.siteAidat) }) : '')}
         </Row>
+        <View style={{ height: 1, backgroundColor: 'rgba(250,245,240,0.12)' }} />
         <Row gap={22} wrap>
           {[[t('Üye'), String(k.users.total)], [t('Ödeyen'), String(o.paying)], [t('Aylık gelir (tahmini)'), tl(data.mrr.mrr)], [t('Yönetilen mülk'), String(k.units.total + Number(k.orgs?.units || 0))]].map(([a, b]) => (
-            <View key={a} style={{ gap: 2 }}><Muted onDark>{a}</Muted><Text v="h3" color={c.heroInk} style={{ fontFamily: fonts.siteBold }}>{b}</Text></View>
+            <View key={a} style={{ gap: 2, flexGrow: 1, flexBasis: phone ? '40%' : 140 }}><Muted onDark>{a}</Muted><Text v="h3" color={c.heroInk} style={{ fontFamily: fonts.siteBold }}>{b}</Text></View>
           ))}
         </Row>
       </Hero>
-      <FinanceCard f={cur} prev={prev} period={period} />
       <KpiGrid>
         <Kpi icon="plus" tone="butter" label={period === 'year' ? t('Yeni kayıt (bu yıl)') : t('Yeni kayıt (bu ay)')} value={String(vol.signups)} trend={delta(vol.signups, volPrev.signups) || undefined} sub={t('Dönüşüm: {p}', { p: pct(o.paying, o.total) })} />
-        <Kpi icon="card" tone="sage" label={t('Kartla ödenen (dönem)')} value={tl(vol.card)} sub={t('İşlem ücreti gelire, sanal POS payı gidere')} />
+        <Kpi icon="card" tone="sage" label={t('Kartla ödenen (dönem)')} value={tl(vol.card)} trend={delta(vol.card, volPrev.card) || undefined} sub={t('İşlem ücreti gelire, sanal POS payı gidere')} />
         <Kpi icon="chat" tone="sky" label={t('Açık destek talebi')} value={String(k.supportOpen)} sub={t('Askıdaki hesap: {n}', { n: ops?.banned ?? 0 })} />
       </KpiGrid>
-      <YearChart data={data} table={table} />
+      <View style={{ flexDirection: side ? 'row' : 'column', gap: 16, alignItems: side ? 'stretch' : undefined }}>
+        <View style={side ? { flex: 1, minWidth: 0 } : undefined}><FinanceCard f={cur} prev={prev} period={period} /></View>
+        <View style={side ? { flex: 1, minWidth: 0 } : undefined}><YearChart data={data} table={table} /></View>
+      </View>
       <SignupChart data={data} />
       {go ? (
         <Row wrap>
