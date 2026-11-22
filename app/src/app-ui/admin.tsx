@@ -19,7 +19,10 @@ import { Card, Empty, H2, Muted, Row, Seg, Stack, initials } from './blocks';
 import { CpiRates, Growth, Overview, Revenue, SubActions, Support } from './admin-extra';
 import { Costs } from './admin-costs';
 import { Crm, leadFromRequest } from './admin-crm';
-import { AdminShell, PageHead } from './admin-ui';
+import { AdminShell, Kpi, KpiGrid, PageHead } from './admin-ui';
+import { useMoney } from './admin-money';
+import { StatusPill } from './admin-table';
+import { AdminMoneyProvider, CurrencyNote, CurrencyPick } from './admin-money';
 import { MailComposer } from './admin-mail';
 import { OrgDraft, Orgs, sectorFromRole } from './admin-orgs';
 import { AddProperty } from './admin-property';
@@ -89,7 +92,7 @@ export default function AdminPanel() {
   const cur = SECTIONS.find((x) => x[0] === tab) || SECTIONS[0];
   const items = SECTIONS.map(([key, label, icon, , group]) => ({ key, label, icon, group, badge: key === 'legal' ? legalOpen : key === 'reports' ? reportsOpen : undefined }));
   return (
-    <>
+    <AdminMoneyProvider>
     <AdminShell items={items} active={tab} onPick={setTab} email={user?.email} onReload={load} busy={busy}
       alerts={legalOpen + reportsOpen} onAlerts={() => setTab(reportsOpen || !legalOpen ? 'reports' : 'legal')}
       onSignOut={async () => { await signOut(); router.replace('/giris/yonetici'); }}>
@@ -98,7 +101,8 @@ export default function AdminPanel() {
       {data ? (
         tab === 'kpi' ? <Overview ops={{ pending: data.stats.pending, banned: data.stats.banned }} go={setTab} /> : (
           <Stack>
-            <PageHead label={t('Yönetici')} title={cur[1]} sub={cur[3]} />
+            <PageHead label={t('Yönetici')} title={cur[1]} sub={cur[3]} right={MONEY_TABS.includes(tab) ? <CurrencyPick /> : undefined} />
+            {MONEY_TABS.includes(tab) ? <CurrencyNote /> : null}
             {tab === 'growth' && <Growth onCrm={(s: any) => { setCrmSeed({ name: s.name || s.email || '', email: s.email || '', plan: s.plan === 'tek' ? 'tek' : 'bes', note: t('Ayrılma riski: yenileme kapalı ya da ödeme sorunu (Büyüme sayfasından).'), user_id: s.id }); setTab('crm'); }} />}
             {tab === 'revenue' && <Revenue />}
             {tab === 'costs' && <Costs />}
@@ -123,9 +127,12 @@ export default function AdminPanel() {
       ) : null}
     </AdminShell>
     <OpenSplash />
-    </>
+    </AdminMoneyProvider>
   );
 }
+
+/** Para birimi seçicisi (₺ / $ / €) olan sayfalar: tutar gösterenler. */
+const MONEY_TABS = ['growth', 'revenue', 'costs', 'crm', 'pay'];
 
 /** Uzun listeler 100'er kayıt çizilir; "Daha fazla göster" sonrakileri ekler (binlerce kart ekranı yavaşlatmasın). */
 function Shown<T>({ list, render, step = 100 }: { list: T[]; render: (x: T) => ReactNode; step?: number }) {
@@ -167,20 +174,36 @@ function HealthCard({ x, onNote }: { x: any; onNote: (n: any) => void }) {
     setBusy(false);
   };
   const notes = x.notes || [];
+  const { desktop } = useBreakpoint();
+  const btn = { minHeight: 34, paddingHorizontal: 12 };
+  const actions = (
+    <Row gap={6} wrap style={desktop ? { justifyContent: 'flex-end' } : undefined}>
+      {x.phone ? <Button kind="ghost" title={t('Ara')} onPress={() => Linking.openURL('tel:' + String(x.phone).replace(/\s/g, '')).catch(() => {})} style={btn} /> : null}
+      {x.phone ? <Button kind="ghost" title={t('WhatsApp')} onPress={() => Linking.openURL(waLink(x.phone, t('Merhaba {name}, anahtar’dan yazıyorum.', { name: first }))).catch(() => {})} style={btn} /> : null}
+      {x.email ? <Button kind="ghost" title={t('E-posta')} onPress={() => setOpen(open === 'mail' ? '' : 'mail')} style={btn} /> : null}
+      <Button kind={open === 'note' ? 'dark' : 'ghost'} title={t('Not ekle')} onPress={() => setOpen(open === 'note' ? '' : 'note')} style={btn} />
+    </Row>
+  );
+  const sevPill = <StatusPill tone={x.sev === 3 ? 'bad' : x.sev === 2 ? 'wait' : 'neu'} label={t(sl)} />;
+  const who = (
+    <View style={{ gap: 2, minWidth: 0 }}>
+      <Row gap={6} wrap><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{x.name || '—'}</Text>{x.kind === 'org' ? <Tag label={sectorOf(x.sector).label} /> : null}{desktop ? null : sevPill}</Row>
+      <Muted>{[x.email, x.phone].filter(Boolean).join(' · ') || t('İletişim bilgisi yok')}</Muted>
+    </View>
+  );
+  const why = <View style={{ gap: 2 }}>{x.reasons.map((r: any) => <Text key={r.code} v="small" color={r.sev === 3 ? c.badInk : c.ink}>• {r.label}</Text>)}</View>;
+  const last = <Muted>{notes.length ? t('Son temas {d}: {note}', { d: day(notes[0].created_at), note: notes[0].note }) : t('Henüz temas kaydı yok.')}</Muted>;
   return (
-    <Card gap={8}>
-      <View style={{ gap: 2 }}>
-        <Row gap={6} wrap><Text v="body" style={{ fontFamily: fonts.bodyXBold }}>{x.name || '—'}</Text><Tag label={t(sl)} tone={tone} />{x.kind === 'org' ? <Tag label={sectorOf(x.sector).label} /> : null}</Row>
-        <Muted>{[x.email, x.phone].filter(Boolean).join(' · ') || t('İletişim bilgisi yok')}</Muted>
-      </View>
-      <View style={{ gap: 2 }}>{x.reasons.map((r: any) => <Text key={r.code} v="small" color={r.sev === 3 ? c.badInk : c.ink}>• {r.label}</Text>)}</View>
-      <Muted>{notes.length ? t('Son temas {d}: {note}', { d: day(notes[0].created_at), note: notes[0].note }) : t('Henüz temas kaydı yok.')}</Muted>
-      <Row gap={6} wrap>
-        {x.phone ? <Button kind="ghost" title={t('Ara')} onPress={() => Linking.openURL('tel:' + String(x.phone).replace(/\s/g, '')).catch(() => {})} style={{ minHeight: 38, paddingHorizontal: 12 }} /> : null}
-        {x.phone ? <Button kind="ghost" title={t('WhatsApp')} onPress={() => Linking.openURL(waLink(x.phone, t('Merhaba {name}, anahtar’dan yazıyorum.', { name: first }))).catch(() => {})} style={{ minHeight: 38, paddingHorizontal: 12 }} /> : null}
-        {x.email ? <Button kind="ghost" title={t('E-posta')} onPress={() => setOpen(open === 'mail' ? '' : 'mail')} style={{ minHeight: 38, paddingHorizontal: 12 }} /> : null}
-        <Button kind={open === 'note' ? 'dark' : 'ghost'} title={t('Not ekle')} onPress={() => setOpen(open === 'note' ? '' : 'note')} style={{ minHeight: 38, paddingHorizontal: 12 }} />
-      </Row>
+    <View style={{ gap: 8, paddingVertical: 12, paddingHorizontal: desktop ? 14 : 4, borderTopWidth: 1, borderTopColor: c.line }}>
+      {desktop ? (
+        <Row gap={12} align="flex-start">
+          <View style={{ width: 92 }}>{sevPill}</View>
+          <View style={{ flex: 1.3, minWidth: 0 }}>{who}</View>
+          <View style={{ flex: 1.6, minWidth: 0 }}>{why}</View>
+          <View style={{ flex: 1.3, minWidth: 0 }}>{last}</View>
+          <View style={{ flex: 1.5, minWidth: 0 }}>{actions}</View>
+        </Row>
+      ) : (<>{who}{why}{last}{actions}</>)}
       {open === 'mail' ? <MailComposer target={{ to: x.email, name: x.name, ...target }} onSent={() => onNote({ ...target, id: 'e-' + Date.now(), note: t('E-posta gönderildi'), created_at: new Date().toISOString() })} onClose={() => setOpen('')} /> : null}
       {open === 'note' ? (
         <Row gap={8} wrap align="flex-end">
@@ -195,7 +218,7 @@ function HealthCard({ x, onNote }: { x: any; onNote: (n: any) => void }) {
           ? <View style={{ gap: 2 }}>{notes.map((n: any, i: number) => <Muted key={n.id || i}>{day(n.created_at)}: {n.note}</Muted>)}<Button kind="quiet" title={t('Kapat')} onPress={() => setOpen('')} style={{ alignSelf: 'flex-start', minHeight: 34 }} /></View>
           : <Button kind="quiet" title={t('Tüm notlar ({n})', { n: notes.length })} onPress={() => setOpen('all')} style={{ alignSelf: 'flex-start', minHeight: 34 }} />
       ) : null}
-    </Card>
+    </View>
   );
 }
 
@@ -223,9 +246,14 @@ function Health({ d }: { d: Data }) {
   const n = (k: string) => list.filter((x: any) => k === 'all' || (k === 'org' ? x.kind === 'org' : x.reasons.some((r: any) => r.code === k))).length;
   const shown = list.filter(match);
   const opts: [string, string][] = [['all', t('Hepsi')], ['trial', t('Deneme bitiyor')], ['billing', t('Ödeme sorunu')], ['noprop', t('Mülk eklemedi')], ['invite', t('Davet bekliyor')], ['nopay', t('Ödeme yok')], ['org', t('Kurumlar')]];
-  const cols = [3, 2, 1].map((sev) => ({ sev, items: shown.filter((x: any) => x.sev === sev) }));
+  const bySev = (sev: number) => list.filter((x: any) => x.sev === sev).length;
   return (
     <Stack>
+      <KpiGrid>
+        <Kpi icon="flag" tone="peach" label={t('Acil')} value={String(bySev(3))} sub={t('Önce bunlarla ilgilen')} />
+        <Kpi icon="bell" tone="butter" label={t('Önemli')} value={String(bySev(2))} sub={t('Bu hafta içinde')} />
+        <Kpi icon="search" tone="ink" label={t('İzle')} value={String(bySev(1))} sub={t('Haftalık kontrol')} />
+      </KpiGrid>
       <Row between wrap>
         <Seg scroll value={f} onChange={setF} options={opts.filter(([k]) => k === 'all' || n(k)).map(([k, l]) => [k, l + ' ' + n(k)] as [string, string])} />
         <Row gap={8} wrap align="flex-end" style={{ flexGrow: 1, justifyContent: 'flex-end' }}>
@@ -234,14 +262,16 @@ function Health({ d }: { d: Data }) {
         </Row>
       </Row>
       {shown.length ? (
-        <View style={{ flexDirection: desktop ? 'row' : 'column', gap: 14, alignItems: 'flex-start' }}>
-          {cols.map(({ sev, items }) => (
-            <View key={sev} style={{ flex: 1, width: desktop ? undefined : '100%', gap: 10 }}>
-              <Row gap={8}><Tag label={t((SEV[sev] || SEV[1])[0])} tone={(SEV[sev] || SEV[1])[1]} /><Muted>{t('{n} müşteri', { n: items.length })}</Muted></Row>
-              {items.length ? items.slice(0, 60).map((x: any) => <HealthCard key={x.kind + x.id} x={x} onNote={addNote} />) : <Empty>{t('Bu sütunda müşteri yok.')}</Empty>}
-            </View>
-          ))}
-        </View>
+        <Card gap={0} style={{ padding: desktop ? 8 : 12 }}>
+          {desktop ? (
+            <Row gap={12} style={{ paddingVertical: 11, paddingHorizontal: 14, borderRadius: 14, backgroundColor: c.surface2 }}>
+              {[[t('Öncelik'), 92], [t('Müşteri'), 1.3], [t('Neden'), 1.6], [t('Son temas'), 1.3], ['', 1.5]].map(([l, w]: any) => (
+                <Text key={l || 'x'} v="small" style={[{ fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 0.6, textTransform: 'uppercase', color: c.muted }, w > 10 ? { width: w } : { flex: w }]}>{l}</Text>
+              ))}
+            </Row>
+          ) : null}
+          <Shown list={[...shown].sort((a: any, b: any) => b.sev - a.sev)} step={50} render={(x: any) => <HealthCard key={x.kind + x.id} x={x} onNote={addNote} />} />
+        </Card>
       ) : <Empty>{t('Şu an risk görünen müşteri yok.')}</Empty>}
     </Stack>
   );
@@ -251,34 +281,78 @@ function Health({ d }: { d: Data }) {
 
 function Payments({ d, onOlder, busy }: { d: Data; onOlder: () => void; busy: boolean }) {
   const c = useColors();
+  const { desktop } = useBreakpoint();
+  const { money } = useMoney();
   const [q, setQ] = useState('');
   const [st, setSt] = useState('all');
   const list = useMemo(() => d.payments.filter((p: any) => (st === 'all' || p.status === st) &&
     (!q.trim() || [p.propName, p.landlord, ...p.tenants, p.month].join(' ').toLocaleLowerCase('tr').includes(q.trim().toLocaleLowerCase('tr')))), [d, q, st]);
   const total = list.filter((p: any) => p.status === 'approved').reduce((n: number, p: any) => n + (Number(p.amount) || 0), 0);
+  // Özet: tüm kayıtlar üzerinden (süzgeçten bağımsız) durum sayıları ve tutarları.
+  const by = (k: string) => d.payments.filter((p: any) => p.status === k);
+  const sumOf = (xs: any[]) => xs.reduce((n: number, p: any) => n + (Number(p.amount) || 0), 0);
+  const tone = (k: string) => (k === 'approved' ? 'ok' : k === 'rejected' ? 'bad' : k === 'review' || k === 'partial' ? 'wait' : 'neu') as any;
+  const H = (l: string, w: any) => <Text key={l || 'x'} v="small" style={[{ fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 0.6, textTransform: 'uppercase', color: c.muted }, typeof w === 'number' && w > 10 ? { width: w, textAlign: 'right' } : { flex: w }]}>{l}</Text>;
   return (
     <Stack>
-      <Field label={t('Ara')} value={q} onChangeText={setQ} placeholder={t('Kiracı, mülk sahibi, mülk ya da ay')} />
-      <Seg scroll value={st} onChange={setSt} options={[['all', t('Hepsi')], ['review', t('Onay bekliyor')], ['approved', t('Onaylandı')], ['rejected', t('Reddedildi')], ['partial', t('Kısmi')]]} />
-      <Muted>{list.length} {t('kayıt')} · {t('Onaylı toplam')}: {tl(total)}</Muted>
-      {list.length ? <Shown list={list} render={(p: any) => {
-        const [pt, tone] = PAY[p.status] || ['—', 'neutral'];
-        return (
-          <Card key={p.property_id + p.month + (p.kind || '')} gap={6}>
-            <Row between wrap>
-              <H2>{p.tenants.join(', ') || t('Kiracı yok')} → {p.landlord}</H2>
-              <Text v="h3" style={{ fontFamily: fonts.siteBold }}>{tl(p.amount)}</Text>
+      <KpiGrid>
+        <Kpi icon="check" tone="sage" label={t('Onaylandı')} value={money(sumOf(by('approved')))} sub={t('{n} kayıt', { n: by('approved').length })} />
+        <Kpi icon="calendar" tone="butter" label={t('Onay bekliyor')} value={String(by('review').length)} sub={money(sumOf(by('review')))} />
+        <Kpi icon="x" tone="peach" label={t('Reddedildi')} value={String(by('rejected').length)} sub={money(sumOf(by('rejected')))} />
+        <Kpi icon="card" tone="sky" label={t('Kısmi')} value={String(by('partial').length)} sub={money(sumOf(by('partial')))} />
+      </KpiGrid>
+      <Row gap={10} wrap align="flex-end">
+        <View style={{ flexGrow: 1, flexBasis: 260, minWidth: 0 }}><Field label={t('Ara')} value={q} onChangeText={setQ} placeholder={t('Kiracı, mülk sahibi, mülk ya da ay')} /></View>
+        <Seg scroll value={st} onChange={setSt} options={[['all', t('Hepsi')], ['review', t('Onay bekliyor')], ['approved', t('Onaylandı')], ['rejected', t('Reddedildi')], ['partial', t('Kısmi')]]} />
+      </Row>
+      <Muted>{list.length} {t('kayıt')} · {t('Onaylı toplam')}: {money(total)}</Muted>
+      {list.length ? (
+        <Card gap={0} style={{ padding: desktop ? 8 : 12 }}>
+          {desktop ? (
+            <Row gap={12} style={{ paddingVertical: 11, paddingHorizontal: 14, borderRadius: 14, backgroundColor: c.surface2 }}>
+              {H(t('Kiracı → mülk sahibi'), 2)}{H(t('Mülk'), 1.2)}{H(t('Ay'), 1)}{H(t('Tür'), 0.8)}{H(t('Durum'), 1.3)}{H(t('Tutar'), 120)}
             </Row>
-            <Muted>{p.propName} · {monthLabel(p.month)}{p.paid_on ? ' · ' + t('Ödeme tarihi') + ' ' + day(p.paid_on) : ''}</Muted>
-            <Row wrap>
-              <Chip tone={tone} label={t(pt)} />
-              <Chip tone={p.kind === 'aidat' ? 'accent' : 'neutral'} label={p.kind === 'aidat' ? t('Aidat') : t('Kira')} />
-              {p.review ? <Chip tone={REV[p.review.status]?.[1] || 'warn'} label={t('Denetim') + ': ' + t(REV[p.review.status]?.[0] || '—')} /> : null}
-            </Row>
-            {p.reject_reason ? <Text v="small" color={c.badInk}>{p.reject_reason}</Text> : null}
-          </Card>
-        );
-      }} /> : <Empty>{t('Ödeme kaydı yok.')}</Empty>}
+          ) : null}
+          <Shown list={list} render={(p: any) => {
+            const [pt] = PAY[p.status] || ['—'];
+            const who = (
+              <View style={{ gap: 2, minWidth: 0 }}>
+                <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{p.tenants.join(', ') || t('Kiracı yok')}</Text>
+                <Muted>→ {p.landlord}</Muted>
+              </View>
+            );
+            const status = (
+              <View style={{ gap: 4 }}>
+                <StatusPill tone={tone(p.status)} label={t(pt)} />
+                {p.review ? <Muted>{t('Denetim') + ': ' + t(REV[p.review.status]?.[0] || '—')}</Muted> : null}
+              </View>
+            );
+            const amount = <Text v="small" style={{ fontFamily: fonts.bodyXBold, fontVariant: ['tabular-nums'] }}>{money(p.amount, p.paid_on || p.month)}</Text>;
+            const kind = <StatusPill tone="neu" label={p.kind === 'aidat' ? t('Aidat') : t('Kira')} />;
+            return (
+              <View key={p.property_id + p.month + (p.kind || '')} style={{ paddingVertical: 12, paddingHorizontal: desktop ? 14 : 4, gap: 6, borderTopWidth: 1, borderTopColor: c.line }}>
+                {desktop ? (
+                  <Row gap={12}>
+                    <View style={{ flex: 2, minWidth: 0 }}>{who}</View>
+                    <Text v="small" style={{ flex: 1.2 }}>{p.propName}</Text>
+                    <View style={{ flex: 1 }}><Text v="small">{monthLabel(p.month)}</Text>{p.paid_on ? <Muted>{t('Ödeme tarihi') + ' ' + day(p.paid_on)}</Muted> : null}</View>
+                    <View style={{ flex: 0.8 }}>{kind}</View>
+                    <View style={{ flex: 1.3 }}>{status}</View>
+                    <View style={{ width: 120, alignItems: 'flex-end' }}>{amount}</View>
+                  </Row>
+                ) : (
+                  <>
+                    <Row between align="flex-start">{who}{amount}</Row>
+                    <Muted>{p.propName} · {monthLabel(p.month)}{p.paid_on ? ' · ' + t('Ödeme tarihi') + ' ' + day(p.paid_on) : ''}</Muted>
+                    <Row gap={6} wrap>{kind}{status}</Row>
+                  </>
+                )}
+                {p.reject_reason ? <Text v="small" color={c.badInk}>{p.reject_reason}</Text> : null}
+              </View>
+            );
+          }} />
+        </Card>
+      ) : <Empty>{t('Ödeme kaydı yok.')}</Empty>}
       <Muted>{t('{from} ve sonrası gösteriliyor.', { from: monthLabel(d.paymentsFrom) })}</Muted>
       <Button kind="ghost" title={t('Daha eski ödemeleri yükle')} loading={busy} disabled={busy} onPress={onOlder} style={{ alignSelf: 'flex-start' }} />
     </Stack>

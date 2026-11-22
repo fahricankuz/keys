@@ -93,7 +93,9 @@ test('yönetici panelinde ödemeler; Hesaplar\'da kiracının mülkü ve mülk s
   await tenantUploads(page);
   await login(page, 'admin@ornek.com');
   await page.getByRole('button', { name: 'Ödemeler' }).click();
-  await expect(page.getByText('Mehmet Kiracı → Ayşe Mülk')).toBeVisible();
+  // Ödemeler tablosu: kiracı adı ve altında "→ mülk sahibi".
+  await expect(page.getByText('Mehmet Kiracı', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('→ Ayşe Mülk').first()).toBeVisible();
   await expect(page.getByText('₺30.000').first()).toBeVisible();
   await page.getByRole('button', { name: 'Hesaplar', exact: true }).click();
   await expect(page.getByText('kiraci@ornek.com')).toBeVisible();
