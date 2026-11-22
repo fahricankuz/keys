@@ -70,6 +70,7 @@ test('iOS: bildirim verisi yükün kökündeki body anahtarında (expo-notificat
   expect(apns.o.headers['apns-topic']).toBe('io.anahtar.app');
   const payload = JSON.parse(apns.o.body);
   expect(payload.aps.alert).toEqual({ title: 'Yeni talep', body: 'Musluk bozuk' });
+  expect(payload.aps.sound).toBe('talep.wav');   // türün anahtar sesi (app/assets/sounds)
   expect(payload.body).toEqual({ url: '/uygulama/mulk?pid=p1&sub=odeme' });
   expect(payload.url).toBe('/uygulama/mulk?pid=p1&sub=odeme');
 });
@@ -95,7 +96,7 @@ test('Android: FCM verisi data.url olarak sürer; token alma ve gönderme istekl
   expect(fcm.o.signal).toBeInstanceOf(AbortSignal);
   const msg = JSON.parse(fcm.o.body).message;
   expect(msg.data).toEqual({ url: '/uygulama/talepler' });
-  expect(msg.android.notification.channel_id).toBe('evim');
+  expect(msg.android.notification.channel_id).toBe('talep');   // bildirim türünün kanalı (kind.ts): req- etiketi → talep
   expect(msg.token).toBe('fcm-token');
 });
 

@@ -1872,6 +1872,8 @@ export const EN_EXTRA = {
   'Bildirimler ({n})': 'Notifications ({n})',
   'Açık temaya geç': 'Switch to light theme',
   'Koyu temaya geç': 'Switch to dark theme',
+  // Bildirim türü simgesi (ekran okuyucu)
+  'Bildirim': 'Notification',
   // Yönetici paneli: grafikler, tablolar ve para birimi
   'TCMB döviz satış kuru; aylık değerler ayın son gününün, bu ay bugünün kuruyla ({d}).': 'CBRT selling rate; monthly values at the rate of the last day of the month, this month at today’s rate ({d}).',
   'Kur henüz yüklenmedi; tutarlar kur gelince görünür.': 'Exchange rates are not loaded yet; amounts appear once they are.',

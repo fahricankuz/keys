@@ -29,7 +29,7 @@ const FAKES = {
     const n = () => globalThis.__notif;
     export const AndroidImportance = { HIGH: 4 };
     export function setNotificationHandler(){}
-    export async function setNotificationChannelAsync(id){ n().channels.push(id); }
+    export async function setNotificationChannelAsync(id, o){ n().channels.push(id); (n().sounds ||= {})[id] = o?.sound; }
     export async function getPermissionsAsync(){ return n().perm; }
     export async function requestPermissionsAsync(){ n().asked++; n().perm = n().next; return n().perm; }
     export async function getDevicePushTokenAsync(){ return { data: n().token }; }
@@ -206,7 +206,10 @@ test('bildirim: izin zaten varsa sessizce register_device_token ile kaydedilir; 
   M = await load(PUSH);
   expect(await M.registerDevice()).toBe('ask');
   expect(globalThis.__notif.asked).toBe(0);
-  expect(globalThis.__notif.channels).toEqual(['evim']);                     // Android kanalı izin sorulmadan önce açılır
+  // Android kanalları izin sorulmadan önce açılır: varsayılan 'evim' ve bildirim türü başına anahtar sesli kanal (notify-kind.js)
+  expect(globalThis.__notif.channels).toEqual(['evim', 'odeme', 'mesaj', 'talep', 'duyuru', 'hatirlatma', 'belge']);
+  expect(globalThis.__notif.sounds.odeme).toBe('odeme.wav');
+  expect(globalThis.__notif.sounds.evim).toBeUndefined();
   expect(globalThis.__rpc).toEqual([]);
   expect(await M.pushPermission()).toBe('ask');
   pushWorld('ios', DENIED);

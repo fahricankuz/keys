@@ -142,10 +142,11 @@ export function Empty({ children }: { children: ReactNode }) {
 }
 
 /** Liste satırı: sol başlık + alt satır, sağda chip ya da eylem. */
-export function LI({ title, sub, right, onPress, last }: { title: ReactNode; sub?: ReactNode; right?: ReactNode; onPress?: () => void; last?: boolean }) {
+export function LI({ title, sub, right, left, onPress, last }: { title: ReactNode; sub?: ReactNode; right?: ReactNode; left?: ReactNode; onPress?: () => void; last?: boolean }) {
   const c = useColors();
   const inner = (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: last ? 0 : 1, borderBottomColor: c.line }}>
+      {left}
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <Text v="small" style={{ fontFamily: fonts.bodyXBold, fontSize: 15 }}>{title}</Text>
         {sub ? <Text v="small" muted>{sub}</Text> : null}

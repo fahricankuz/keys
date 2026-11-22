@@ -41,6 +41,8 @@ import { residentRoleLabel, siteResidentOnly } from '../domain/site';
 import { StorePurchaseSheet } from './store-purchase';
 import { storeAvailable, storeReady, restoreStore, manageStore } from '../domain/iap';
 import { pushPermission, enableDevicePush } from '../domain/native-push';
+import { notifyKind } from '../domain/notify-kind';
+import { NotifyIcon } from './notify-icon';
 
 const NATIVE = Platform.OS === 'ios' || Platform.OS === 'android';
 import { DevicePush } from './device-push';
@@ -92,7 +94,7 @@ function InboxSheet({ close }: { close: () => void }) {
       <H2>{t('Hatırlatmalar')}</H2>
       {rem.length ? <Items data={rem as any[]} render={(r: any, last) => <LI key={r.t + r.b} last={last} onPress={() => { close(); go(r.go); }} title={r.t} sub={r.b} right={<Chip tone={r.w > 1 ? 'bad' : 'warn'} label={t('Git')} />} />} /> : <Muted>{t('Şu an hatırlatma yok.')}</Muted>}
       <H2>{t('Son olaylar')}</H2>
-      {S.inbox.length ? <Items data={S.inbox.slice().reverse()} render={(n: any, last, i) => <LI key={i} last={last} title={n.title} sub={n.body} right={<Muted>{ago(n.at)}</Muted>} />} /> : <Muted>{t('Henüz olay yok.')}</Muted>}
+      {S.inbox.length ? <Items data={S.inbox.slice().reverse()} render={(n: any, last, i) => <LI key={i} last={last} left={<NotifyIcon kind={n.kind || notifyKind({ title: n.title, url: n.go })} />} title={n.title} sub={n.body} right={<Muted>{ago(n.at)}</Muted>} />} /> : <Muted>{t('Henüz olay yok.')}</Muted>}
     </Stack>
   );
 }
