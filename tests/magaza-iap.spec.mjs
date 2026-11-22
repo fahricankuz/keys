@@ -35,7 +35,11 @@ const FAKES = {
     export async function getDevicePushTokenAsync(){ return { data: n().token }; }
     export function addPushTokenListener(fn){ n().listener = fn; return { remove(){ n().listener = null; } }; }
     export async function getLastNotificationResponseAsync(){ return null; }
-    export function addNotificationResponseReceivedListener(){ return { remove(){} }; }`
+    export function addNotificationResponseReceivedListener(){ return { remove(){} }; }`,
+  // Gömülü paketle açılış (yeni derleme) ya da anlık güncelleme (OTA) ile açılış: globalThis.__updates.
+  'expo-updates': `
+    export const isEnabled = (globalThis.__updates || { isEnabled: true }).isEnabled;
+    export const isEmbeddedLaunch = (globalThis.__updates || { isEmbeddedLaunch: true }).isEmbeddedLaunch;`
 };
 
 async function load(entry) {
@@ -47,7 +51,7 @@ async function load(entry) {
     plugins: [{
       name: 'fakes',
       setup(b) {
-        b.onResolve({ filter: /^(react-native|react-native-purchases|expo-notifications)$/ }, (a) => ({ path: a.path, namespace: 'fake' }));
+        b.onResolve({ filter: /^(react-native|react-native-purchases|expo-notifications|expo-updates)$/ }, (a) => ({ path: a.path, namespace: 'fake' }));
         b.onResolve({ filter: /(^|\/)backend\.js$/ }, () => ({ path: 'backend', namespace: 'fake' }));
         b.onLoad({ filter: /.*/, namespace: 'fake' }, (a) => ({
           loader: 'js',
@@ -212,6 +216,13 @@ test('bildirim: izin zaten varsa sessizce register_device_token ile kaydedilir; 
   expect(globalThis.__notif.sounds.evim).toBeUndefined();
   expect(globalThis.__rpc).toEqual([]);
   expect(await M.pushPermission()).toBe('ask');
+  // Ses dosyası olmayan eski derlemeye OTA ile gelen kod: tür kanalları açılmaz (kanal sesi sonradan değişmez), yalnız 'evim'.
+  globalThis.__updates = { isEnabled: true, isEmbeddedLaunch: false };
+  pushWorld('android', ASK);
+  M = await load(PUSH);
+  expect(await M.registerDevice()).toBe('ask');
+  expect(globalThis.__notif.channels).toEqual(['evim']);
+  delete globalThis.__updates;
   pushWorld('ios', DENIED);
   M = await load(PUSH);
   expect(await M.registerDevice()).toBe('denied');

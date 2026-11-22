@@ -8,6 +8,7 @@
 
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import * as Updates from 'expo-updates';
 import { LIVE } from './config.js';
 import { client, live } from './backend.js';
 import { storage } from './storage.js';
@@ -46,6 +47,13 @@ async function save(tok){
     Sunucu türü bildirimden çıkarır ve aynı adlı kanala gönderir (supabase/functions/push/native.ts). Kanal sesi Android'de
     kanal açıldıktan sonra değişmez; ses değişirse kanal adına sürüm eki konmalı. Kullanıcı sesi telefon ayarlarından kanal kanal kapatabilir. */
 async function setupKindChannels(){
+  // Ses dosyaları uygulamanın içine gömülüdür; bu kod anlık güncellemeyle (OTA) eski bir derlemeye de gidebilir. Eski derlemede dosya
+  // yoktur ve Android kanal sesini sonradan değiştirmez: kanal yanlış açılırsa kalıcı olur. Bu yüzden kanallar yalnız bu kodu kendi
+  // içinde taşıyan bir derlemede açılır: uygulama gömülü paketiyle açıldığında işaret konur; işaret yoksa (eski derleme + OTA) kanal
+  // açılmaz, sunucunun gönderdiği tür kanalı bulunmazsa Android varsayılan 'evim' kanalını kullanır.
+  const KEY = 'anahtar-bildirim-sesleri';
+  if (!Updates.isEnabled || Updates.isEmbeddedLaunch) storage.setItem(KEY, '1');
+  if (storage.getItem(KEY) !== '1') return;
   const names = { odeme: t('Ödemeler'), mesaj: t('Mesajlar'), talep: t('Talepler'), duyuru: t('Duyurular'), hatirlatma: t('Hatırlatmalar'), belge: t('Belgeler') };
   for (const k of NOTIFY_KINDS) {
     await Notifications.setNotificationChannelAsync(k, { name: names[k], importance: Notifications.AndroidImportance.HIGH, sound: k + '.wav' });
