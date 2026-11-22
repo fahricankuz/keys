@@ -13,6 +13,7 @@ import { Card, Empty, H2, Muted, Row, Seg, Stack } from './blocks';
 import { Kpi, KpiGrid } from './admin-ui';
 import { MonthChart, SERIES, type MonthRow } from './admin-charts';
 import type { Period } from './admin-finance-ui';
+import { useMoney } from './admin-money';
 
 const pct = (v: number | null) => (v == null ? '—' : '%' + (Math.round(v * 1000) / 10).toLocaleString('tr-TR'));
 const day = (v?: string) => (v ? fmtFull(parse(String(v).slice(0, 10))) : '—');
@@ -27,6 +28,7 @@ export function useChurn() {
 
 /** Ayrılan aboneler: göstergeler, ayrılış türleri, erken uyarı listesi ve aylık yeni / ayrılan ödeyen grafiği. */
 export function ChurnSection({ d, period, onCrm }: { d: any; period: Period; onCrm?: (s: any) => void }) {
+  const { money } = useMoney();
   const c = useColors();
   const pm = periodMonths(period);
   const cur = churnByMonth(d.events, d.subs, pm.cur);
@@ -59,7 +61,7 @@ export function ChurnSection({ d, period, onCrm }: { d: any; period: Period; onC
       <KpiGrid>
         <Kpi icon="flag" tone="peach" label={period === 'year' ? t('Ayrılan (bu yıl)') : t('Ayrılan (bu ay)')} value={String(ended)} sub={t('Dönem başında {n} ödeyen', { n: base })} />
         <Kpi icon="chart" tone="sky" label={t('Churn oranı')} value={pct(rate)} sub={t('Önceki dönem: {p}', { p: pct(prevRate) })} />
-        <Kpi icon="card" tone="butter" label={t('Kaybedilen aylık gelir')} value={tl(lost)} sub={t('Ayrılanların paket fiyatından')} />
+        <Kpi icon="card" tone="butter" label={t('Kaybedilen aylık gelir')} value={money(lost)} sub={t('Ayrılanların paket fiyatından')} />
         <Kpi icon="plus" tone="sage" label={t('Net abone değişimi')} value={(started - ended >= 0 ? '+' : '−') + Math.abs(started - ended)} sub={t('{a} yeni ödeyen · {b} ayrılan', { a: started, b: ended })} />
       </KpiGrid>
       <Card gap={8}>
@@ -80,7 +82,8 @@ export function ChurnSection({ d, period, onCrm }: { d: any; period: Period; onC
       </Card>
       <MonthChart title={t('{y} ödeyen abone: yeni ve ayrılan', { y })} rows={rows} int height={220}
         labels={{ up: t('Yeni ödeyen'), down: t('Ayrılan'), net: t('Net'), netLong: t('Net abone değişimi') }} fmt={(v) => String(Math.round(v))}
-        summary={t('Yıl toplamı: {a} yeni ödeyen · {b} ayrılan', { a: sum(yr, 'started'), b: sum(yr, 'ended') })} />
+        summary={t('Yıl toplamı: {a} yeni ödeyen · {b} ayrılan', { a: sum(yr, 'started'), b: sum(yr, 'ended') })}
+        empty={t('Bu yıl henüz yeni ödeyen ya da ayrılan abone yok; ilk hareketle burada aylık grafik görünür.')} />
       {approx ? <Muted>{t('Abonelik geçmişi bu sürümle tutulmaya başladı; önceki ayrılışlar bitiş tarihlerinden yaklaşık dolduruldu. Ayrılıp sonra geri dönenler eski aylarda görünmez.')}</Muted> : null}
     </Stack>
   );

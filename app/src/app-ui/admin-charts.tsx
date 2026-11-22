@@ -1,17 +1,19 @@
 /* Yönetici paneli: aylık grafik (tek eksen). Üst seri sıfırın üstünde (ör. gelir, yeni kayıt), alt seri altında (gider, ayrılan),
    net çizgi (üst − alt). Aya dokununca / üzerine gelince ayrıntı kutusu; "Tablo" ile aynı veri tablo olarak.
    Renkler: kategorik iki ton (mavi / turuncu), açık ve koyu temada renk körlüğü denetiminden geçti; metin her zaman mürekkep renginde. */
-import { useState } from 'react';
+import { ReactNode, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import Svg, { Circle, Line as SvgLine, Path, Polyline, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Line as SvgLine, Path, Polygon, Polyline, Text as SvgText } from 'react-native-svg';
 import { t } from '../domain/i18n';
 import { monthYear } from '../domain/util';
 import { Text } from '../ui/kit';
 import { fonts, useBreakpoint, useColors } from '../ui/theme';
 import { Card, H2, Muted, Row, Seg } from './blocks';
+import { TrendChip } from './admin-ui';
 
 const FONT = 'Inter, system-ui, sans-serif';
-export const SERIES = { light: { up: '#2a78d6', down: '#eb6834' }, dark: { up: '#3987e5', down: '#d95926' } };
+// Marka renkleri: üst seri kırmızı (gelir, yeni kayıt), alt seri sarı (gider, ayrılan), net yeşil; koyu temada açık tonlar.
+export const SERIES = { light: { up: '#C8302E', down: '#E0A21B', net: '#2A6B3A', base: '#E7DCD3' }, dark: { up: '#E5625F', down: '#F2B544', net: '#7FC495', base: '#3D3532' } };
 
 export type MonthRow = { m: string; up: number; down?: number; future?: boolean; note?: string };
 
@@ -33,9 +35,13 @@ function bar(x: number, w: number, y0: number, y1: number, r = 4) {
 }
 const short = (m: string) => monthYear(m).split(' ')[0].slice(0, 3);
 
-export function MonthChart({ title, rows, labels, fmt, axisFmt, summary, net = true, height = 260, int = false }: {
+/** Başlık altı büyük değer (ör. "Net ₺15.154 ▼ %37"). */
+export type Headline = { label?: string; value: string; delta?: string; sub?: string };
+
+export function MonthChart({ title, rows, labels, fmt, axisFmt, summary, net = true, height = 260, int = false, headline, empty, right }: {
   title: string; rows: MonthRow[]; labels: { up: string; down?: string; net?: string; netLong?: string };
   fmt: (v: number) => string; axisFmt?: (v: number) => string; summary?: string; net?: boolean; height?: number; int?: boolean;
+  headline?: Headline; empty?: string; right?: ReactNode;
 }) {
   const c = useColors();
   const { phone } = useBreakpoint();
@@ -47,50 +53,66 @@ export function MonthChart({ title, rows, labels, fmt, axisFmt, summary, net = t
   const hasDown = rows.some((r) => r.down != null);
   const showNet = net && hasDown;
   const past = rows.filter((r) => !r.future);
-  const upMax = niceMax(Math.max(0, ...past.map((r) => r.up)), int);
-  const downRaw = hasDown ? Math.max(0, ...past.map((r) => r.down || 0)) : 0;
-  // Alt bölge en az üst bölgenin dörtte biri (gider çok küçükse de sütunu ve negatif net okunur); hiç alt değer yoksa eksen etiketi yok.
-  const downMax = hasDown ? Math.max(downRaw ? niceMax(downRaw, int) : 0, upMax / 4) : 0;
-  const H = phone ? 200 : height, L = 54, R = 10, T = 14, B = 24;
-  const span = upMax + downMax || 1;
-  const y = (v: number) => T + (H - T - B) * ((upMax - v) / span);
-  const y0 = y(0);
+  const lastPast = past.length ? rows.indexOf(past[past.length - 1]) : -1;
+  const allZero = past.every((r) => !r.up && !(r.down || 0));
+  // Çizgi (gelir / gider / net): alt sınır 0, net eksiye düşerse eksi bölge açılır. Sütun (tek seri): 0'dan.
+  const nets = past.map((r) => r.up - (r.down || 0));
+  const top = niceMax(Math.max(0, ...past.map((r) => Math.max(r.up, r.down || 0))), int);
+  const lowRaw = showNet ? Math.min(0, ...nets) : 0;
+  const low = lowRaw < 0 ? -niceMax(-lowRaw, int) : 0;
+  const H = phone ? 200 : height, L = 56, R = 12, T = 16, B = 24;
+  const y = (v: number) => T + (H - T - B) * ((top - v) / ((top - low) || 1));
   const bw = W ? (W - L - R) / rows.length : 0;
   const cx = (i: number) => L + i * bw + bw / 2;
   const af = axisFmt || fmt;
-  const ticks = [upMax, upMax / 2, 0, ...(downRaw ? [-downMax] : [])];
-  const netPts = showNet ? past.map((r, i) => `${cx(rows.indexOf(r))},${y(r.up - (r.down || 0))}`).join(' ') : '';
-  const lastPast = past.length ? rows.indexOf(past[past.length - 1]) : -1;
+  const ticks = low < 0 ? [top, top / 2, 0, low] : [top, top / 2, 0];
   const sel = hover ?? null;
   const cur = sel != null ? rows[sel] : null;
-  const legend: [string, string, 'bar' | 'line'][] = [[col.up, labels.up, 'bar'], ...(hasDown && labels.down ? [[col.down, labels.down, 'bar'] as [string, string, 'bar']] : []), ...(showNet ? [[c.ink, labels.netLong || labels.net || t('Net'), 'line'] as [string, string, 'line']] : [])];
+  const pts = (f: (r: MonthRow) => number) => past.map((r) => `${cx(rows.indexOf(r)).toFixed(1)},${y(f(r)).toFixed(1)}`).join(' ');
+  const series: [string, string, (r: MonthRow) => number][] = hasDown
+    ? [[col.up, labels.up, (r) => r.up], [col.down, labels.down || '', (r) => r.down || 0], ...(showNet ? [[col.net, labels.netLong || labels.net || t('Net'), (r: MonthRow) => r.up - (r.down || 0)] as [string, string, (r: MonthRow) => number]] : [])]
+    : [];
+  const num = (style?: any) => ({ fontVariant: ['tabular-nums'] as any, ...style });
   return (
     <Card gap={10} style={{ flexGrow: 1 }}>
-      <Row between wrap>
-        <H2>{title}</H2>
-        <Seg value={view} onChange={(v: any) => setView(v)} options={[['chart', t('Grafik')], ['table', t('Tablo')]]} />
+      <Row between wrap align="flex-start">
+        <View style={{ flex: 1, minWidth: 200, gap: 2 }}>
+          {headline ? <Muted style={{ fontFamily: fonts.bodyBold }}>{title}</Muted> : <H2>{title}</H2>}
+          {headline ? (
+            <>
+              <Row gap={10} wrap>
+                <Text style={{ fontFamily: fonts.siteBold, fontSize: phone ? 24 : 30, letterSpacing: -0.8, color: c.ink, ...num() }}>{headline.value}</Text>
+                {headline.delta ? <TrendChip trend={headline.delta} /> : null}
+              </Row>
+              {headline.sub ? <Muted>{headline.sub}</Muted> : null}
+            </>
+          ) : null}
+        </View>
+        <Row gap={8}>{right}<Seg value={view} onChange={(v: any) => setView(v)} options={[['chart', t('Grafik')], ['table', t('Tablo')]]} /></Row>
       </Row>
-      {legend.length > 1 ? (
+      {series.length && !allZero && view === 'chart' ? (
         <Row gap={14} wrap>
-          {legend.map(([cl, l, k]) => (
-            <Row key={l} gap={6}>{k === 'bar' ? <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: cl }} /> : <View style={{ width: 14, height: 2, backgroundColor: cl }} />}<Muted>{l}</Muted></Row>
-          ))}
+          {series.map(([cl, l]) => <Row key={l} gap={6}><View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: cl }} /><Muted>{l}</Muted></Row>)}
         </Row>
       ) : null}
-      {view === 'table' ? (
+      {allZero && empty ? (
+        <View style={{ minHeight: 140, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderStyle: 'dashed', borderColor: c.line, borderRadius: 16, padding: 16, gap: 4 }}>
+          <Text v="small" style={{ fontFamily: fonts.bodyBold, textAlign: 'center' }}>{empty}</Text>
+        </View>
+      ) : view === 'table' ? (
         <View style={{ gap: 0 }}>
-          <Row style={{ paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: c.line }}>
-            <Muted style={{ flex: 1.2 }}>{t('Ay')}</Muted>
-            <Muted style={{ flex: 1, textAlign: 'right' }}>{labels.up}</Muted>
-            {hasDown ? <Muted style={{ flex: 1, textAlign: 'right' }}>{labels.down}</Muted> : null}
-            {showNet ? <Muted style={{ flex: 1, textAlign: 'right' }}>{labels.net || t('Net')}</Muted> : null}
+          <Row style={{ paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: c.surface2 }}>
+            <Muted style={{ flex: 1.2, fontFamily: fonts.bodyBold }}>{t('Ay')}</Muted>
+            <Muted style={{ flex: 1, textAlign: 'right', fontFamily: fonts.bodyBold }}>{labels.up}</Muted>
+            {hasDown ? <Muted style={{ flex: 1, textAlign: 'right', fontFamily: fonts.bodyBold }}>{labels.down}</Muted> : null}
+            {showNet ? <Muted style={{ flex: 1, textAlign: 'right', fontFamily: fonts.bodyBold }}>{labels.net || t('Net')}</Muted> : null}
           </Row>
           {past.map((r) => (
-            <Row key={r.m} style={{ paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: c.line }}>
+            <Row key={r.m} style={{ paddingVertical: 8, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: c.line }}>
               <Text v="small" style={{ flex: 1.2 }}>{monthYear(r.m)}{r.note ? ' *' : ''}</Text>
-              <Text v="small" style={{ flex: 1, textAlign: 'right', fontVariant: ['tabular-nums'] }}>{fmt(r.up)}</Text>
-              {hasDown ? <Text v="small" style={{ flex: 1, textAlign: 'right', fontVariant: ['tabular-nums'] }}>{fmt(r.down || 0)}</Text> : null}
-              {showNet ? <Text v="small" style={{ flex: 1, textAlign: 'right', fontFamily: fonts.bodyBold, fontVariant: ['tabular-nums'], color: r.up - (r.down || 0) < 0 ? c.badInk : c.ink }}>{fmt(r.up - (r.down || 0))}</Text> : null}
+              <Text v="small" style={num({ flex: 1, textAlign: 'right' })}>{fmt(r.up)}</Text>
+              {hasDown ? <Text v="small" style={num({ flex: 1, textAlign: 'right' })}>{fmt(r.down || 0)}</Text> : null}
+              {showNet ? <Text v="small" style={num({ flex: 1, textAlign: 'right', fontFamily: fonts.bodyBold, color: r.up - (r.down || 0) < 0 ? c.badInk : c.ink })}>{fmt(r.up - (r.down || 0))}</Text> : null}
             </Row>
           ))}
         </View>
@@ -99,35 +121,29 @@ export function MonthChart({ title, rows, labels, fmt, axisFmt, summary, net = t
           {W ? (
             <>
               <Svg width={W} height={H} accessibilityLabel={title}>
-                {ticks.map((v) => (
-                  <SvgLine key={'g' + v} x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke={v === 0 ? c.muted : c.line} strokeWidth={v === 0 ? 1 : 1} strokeDasharray={v === 0 ? undefined : '2 4'} />
-                ))}
-                {ticks.map((v) => (
-                  <SvgText key={'t' + v} fontFamily={FONT} x={L - 8} y={y(v) + 4} fontSize={10} fill={c.muted} textAnchor="end">{v < 0 ? '−' + af(-v) : af(v)}</SvgText>
-                ))}
-                {sel != null ? <Rect x={L + sel * bw + 1} y={T - 6} width={bw - 2} height={H - T - B + 8} rx={6} fill={c.ink} opacity={0.06} /> : null}
-                {rows.map((r, i) => {
-                  const w = Math.max(4, Math.min(28, bw * 0.56));
-                  const x = cx(i) - w / 2;
-                  if (r.future) return null;
+                {ticks.map((v) => <SvgLine key={'g' + v} x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke={c.line} strokeWidth={1} strokeDasharray={v === 0 ? undefined : '3 4'} />)}
+                {ticks.map((v) => <SvgText key={'t' + v} fontFamily={FONT} x={L - 8} y={y(v) + 4} fontSize={10.5} fill={c.muted} textAnchor="end">{v < 0 ? '−' + af(-v) : af(v)}</SvgText>)}
+                {hasDown ? (
+                  <>
+                    {lastPast >= 0 ? <SvgLine x1={cx(sel ?? lastPast)} x2={cx(sel ?? lastPast)} y1={T} y2={H - B} stroke={c.ink} strokeOpacity={0.15} /> : null}
+                    {past.length > 1 ? <Polygon points={`${cx(rows.indexOf(past[0]))},${y(Math.max(0, low))} ${pts(series[0][2])} ${cx(lastPast)},${y(Math.max(0, low))}`} fill={col.up} opacity={dark ? 0.16 : 0.12} /> : null}
+                    {series.map(([cl, l, f]) => <Polyline key={'s' + l} points={pts(f)} fill="none" stroke={cl} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />)}
+                    {series.map(([cl, l, f]) => past.map((r) => {
+                      const i = rows.indexOf(r), end = i === lastPast, on = sel === i;
+                      return end || on ? <Circle key={l + i} cx={cx(i)} cy={y(f(r))} r={5} fill={c.surface} stroke={cl} strokeWidth={2.5} /> : null;
+                    }))}
+                  </>
+                ) : rows.map((r, i) => {
+                  if (r.future || !r.up) return null;
+                  const w = Math.max(6, Math.min(44, bw * 0.6)), x = cx(i) - w / 2, on = sel === i || (sel == null && i === lastPast);
                   return [
-                    <Path key={'u' + i} d={bar(x, w, y0 - 1, y(r.up))} fill={col.up} opacity={sel == null || sel === i ? 1 : 0.45} />,
-                    hasDown ? <Path key={'d' + i} d={bar(x, w, y0 + 1, y(-(r.down || 0)))} fill={col.down} opacity={sel == null || sel === i ? 1 : 0.45} /> : null
+                    <Path key={'u' + i} d={bar(x, w, y(0), y(r.up), 6)} fill={on ? col.up : col.base} />,
+                    on ? <SvgText key={'v' + i} fontFamily={FONT} x={cx(i)} y={y(r.up) - 6} fontSize={12} fontWeight="700" fill={c.ink} textAnchor="middle">{fmt(r.up)}</SvgText> : null,
                   ];
                 })}
                 {rows.map((r, i) => (
-                  <SvgText key={'m' + i} fontFamily={FONT} x={cx(i)} y={H - 6} fontSize={10} fill={r.future ? c.offInk : sel === i ? c.ink : c.muted} fontWeight={sel === i ? '700' : '400'} textAnchor="middle">{short(r.m)}</SvgText>
+                  <SvgText key={'m' + i} fontFamily={FONT} x={cx(i)} y={H - 6} fontSize={10.5} fill={r.future ? c.offInk : (sel ?? lastPast) === i ? c.ink : c.muted} fontWeight={(sel ?? lastPast) === i ? '700' : '400'} textAnchor="middle">{short(r.m)}</SvgText>
                 ))}
-                {showNet && netPts ? <Polyline points={netPts} fill="none" stroke={c.ink} strokeWidth={2} strokeLinejoin="round" /> : null}
-                {showNet ? past.map((r) => {
-                  const i = rows.indexOf(r), v = r.up - (r.down || 0);
-                  return <Circle key={'n' + i} cx={cx(i)} cy={y(v)} r={sel === i ? 5 : 4} fill={v < 0 ? c.surface : c.ink} stroke={c.ink} strokeWidth={2} />;
-                }) : null}
-                {showNet && lastPast >= 0 && sel == null ? (
-                  <SvgText fontFamily={FONT} x={Math.min(cx(lastPast) + 8, W - R)} y={y(rows[lastPast].up - (rows[lastPast].down || 0)) - 8} fontSize={11} fontWeight="700" fill={c.ink} textAnchor={cx(lastPast) + 60 > W ? 'end' : 'start'}>
-                    {t('Net {v}', { v: fmt(rows[lastPast].up - (rows[lastPast].down || 0)) })}
-                  </SvgText>
-                ) : null}
               </Svg>
               <View style={{ position: 'absolute', left: L, right: R, top: 0, bottom: 0, flexDirection: 'row' }}>
                 {rows.map((r, i) => (
@@ -135,13 +151,13 @@ export function MonthChart({ title, rows, labels, fmt, axisFmt, summary, net = t
                     accessibilityRole="button" accessibilityLabel={monthYear(r.m)} style={{ flex: 1 }} />
                 ))}
               </View>
-              {cur && !cur.future ? (
+              {cur && !cur.future && hasDown ? (
                 <View pointerEvents="none" style={{ position: 'absolute', top: 4, left: Math.max(0, Math.min(W - 204, cx(sel!) + (cx(sel!) > W / 2 ? -214 : 14))), width: 200, padding: 10, gap: 3, borderRadius: 12, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 10 }}>
                   <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{monthYear(cur.m)}</Text>
-                  {[[col.up, labels.up, cur.up], ...(hasDown ? [[col.down, labels.down, cur.down || 0]] : [])].map(([cl, l, v]: any) => (
-                    <Row key={l} between gap={8}><Row gap={6}><View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: cl }} /><Muted>{l}</Muted></Row><Text v="small" style={{ fontVariant: ['tabular-nums'] }}>{fmt(v)}</Text></Row>
+                  {[[col.up, labels.up, cur.up], [col.down, labels.down, cur.down || 0]].map(([cl, l, v]: any) => (
+                    <Row key={l} between gap={8}><Row gap={6}><View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: cl }} /><Muted>{l}</Muted></Row><Text v="small" style={num()}>{fmt(v)}</Text></Row>
                   ))}
-                  {showNet ? <Row between gap={8} style={{ borderTopWidth: 1, borderTopColor: c.line, paddingTop: 4 }}><Text v="small" style={{ fontFamily: fonts.bodyBold }}>{labels.net || t('Net')}</Text><Text v="small" style={{ fontFamily: fonts.bodyXBold, fontVariant: ['tabular-nums'], color: cur.up - (cur.down || 0) < 0 ? c.badInk : c.ink }}>{fmt(cur.up - (cur.down || 0))}</Text></Row> : null}
+                  {showNet ? <Row between gap={8} style={{ borderTopWidth: 1, borderTopColor: c.line, paddingTop: 4 }}><Text v="small" style={{ fontFamily: fonts.bodyBold }}>{labels.net || t('Net')}</Text><Text v="small" style={num({ fontFamily: fonts.bodyXBold, color: cur.up - (cur.down || 0) < 0 ? c.badInk : c.ink })}>{fmt(cur.up - (cur.down || 0))}</Text></Row> : null}
                   {cur.note ? <Muted>{cur.note}</Muted> : null}
                 </View>
               ) : null}
@@ -149,7 +165,7 @@ export function MonthChart({ title, rows, labels, fmt, axisFmt, summary, net = t
           ) : null}
         </View>
       )}
-      {summary ? <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{summary}</Text> : null}
+      {summary ? <Text v="small" muted style={{ borderTopWidth: 1, borderTopColor: c.line, paddingTop: 10 }}>{summary}</Text> : null}
     </Card>
   );
 }

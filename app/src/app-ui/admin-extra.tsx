@@ -1,6 +1,7 @@
 /* Yönetici paneli: genel bakış göstergeleri, mülk sahibi abonelikleri ve "Bize ulaş" talepleri. */
 import { ReactNode, useEffect, useState } from 'react';
 import { Linking, View } from 'react-native';
+import Svg, { Circle, Line as SvgLine, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import { extendTrial, humanError, loadAdminEmails, loadCpi, loadKpis, loadSubscriptions, loadSupport, setCpi, setPlan, setSupportStatus } from '../domain/admin';
 import { MailComposer } from './admin-mail';
 import { CONFIG } from '../domain/config';
@@ -9,12 +10,14 @@ import { SECTORS, adminOrgs, sectorOf } from '../domain/org';
 import { ChurnAndCohorts } from './admin-churn';
 import { FinanceCard, PeriodSeg, SignupChart, YearChart, delta, periodFinance, prevLabel, useAdminFinance, usePeriod } from './admin-finance-ui';
 import { t, locale } from '../domain/i18n';
-import { percent, tl } from '../domain/util';
+import { monthYear, percent, tl } from '../domain/util';
 import { Button, Chip, Field, Text } from '../ui/kit';
 import { Loader } from '../ui/Loader';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 import { Card, Empty, H2, Hero, Label, Muted, Row, Seg, Stack } from './blocks';
 import { GroupTitle, Kpi, KpiGrid, PageHead, TrendChip } from './admin-ui';
+import { CurrencyNote, CurrencyPick, monthEnd, useMoney } from './admin-money';
+import { ATable, NumCell, StatusPill } from './admin-table';
 
 const day = (v: any) => (v ? new Date(v).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 const pct = (a: number, b: number) => (b ? percent((a / b) * 100, 0) : '—');
@@ -47,30 +50,65 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
 }
 const Grid = ({ children }: { children: ReactNode }) => <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>{children}</View>;
 
-/** Günlük yeni kayıt çubuk grafiği; üzerine gelince günün sayısı görünür. */
-function Signups({ series }: { series: any[] }) {
+const SVG_FONT = 'Inter, system-ui, sans-serif';
+
+/** Günlük yeni kayıt sütun grafiği: eksen, kesikli ortalama çizgisi, son gün vurgulu; üzerine gelince günün ayrıntısı. */
+function Signups({ series, right }: { series: any[]; right?: ReactNode }) {
   const c = useColors();
+  const dark = c.bg === '#1D1A19';
   const [hover, setHover] = useState<number | null>(null);
+  const [W, setW] = useState(0);
   const totals = series.map((d) => Number(d.landlords) + Number(d.tenants));
-  const max = Math.max(1, ...totals);
+  const max = Math.max(1, ...totals), top = Math.max(2, Math.ceil(max * 1.2));
+  const sum = totals.reduce((a, n) => a + n, 0), avg = totals.length ? sum / totals.length : 0;
+  const peak = totals.indexOf(max);
   const cur = hover != null ? series[hover] : null;
+  const H = 170, L = 26, R = 6, T = 10, B = 22;
+  const y = (v: number) => T + (H - T - B) * (1 - v / top);
+  const bw = W ? (W - L - R) / Math.max(1, totals.length) : 0;
+  const base = dark ? '#3D3532' : '#E7DCD3', on = dark ? '#E5625F' : '#C8302E';
+  const step = Math.ceil(totals.length / 6);
   return (
-    <Card gap={10}>
-      <Row between wrap>
-        <H2>{t('Günlük yeni kayıt')}</H2>
-        <Muted>{cur
-          ? day(cur.d) + ' · ' + t('{n} kayıt', { n: totals[hover!] }) + ' (' + t('{a} mülk sahibi, {b} kiracı/ekip', { a: cur.landlords, b: cur.tenants }) + ')'
-          : t('En yüksek: {n}', { n: max })}</Muted>
+    <Card gap={8} style={{ flexGrow: 1 }}>
+      <Row between wrap align="flex-start">
+        <View style={{ flex: 1, minWidth: 180, gap: 2 }}>
+          <H2>{t('Günlük yeni kayıt')}</H2>
+          <Muted>{cur
+            ? day(cur.d) + ' · ' + t('{n} kayıt', { n: totals[hover!] }) + ' (' + t('{a} mülk sahibi, {b} kiracı/ekip', { a: cur.landlords, b: cur.tenants }) + ')'
+            : t('Son {n} gün · toplam {s} · en yüksek {m} ({d})', { n: totals.length, s: sum, m: max, d: day(series[peak]?.d) })}</Muted>
+        </View>
+        {right}
       </Row>
-      <View style={{ height: 140, flexDirection: 'row', alignItems: 'flex-end', gap: 3 }}>
-        {totals.map((n, i) => (
-          <View key={series[i].d} {...({ onMouseEnter: () => setHover(i), onMouseLeave: () => setHover(null) } as any)} onTouchStart={() => setHover(i)}
-            accessible accessibilityRole="image" accessibilityLabel={day(series[i].d) + ': ' + n} style={{ flex: 1, height: '100%', justifyContent: 'flex-end' }}>
-            <View style={{ height: Math.max(n ? 4 : 2, (n / max) * 132), backgroundColor: hover === i ? c.ink : n ? c.accent : c.surface2, borderRadius: 4 }} />
-          </View>
-        ))}
+      <View onLayout={(e) => setW(Math.round(e.nativeEvent.layout.width))} style={{ height: H }}>
+        {W ? (
+          <>
+            <Svg width={W} height={H} accessibilityLabel={t('Günlük yeni kayıt')}>
+              {[0, top / 2, top].map((v) => [
+                <SvgLine key={'g' + v} x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke={c.line} strokeDasharray={v ? '3 4' : undefined} />,
+                <SvgText fontFamily={SVG_FONT} key={'t' + v} x={L - 6} y={y(v) + 4} fontSize={10.5} fill={c.muted} textAnchor="end">{Math.round(v)}</SvgText>,
+              ])}
+              {totals.map((n, i) => {
+                const w = Math.max(3, Math.min(18, bw * 0.62)), x = L + i * bw + (bw - w) / 2;
+                const fill = hover === i ? c.ink : i === totals.length - 1 ? on : base;
+                return n ? <Rect key={i} x={x} y={y(n)} width={w} height={y(0) - y(n)} rx={Math.min(4, w / 2)} fill={fill} /> : null;
+              })}
+              {sum ? [
+                <SvgLine key="avg" x1={L} x2={W - R} y1={y(avg)} y2={y(avg)} stroke={c.ink} strokeOpacity={0.45} strokeDasharray="6 4" />,
+                <SvgText fontFamily={SVG_FONT} key="avgt" x={W - R} y={y(avg) - 5} fontSize={10.5} fill={c.muted} textAnchor="end">{t('ortalama {n}', { n: avg.toLocaleString(locale(), { maximumFractionDigits: 1 }) })}</SvgText>,
+              ] : null}
+              {series.map((d, i) => (i % step === 0 || i === series.length - 1 ? (
+                <SvgText fontFamily={SVG_FONT} key={'d' + i} x={L + i * bw + bw / 2} y={H - 6} fontSize={10.5} fill={i === series.length - 1 ? c.ink : c.muted} fontWeight={i === series.length - 1 ? '700' : '400'} textAnchor="middle">{day(d.d).split(' ').slice(0, 2).join(' ')}</SvgText>
+              ) : null))}
+            </Svg>
+            <View style={{ position: 'absolute', left: L, right: R, top: 0, bottom: 0, flexDirection: 'row' }}>
+              {totals.map((n, i) => (
+                <View key={series[i].d} {...({ onMouseEnter: () => setHover(i), onMouseLeave: () => setHover(null) } as any)} onTouchStart={() => setHover(i)}
+                  accessible accessibilityRole="image" accessibilityLabel={day(series[i].d) + ': ' + n} style={{ flex: 1 }} />
+              ))}
+            </View>
+          </>
+        ) : null}
       </View>
-      <Row between><Muted>{day(series[0]?.d)}</Muted><Muted>{day(series[series.length - 1]?.d)}</Muted></Row>
     </Card>
   );
 }
@@ -100,14 +138,19 @@ function Funnel({ f }: { f: any }) {
     [t('Kiracısı bağlandı'), f.withTenant], [t('Onaylı kira ödemesi aldı'), f.withPayment]
   ];
   const max = Math.max(1, f.owners);
+  // En büyük düşüşün olduğu adım (1 tabanlı: o adımdan bir sonrakine geçişte).
+  let worst = 0, drop = 0;
+  steps.forEach(([, n], i) => { if (i && steps[i - 1][1] - n > drop) { drop = steps[i - 1][1] - n; worst = i; } });
+  const dark = c.bg !== '#FAF5F0';
+  const COL = dark ? ['#E5625F', '#E5625F', '#F2B544', '#7FC495'] : ['#C8302E', '#C8302E', '#E0A21B', '#2A6B3A'];
   return (
-    <Card gap={10}>
+    <Card gap={10} style={{ flexGrow: 1 }}>
       <H2>{t('Aktivasyon hunisi')}</H2>
-      <Muted>{t('Mülk sahiplerinin ürünü gerçekten kullanmaya başlama adımları.')}</Muted>
+      <Muted>{t('Mülk sahiplerinin ürünü gerçekten kullanmaya başlama adımları.')}{worst > 0 && steps[worst - 1][1] ? ' ' + t('En çok kayıp: {a} → {b} ({p}).', { a: worst, b: worst + 1, p: pct(steps[worst - 1][1] - steps[worst][1], steps[worst - 1][1]) }) : ''}</Muted>
       {steps.map(([label, n], i) => (
         <View key={label} style={{ gap: 4 }}>
           <Row between><Text v="small">{i + 1}. {label}</Text><Text v="small" style={{ fontFamily: fonts.bodyBold }}>{n} · {pct(n, f.owners)}{i ? ' · ' + t('önceki adımdan {p}', { p: pct(n, steps[i - 1][1]) }) : ''}</Text></Row>
-          <View style={{ height: 10, borderRadius: 5, backgroundColor: c.surface2 }}><View style={{ width: (n / max) * 100 + '%' as any, height: 10, borderRadius: 5, backgroundColor: i === steps.length - 1 ? c.okInk : c.accent }} /></View>
+          <View style={{ height: 10, borderRadius: 5, backgroundColor: c.surface2 }}><View style={{ width: (n / max) * 100 + '%' as any, height: 10, borderRadius: 5, backgroundColor: COL[i] }} /></View>
         </View>
       ))}
     </Card>
@@ -122,12 +165,15 @@ export function Overview({ ops, go }: { ops?: { pending?: number; banned?: numbe
   const [period, setPeriod] = usePeriod();
   const { data, err, table } = useAdminFinance();
   const { width, phone } = useBreakpoint();
+  const { money } = useMoney();
   const side = width >= 1280;   // geniş ekranda gelir–gider kutusu ile yıl grafiği yan yana
-  const head = <PageHead label={t('Yönetici')} title={t('Genel bakış')} sub={t('Kısa özet; ayrıntılar Büyüme, Gelir ve Gider sayfalarında.')} right={<PeriodSeg value={period} onChange={setPeriod} />} />;
+  const head = <PageHead label={t('Yönetici')} title={t('Genel bakış')} sub={t('Kısa özet; ayrıntılar Büyüme, Gelir ve Gider sayfalarında.')} right={<><CurrencyPick /><PeriodSeg value={period} onChange={setPeriod} /></>} />;
   if (err) return <Stack>{head}<Text v="small" color={c.badInk}>{err}</Text></Stack>;
   if (!data) return <Stack>{head}<Spin /></Stack>;
   const k = data.k, o = k.owners;
-  const { cur, prev, vol, volPrev } = periodFinance(data, table, period);
+  const { cur, prev, vol, volPrev, pm } = periodFinance(data, table, period);
+  const prevDay = monthEnd(pm.prev[pm.prev.length - 1]);
+  const tl = (v: number) => money(v);
   const big = (label: string, value: number, before: number, sub: string) => {
     const d = delta(value, before);
     return (
@@ -136,7 +182,7 @@ export function Overview({ ops, go }: { ops?: { pending?: number; banned?: numbe
         <Text v="num" color={c.heroInk} style={{ fontSize: phone ? 34 : 44, lineHeight: phone ? 40 : 50, fontVariant: ['tabular-nums'] }}>{tl(value)}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           {d ? <TrendChip trend={d} onDark /> : null}
-          <Muted onDark>{[prevLabel(period) + ': ' + tl(before), sub].filter(Boolean).join(' · ')}</Muted>
+          <Muted onDark>{[prevLabel(period) + ': ' + money(before, prevDay), sub].filter(Boolean).join(' · ')}</Muted>
         </View>
       </View>
     );
@@ -144,6 +190,7 @@ export function Overview({ ops, go }: { ops?: { pending?: number; banned?: numbe
   return (
     <Stack gap={16}>
       {head}
+      <CurrencyNote />
       <Hero gap={18}>
         <Row gap={22} wrap align="flex-end">
           {big(period === 'year' ? t('Bu yıl onaylı kira hacmi') : t('Bu ay onaylı kira hacmi'), vol.rent, volPrev.rent, vol.orgRent ? t('kurumlar {v}', { v: tl(vol.orgRent) }) : '')}
@@ -162,7 +209,7 @@ export function Overview({ ops, go }: { ops?: { pending?: number; banned?: numbe
         <Kpi icon="chat" tone="sky" label={t('Açık destek talebi')} value={String(k.supportOpen)} sub={t('Askıdaki hesap: {n}', { n: ops?.banned ?? 0 })} />
       </KpiGrid>
       <View style={{ flexDirection: side ? 'row' : 'column', gap: 16, alignItems: side ? 'stretch' : undefined }}>
-        <View style={side ? { flex: 1, minWidth: 0 } : undefined}><FinanceCard f={cur} prev={prev} period={period} /></View>
+        <View style={side ? { flex: 1, minWidth: 0 } : undefined}><FinanceCard f={cur} prev={prev} period={period} prevDay={prevDay} /></View>
         <View style={side ? { flex: 1, minWidth: 0 } : undefined}><YearChart data={data} table={table} /></View>
       </View>
       <SignupChart data={data} />
@@ -201,10 +248,7 @@ export function Growth({ onCrm }: { onCrm?: (s: any) => void } = {}) {
       </KpiGrid>
       <SignupChart data={data} />
       <View style={{ flexDirection: desktop ? 'row' : 'column', gap: 16, alignItems: 'stretch' }}>
-        <View style={{ flex: 1.3, gap: 8 }}>
-          <Row between wrap><Muted>{t('Günlük yeni kayıt')}</Muted><DaysSeg days={days} setDays={setDays} /></Row>
-          <Signups series={k.series} />
-        </View>
+        <View style={{ flex: 1.3 }}><Signups series={k.series} right={<DaysSeg days={days} setDays={setDays} />} /></View>
         <View style={{ flex: 1 }}>{k.funnel ? <Funnel f={k.funnel} /> : null}</View>
       </View>
       {k.activeUsers ? (
@@ -249,16 +293,27 @@ export function Revenue() {
   const c = useColors();
   const [period, setPeriod] = usePeriod();
   const { data, err, table } = useAdminFinance();
+  const { money } = useMoney();
+  const { width } = useBreakpoint();
   if (err) return <Text v="small" color={c.badInk}>{err}</Text>;
   if (!data) return <Spin />;
+  const tl = (v: number) => money(v);
   const k = data.k, o = k.owners, r = data.mrr;
-  const { cur, prev } = periodFinance(data, table, period);
+  const { cur, prev, pm } = periodFinance(data, table, period);
+  const prevDay = monthEnd(pm.prev[pm.prev.length - 1]);
   const contracts = (data.orgs || []).filter((x: any) => x.status === 'active').sort((a: any, b: any) => String(a.contract_until || '9999').localeCompare(String(b.contract_until || '9999')));
   const orgMonthly = contracts.reduce((a: number, x: any) => a + (Number(x.billing?.monthly_fee) || 0), 0);
+  const side = width >= 1280;
+  const dark = c.bg !== '#FAF5F0';
+  const PAL = dark ? ['#E5625F', '#F2B544', '#7FC495', '#7DB3F0', '#B994EC'] : ['#C8302E', '#E0A21B', '#2A6B3A', '#1F5FAD', '#5E2EA0'];
+  const pkTotal = r.rows.reduce((a: number, x: any) => a + (Number(x.monthly) || 0), 0);
   return (
     <Stack gap={16}>
       <Row between wrap><PeriodSeg value={period} onChange={setPeriod} /></Row>
-      <FinanceCard f={cur} prev={prev} period={period} />
+      <View style={{ flexDirection: side ? 'row' : 'column', gap: 16, alignItems: side ? 'stretch' : undefined }}>
+        <View style={side ? { flex: 1, minWidth: 0 } : undefined}><FinanceCard f={cur} prev={prev} period={period} prevDay={prevDay} /></View>
+        <View style={side ? { flex: 1, minWidth: 0 } : undefined}><YearChart data={data} table={table} /></View>
+      </View>
       <KpiGrid>
         <Kpi icon="chart" tone="sage" label={t('Aylık üyelik geliri (tahmini)')} value={tl(r.mrr + orgMonthly)} sub={t('Paketler {a} · kurumsal {b}', { a: tl(r.mrr), b: tl(orgMonthly) })} />
         <Kpi icon="chart" tone="butter" label={t('Yıllık üyelik geliri (ARR, tahmini)')} value={tl((r.mrr + orgMonthly) * 12)} sub={t('Aylık tahminin 12 katı')} />
@@ -266,18 +321,20 @@ export function Revenue() {
         <Kpi icon="bell" tone="peach" label={t('Ödeme sorunu')} value={String(k.billingIssues)} sub={t('{n} abonelik yenilenmeyecek', { n: k.cancelling })} />
       </KpiGrid>
       {r.rows.length ? (
-        <Card gap={4}>
-          <H2>{t('Pakete göre')}</H2>
-          {r.rows.map((x: any, i: number) => (
-            <Row key={x.plan + x.yearly} between wrap style={{ paddingVertical: 8, borderTopWidth: i ? 1 : 0, borderColor: c.line }}>
-              <View style={{ flex: 1, minWidth: 160 }}>
-                <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{planLabel(x.plan)} · {x.yearly ? t('yıllık') : t('aylık')}</Text>
-                <Muted>{t('{a} ödeyen · {b} mülk', { a: x.owners, b: x.units })}</Muted>
-              </View>
-              <Text v="small" style={{ fontFamily: fonts.bodyXBold, fontVariant: ['tabular-nums'] }}>{x.monthly == null ? t('Sözleşmeye göre') : tl(x.monthly) + ' ' + t('/ ay')}</Text>
-            </Row>
-          ))}
-        </Card>
+        <ATable label={t('Pakete göre')} title={<H2>{t('Pakete göre')}</H2>}
+          cols={[{ label: t('Paket'), flex: 1.6 }, { label: t('Ödeyen'), align: 'right', flex: 0.6 }, { label: t('Mülk'), align: 'right', flex: 0.6 }, { label: t('Pay'), flex: 1.4, hidePhone: true }, { label: t('Aylık gelir'), align: 'right', flex: 1.2 }]}
+          keys={r.rows.map((x: any) => x.plan + x.yearly)}
+          rows={r.rows.map((x: any, i: number) => {
+            const share = pkTotal && x.monthly != null ? Math.round((x.monthly / pkTotal) * 100) : 0;
+            const col = PAL[i % PAL.length];
+            return [
+              <Row key="a" gap={8}><View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: col }} /><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{planLabel(x.plan)} · {x.yearly ? t('yıllık') : t('aylık')}</Text></Row>,
+              <NumCell key="b" v={String(x.owners)} bold={false} />,
+              <NumCell key="c" v={String(x.units)} bold={false} />,
+              <View key="d" style={{ height: 6, borderRadius: 3, backgroundColor: c.line, alignSelf: 'stretch' }}><View style={{ width: `${share}%`, height: 6, borderRadius: 3, backgroundColor: col }} /></View>,
+              <Text key="e" v="small" style={{ fontVariant: ['tabular-nums'] }}><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{x.monthly == null ? t('Sözleşmeye göre') : tl(x.monthly)}</Text>{x.monthly == null ? '' : ' ' + t('/ ay') + (share ? ' · %' + share : '')}</Text>,
+            ];
+          })} />
       ) : <PlanBars plans={k.plans || {}} total={o.paying} />}
       <Card gap={4}>
         <H2>{t('Kurum sözleşmeleri')}</H2>
@@ -407,6 +464,48 @@ export function Support({ onConvert, onCrm }: { onConvert?: (r: any) => void; on
 }
 
 /** Yasal kira artış oranları: tufe-sync fonksiyonu her ay doldurur; yönetici elle girer ya da düzeltir. */
+/** TÜFE 12 aylık ortalama çizgisi (son 24 ay) ve son değer. */
+function CpiChart({ rows }: { rows: any[] }) {
+  const c = useColors();
+  const dark = c.bg === '#1D1A19';
+  const [W, setW] = useState(0);
+  const list = rows.slice(0, 24).slice().reverse();
+  const vals = list.map((r) => Number(r.avg12));
+  const last = list[list.length - 1], before = list[list.length - 2];
+  const lo = Math.floor(Math.min(...vals) / 5) * 5 - 5, hi = Math.ceil(Math.max(...vals) / 5) * 5 + 5;
+  const H = 210, L = 40, R = 14, T = 16, B = 24;
+  const x = (i: number) => L + (list.length > 1 ? i * (W - L - R) / (list.length - 1) : (W - L - R) / 2);
+  const y = (v: number) => T + (H - T - B) * (1 - (v - lo) / ((hi - lo) || 1));
+  const col = dark ? '#E5625F' : '#C8302E';
+  const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const d = before ? Number(last.avg12) - Number(before.avg12) : 0;
+  const step = Math.ceil(list.length / 8);
+  return (
+    <Card gap={8}>
+      <Muted style={{ fontFamily: fonts.bodyBold }}>{t('TÜFE 12 aylık ortalama')}</Muted>
+      <Row gap={10} wrap>
+        <Text style={{ fontFamily: fonts.siteBold, fontSize: 30, letterSpacing: -0.8, color: c.ink }}>{'%' + String(last.avg12).replace('.', ',')}</Text>
+        {d ? <TrendChip invert trend={(d < 0 ? '−' : '+') + t('{n} puan', { n: Math.abs(d).toLocaleString(locale(), { maximumFractionDigits: 2 }) })} /> : null}
+      </Row>
+      <Muted>{t('{m} · kira artışında yasal üst sınır', { m: monthYear(last.month) })}</Muted>
+      <View onLayout={(e) => setW(Math.round(e.nativeEvent.layout.width))} style={{ height: H }}>
+        {W ? (
+          <Svg width={W} height={H} accessibilityLabel={t('TÜFE 12 aylık ortalama')}>
+            {[lo, (lo + hi) / 2, hi].map((v) => [
+              <SvgLine key={'g' + v} x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke={c.line} strokeDasharray="3 4" />,
+              <SvgText fontFamily={SVG_FONT} key={'t' + v} x={L - 6} y={y(v) + 4} fontSize={10.5} fill={c.muted} textAnchor="end">{'%' + Math.round(v)}</SvgText>,
+            ])}
+            {list.length > 1 ? <Polygon points={`${x(0)},${y(lo)} ${pts} ${x(list.length - 1)},${y(lo)}`} fill={col} opacity={dark ? 0.16 : 0.1} /> : null}
+            <Polyline points={pts} fill="none" stroke={col} strokeWidth={2.5} strokeLinejoin="round" />
+            {vals.map((v, i) => <Circle key={i} cx={x(i)} cy={y(v)} r={i === vals.length - 1 ? 5 : 3} fill={i === vals.length - 1 ? c.surface : col} stroke={col} strokeWidth={2} />)}
+            {list.map((r, i) => (i % step === 0 || i === list.length - 1 ? <SvgText fontFamily={SVG_FONT} key={'m' + i} x={x(i)} y={H - 6} fontSize={10.5} fill={i === list.length - 1 ? c.ink : c.muted} fontWeight={i === list.length - 1 ? '700' : '400'} textAnchor="middle">{monthYear(r.month).split(' ')[0].slice(0, 3) + ' ' + r.month.slice(2, 4)}</SvgText> : null))}
+          </Svg>
+        ) : null}
+      </View>
+    </Card>
+  );
+}
+
 export function CpiRates() {
   const c = useColors();
   const { data, err, reload } = useLoad<any[]>(() => loadCpi());
@@ -435,17 +534,22 @@ export function CpiRates() {
       {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
       {data || err ? null : <Spin />}
       {data && !data.length ? <Empty>{t('Henüz oran yok. tufe-sync fonksiyonu kurulunca her ay kendiliğinden eklenir.')}</Empty> : null}
+      {data && data.length ? <CpiChart rows={data} /> : null}
       {data && data.length ? (
-        <Card gap={0}>
-          {data.map((r, i) => (
-            <Row key={r.month} between style={{ paddingVertical: 12, borderTopWidth: i ? 1 : 0, borderColor: c.line }}>
-              <Text v="small" style={{ fontFamily: fonts.bodyBold, flex: 1 }}>{r.month}</Text>
-              <Text v="small" style={{ fontFamily: fonts.bodyXBold, width: 90 }}>%{String(r.avg12).replace('.', ',')}</Text>
-              <Chip tone={r.source === 'evds' ? 'ok' : 'warn'} label={r.source === 'evds' ? t('Otomatik') : t('Elle')} />
-              <Button kind="quiet" title={t('Sil')} onPress={() => save(r.month, '')} />
-            </Row>
-          ))}
-        </Card>
+        <ATable label={t('Kira artış oranları')}
+          cols={[{ label: t('Ay'), flex: 1.6 }, { label: t('Oran'), align: 'right', flex: 0.8 }, { label: t('Değişim'), align: 'right', flex: 1 }, { label: t('Kaynak'), flex: 0.9 }, { label: '', align: 'right', width: 70 }]}
+          keys={data.map((r: any) => r.month)}
+          rows={data.map((r: any, i: number) => {
+            const older = data[i + 1];
+            const d = older ? Number(r.avg12) - Number(older.avg12) : null;
+            return [
+              <Text key="a" v="small"><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{monthYear(r.month)}</Text>{'  '}<Text v="small" muted>{r.month}</Text></Text>,
+              <NumCell key="b" v={'%' + String(r.avg12).replace('.', ',')} />,
+              d == null || !d ? <Muted key="c">—</Muted> : <View key="c"><TrendChip invert trend={(d < 0 ? '−' : '+') + t('{n} puan', { n: Math.abs(d).toLocaleString(locale(), { maximumFractionDigits: 2 }) })} /></View>,
+              <StatusPill key="d" tone={r.source === 'evds' ? 'ok' : 'wait'} label={r.source === 'evds' ? t('Otomatik') : t('Elle')} />,
+              <Button key="e" kind="quiet" title={t('Sil')} onPress={() => save(r.month, '')} />,
+            ];
+          })} />
       ) : null}
     </Stack>
   );

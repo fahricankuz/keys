@@ -6,7 +6,7 @@ import { t } from '../domain/i18n';
 import { loadKpis } from '../domain/admin';
 import { adminOrgs } from '../domain/org';
 import { finance, loadCosts, loadMonthly, periodMonths, revenueEstimate, saveRevenueMonth, volumes } from '../domain/admin-finance';
-import { percent, tl } from '../domain/util';
+import { monthYear, percent, tl } from '../domain/util';
 import { fmtShort } from '../domain/money';
 import { Text } from '../ui/kit';
 import { fonts, useBreakpoint, useColors } from '../ui/theme';
@@ -14,6 +14,7 @@ import { Card, H2, Muted, Row, Seg } from './blocks';
 import { useFx } from './fx-ui';
 import { categoryLabel } from './admin-costs';
 import { MonthChart, type MonthRow } from './admin-charts';
+import { monthEnd, useMoney } from './admin-money';
 
 export type Period = 'month' | 'year';
 const KEY = 'adminPeriod';
@@ -63,8 +64,11 @@ export function periodFinance(data: any, table: any, period: Period) {
 const INCOME_LABEL = (k: string) => ({ uyelik: t('Üyelik ücreti'), komisyon: t('İşlem ücreti (kartla aidat / kira)'), diger: t('Diğer (hukuki destek)') } as any)[k] || k;
 
 /** Gelir, gider ve net: üç büyük değer ve altında kırılımlar. */
-export function FinanceCard({ f, prev, period }: { f: any; prev: any; period: Period }) {
+export function FinanceCard({ f, prev, period, prevDay }: { f: any; prev: any; period: Period; prevDay?: string }) {
   const c = useColors();
+  const { money } = useMoney();
+  const tl = (v: number) => money(v);
+  const tlp = (v: number) => money(v, prevDay);
   const { phone } = useBreakpoint();
   const dark = c.bg !== '#FAF5F0';
   // Üç değer renkli kutularda; net kutusu marka tonunda.
@@ -72,7 +76,7 @@ export function FinanceCard({ f, prev, period }: { f: any; prev: any; period: Pe
     <View style={{ flexGrow: 1, flexBasis: phone ? '100%' : 150, minWidth: 0, gap: 2, borderRadius: 18, padding: 14, backgroundColor: tone === 'net' ? c.accentSoft : dark ? 'rgba(250,245,240,0.05)' : c.surface2 }}>
       <Muted>{label}</Muted>
       <RNText numberOfLines={1} style={{ fontFamily: fonts.siteBold, fontSize: phone ? 26 : 30, letterSpacing: -0.8, color: tone === 'net' && v < 0 ? c.badInk : c.ink, fontVariant: ['tabular-nums'] }}>{tl(v)}</RNText>
-      <Muted>{[delta(v, p), prevLabel(period) + ': ' + tl(p)].filter(Boolean).join(' · ')}</Muted>
+      <Muted>{[delta(v, p), prevLabel(period) + ': ' + tlp(p)].filter(Boolean).join(' · ')}</Muted>
     </View>
   );
   const DOTS = [c.accent, '#F2B544', c.muted, dark ? '#F28C86' : '#A8231F'];
@@ -126,18 +130,25 @@ function yearMonths() {
 /** Yılın aylık gelir, gider ve net grafiği (tek eksen: gelir üstte, gider altta, net çizgi). */
 export function YearChart({ data, table }: { data: any; table: any }) {
   const y = new Date().getFullYear();
+  const { conv, fmtc, axis } = useMoney();
   let inc = 0, exp = 0;
   const rows: MonthRow[] = yearMonths().map(({ m, future }) => {
     if (future) return { m, up: 0, down: 0, future };
     const f = finance({ monthly: data.monthly, months: [m], liveMrr: data.mrr.mrr, orgs: data.orgs, costs: data.costs, table });
-    inc += f.income; exp += f.expense;
-    return { m, up: f.income, down: f.expense, note: f.missingMonths ? t('Bu ay için üyelik kaydı yok; üyelik geliri dahil değil.') : undefined };
+    // Seçilen para birimine her ay kendi son gününün kuruyla (kur yoksa 0 sayılmaz: o ay grafikte 0, tabloda —).
+    const up = conv(f.income, m) ?? 0, down = conv(f.expense, m) ?? 0;
+    inc += up; exp += down;
+    return { m, up, down, note: f.missingMonths ? t('Bu ay için üyelik kaydı yok; üyelik geliri dahil değil.') : undefined };
   });
+  const past = rows.filter((r) => !r.future);
+  const last = past[past.length - 1], before = past[past.length - 2];
+  const net = (r?: MonthRow) => (r ? r.up - (r.down || 0) : 0);
   return (
     <MonthChart title={t('{y} aylık gelir, gider ve net', { y })} rows={rows}
       labels={{ up: t('Gelir'), down: t('Gider'), net: t('Net'), netLong: t('Net (gelir − gider)') }}
-      fmt={(v) => tl(v)} axisFmt={(v) => fmtShort(v, 'TRY')}
-      summary={t('Yıl toplamı: gelir {a} · gider {b} · net {c}', { a: tl(inc), b: tl(exp), c: tl(inc - exp) })} />
+      fmt={fmtc} axisFmt={axis}
+      headline={last ? { value: t('Net {v}', { v: fmtc(net(last)) }), delta: before ? delta(net(last), net(before)) || undefined : undefined, sub: t('{m} · bir önceki aya göre', { m: monthYear(last.m) }) } : undefined}
+      summary={t('Yıl toplamı: gelir {a} · gider {b} · net {c}', { a: fmtc(inc), b: fmtc(exp), c: fmtc(inc - exp) })} />
   );
 }
 

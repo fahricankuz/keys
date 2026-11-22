@@ -255,7 +255,7 @@ export function PageHead({ label, title, sub, right }: { label?: string; title: 
         <RNText role="heading" aria-level={1} style={{ fontFamily: fonts.siteBold, fontSize: phone ? 32 : 40, lineHeight: phone ? 36 : 44, letterSpacing: phone ? -0.8 : -1.3, color: c.ink }}>{title}</RNText>
         {sub ? <Text v="small" muted style={{ fontSize: phone ? 13.5 : 14.5, lineHeight: phone ? 19 : 21 }}>{sub}</Text> : null}
       </View>
-      {right || bell ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>{right}{bell}</View> : null}
+      {right || bell ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', maxWidth: '100%', minWidth: 0 }}>{right}{bell}</View> : null}
     </View>
   );
 }
@@ -280,15 +280,17 @@ function toneOf(c: ReturnType<typeof useColors>, tone: Tone): [string, string] {
 }
 
 /** Değişim rozeti: "+12%" yeşil ▲, "−5%" kırmızı ▼; koyu zeminde (hero) koyu tema renkleri. */
-export function TrendChip({ trend, onDark }: { trend: string; onDark?: boolean }) {
+export function TrendChip({ trend, onDark, invert }: { trend: string; onDark?: boolean; invert?: boolean }) {
   const c = useColors();
-  const up = trend.startsWith('+'), down = trend.startsWith('−');
+  // invert: düşüş iyi (ör. enflasyon) — ok yönü aynı kalır, renk ters döner.
+  const rise = trend.startsWith('+'), fall = trend.startsWith('−');
+  const up = invert ? fall : rise, down = invert ? rise : fall;
   const dark = onDark || c.bg !== '#FAF5F0';
   const upBg = dark ? 'rgba(127,196,149,0.15)' : c.okBg, upFg = dark ? '#7FC495' : c.okInk;
   const dnBg = dark ? 'rgba(242,140,134,0.15)' : c.badBg, dnFg = dark ? '#F28C86' : c.badInk;
   return (
     <View style={{ alignSelf: 'flex-start', backgroundColor: up ? upBg : down ? dnBg : onDark ? 'rgba(250,245,240,0.10)' : c.surface2, borderRadius: radius.pill, paddingHorizontal: 9, paddingVertical: 3 }}>
-      <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 12, color: up ? upFg : down ? dnFg : onDark ? c.heroMuted : c.muted }}>{up ? '▲ ' + trend.slice(1) : down ? '▼ ' + trend.slice(1) : trend}</RNText>
+      <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 12, color: up ? upFg : down ? dnFg : onDark ? c.heroMuted : c.muted }}>{rise ? '▲ ' + trend.slice(1) : fall ? '▼ ' + trend.slice(1) : trend}</RNText>
     </View>
   );
 }
