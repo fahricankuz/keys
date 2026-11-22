@@ -11,6 +11,8 @@ import * as Notifications from 'expo-notifications';
 import { LIVE } from './config.js';
 import { client, live } from './backend.js';
 import { storage } from './storage.js';
+import { t } from './i18n.js';
+import { NOTIFY_KINDS } from './notify-kind.js';
 
 const native = () => Platform.OS === 'ios' || Platform.OS === 'android';
 
@@ -40,6 +42,16 @@ async function save(tok){
   if (u.error) throw u.error;
 }
 
+/** Bildirim türü başına Android kanalı ve anahtar sesi (assets/sounds, app.json → expo-notifications.sounds).
+    Sunucu türü bildirimden çıkarır ve aynı adlı kanala gönderir (supabase/functions/push/native.ts). Kanal sesi Android'de
+    kanal açıldıktan sonra değişmez; ses değişirse kanal adına sürüm eki konmalı. Kullanıcı sesi telefon ayarlarından kanal kanal kapatabilir. */
+async function setupKindChannels(){
+  const names = { odeme: t('Ödemeler'), mesaj: t('Mesajlar'), talep: t('Talepler'), duyuru: t('Duyurular'), hatirlatma: t('Hatırlatmalar'), belge: t('Belgeler') };
+  for (const k of NOTIFY_KINDS) {
+    await Notifications.setNotificationChannelAsync(k, { name: names[k], importance: Notifications.AndroidImportance.HIGH, sound: k + '.wav' });
+  }
+}
+
 /** Bildirim izni durumu, izin sorulmadan: 'on' (verilmiş) | 'ask' (henüz sorulmadı / yeniden sorulabilir) | 'denied' | 'off' (bu cihazda yok). */
 export async function pushPermission(){
   if (!LIVE || !native()) return 'off';
@@ -57,6 +69,7 @@ export async function registerDevice(){
     if (Platform.OS === 'android') {
       // Sunucu Android bildirimlerini "evim" kanalına gönderir (native.ts → channel_id). Android 13+ izin penceresi için kanal önceden olmalı.
       await Notifications.setNotificationChannelAsync('evim', { name: 'anahtar', importance: Notifications.AndroidImportance.HIGH });
+      await setupKindChannels();
     }
     const state = await pushPermission();
     if (state !== 'on') return state;

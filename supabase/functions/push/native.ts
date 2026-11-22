@@ -10,6 +10,7 @@
 
 import { SignJWT, importPKCS8 } from 'npm:jose@5.9.6';
 import { logger } from '../_shared/log.ts';
+import { apnsSound, fcmChannel, notifyKind } from './kind.ts';
 
 const log = logger('push');
 
@@ -54,7 +55,7 @@ export async function sendApns(deviceToken: string, n: Note): Promise<Result> {
     // expo-notifications iOS'ta bildirimin verisini (content.data) yükün kökündeki `body` anahtarından okur; bağlantı orada olmalı.
     // Kökteki `url` eski okuyucular içindir.
     body: JSON.stringify({
-      aps: { alert: { title: n.title, body: n.body }, sound: 'default', 'thread-id': n.tag ?? 'evim' },
+      aps: { alert: { title: n.title, body: n.body }, sound: apnsSound(notifyKind(n)), 'thread-id': n.tag ?? 'evim' },
       body: { url: n.url },
       url: n.url,
     }),
@@ -105,7 +106,7 @@ export async function sendFcm(deviceToken: string, n: Note): Promise<Result> {
         token: deviceToken,
         notification: { title: n.title, body: n.body },
         data: { url: n.url },
-        android: { priority: 'high', notification: { tag: n.tag ?? undefined, channel_id: 'evim' } },
+        android: { priority: 'high', notification: { tag: n.tag ?? undefined, channel_id: fcmChannel(notifyKind(n)) } },
       },
     }),
   });

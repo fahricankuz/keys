@@ -18,6 +18,7 @@ import { S, ui, VERSION, useStorageKey, replaceState, savedLang, saveLocal, hook
 import { buildProperty, diffProperty, pendingMedia, storedPath, isStored, SB, messageFromRow } from './mapping.js';
 import { host } from './host.js';
 import { storage } from './storage.js';
+import { notifyKind } from './notify-kind.js';
 import { uid } from './util.js';
 import { refreshOrgs, acceptOrgInvite } from './org.js';
 import { refreshSiteUnits, acceptSiteInvite } from './site.js';
@@ -887,7 +888,7 @@ function subscribe(){
 }
 
 function noteToInbox(n){
-  return { id: n.id, title: n.title, body: n.body, at: Date.parse(n.created_at), read: !!n.read_at, go: (n.url || '').replace(/^#/, '') || null };
+  return { id: n.id, title: n.title, body: n.body, at: Date.parse(n.created_at), read: !!n.read_at, go: (n.url || '').replace(/^#/, '') || null, kind: notifyKind(n) };
 }
 
 function onNotification(n){

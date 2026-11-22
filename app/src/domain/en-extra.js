@@ -1872,4 +1872,6 @@ export const EN_EXTRA = {
   'Bildirimler ({n})': 'Notifications ({n})',
   'Açık temaya geç': 'Switch to light theme',
   'Koyu temaya geç': 'Switch to dark theme',
+  // Bildirim türü simgesi (ekran okuyucu)
+  'Bildirim': 'Notification',
 };
