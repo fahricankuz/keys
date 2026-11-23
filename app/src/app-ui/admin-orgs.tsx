@@ -14,7 +14,9 @@ import { Card, Empty, H2, Muted, Row, Seg, Stack } from './blocks';
 import { OrgManage, Pill } from './org';
 import { AddProperty } from './admin-property';
 
-export type OrgDraft = { name?: string; sector?: string; units?: number | null; lead_id?: string; email?: string; note?: string };
+/** Yeni kurumun ön bilgisi: Talepler → "Kuruma çevir" ya da Hesaplar → Kurumsal paketli hesapta "Bu kişi için kurum oluştur".
+    master: kurum açılınca master yönetici olarak atanacak kayıtlı hesabın e-postası. */
+export type OrgDraft = { name?: string; sector?: string; units?: number | null; lead_id?: string; email?: string; note?: string; master?: string };
 
 const day = (v: any) => (v ? new Date(v).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 /** Başvuru formundaki "Seni en iyi ne tanımlar?" cevabından sektör tahmini. */
@@ -44,6 +46,8 @@ function OrgForm({ org, draft, done }: { org?: any; draft?: OrgDraft | null; don
     try {
       const id = await adminSaveOrg({ id: org?.id, name, sector, modules: mods, units: units.replace(/\D/g, '') || null, contract_until: until || null,
         billing: { title, tax_no: tax, email: mail, monthly_fee: Number(String(fee).replace(',', '.')) || null }, note, lead_id: org ? undefined : draft?.lead_id, report_currency: fxCur });
+      // Kurumsal paketli hesaptan açılan kurum: o hesap master olur. Atanamazsa kurum yine açıktır; kartta "Master belirle" ile elle atanır.
+      if (!org && id && draft?.master) { try { await adminSetMaster(id, draft.master); } catch {} }
       done(id);
     } catch (e) { setErr(humanError(e)); }
     setBusy(false);
@@ -51,6 +55,7 @@ function OrgForm({ org, draft, done }: { org?: any; draft?: OrgDraft | null; don
   return (
     <Card gap={12}>
       <H2>{org ? t('Kurumu düzenle') : t('Yeni kurum')}</H2>
+      {!org && draft?.master ? <Muted>{t('Bilgiler hesabın Kurumsal paketinden geldi. Kurum açılınca {mail} master yönetici olur.', { mail: draft.master })}</Muted> : null}
       <Field label={t('Kurum adı')} value={name} onChangeText={setName} maxLength={160} />
       <Text v="small" style={{ fontFamily: fonts.bodyBold }}>{t('Sektör')}</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }} accessibilityRole="radiogroup">
@@ -225,7 +230,7 @@ export function Orgs({ draft, clearDraft }: { draft?: OrgDraft | null; clearDraf
   const count = (k: string) => (list || []).filter((o) => o.sector === k).length;
   return (
     <Stack>
-      {adding ? <OrgForm key={draft?.lead_id || 'new'} draft={draft} done={() => { setAdding(false); clearDraft && clearDraft(); reload(); }} />
+      {adding ? <OrgForm key={draft?.lead_id || draft?.master || 'new'} draft={draft} done={() => { setAdding(false); clearDraft && clearDraft(); reload(); }} />
         : <Button title={t('Yeni kurum')} onPress={() => setAdding(true)} style={{ alignSelf: 'flex-start' }} />}
       <Seg scroll value={f} onChange={setF} options={[['all', t('Hepsi') + ' ' + (list || []).length], ...SECTORS().map((s) => [s.key, s.label + ' ' + count(s.key)] as [string, string])]} />
       {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
