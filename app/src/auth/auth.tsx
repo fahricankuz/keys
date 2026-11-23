@@ -15,7 +15,7 @@ import { playOnNextOpen } from '../app-ui/OpenSplash';
 import { refreshBlocks } from '../domain/moderation';
 import { setSentryUser } from '../domain/sentry';
 import { host } from '../domain/host';
-import { normalizeInviteCode } from '../domain/invite-code';
+import { isOrgInviteCode, normalizeInviteCode } from '../domain/invite-code';
 
 export type Role = 'tenant' | 'landlord' | 'team';
 /** Giriş türü: 'user' tek giriş (kiracı, mülk sahibi, ekip, site); 'admin' yönetici girişi. Eski 'tenant'/'landlord' değerleri 'user' gibi davranır. */
@@ -295,8 +295,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     code = normalizeInviteCode(code);
     if (!code) return t('Davet kodunu gir.');
     if (!LIVE) return t('Davet kodları sunucuya bağlı kurulumda çalışır. Site sunucuya bağlanınca kodunla mülküne bağlanabilirsin.');
-    try { await backend.acceptInvite(code); storage.removeItem(INVITE); return null; } catch (e) { return backend.humanError(e); }
-  }, []);
+    try {
+      await backend.acceptInvite(code); storage.removeItem(INVITE);
+      // Kurum master daveti ekip ya da kiracı hesabını sunucuda mülk sahibine çevirebilir (org_master_landlord): rol yeniden okunur.
+      if (user && user.role !== 'landlord' && isOrgInviteCode(code)) setUser(await enterLive({ id: user.id, email: user.email }));
+      return null;
+    } catch (e) { return backend.humanError(e); }
+  }, [user]);
 
   const addLandlord = useCallback(async () => {
     if (!user) return t('Önce giriş yap.');
