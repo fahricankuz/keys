@@ -1871,6 +1871,9 @@ export const EN_EXTRA = {
   // Yönetici paneli yeni kabuk
   'Bildirimler ({n})': 'Notifications ({n})',
   'Açık temaya geç': 'Switch to light theme',
+  // Kurumsal paketten kurum
+  'Bu kişi için kurum oluştur': 'Create an organization for this person',
+  'Bilgiler hesabın Kurumsal paketinden geldi. Kurum açılınca {mail} master yönetici olur.': 'Details come from the account\'s Enterprise plan. When the organization opens, {mail} becomes its master manager.',
   'Koyu temaya geç': 'Switch to dark theme',
   // Bildirim türü simgesi (ekran okuyucu)
   'Bildirim': 'Notification',

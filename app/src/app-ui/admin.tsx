@@ -107,7 +107,7 @@ export default function AdminPanel() {
             {tab === 'revenue' && <Revenue />}
             {tab === 'costs' && <Costs />}
             {tab === 'crm' && <Crm seed={crmSeed} clearSeed={() => setCrmSeed(null)} />}
-            {tab === 'accounts' && <Accounts d={data} reload={load} />}
+            {tab === 'accounts' && <Accounts d={data} reload={load} onOrg={(dr) => { setOrgDraft(dr); setTab('orgs'); }} />}
             {tab === 'health' && <Health d={data} />}
             {tab === 'orgs' && <Orgs draft={orgDraft} clearDraft={() => setOrgDraft(null)} />}
             {tab === 'support' && <Support onCrm={(r: any) => { setCrmSeed(leadFromRequest(r)); setTab('crm'); }} onConvert={(r: any) => {
@@ -460,7 +460,7 @@ function Box({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function AccountRow({ u, s, land, homes, roles, open, onToggle, reload }: { u: any; s?: Sub; land?: any; homes: any[]; roles: any[]; open: boolean; onToggle: () => void; reload: () => void }) {
+function AccountRow({ u, s, land, homes, roles, open, onToggle, reload, onOrg }: { u: any; s?: Sub; land?: any; homes: any[]; roles: any[]; open: boolean; onToggle: () => void; reload: () => void; onOrg?: (d: OrgDraft) => void }) {
   const c = useColors();
   const { phone } = useBreakpoint();
   const name = u.name || u.email || '—';
@@ -523,6 +523,12 @@ function AccountRow({ u, s, land, homes, roles, open, onToggle, reload }: { u: a
               {s.subscribed && s.plan_units ? <Muted>{t('Paketteki adet')}: {t('{n} mülk', { n: s.plan_units })}{s.plan_sector ? ' · ' + t('Sektör') + ': ' + sectorOf(s.plan_sector).label : ''}</Muted> : null}
               {s.choice && !s.subscribed ? <Muted>{t('Satın alma sayfasındaki seçimi')}: {planLabel(s.choice.plan)} · {t('{n} mülk', { n: s.choice.units })} · {s.choice.yearly ? t('yıllık') : t('aylık')}</Muted> : null}
               <SubActions s={s} reload={reload} />
+              {/* Kurumsal paket kurum açmaz; kurumu henüz olmayan hesapta kurum formu paketteki sektör ve adetle dolu açılır. */}
+              {s.subscribed && s.plan === 'kurumsal' && onOrg && !rt.some((x) => x.k === 'org') ? (
+                <Button kind="ghost" title={t('Bu kişi için kurum oluştur')} style={{ alignSelf: 'flex-start' }}
+                  onPress={() => onOrg({ name: u.name || '', sector: s.plan_sector || undefined, units: s.plan_units || null, email: u.email, master: u.email,
+                    note: [u.name, u.email, u.phone].filter(Boolean).join(' · ') })} />
+              ) : null}
             </Box>
           ) : null}
           {u.role === 'landlord' ? (
@@ -560,7 +566,7 @@ function AccountRow({ u, s, land, homes, roles, open, onToggle, reload }: { u: a
 }
 
 /** Abonelikler, Kullanıcılar ve Bağlantılar tek bölümde: üstte sayılar (dokununca süzer), arama, rol; satır açılınca paket, mülkler ve hesap. */
-function Accounts({ d, reload }: { d: Data; reload: () => void }) {
+function Accounts({ d, reload, onOrg }: { d: Data; reload: () => void; onOrg?: (d: OrgDraft) => void }) {
   const c = useColors();
   const { phone } = useBreakpoint();
   const [subs, setSubs] = useState<Sub[] | null>(null);
@@ -637,7 +643,7 @@ function Accounts({ d, reload }: { d: Data; reload: () => void }) {
           ) : null}
           <Shown list={list} step={50} render={(u: any) => (
             <AccountRow key={u.id} u={u} s={subBy[u.id]} land={landBy[u.id]} homes={homesBy[u.id] || []} roles={roles[u.id] || []} open={open === u.id}
-              onToggle={() => setOpen(open === u.id ? null : u.id)} reload={all} />
+              onToggle={() => setOpen(open === u.id ? null : u.id)} reload={all} onOrg={onOrg} />
           )} />
         </Card>
       ) : <Empty>{t('Eşleşen hesap yok.')}</Empty>}
