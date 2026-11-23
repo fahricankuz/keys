@@ -77,7 +77,7 @@ yetkilidir. Gerçek Postgres'te sınanır (`tests/*.sql.spec.mjs`). Bu sürümde
 | Yayın hattı | `.github/workflows/hostinger.yml` | Varsayılan yetki salt okunur; yalnız `site` dalına yazan iş yazma yetkisi alır, yalnız varsayılan daldan çalışır (elle çalıştırmada başka dal seçilse bile paketlenmez); kimlik bilgisi saklanmaz. |
 | Mobil derleme hattı | `.github/workflows/expo-mobile.yml` | Kimlik bilgisi saklanmaz; EAS sürümü sabit; `EXPO_TOKEN` robot kullanıcıya aittir. |
 | Bağımlılık güncelleme | `.github/dependabot.yml` (kök ve `app/`) | Haftalık güncelleme PR'ı. |
-| Otomatik tarama | `.github/workflows/guvenlik.yml`, `codeql.yml` | Semgrep (kod açıkları), gitleaks (sızan anahtar), `npm audit` (bağımlılık), CodeQL. Her gönderimde ve haftada bir. |
+| Otomatik tarama | `.github/workflows/guvenlik.yml` | Semgrep (kod açıkları), gitleaks (sızan anahtar), `npm audit` (bağımlılık). Her gönderimde ve haftada bir. CodeQL 21 Kasım 2026'da kaldırıldı: depo gizli, gizli depoda kod taraması ücretli GitHub Code Security ister. |
 
 **Sunucu başlıkları hakkında:** Hostinger'da `.htaccess` başlıkları gerçekten gönderilir (HSTS, çerçeve koruması, `nosniff`, referrer
 politikası). Kural tabanlı gerçek bir WAF (kötü amaçlı istekleri sunucuya varmadan eleyen duvar) için sitenin önüne Cloudflare
