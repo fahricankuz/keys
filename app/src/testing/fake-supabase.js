@@ -645,6 +645,10 @@ export function createClient(url, key, opts){
         const pname = id => (T.profiles.find(p => p.id === id) || {}).name || '';
         const pmail = id => (db.users.find(u => u.id === id) || {}).email || '';
         const setMaster = (oid, uid) => { T.org_members.forEach(m => { if (m.org_id === oid && m.is_master && m.user_id !== uid) m.is_master = false; });
+          // schema.sql → org_master_landlord: kiracı (eve kiracı olarak bağlı değilse) ve ekip (kimsenin ekibinde değilse) hesabı mülk sahibi olur.
+          { const pr = T.profiles.find(x => x.id === uid);
+            if (pr && ((pr.role === 'tenant' && !T.memberships.some(m => m.user_id === uid && m.role === 'tenant'))
+                    || (pr.role === 'team' && !(T.team_members || []).some(m => m.member_id === uid)))) { pr.role = 'landlord'; pr.landlord_since = pr.landlord_since || now(); } }
           const m = mem(oid, uid); if (m) Object.assign(m, { is_master:true, role_id:null }); else T.org_members.push({ org_id:oid, user_id:uid, role_id:null, is_master:true, created_at:now() }); };
         if (name === 'investor_report_mail'){
           if (!can(A.oid, 'reports.view')) return err('Rapor yetkin yok');
@@ -817,7 +821,12 @@ export function createClient(url, key, opts){
           const mail = String(A.mail || '').trim().toLowerCase();
           if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) return err('Geçerli bir e-posta adresi yaz.', '22023');
           const u = db.users.find(x => x.email.toLowerCase() === mail);
-          if (u){ setMaster(A.oid, u.id); audit('org.master', A.oid, { email:mail }); return ok({ status:'set', user:u.id }); }
+          if (u){
+            const pr = T.profiles.find(x => x.id === u.id) || {};
+            if (pr.role === 'team' && (T.team_members || []).some(m => m.member_id === u.id)) return err('Bu hesap başka bir mülk sahibinin ekibinde; kurum yöneticisi için mülk sahibi hesabı gerekir.', '22023');
+            if (pr.role === 'tenant' && T.memberships.some(m => m.user_id === u.id && m.role === 'tenant')) return err('Bu hesap bir eve kiracı olarak bağlı; kurum yöneticisi için mülk sahibi hesabı gerekir.', '22023');
+            setMaster(A.oid, u.id); audit('org.master', A.oid, { email:mail }); return ok({ status:'set', user:u.id });
+          }
           T.org_invites = T.org_invites.filter(i => !(i.org_id === A.oid && i.master && !i.accepted_by));
           const c = code(); T.org_invites.push({ code:c, org_id:A.oid, role_id:null, master:true, email:mail, expires_at:new Date(Date.now() + 14 * 864e5).toISOString(), accepted_by:null });
           audit('org.master_invite', A.oid, { email:mail }); return ok({ status:'invited', code:c });
