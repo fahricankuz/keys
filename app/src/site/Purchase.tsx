@@ -47,7 +47,7 @@ function Stepper({ value, min, max, onChange, label }: { value: number; min: num
 }
 
 /** Seçenek kartı: solda yuvarlak seçim işareti, başlık (ve etiket), alt satırlar. */
-function Option({ on, onPress, title, badge, lines }: { on: boolean; onPress: () => void; title: string; badge?: { label: string; tone: 'warn' | 'ok' }; lines: string[] }) {
+function Option({ on, onPress, title, badge, lines, note }: { on: boolean; onPress: () => void; title: string; badge?: { label: string; tone: 'warn' | 'ok' }; lines: string[]; note?: string }) {
   const c = useColors();
   const bg = badge?.tone === 'ok' ? c.okBg : c.warnBg, fg = badge?.tone === 'ok' ? c.okInk : c.warnInk;
   return (
@@ -63,6 +63,7 @@ function Option({ on, onPress, title, badge, lines }: { on: boolean; onPress: ()
           {badge ? <View style={{ backgroundColor: bg, borderRadius: radius.pill, paddingHorizontal: 9, paddingVertical: 2 }}><RNText style={{ fontFamily: fonts.bodyBold, fontSize: 12, color: fg }}>{badge.label}</RNText></View> : null}
         </View>
         {lines.map((l, i) => <Text key={i} v="small" muted style={{ fontSize: 14, lineHeight: 19, ...(i === 0 ? { fontFamily: fonts.bodyBold } : {}) }}>{l}</Text>)}
+        {note ? <View style={{ alignSelf: 'flex-start', backgroundColor: c.lemon, borderRadius: radius.pill, paddingHorizontal: 9, paddingVertical: 2, marginTop: 2 }}><RNText style={{ fontFamily: fonts.bodyBold, fontSize: 12, color: '#1D1A19' }}>{note}</RNText></View> : null}
       </View>
     </PressScale>
   );
@@ -129,6 +130,7 @@ export default function Purchase() {
   const [plan, setPlan] = useState<Plan>('tek');
   const [yearly, setYearly] = useState(false);
   const [units, setUnits] = useState(1);
+  const [hideUp, setHideUp] = useState(false);
   const [started, setStarted] = useState(false);
   const [today, setToday] = useState<number | null>(null);
   useEffect(() => {
@@ -150,7 +152,9 @@ export default function Purchase() {
   const monthlyTotal = priceOf(tier, false), yearlyTotal = priceOf(tier, true);
   const saving = Math.round((monthlyTotal * 12 - yearlyTotal) * 100) / 100;
   const yearlyMonthly = Math.round((yearlyTotal / 12) * 100) / 100;
-  const diff = Math.round((priceOf(bes, yearly) - priceOf(tek, yearly)) * 100) / 100;
+  // Kısa gösterim: 10 ve üstü tam sayıya yuvarlanır (₺250, ₺600), küçük tutarlar kuruşlu kalır.
+  const short = (n: number) => (n >= 10 ? money(Math.round(n)).replace(/[.,]00$/, '') : money(Math.round(n * 100) / 100));
+  const perUnitDiff = Math.round(((priceOf(bes, false) - priceOf(tek, false)) / Math.max(1, units)) * 100) / 100;
   const dateText = (off: number) => (today == null ? '' : new Date(today + off * DAY).toLocaleDateString(locale(), { day: 'numeric', month: 'long' }));
 
   const start = () => {
@@ -217,8 +221,9 @@ export default function Purchase() {
               <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap' }} accessibilityRole="radiogroup">
                 <Option on={!yearly} onPress={() => setYearly(false)} title={t('Aylık')}
                   lines={[totalText(tier, units, false) + ' ' + t('/ ay'), t('İstediğin zaman iptal')]} />
-                <Option on={yearly} onPress={() => setYearly(true)} title={t('Yıllık')} badge={{ label: t('2 ay ücretsiz'), tone: 'ok' }}
-                  lines={[totalText(tier, units, true) + ' ' + t('/ yıl'), t('Aylık {price}’ye denk · {save} tasarruf', { price: money(yearlyMonthly), save: money(saving) })]} />
+                <Option on={yearly} onPress={() => setYearly(true)} title={t('Yıllık')} badge={{ label: t('2 ay ücretsiz'), tone: 'warn' }}
+                  lines={[totalText(tier, units, true) + ' ' + t('/ yıl'), t('{price} / ay', { price: short(yearlyMonthly) })]}
+                  note={saving > 0 ? t('Yılda {save} tasarruf et', { save: short(saving) }) : undefined} />
               </View>
             </Section>
           </View>
@@ -227,7 +232,7 @@ export default function Purchase() {
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 24, rowGap: 12 }}>
               {tierPoints(plan).map((x) => (
                 <View key={x} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start', flexBasis: phone ? '100%' : '46%', flexGrow: 1 }}>
-                  <Icon name="check" size={17} color={c.okInk} />
+                  <Icon name="check" size={17} color={c.lemon} />
                   <Text v="small" style={{ flex: 1, fontSize: 15, lineHeight: 21 }}>{x}</Text>
                 </View>
               ))}
@@ -247,7 +252,7 @@ export default function Purchase() {
             <Text v="label" color={c.heroMuted} style={{ fontSize: 12.5, letterSpacing: 1.2 }}>{t('Bugün ödenecek').toLocaleUpperCase(locale())}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               <RNText style={{ fontFamily: fonts.siteBold, fontSize: 56, lineHeight: 58, letterSpacing: -2, color: c.heroInk }}>{money(0)}</RNText>
-              <View style={{ backgroundColor: c.okBg, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 5 }}><RNText style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: c.okInk }}>{t('1 ay ücretsiz')}</RNText></View>
+              <View style={{ backgroundColor: c.lemon, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 5 }}><RNText style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: '#1D1A19' }}>{t('1 ay ücretsiz')}</RNText></View>
             </View>
             <Text v="small" color={c.heroMuted} style={{ fontSize: 15 }}>
               {t('Deneme bitince, uygulamadan abone olursan')}{' '}
@@ -273,7 +278,7 @@ export default function Purchase() {
               <Icon name="safe" size={15} color={c.heroMuted} />
               <Text v="small" color={c.heroMuted}>{t('Bugün ödeme yok · İstediğin zaman iptal')}</Text>
             </View>
-            {saving > 0 ? <Text v="small" color={c.lemon} style={{ textAlign: 'center', fontFamily: fonts.bodyBold }}>{yearly ? t('Yıllık ödemeyle {save} tasarruf ediyorsun', { save: money(saving) }) : t('Yıllığa geçersen {save} tasarruf edersin', { save: money(saving) })}</Text> : null}
+            {saving > 0 ? <Text v="small" color={c.lemon} style={{ textAlign: 'center', fontFamily: fonts.bodyBold }}>{yearly ? t('Yıllık ödemeyle {save} tasarruf ediyorsun', { save: short(saving) }) : t('Yıllığa geçersen {save} tasarruf edersin', { save: short(saving) })}</Text> : null}
             {started ? (
               <View style={{ backgroundColor: 'rgba(250,245,240,0.08)', borderRadius: 14, padding: 12, gap: 8 }}>
                 {user && user.role !== 'landlord' && user.role !== 'team' ? (
@@ -293,22 +298,32 @@ export default function Purchase() {
           </View>
           <View style={{ flexDirection: 'row', gap: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
             {[t('Kayıtların silinmez'), t('Kolay iptal'), t('KDV dahil')].map((x) => (
-              <View key={x} style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}><Icon name="check" size={15} color={c.okInk} /><Text v="small" muted style={{ fontFamily: fonts.bodyBold }}>{x}</Text></View>
+              <View key={x} style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}><Icon name="check" size={15} color={c.lemon} /><Text v="small" muted style={{ fontFamily: fonts.bodyBold }}>{x}</Text></View>
             ))}
           </View>
 
-          {plan === 'tek' ? (
-            <View accessibilityRole="summary" style={{ backgroundColor: c.butter, borderRadius: 28, padding: phone ? 20 : 24, gap: 10 }}>
-              <Text v="label" color="#1D1A19" style={{ fontSize: 12.5 }}>{t('Daha fazlası için')}</Text>
-              <RNText style={{ fontFamily: fonts.siteBold, fontSize: 24, lineHeight: 26, letterSpacing: -0.5, color: '#1D1A19' }}>{t('Profesyonel ile ekibini, raporunu ve SMS’ini aç')}</RNText>
-              <Text v="small" color="#1D1A19">{yearly ? t('Aynı {n} mülk için yılda yalnızca {price} daha.', { n: units, price: money(diff) }) : t('Aynı {n} mülk için ayda yalnızca {price} daha.', { n: units, price: money(diff) })}</Text>
-              {[t('Ekip üyeleri: emlakçı, muhasebeci, personel'), t('Excel / CSV ile toplu mülk aktarma'), t('Net getiri, yıllık rapor ve vergi tahmini'), t('SMS hatırlatmaları')].map((x) => (
-                <View key={x} style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                  <Icon name="check" size={15} color="#1D1A19" />
-                  <Text v="small" color="#1D1A19" style={{ flex: 1 }}>{x}</Text>
+          {plan === 'tek' && !hideUp ? (
+            <View accessibilityRole="summary" style={{ backgroundColor: c.hero, borderRadius: 22, padding: phone ? 16 : 20, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text v="small" color={c.lemon} style={{ fontFamily: fonts.bodyBold, fontSize: 12.5 }}>
+                  {perUnitDiff > 0 ? t('Profesyonel’e geç · mülk başı +{price} / ay', { price: short(perUnitDiff) }) : t('Profesyonel’e geç')}</Text>
+                <RNText style={{ fontFamily: fonts.siteBold, fontSize: 19, lineHeight: 23, letterSpacing: -0.3, color: c.heroInk }}>{t('Aylık ve yıllık konsolide raporlar')}</RNText>
+                <Text v="small" color={c.heroMuted}>{t('Tüm mülklerin tek raporda')}</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                  {[t('Net getiri'), t('Vergi tahmini'), t('Ekip üyeleri')].map((x) => (
+                    <View key={x} style={{ borderWidth: 1, borderColor: c.heroMuted, borderRadius: radius.pill, paddingHorizontal: 9, paddingVertical: 2 }}>
+                      <Text v="small" color={c.heroInk} style={{ fontSize: 12 }}>{x}</Text>
+                    </View>
+                  ))}
                 </View>
-              ))}
-              <Button kind="primary" block title={t('Profesyonel’e geç')} onPress={() => setPlan('bes')} />
+              </View>
+              <View style={{ alignItems: 'center', gap: 8 }}>
+                <PressScale onPress={() => setPlan('bes')} accessibilityRole="button" accessibilityLabel={t('Profesyonel’i seç')} scaleTo={0.95}
+                  style={{ backgroundColor: c.lemon, borderRadius: radius.pill, paddingHorizontal: 18, paddingVertical: 9 }}>
+                  <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: 14, color: '#1D1A19' }}>{t('Seç')}</RNText>
+                </PressScale>
+                <Text v="small" color={c.heroMuted} onPress={() => setHideUp(true)} accessibilityRole="button" accessibilityLabel={t('Öneriyi kapat')}>✕</Text>
+              </View>
             </View>
           ) : null}
         </View>

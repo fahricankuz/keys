@@ -74,26 +74,29 @@ test('"Paketi seç" satın alma sayfasını açar; mülk adedi +/− ile 1-9 ara
   // Yıllık dönem: 9 × 999,99
   await page.getByRole('radio', { name: /^Yıllık/ }).click();
   await total('₺8.999,91');
-  await expect(page.getByText('Yıllık ödemeyle ₺1.799,01 tasarruf ediyorsun')).toBeVisible();   // 9 × 99,99 × 12 − 8.999,91
+  await expect(page.getByText('Yıllık ödemeyle ₺1.799 tasarruf ediyorsun')).toBeVisible();   // 9 × 99,99 × 12 − 8.999,91
   // 10+ için Kurumsal bağlantısı.
   await page.getByRole('link', { name: 'bize ulaşın' }).click();
   await expect(page).toHaveURL(/\/kurumsal/);
 });
 
-test('Başlangıç seçiliyken Profesyonel önerisi: aynı mülk adedi için fark gösterilir; "Profesyonel\'e geç" paketi değiştirir ve öneri kaybolur', async ({ page }) => {
+test('Başlangıç seçiliyken Profesyonel önerisi: kısa şerit mülk başı farkı ve öne çıkanları gösterir; "Seç" paketi değiştirir, ✕ şeridi kapatır', async ({ page }) => {
   await page.goto(url('/satin-al?plan=tek&donem=aylik&adet=3'));
   await expect(page.getByText('₺299,97', { exact: true }).first()).toBeVisible();
-  await expect(page.getByText('Profesyonel ile ekibini, raporunu ve SMS’ini aç')).toBeVisible();
-  await expect(page.getByText('Aynı 3 mülk için ayda yalnızca ₺300,00 daha.')).toBeVisible();   // 3 × (199,99 − 99,99)
-  for (const x of ['Ekip üyeleri: emlakçı, muhasebeci, personel', 'Excel / CSV ile toplu mülk aktarma', 'Net getiri, yıllık rapor ve vergi tahmini']) await expect(page.getByText(x).first()).toBeVisible();
-  await page.getByRole('button', { name: 'Profesyonel’e geç' }).click();
+  await expect(page.getByText('Aylık ve yıllık konsolide raporlar')).toBeVisible();
+  await expect(page.getByText('Profesyonel’e geç · mülk başı +₺100 / ay')).toBeVisible();      // 199,99 − 99,99
+  for (const x of ['Tüm mülklerin tek raporda', 'Net getiri', 'Vergi tahmini', 'Ekip üyeleri']) await expect(page.getByText(x, { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('SMS hatırlatmaları', { exact: true })).toHaveCount(0);          // Başlangıç listesinde ve şeritte SMS yok
+  await page.getByRole('button', { name: 'Profesyonel’i seç' }).click();
   await expect(page.getByText('₺599,97', { exact: true }).first()).toBeVisible();              // 3 × 199,99
-  await expect(page.getByText('Profesyonel ile ekibini, raporunu ve SMS’ini aç')).toHaveCount(0);
+  await expect(page.getByText('Aylık ve yıllık konsolide raporlar')).toHaveCount(0);
   await expect(page.getByText('Profesyonel paketinde neler var?')).toBeVisible();
-  await expect(page.getByText('SMS hatırlatmaları', { exact: true }).first()).toBeVisible();
-  // Yıllıkta öneri farkı yıllık yazılır.
-  await page.goto(url('/satin-al?plan=tek&donem=yillik&adet=2'));
-  await expect(page.getByText('Aynı 2 mülk için yılda yalnızca ₺2.000,00 daha.')).toBeVisible();
+  // Yıllık kartta aylık karşılık ve sarı tasarruf notu; ✕ şeridi kapatır.
+  await page.goto(url('/satin-al?plan=tek&donem=yillik&adet=3'));
+  await expect(page.getByText('₺250 / ay', { exact: true })).toBeVisible();                  // 2.999,97 / 12
+  await expect(page.getByText('Yılda ₺600 tasarruf et', { exact: true })).toBeVisible();     // 3 × 99,99 × 12 − 2.999,97
+  await page.getByRole('button', { name: 'Öneriyi kapat' }).click();
+  await expect(page.getByText('Aylık ve yıllık konsolide raporlar')).toHaveCount(0);
 });
 
 test('abonelik başlatma: çıkış yapmışsa mülk sahibi kaydına gider ve seçim saklanır; mülk sahibi oturumunda ödeme-güncelleme bilgisi çıkar; kiracıya uyarı', async ({ page }) => {
@@ -141,10 +144,12 @@ test('İngilizce: dolar fiyatlar, çeviri eksiği yok; ana sayfa fiyatları ve s
   await axe('ana sayfa');
   await page.goto(url('/satin-al?plan=tek&adet=3')); await sweep();
   await expect(page.getByText('$6.00', { exact: true }).first()).toBeVisible();                       // 3 × $2.00
-  await expect(page.getByText('For the same 3 properties it is only $6.00 more per month.')).toBeVisible();
+  await expect(page.getByText('Go Professional · +$2.00 / mo per property')).toBeVisible();      // $4.00 − $2.00
   await axe('satın alma');
   await page.getByRole('radio', { name: /^Annual/ }).click();
   await expect(page.getByText('$60.00', { exact: true }).first()).toBeVisible();                      // 3 × $20.00
+  await expect(page.getByText('$5.00 / mo', { exact: true })).toBeVisible();                        // $60.00 / 12
+  await expect(page.getByText('Save $12 a year', { exact: true })).toBeVisible();                   // 3 × $2.00 × 12 − $60.00
   await sweep();
   expect([...missing]).toEqual([]);
 });
