@@ -1871,6 +1871,10 @@ export const EN_EXTRA = {
   // Yönetici paneli yeni kabuk
   'Bildirimler ({n})': 'Notifications ({n})',
   'Açık temaya geç': 'Switch to light theme',
+  // Malike aidat bildirimi
+  'Kiracım aidatı geciktirince': 'When my tenant pays the dues late',
+  '{n} dairenin maliki uygulamaya bağlı değil': '{n} flats have no owner linked in the app',
+  'Maliki bağlı değil': 'No owner linked',
   // Kurumsal paketten kurum
   'Bu kişi için kurum oluştur': 'Create an organization for this person',
   'Bilgiler hesabın Kurumsal paketinden geldi. Kurum açılınca {mail} master yönetici olur.': 'Details come from the account\'s Enterprise plan. When the organization opens, {mail} becomes its master manager.',
