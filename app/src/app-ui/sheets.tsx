@@ -340,7 +340,11 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
           {mySiteUnits().length ? (
             <>
               <Label>{t('Site aidatı')}</Label>
-              <Card gap={4}><OnOff label={t('Site aidatı hatırlatmaları')} k="remindAidat" /></Card>
+              <Card gap={4}>
+                <OnOff label={t('Site aidatı hatırlatmaları')} k="remindAidat" />
+                {/* Malik, aidatını kiracının ödediği dairede gecikme ve ödendi bildirimi alır (sunucu: site_malik_late, site_malik_paid). */}
+                {mySiteUnits().some((u: any) => u.role === 'malik' && u.payer_effective === 'kiraci') ? <OnOff label={t('Kiracım aidatı geciktirince')} k="malikAidat" /> : null}
+              </Card>
             </>
           ) : null}
           {manages.length ? (

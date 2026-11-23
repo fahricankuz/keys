@@ -317,9 +317,14 @@ export function Units({ d, oid, org, orgRow, can, reload }: { d: any; oid: strin
   const [limitShown, setLimitShown] = useState(50);   // çok daireli sitede liste 50'şer açılır
   const peopleOf = (id: string) => d.residents.filter((r: any) => r.unit_id === id);
   const waiting = d.residents.filter((r: any) => !r.user_id).length;
+  // Maliki uygulamaya bağlı olmayan daire: malik kaydı yok ya da malik daveti kabul etmedi. Bağlı malik aidat durumunu görür, kiracı
+  // geciktirince bildirim alır.
+  const malikLinked = (id: string) => peopleOf(id).some((r: any) => r.role === 'malik' && r.user_id);
+  const noMalik = commercial ? 0 : d.units.filter((x: any) => !malikLinked(x.id)).length;
   const unitBy = Object.fromEntries(d.units.map((x: any) => [x.id, x]));
   const notInvited = d.residents.filter((r: any) => inviteState(r) === 'none').map((r: any) => ({ ...r, unitLabel: unitBy[r.unit_id] ? unitLabel(unitBy[r.unit_id]) : '' }));
-  const shown = d.units.filter((x: any) => (b === 'all' || (b === '__davet' ? peopleOf(x.id).some((r: any) => inviteState(r) === 'none') || !peopleOf(x.id).length : x.block === b))
+  const shown = d.units.filter((x: any) => (b === 'all' || (b === '__davet' ? peopleOf(x.id).some((r: any) => inviteState(r) === 'none') || !peopleOf(x.id).length
+      : b === '__malik' ? !malikLinked(x.id) : x.block === b))
     && (!q.trim() || match([unitLabel(x), ...peopleOf(x.id).map((r: any) => r.name + ' ' + r.phone)].join(' '), q)));
   const act = async (fn: () => Promise<any>) => { setErr(null); setMsg(null); try { await fn(); reload(); } catch (e) { setErr(humanError(e)); } };
   const missingArea = d.units.filter((x: any) => !(Number(x.area) > 0)).length;
@@ -333,7 +338,7 @@ export function Units({ d, oid, org, orgRow, can, reload }: { d: any; oid: strin
       {missingArea ? <Note warn>{commercial ? t('{n} birimin m²’si eksik. Ortak gider dağıtımı ve doluluk m²’ye göre hesaplanır.', { n: missingArea }) : t('{n} dairenin m²’si eksik. m²’ye göre dağıtım bu daireleri atlar.', { n: missingArea })}</Note> : null}
       {d.units.length || can('units.manage') ? (
         <View style={{ gap: 10 }}>
-          <Muted>{[t('{n} {w}', { n: d.units.length, w: W }), t('{n} kişi', { n: d.residents.length }), waiting ? t('{n} davet bekliyor', { n: waiting }) : ''].filter(Boolean).join(' · ')}</Muted>
+          <Muted>{[t('{n} {w}', { n: d.units.length, w: W }), t('{n} kişi', { n: d.residents.length }), waiting ? t('{n} davet bekliyor', { n: waiting }) : '', noMalik ? t('{n} dairenin maliki uygulamaya bağlı değil', { n: noMalik }) : ''].filter(Boolean).join(' · ')}</Muted>
           {can('units.manage') || can('residents.manage') ? (
             <Row wrap>
               {can('residents.manage') && notInvited.length ? <Button kind="ghost" title={t('Davet edilmemiş {n} kişiye gönder', { n: notInvited.length })}
@@ -376,7 +381,7 @@ export function Units({ d, oid, org, orgRow, can, reload }: { d: any; oid: strin
       {d.units.length ? (<>
         <View style={{ flexDirection: phone || blocks.length > 3 ? 'column-reverse' : 'row', gap: 10, alignItems: phone || blocks.length > 3 ? 'stretch' : 'center' }}>
           <View style={{ flex: phone || blocks.length > 3 ? undefined : 1, minWidth: 0 }}>
-            <Seg scroll value={b} onChange={(v: string) => { setB(v); setRename(null); }} options={[['all', t('Tümü')], ...(blocks.length > 1 ? blocks.map((x) => [x, x ? (commercial ? x : blockTitle(x)) : t('Bloksuz')] as [string, string]) : []), ['__davet', t('Davet edilmemiş')]]} />
+            <Seg scroll value={b} onChange={(v: string) => { setB(v); setRename(null); }} options={[['all', t('Tümü')], ...(blocks.length > 1 ? blocks.map((x) => [x, x ? (commercial ? x : blockTitle(x)) : t('Bloksuz')] as [string, string]) : []), ['__davet', t('Davet edilmemiş')], ...(commercial ? [] : [['__malik', t('Maliki bağlı değil') + ' ' + noMalik] as [string, string]])]} />
           </View>
           <View style={{ width: phone || blocks.length > 3 ? undefined : 240 }}>
             <TextInput value={q} onChangeText={setQ} placeholder={commercial ? t('Birim ya da kiracı ara') : t('Daire ya da kişi ara')} placeholderTextColor={c.muted} accessibilityLabel={t('Ara')}
