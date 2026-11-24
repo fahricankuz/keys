@@ -21,7 +21,7 @@ test.afterAll(() => server && server.close());
 test.beforeEach(async ({ page }) => {
   errors = watchErrors(page);
   const db = seed();
-  db.tables.organizations = [{ id: ORG, name: 'Örnek AVM', sector: 'avm', modules: ['kira', 'rapor'], status: 'active', units: 2, contract_until: null, billing: {}, note: '', created_at: new Date().toISOString() }];
+  db.tables.organizations = [{ id: ORG, name: 'Örnek Emlak', sector: 'emlak', modules: ['kira', 'rapor'], status: 'active', units: 2, contract_until: null, billing: {}, note: '', created_at: new Date().toISOString() }];
   db.tables.org_members = [{ org_id: ORG, user_id: ID.landlord, role_id: null, is_master: true }];
   db.tables.org_roles = []; db.tables.org_invites = [];
   db.tables.properties[0].org_id = ORG;                 // master'ın mevcut mülkü kuruma bağlı: 1/2
@@ -94,3 +94,12 @@ test('Hesaplar: mülk sahibi hesabı adına mülk eklenir; kiracı hesabında d�
   await expect(page.getByText('Mülk eklendi.')).toBeVisible();
   expect((await db(page)).tables.properties.some((p) => p.name === 'Moda 2+1' && p.owner_id === ID.landlord)).toBe(true);
 });
+
+test('Kurumlar: GYO/AVM/depo/site kurumunda "Mülk ekle" yok (portföy birimlerde, kurumun yöneticisi ekler)', async ({ page }) => {
+  await page.addInitScript(() => { const d = JSON.parse(localStorage.getItem('__fakedb')); if (d && !d.__avm) { d.tables.organizations.forEach((o) => { o.sector = 'avm'; }); d.__avm = 1; localStorage.setItem('__fakedb', JSON.stringify(d)); } });
+  await adminLogin(page);
+  await page.getByRole('button', { name: 'Kurumlar', exact: true }).first().click();
+  await expect(page.getByText('Örnek Emlak').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Mülk ekle' })).toHaveCount(0);
+});
+

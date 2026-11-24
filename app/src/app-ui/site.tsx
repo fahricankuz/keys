@@ -84,6 +84,8 @@ function ChargeRow({ x, unit, can, reload, row, first }: { x: any; unit: any; ca
   const act = async (fn: () => Promise<any>) => { setErr(null); try { await fn(); reload(); } catch (e) { setErr(humanError(e)); } };
   const open = async () => { const u = await fileUrl('sb:' + x.receipt_path); if (u && typeof window !== 'undefined') window.open(u, '_blank'); };
   const head = unit ? unitLabel(unit) + ' · ' + kindLabel(x.kind, x.title) : kindLabel(x.kind, x.title);
+  // Yöneticinin kendi dairesi (malik ya da kiracı olarak): kendi ödemesini onaylarken şeffaflık için etiket.
+  const own = mySiteUnits().some((u: any) => u.unit_id === x.unit_id);
   const detail = monthYear(x.month) + ' · ' + tl(x.amount) + (x.orig_amount != null && x.currency !== 'TRY' ? ' (' + money(x.orig_amount, x.currency) + ' × ' + String(x.fx).replace('.', ',') + ')' : '')
     + (x.status === 'review' || x.status === 'partial' ? ' · ' + t('Ödenen') + ' ' + tl(x.paid_amount) : '') + (x.paid_on ? ' · ' + day(x.paid_on) : x.due_on ? ' · ' + t('Vade') + ' ' + day(x.due_on) : '');
   const actions = [
@@ -116,7 +118,7 @@ function ChargeRow({ x, unit, can, reload, row, first }: { x: any; unit: any; ca
       <PressScale onPress={() => setOpened(!opened)} accessibilityRole="button" accessibilityState={{ expanded: opened }} accessibilityLabel={head + ' · ' + tl(x.amount)} scaleTo={0.995}
         style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: opened ? c.surface2 : 'transparent' }}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text v="small" numberOfLines={1} style={{ fontFamily: fonts.bodyXBold }}>{head}</Text>
+          <Row gap={6}><Text v="small" numberOfLines={1} style={{ fontFamily: fonts.bodyXBold, flexShrink: 1 }}>{head}</Text>{own ? <Chip tone="accent" label={t('Kendi dairen')} /> : null}</Row>
           <Text v="small" muted numberOfLines={1}>{detail}</Text>
         </View>
         <StatusChip st={stOf(x)} />
@@ -129,7 +131,7 @@ function ChargeRow({ x, unit, can, reload, row, first }: { x: any; unit: any; ca
     <Card gap={8}>
       <Row between wrap>
         <View style={{ flex: 1, minWidth: 160 }}>
-          <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{head}</Text>
+          <Row gap={6} wrap><Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{head}</Text>{own ? <Chip tone="accent" label={t('Kendi dairen')} /> : null}</Row>
           <Muted>{detail}</Muted>
         </View>
         <StatusChip st={stOf(x)} />

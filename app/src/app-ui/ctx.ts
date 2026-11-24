@@ -20,6 +20,8 @@ const portfolioOrgs = () => myOrgs().filter((o: any) => PORTFOLIO_SECTORS.includ
 function packageText(): string {
   const a: any = access();
   if (!a || a.pending) return '';
+  // Mülkleri kurum sözleşmesinde olan hesap (emlak ofisi, aile ofisi, diğer): kurumsal ve kullanım.
+  if (a.org) return t('Kurumsal') + (a.units != null ? ' · ' + (a.orgUsed ?? 0) + ' / ' + a.units : '');
   if (a.subscribed) return [a.plan ? planLabel(a.plan) : t('Abonelik'), a.units !== undefined ? unitsText(a.units) : ''].filter(Boolean).join(' · ');
   if (a.inTrial) return t('Deneme') + ' · ' + t('{n} gün', { n: trialDaysLeft(a) });
   return a.access === false ? t('Paket yok') : '';
