@@ -31,7 +31,7 @@ test('en az 2 dairesi olan malike özet gider; tek daireliye gitmez; aynı ay ik
   const [m] = await outbox();
   expect(m.to_email).toBe('cok@ornek.com');
   expect(m.data.month).toBe('2026-11');
-  expect(m.data.units.map((u) => [u.status, Number(u.due), u.payer])).toEqual([['open', 2500, 'malik'], ['paid', 0, 'malik']]   // A5'te kiracı yok: fiilen malik öder);
+  expect(m.data.units.map((u) => [u.status, Number(u.due), u.payer])).toEqual([['open', 2500, 'malik'], ['paid', 0, 'malik']]);   // A5'te kiracı yok: fiilen malik öder
 });
 
 test('ayar kapalıysa gitmez; işlev dışarıdan çağrılamaz', async () => {
