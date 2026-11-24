@@ -9,7 +9,7 @@ everything (command, output, PR link). Code identifiers, commands and product na
 (English counterparts live in `app/src/domain/en-*.js`). Commit messages and PR descriptions follow the repo convention (Turkish, with a prefix such
 as `Düzeltme:`, `Güvenlik:`, `Belgeler:`) because the owners read them.
 
-> **The repo is PUBLIC** (`fahricankuz/keys`). Never write a secret (password, key, token, `.p8`, `google-services.json`), a customer email/phone or a
+> **The repo is PRIVATE since 2026-11-21 but was PUBLIC before; treat it as public** (`fahricankuz/keys`): its history may have been copied. Never write a secret (password, key, token, `.p8`, `google-services.json`), a customer email/phone or a
 > personal email into code, docs, PR text, logs or chat. Write secret **names** only.
 
 ## 1. What the product is

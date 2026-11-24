@@ -1,8 +1,8 @@
 # Security guidelines
 
 Secure-development rules for this repository, what was found and fixed in the pre-release audit of **2026-11-13** (PR #112 and follow-ups)
-and why, a review checklist, an incident runbook and the risks that are still open. The repository is **public**: anything committed is
-public forever, so every rule below assumes that.
+and why, a review checklist, an incident runbook and the risks that are still open. The repository is **private** since 2026-11-21 but was
+**public** before, so anything committed may already be copied; every rule below still assumes a public repo.
 
 Companions: [coding-guidelines.md](coding-guidelines.md), [migrations.md](migrations.md), [loglar.md](loglar.md), [abonelik.md](abonelik.md),
 `specs/production-release.md` (requirements and rollout of the hardening). No secret value appears in this file or may be added to it:
@@ -221,7 +221,7 @@ treat it as leaked and rotate it (section 15).
 
 **7.7 Repository hygiene.** `.gitignore` blocks `.env*` (except `.env.example`), `*.p8`, `*.p12`, `*.jks`, `*.keystore`, `*.mobileprovision`, `GoogleService-Info.plist`,
 `google-services.json`, `credentials.json`, `.mcp.json`. `guvenlik.yml` runs gitleaks on every push and weekly. **A finding is fixed by rotating, not by editing history**
-(the repo is public and forks/caches exist). `.gitleaksignore` holds exactly two fingerprints for one fake test token; a real finding never goes there.
+(the repo was public until 2026-11-21 and forks/caches exist). `.gitleaksignore` holds exactly two fingerprints for one fake test token; a real finding never goes there.
 
 ---
 
@@ -354,7 +354,7 @@ Devredin Bilgi Teknolojileri Yazılım ve Ticaret A.Ş. is the data controller; 
   an "account deleted" mail is queued with only address, language and name, the RevenueCat subscriber is queued for deletion, then `auth.users` is deleted. Failures are shown to the user and the session stays signed in.
 - **Data subject requests** arrive at `info@anahtar.io` or through the in-app support form; answer within the statutory 30 days.
 - **Third parties** (Supabase EU, Sentry EU, RevenueCat, Apple, Google, Hostinger mail) are listed in the privacy policy; adding one is a legal change, not just a code change.
-- **Test data is fake** (`ornek.com`, fixed UUIDs). Production data is never copied into tests, fixtures, screenshots or the public repo.
+- **Test data is fake** (`ornek.com`, fixed UUIDs). Production data is never copied into tests, fixtures, screenshots or the repo.
 
 ---
 
@@ -424,7 +424,7 @@ Look at the first signal as an incident until proven otherwise when it concerns 
 
 **Contain** (smallest action first; production writes need Erdem's explicit go, read-only investigation does not).
 1. Stop the bleeding without code: ban the account (`admin_set_ban`), set `billing_paused` to true for a payment problem, remove a leaked key's access (rotate, below), disable a webhook trigger.
-2. Do not describe an unfixed vulnerability in a public PR, issue or commit message (the repo is public). Use the private channel until the fix is live.
+2. Do not describe an unfixed vulnerability in a public PR, issue or commit message (treat the repo as public). Use the private channel until the fix is live.
 3. Preserve evidence before changing anything: copy the relevant `function_logs`, `client_errors`, `admin_audit` rows and Supabase/Sentry log excerpts to the private vault, with no secrets in them.
 
 **Rotate** (assume any printed or committed secret is compromised):

@@ -1,7 +1,7 @@
 # Infrastructure map
 
 State as verified on **2026-11-13**. Every service anahtar depends on, what it does, who owns it, ids, where it is configured, and where its secrets live.
-This repo is **public**: this file contains identifiers and secret **names** only, never a secret value, a password or a personal email address.
+This repo is **private** since 2026-11-21 (public before; its history may have been copied), so it is still treated as public: this file contains identifiers and secret **names** only, never a secret value, a password or a personal email address.
 If something here disagrees with the live console, the console wins: fix this file in the same PR.
 
 Related: [release-and-ota.md](release-and-ota.md) (how to release), [diary/2026-11-13.md](diary/2026-11-13.md) (how this was set up), [loglar.md](loglar.md) (logs and Sentry), [abonelik.md](abonelik.md) (subscriptions),
@@ -25,7 +25,7 @@ Related: [release-and-ota.md](release-and-ota.md) (how to release), [diary/2026-
 
 | Service | Role | Plan / cost known |
 |---|---|---|
-| GitHub (`fahricankuz/keys`) | Code, CI, web build, DB migration runs | Public repo; Actions on standard runners are free for public repos (verify; old "save Actions minutes" rules date from the private period) |
+| GitHub (`fahricankuz/keys`) | Code, CI, web build, DB migration runs | Private repo since 2026-11-21: Actions minutes count against the account's monthly quota (check Settings → Billing → Usage); code scanning is Semgrep only (CodeQL needs paid Code Security) |
 | Hostinger | Web hosting for anahtar.io, DNS, mailbox | Plan and renewal date **not verified** |
 | Supabase (org "Anahtar") | Database, auth, storage, Edge Functions, cron, Vault | **Pro** plan; production compute **Micro** (since 2026-11-13, assumed covered by the Pro compute credit: verify on the billing page); daily backups, PITR off |
 | Sentry (EU) | Errors, crashes, uptime, cron monitor | Plan not verified; quota is limited (the auth-health uptime monitor is disabled because of it) |

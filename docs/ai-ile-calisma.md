@@ -67,7 +67,7 @@ Ajana, sohbete, PR açıklamasına, e-postaya, ekran görüntüsüne **şunları
 - İki adımlı doğrulama kodları ve kurtarma kodları.
 - Müşteri e-posta adresleri, telefonları, kimlik/IBAN bilgileri.
 
-**Depo herkese açıktır:** buraya yazılan her şeyi internetteki herkes okuyabilir. Gizli değerlerin yalnız **adları** yazılır (örnek: `SMTP_PASS` adı), **değeri** değil.
+**Depo gizlidir (21 Kasım 2026'dan beri), ama açıkmış gibi davranılır:** 21 Kasım'a kadar herkese açıktı; geçmişi kopyalanmış olabilir ve depo yeniden açılabilir. Gizli değerlerin yalnız **adları** yazılır (örnek: `SMTP_PASS` adı), **değeri** değil.
 Gizli dosyalarınız Mac'inizde `~/.config/anahtar/secrets` klasöründe kalır; depoya girmez.
 
 Ajan sizden bir değer isterse, önce "bunu yapıştırmadan başka yolu var mı?" diye sorun. Çoğu zaman ajan değeri kendisi okumadan, sizin konsolda yapıştırmanızla halledebilir.
