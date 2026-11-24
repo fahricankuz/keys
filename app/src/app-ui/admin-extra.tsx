@@ -4,6 +4,8 @@ import { Linking, View } from 'react-native';
 import Svg, { Circle, Line as SvgLine, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import { extendTrial, humanError, loadAdminEmails, loadCpi, loadKpis, loadSubscriptions, loadSupport, setCpi, setPlan, setSupportStatus } from '../domain/admin';
 import { MailComposer } from './admin-mail';
+import { PayResult } from './admin-pay';
+import { payRequest, posLink, posStatus } from '../domain/admin-pay';
 import { CONFIG } from '../domain/config';
 import { planLabel } from '../domain/plans';
 import { SECTORS, adminOrgs, sectorOf } from '../domain/org';
@@ -363,6 +365,12 @@ export function SubActions({ s, reload }: { s: any; reload: () => void }) {
   const [units, setUnits] = useState('1');
   const [sector, setSector] = useState('');
   const [why, setWhy] = useState('');
+  // Ödeme: ücretsiz (paket hemen tanımlanır), Havale/EFT (e-posta + WhatsApp, ödeme alınınca tanımlanır), Sanal POS (bağlantı).
+  const [pay, setPay] = useState<'free' | 'havale' | 'pos'>('free');
+  const [amount, setAmount] = useState('');
+  const [posOn, setPosOn] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  useEffect(() => { if (mode === 'plan') posStatus().then((x: any) => setPosOn(!!x?.configured)); }, [mode]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const store = s.subscribed && s.store && s.store !== 'admin';
@@ -375,9 +383,19 @@ export function SubActions({ s, reload }: { s: any; reload: () => void }) {
       if (plan === 'kurumsal' && !sector) { setErr(t('Sektörü seç.')); return; }
     }
     setBusy(true); setErr(null);
-    try { await fn(); setMode(''); setWhy(''); reload(); } catch (e) { setErr(humanError(e)); }
+    try { if ((await fn()) !== 'keep') { setMode(''); setWhy(''); reload(); } } catch (e) { setErr(humanError(e)); }
     setBusy(false);
   };
+  const submitPlan = async () => {
+    if (pay === 'free' || !plan) return setPlan(s.id, plan, until ? until + 'T23:59:59Z' : null, why.trim(), units, sector);
+    const amt = Number(String(amount).replace(/\./g, '').replace(',', '.'));
+    if (!(amt > 0)) throw new Error(t('Tutarı yaz.'));
+    const r = await payRequest(s.id, { method: pay, plan, units: Number(units), sector: plan === 'kurumsal' ? sector : null, until: until ? until + 'T23:59:59Z' : null, amount: amt, why: why.trim() });
+    const url = pay === 'pos' ? await posLink(r.id) : undefined;
+    setResult({ ...r, url, amount: amt });
+    return 'keep';   // sonuç kartı gösterilir; kapatınca liste yenilenir
+  };
+  if (result) return <PayResult r={result} amount={result.amount} done={() => { setResult(null); setMode(''); setWhy(''); setAmount(''); setPay('free'); reload(); }} />;
   if (!mode) return (
     <Row wrap>
       <Button kind="ghost" title={t('Denemeyi uzat')} onPress={() => setMode('trial')} />
@@ -400,11 +418,21 @@ export function SubActions({ s, reload }: { s: any; reload: () => void }) {
           ) : null}
           {plan ? <Field label={t('Bitiş tarihi (YYYY-AA-GG, boş: süresiz)')} value={until} onChangeText={setUntil} placeholder="2027-12-31" maxLength={10} /> : null}
         </>}
+      {mode === 'plan' && plan ? (
+        <View style={{ gap: 6 }}>
+          <Label>{t('Ödeme')}</Label>
+          <Seg value={pay} onChange={(v: any) => setPay(v)} options={[['free', t('Ücretsiz ver')], ['havale', t('Havale/EFT')], ...(posOn ? [['pos', t('Sanal POS')] as [string, string]] : [])]} />
+          {!posOn ? <Muted>{t('Sanal POS henüz bağlı değil.')}</Muted> : null}
+          {pay !== 'free' ? <Field label={t('Tutar (₺)')} value={amount} onChangeText={(x) => setAmount(x.replace(/[^\d.,]/g, ''))} keyboardType="decimal-pad" placeholder={t('ör. 12000')} /> : null}
+          {pay === 'havale' ? <Muted>{t('Müşteriye tutar, banka bilgisi ve ödeme kodu e-postayla gider; paket ödeme alınınca (Kurumsal ödeme) tanımlanır.')}</Muted> : null}
+          {pay === 'pos' ? <Muted>{t('Kartla ödeme bağlantısı oluşur; ödeme onaylanınca paket kendiliğinden tanımlanır.')}</Muted> : null}
+        </View>
+      ) : null}
       <Field label={t('Gerekçe')} value={why} onChangeText={setWhy} placeholder={t('Kayda yazılır')} maxLength={240} />
       <Row wrap>
         <Button kind="ghost" title={t('Vazgeç')} onPress={() => { setMode(''); setErr(null); }} />
         <Button loading={busy} title={mode === 'trial' ? t('Uzat') : plan ? t('Paketi ver') : t('Paketi kaldır')}
-          onPress={() => run(() => mode === 'trial' ? extendTrial(s.id, Number(days), why.trim()) : setPlan(s.id, plan, until ? until + 'T23:59:59Z' : null, why.trim(), units, sector))} />
+          onPress={() => run(() => mode === 'trial' ? extendTrial(s.id, Number(days), why.trim()) : submitPlan())} />
       </Row>
       {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
     </View>

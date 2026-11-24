@@ -89,3 +89,47 @@ test('Kurumsal paketli hesaptan kurum: form paketteki sektör ve adetle dolu aç
   await expect(page.getByText(/20 mülk · Sektör: Emlak ofisi/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Bu kişi için kurum oluştur' })).toHaveCount(0);
 });
+
+test('kurumsal ödeme: banka hesabı eklenir; Paket ver → Havale/EFT e-posta kuyruğu ve bekleyen istek; ödeme alınınca paket tanımlanır', async ({ page }) => {
+  await page.goto(`http://localhost:${PORT}/giris/yonetici`);
+  await page.getByLabel('E-posta').fill('admin@ornek.com');
+  await page.getByLabel('Şifre', { exact: true }).fill(PW);
+  await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.getByRole('button', { name: 'Kurumsal ödeme', exact: true }).first().click();
+  await expect(page.getByText(/Sanal POS/).first()).toBeVisible();
+  await expect(page.getByText(/Henüz bağlı değil/)).toBeVisible();
+  await page.getByRole('button', { name: 'Hesap ekle' }).click();
+  await page.getByLabel('Banka').fill('Örnek Bank');
+  await page.getByLabel('Hesap sahibi').fill('Anahtar A.Ş.');
+  await page.getByLabel('IBAN').fill('TR12 3456');
+  await page.getByRole('button', { name: 'Kaydet' }).click();
+  await expect(page.getByText('IBAN TR ile başlayan 26 karakter olmalı.')).toBeVisible();
+  await page.getByLabel('IBAN').fill('TR00 0000 0000 0000 0000 0000 01');
+  await page.getByRole('button', { name: 'Kaydet' }).click();
+  await expect(page.getByText('TR00 0000 0000 0000 0000 0000 01')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Hesaplar', exact: true }).first().click();
+  await page.getByRole('button', { name: /^Ayşe Mülk/ }).click();
+  await page.getByRole('button', { name: 'Paket ver' }).first().click();
+  await page.getByRole('button', { name: 'Kurumsal', exact: true }).click();
+  await page.getByLabel('Mülk / birim adedi').fill('20');
+  await page.getByRole('button', { name: 'Emlak ofisi' }).click();
+  await expect(page.getByText('Sanal POS henüz bağlı değil.')).toBeVisible();
+  await page.getByRole('button', { name: 'Havale/EFT', exact: true }).click();
+  await page.getByLabel('Tutar (₺)').fill('12000');
+  await page.getByLabel('Gerekçe').fill('teklif');
+  await page.getByRole('button', { name: 'Paketi ver' }).click();
+  await expect(page.getByText(/Ödeme bilgisi ev@ornek\.com adresine e-postayla gönderildi/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'WhatsApp ile gönder' })).toBeVisible();
+  let d = await db(page);
+  expect(d.tables.mail_outbox[0]).toMatchObject({ kind: 'havale_bilgi', to_email: 'ev@ornek.com' });
+  expect(d.tables.subscriptions.find((x) => x.store === 'admin')).toBeUndefined();
+  await page.getByRole('button', { name: 'Tamam' }).click();
+
+  await page.getByRole('button', { name: 'Kurumsal ödeme', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Ödeme alındı' }).click();
+  await expect(page.getByRole('button', { name: 'Ödeme alındı' })).toHaveCount(0);
+  d = await db(page);
+  expect(d.tables.subscriptions.find((x) => x.store === 'admin')).toMatchObject({ product_id: 'kurumsal', units: 20, sector: 'emlak' });
+});
