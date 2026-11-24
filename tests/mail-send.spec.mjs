@@ -63,3 +63,14 @@ test('havale_bilgi: tutar, ödeme kodu, banka ve IBAN (dörtlü gruplu); kaçı�
   expect(m.text).toContain('Kurumsal paketin (20 mülk)');
 });
 
+test('aidat_ozet: daire daire durum, kiracı öder notu, borç ve toplam; Sitem bağlantısı', () => {
+  const m = renderOutbox({ kind: 'aidat_ozet', data: { name: 'Ayşe Mülk', month: '2026-11', units: [
+    { org: 'Dalyan Sitesi', unit: 'A Blok No 5', payer: 'kiraci', status: 'open', due: 2500 },
+    { org: 'Dalyan Sitesi', unit: 'A Blok No 6', payer: 'malik', status: 'paid', due: 0 }] } }, 'https://anahtar.io');
+  expect(m.subject).toContain('Kasım 2026');
+  expect(m.text).toContain('A Blok No 5: ödenmedi (kiracı öder) · borç');
+  expect(m.text).toContain('A Blok No 6: ödendi');
+  expect(m.text).toMatch(/Toplam ödenmemiş: ₺2\.500/);
+  expect(m.html).toContain('https://anahtar.io/uygulama/sitem');
+});
+
