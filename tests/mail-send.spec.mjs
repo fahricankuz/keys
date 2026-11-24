@@ -51,3 +51,15 @@ test('kullanıcı metni HTML olarak yorumlanmaz; bilinmeyen tür gönderilmez', 
   expect(m.html).toContain('&lt;img src=x');
   expect(renderOutbox({ kind: 'garip', data: {} }, app)).toBeNull();
 });
+
+test('havale_bilgi: tutar, ödeme kodu, banka ve IBAN (dörtlü gruplu); kaçış', () => {
+  const m = renderOutbox({ kind: 'havale_bilgi', data: { name: 'Ayşe Mülk', plan: 'kurumsal', units: 20, amount: 12000, ref: 'ANH-7K3P0A',
+    bank: 'Örnek <Bank>', holder: 'Anahtar A.Ş.', iban: 'TR' + '1'.repeat(24), note: 'Açıklamaya kodu yazın.' } });
+  expect(m.subject).toContain('ANH-7K3P0A');
+  expect(m.text).toContain('Merhaba Ayşe');
+  expect(m.text).toMatch(/12\.000,00/);
+  expect(m.text).toContain('TR11 1111');
+  expect(m.html).toContain('Örnek &lt;Bank&gt;');
+  expect(m.text).toContain('Kurumsal paketin (20 mülk)');
+});
+

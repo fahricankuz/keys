@@ -1,5 +1,5 @@
 // anahtar — gönderim kuyruğundaki e-postaların (mail_outbox) HTML'i: hesap silindi, ekibe paket seçimi, kurum yöneticisi daveti,
-// yatırımcı raporu özeti ("Mailime gönder"), yönetici panelinden yazılan ileti (admin_message).
+// yatırımcı raporu özeti ("Mailime gönder"), yönetici panelinden yazılan ileti (admin_message), Havale/EFT ödeme bilgisi (havale_bilgi).
 // Saf işlev (Deno ve Node'da çalışır; testler önizleme üretir). E-posta istemcileri için: tablo düzeni, satır içi stil, sistem yazı tipi.
 // Bütün e-postalar koyu başlık bandında koyu zeminli logoyla (anahtar-logo-mail-koyu.png) gelir; karanlık modda da bozulmaz.
 
@@ -100,6 +100,19 @@ export function renderOutbox(row: OutboxRow, appUrl?: string, contact = 'info@an
     return { subject, html: layout(L), text: plain(L) };
   }
 
+  if (row.kind === 'havale_bilgi') {
+    // Kurumsal / elle paket: Havale/EFT ödeme bilgisi (yönetici panelinde "Paket ver" → Havale/EFT). Açıklama kodu ödemeyi eşleştirir.
+    const tl = (n: unknown) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 2 }).format(Number(n) || 0);
+    const iban = String(d.iban ?? '').replace(/(.{4})/g, '$1 ').trim();
+    const until = d.until ? new Date(String(d.until)).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' }) : '';
+    subject = `anahtar ödeme bilgileri · ${d.ref ?? ''}`;
+    L = { lang: 'tr', foot, title: 'Havale / EFT ile ödeme',
+          lead: [first ? `Merhaba ${first},` : 'Merhaba,', `${PLAN[String(d.plan)] || 'Paket'} paketin (${d.units ?? ''} mülk) için ödeme bilgileri aşağıda. Ödemeyi yaparken açıklamaya ödeme kodunu yazman yeterli; ödeme bize ulaşınca paketin hesabında açılır.`],
+          rows: [['Tutar', tl(d.amount)], ['Ödeme kodu (açıklamaya)', String(d.ref ?? '')], ['Banka', String(d.bank ?? '')], ['Alıcı', String(d.holder ?? '')], ['IBAN', iban],
+                 ['Paket bitişi', until]],
+          note: [String(d.note ?? '').trim(), `Sorun olursa bu e-postayı yanıtlayabilir ya da ${contact} adresine yazabilirsin.`].filter(Boolean).join(' ') };
+    return { subject, html: layout(L), text: plain(L) };
+  }
   if (row.kind === 'investor_report') {
     // Özet değerleri uygulamada biçimlenir (para birimi ve yüzde); burada yalnız gösterilir (layout kaçışlar).
     const period = /^\d{4}(-Q[1-4])?$/.test(String(d.period ?? '')) ? String(d.period) : '';

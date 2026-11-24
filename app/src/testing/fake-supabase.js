@@ -11,7 +11,7 @@ const TABLES = ['profiles','properties','property_shared','memberships','invites
                 'organizations','org_roles','org_members','org_invites',
                 'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes','site_documents','site_investor_notes','mail_outbox','site_cash','site_recurring_expenses',
                 'site_projects','site_project_updates','site_request_messages','site_project_costs','site_contracts','site_bank_txns','rent_bank_txns',
-                'app_config','fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_costs','admin_revenue_months','crm_leads','crm_notes','admin_emails'];
+                'app_config','fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_costs','admin_revenue_months','crm_leads','crm_notes','admin_emails','pay_accounts','corp_payments','mail_outbox'];
 
 /** Açıklama kodu (migration havale_bilgileri → gen_pay_code): 6 karakter, karışan harf/rakam yok. */
 const payCode = () => Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
@@ -1099,6 +1099,41 @@ export function createClient(url, key, opts){
         return { data: Object.values(groups).map(g => ({ cohort: g.cohort, role: g.role, size: g.size,
           active: Object.fromEntries(Object.entries(g.seen || {}).map(([m, set]) => [m, set.size])) })), error:null };
       }
+      // schema.sql → admin_pay_request / admin_pay_set (migration kurumsal_odeme) ile aynı kurallar.
+      if (name === 'admin_pay_request' || name === 'admin_pay_set'){
+        const err = (m, code = '42501') => ({ data:null, error:{ message:m, code } }), ok = (x) => { persist(db); return { data:x, error:null }; }, A = args;
+        if (!isAdmin(db, me)) return err('Yönetici yetkisi gerekli');
+      }
+      if (name === 'admin_pay_request'){
+        const err = (m, code = '42501') => ({ data:null, error:{ message:m, code } }), ok = (x) => { persist(db); return { data:x, error:null }; }, A = args;
+        const p = A.p || {}, T = db.tables;
+        if (!['havale','pos'].includes(p.method)) return err('Ödeme yöntemi seç', '22023');
+        if (!(Number(p.amount) > 0)) return err('Tutarı yaz', '22023');
+        const acc = p.method === 'havale' ? (T.pay_accounts.find(a => a.id === p.account_id) || T.pay_accounts.find(a => a.is_default) || T.pay_accounts[0]) : null;
+        if (p.method === 'havale' && !acc) return err('Önce Ödeme ayarlarından banka hesabı ekle', '22023');
+        const u = db.users.find(x => x.id === A.uid) || {}, pr = T.profiles.find(x => x.id === A.uid) || {};
+        const r = { id:uuid(), user_id:A.uid, method:p.method, plan:p.plan, units:Number(p.units), sector:p.plan === 'kurumsal' ? p.sector : null, until:p.until || null,
+          amount:Number(p.amount), ref:'ANH-' + uuid().replace(/-/g, '').slice(0, 6).toUpperCase(), status:'pending',
+          account: acc ? { bank:acc.bank, holder:acc.holder, iban:acc.iban, note:acc.note || '' } : null, why:p.why || '', created_at:now(), paid_at:null };
+        T.corp_payments.push(r);
+        if (acc) T.mail_outbox.push({ kind:'havale_bilgi', to_email:u.email, data:{ amount:r.amount, ref:r.ref, iban:acc.iban }, dedupe:'havale-' + r.ref });
+        persist(db);
+        return ok({ id:r.id, ref:r.ref, email:u.email, phone:pr.phone || '', name:pr.name || '', account:r.account });
+      }
+      if (name === 'admin_pay_set'){
+        const err = (m, code = '42501') => ({ data:null, error:{ message:m, code } }), ok = (x) => { persist(db); return { data:x, error:null }; }, A = args;
+        const r = db.tables.corp_payments.find(x => x.id === A.pid);
+        if (!r) return err('Ödeme bulunamadı', 'P0002');
+        if (r.status !== 'pending') return err('Bu ödeme zaten sonuçlandı', '22023');
+        if (A.st === 'paid'){
+          r.status = 'paid'; r.paid_at = now();
+          db.tables.subscriptions = db.tables.subscriptions.filter(x => !(x.user_id === r.user_id && x.store === 'admin'));
+          db.tables.subscriptions.push({ user_id:r.user_id, entitlement:'pro', product_id:r.plan === 'kurumsal' ? 'kurumsal' : r.plan + '_' + r.units + '_aylik', store:'admin',
+            expires_at:r.until, active:true, will_renew:false, units:r.units, sector:r.sector, updated_at:now() });
+        } else r.status = 'cancelled';
+        persist(db);
+        return ok(null);
+      }
       if (name === 'admin_subscriptions'){
         if (!isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
         return { data: db.tables.profiles.filter(p => p.role === 'landlord').map(p => {
@@ -1268,6 +1303,17 @@ export function createClient(url, key, opts){
           db.tables.subscriptions = db.tables.subscriptions.filter(x => x.user_id !== me);
           db.tables.subscriptions.push(Object.assign({ user_id:me }, db.nextSubscription));
           persist(db);
+        }
+        // Sanal POS (supabase/functions/pos): testte db.posConfigured ile açılır; bağlantı sahte adres.
+        if (name === 'pos'){
+          const b = (opts && opts.body) || {};
+          if (b.action === 'status') return { data:{ configured: !!db.posConfigured, provider:'moka' }, error:null };
+          if (b.action === 'link'){
+            const p = db.tables.corp_payments.find(x => x.id === b.id && x.method === 'pos' && x.status === 'pending');
+            if (!db.posConfigured || !p) return { data:null, error:{ message:'Sanal POS henüz bağlı değil' } };
+            p.provider = 'moka'; p.pay_url = 'https://odeme.example/' + p.ref; persist(db);
+            return { data:{ url:p.pay_url }, error:null };
+          }
         }
         return { data:{ ok:true }, error:null };
       }
