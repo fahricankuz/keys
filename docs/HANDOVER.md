@@ -4,7 +4,7 @@
 > Last updated: **2026-11-20 21:15 (Istanbul, UTC+3)**. What happened 14–20 November: [diary/2026-11-20.md](diary/2026-11-20.md).
 > Audience: the repo owners and their AI agents. This is a **handover back**: on 2026-11-13 Erdem (DevirVentures) hardened,
 > extended and prepared this repo for the stores; this file says what changed, what is live, what is still in review and what is left.
-> The repo is **public**: this file contains IDs and names, never secret values. Do not add any.
+> The repo is **private** since 2026-11-21 but was public before and is treated as public: this file contains IDs and names, never secret values. Do not add any.
 
 ---
 

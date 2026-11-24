@@ -62,6 +62,6 @@ Language column: **EN** = English (agent-facing), **TR** = Turkish (owner-facing
 ## Conventions
 
 - New agent-facing documents are written in English; owner-facing documents stay Turkish. Code identifiers, commands and product names are never translated.
-- A document never contains a secret value, a customer e-mail or phone, or a personal e-mail address. The repo is public.
+- A document never contains a secret value, a customer e-mail or phone, or a personal e-mail address. The repo was public until 2026-11-21 and is still treated as public.
 - If a document and the code or the live system disagree, the code and the live state win; fix the document in the same PR.
 - Work diaries live in `diary/` (one file per significant day, named by date).
