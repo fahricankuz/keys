@@ -96,7 +96,7 @@ test('kurumsal ödeme: banka hesabı eklenir; Paket ver → Havale/EFT e-posta k
   await page.getByLabel('Şifre', { exact: true }).fill(PW);
   await page.getByRole('button', { name: 'Giriş yap' }).click();
   await expect(page).toHaveURL(/\/admin$/);
-  await page.getByRole('button', { name: 'Kurumsal tahsilat', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Kurumsal ödeme', exact: true }).first().click();
   await expect(page.getByText(/Sanal POS/).first()).toBeVisible();
   await expect(page.getByText(/Henüz bağlı değil/)).toBeVisible();
   await page.getByRole('button', { name: 'Hesap ekle' }).click();
@@ -127,7 +127,7 @@ test('kurumsal ödeme: banka hesabı eklenir; Paket ver → Havale/EFT e-posta k
   expect(d.tables.subscriptions.find((x) => x.store === 'admin')).toBeUndefined();
   await page.getByRole('button', { name: 'Tamam' }).click();
 
-  await page.getByRole('button', { name: 'Kurumsal tahsilat', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Kurumsal ödeme', exact: true }).first().click();
   await page.getByRole('button', { name: 'Ödeme alındı' }).click();
   await expect(page.getByRole('button', { name: 'Ödeme alındı' })).toHaveCount(0);
   d = await db(page);

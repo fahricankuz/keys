@@ -424,7 +424,7 @@ export function SubActions({ s, reload }: { s: any; reload: () => void }) {
           <Seg value={pay} onChange={(v: any) => setPay(v)} options={[['free', t('Ücretsiz ver')], ['havale', t('Havale/EFT')], ...(posOn ? [['pos', t('Sanal POS')] as [string, string]] : [])]} />
           {!posOn ? <Muted>{t('Sanal POS henüz bağlı değil.')}</Muted> : null}
           {pay !== 'free' ? <Field label={t('Tutar (₺)')} value={amount} onChangeText={(x) => setAmount(x.replace(/[^\d.,]/g, ''))} keyboardType="decimal-pad" placeholder={t('ör. 12000')} /> : null}
-          {pay === 'havale' ? <Muted>{t('Müşteriye tutar, banka bilgisi ve ödeme kodu e-postayla gider; paket ödeme alınınca (Kurumsal tahsilat) tanımlanır.')}</Muted> : null}
+          {pay === 'havale' ? <Muted>{t('Müşteriye tutar, banka bilgisi ve ödeme kodu e-postayla gider; paket ödeme alınınca (Kurumsal ödeme) tanımlanır.')}</Muted> : null}
           {pay === 'pos' ? <Muted>{t('Kartla ödeme bağlantısı oluşur; ödeme onaylanınca paket kendiliğinden tanımlanır.')}</Muted> : null}
         </View>
       ) : null}
