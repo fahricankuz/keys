@@ -70,8 +70,8 @@ test('hiçbir dosya eski anahtar değişkenlerini doğrudan okumaz: yalnız _sha
   expect(readFileSync(ROOT + '_shared/log.ts', 'utf8')).not.toMatch(/keys\.ts/);
 });
 
-test('dokuz fonksiyonun hepsi Deno.serve yerine sentryServe(kendi adı) kullanır; supabase-js yalnız _shared/keys.ts içinde içe aktarılır', () => {
-  expect(fns.sort()).toEqual(['billing', 'invite-mail', 'lead-mail', 'mail-send', 'push', 'report', 'site-invite', 'tufe-sync', 'welcome']);
+test('on fonksiyonun hepsi Deno.serve yerine sentryServe(kendi adı) kullanır; supabase-js yalnız _shared/keys.ts içinde içe aktarılır', () => {
+  expect(fns.sort()).toEqual(['billing', 'invite-mail', 'lead-mail', 'mail-send', 'pos', 'push', 'report', 'site-invite', 'tufe-sync', 'welcome']);
   for (const fn of fns) {
     const src = readFileSync(`${ROOT}${fn}/index.ts`, 'utf8');
     expect(src, fn).toContain(`sentryServe('${fn}'`);
