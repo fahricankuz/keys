@@ -1,4 +1,4 @@
-/* Yönetici paneli → Kurumsal tahsilat: anahtar'ın banka hesapları (Havale/EFT e-postasında müşteriye gider), Sanal POS durumu ve
+/* Yönetici paneli → Kurumsal ödeme: anahtar'ın banka hesapları (Havale/EFT e-postasında müşteriye gider), Sanal POS durumu ve
    ödeme istekleri (bekleyen → "Ödeme alındı" paketi tanımlar ya da iptal). "Paket ver"deki ödeme seçenekleri de buradan (PayResult). */
 import { useEffect, useState } from 'react';
 import { Linking, View } from 'react-native';
@@ -60,7 +60,7 @@ function AccountForm({ a, done }: { a?: any; done: () => void }) {
   );
 }
 
-/** Kurumsal tahsilat bölümü. */
+/** Kurumsal ödeme bölümü. */
 export function PaySettings() {
   const c = useColors();
   const [acc, setAcc] = useState<any[] | null>(null);
