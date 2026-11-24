@@ -13,7 +13,7 @@ test.beforeAll(async () => {
   ({ db, as, q } = await newDb());
   await as(null);
   await db.query(`insert into auth.users (id, email, raw_user_meta_data) values ($1, 'master@kurum.com', '{"name":"Master","role":"tenant"}')`, [M]);
-  await db.query(`insert into public.organizations (id, name, sector, units) values ($1, 'Örnek AVM', 'avm', 2)`, [ORG]);
+  await db.query(`insert into public.organizations (id, name, sector, units) values ($1, 'Örnek Emlak', 'emlak', 2)`, [ORG]);   // portföyü mülklerde olan sektör (GYO/AVM/depo/site birimlerdedir: kurum-sektor-sayac.sql)
 });
 
 test('master atanınca hesap mülk sahibi olur; kiracı olarak bağlı biri ise rolü değişmez', async () => {

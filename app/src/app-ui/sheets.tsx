@@ -1029,6 +1029,14 @@ function SubscriptionSheet() {
     ? { title: t('Mevcut paketin'), onPress: () => {}, disabled: true }
     : id === 'kurumsal' ? { title: t('Bize ulaşın'), onPress: () => pickTier(id, null, open) }
     : { title: t('Paketi seç'), onPress: () => pickTier(id, Math.max(1, ownedCount()), open, yearly) };
+  // Mülkleri kurum sözleşmesinde olan hesap: paket kurumdan gelir; mağazadan ayrıca paket alınmaz (çift ödeme olmasın).
+  if (a.org) return (
+    <Stack>
+      <Title>{t('Kurumsal · {org}', { org: a.orgName || '' })}</Title>
+      <Muted>{[a.units != null ? t('{n} / {m} mülk kullanıldı', { n: a.orgUsed ?? 0, m: a.units }) : t('Sınırsız mülk'), a.orgUntil ? t('Sözleşme bitişi {d}', { d: fmtFull(new Date(a.orgUntil)) }) : ''].filter(Boolean).join(' · ')}</Muted>
+      <Note>{t('Paketin kurumunun sözleşmesiyle yönetilir. Mülk adedini artırmak ya da sözleşmeyi uzatmak için anahtar ekibine yaz: info@anahtar.io')}</Note>
+    </Stack>
+  );
   return (
     <Stack gap={16}>
       <View style={{ gap: 4 }}>

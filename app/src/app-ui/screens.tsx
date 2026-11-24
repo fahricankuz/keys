@@ -19,6 +19,8 @@ import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 import {
   Avatar, Bar, Big, Card, Empty, H2, Hero, Icon, IconBtn, Items, KV, Label, LI, Mid, Muted, Note, Row, Seg, Stack, StatusChip, initials, toneOf, typeIcon, BigRoll, MonthTiles, MonthLegend, lastMonths
 } from './blocks';
+import { selectCtx } from './ctx';
+import { myOrgs, PORTFOLIO_SECTORS } from '../domain/org';
 import { Toggle } from './forms';
 import { useStore } from './hooks';
 import { useSheet } from './overlays';
@@ -182,8 +184,31 @@ function SubBanner({ full }: { full: boolean }) {
   );
   if (!a.access) return row('key', t('Deneme süren bitti'), t('Kayıtların duruyor; okuyabilir ve mesajlaşabilirsin. Değiştirmek için bir paket seç.'), t('Paketleri gör'), true);
   if (!full) return null;
+  // Kurum sözleşmesindeki portföy (emlak ofisi, aile ofisi, diğer): deneme ve mağaza yok; sözleşme kullanımı ve bitişi.
+  if (a.org) return (
+    <Card gap={6}>
+      <Row><Icon name="office" size={20} /><View style={{ flex: 1 }}>
+        <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{t('Kurumsal · {org}', { org: a.orgName || '' })}</Text>
+        <Muted>{[a.units != null ? t('{n} / {m} mülk kullanıldı', { n: a.orgUsed ?? 0, m: a.units }) : t('Sınırsız mülk'), a.orgUntil ? t('Sözleşme bitişi {d}', { d: fmtFull(new Date(a.orgUntil)) }) : ''].filter(Boolean).join(' · ')}</Muted>
+      </View></Row>
+    </Card>
+  );
   if (a.inTrial) return row('flag', t('Ücretsiz deneme'), t('{n} gün kaldı', { n: trialDaysLeft(a) }) + ' · ' + t('Denemede {units} mülke kadar ekleyebilirsin.', { units: a.units ?? 5 }), t('Paketleri gör'), false);
   return null;
+}
+
+/** Portföy sektöründeki kurumun (GYO, AVM, depo, site) yöneticisine: kurumun birimleri burada değil, kurum görünümündedir. */
+function OrgPointer() {
+  const router = useRouter();
+  const orgs = myOrgs().filter((o: any) => PORTFOLIO_SECTORS.includes(o.sector));
+  if (!orgs.length) return null;
+  const o: any = orgs[0];
+  return (
+    <Note>
+      {t('{org} kurumunun birimleri {view} görünümünde. Bu sayfa yalnız kendi kiraladığın mülkler içindir.', { org: o.name, view: o.sector === 'site' ? t('Site yöneticisi') : t('Portföy yöneticisi') })}
+      {'  '}<Text v="small" color={undefined} style={{ textDecorationLine: 'underline' }} onPress={() => router.push(selectCtx('site:' + o.id) as any)}>{t('Geç')}</Text>
+    </Note>
+  );
 }
 
 export function Portfolio() {
@@ -208,6 +233,8 @@ export function Portfolio() {
     return (
       <Page title={t('Portföyüm')} sub={t('Henüz mülk yok')}>
         <SubBanner full />
+      <OrgPointer />
+        <OrgPointer />
         <Empty>{t('İlk mülkünü ekle')}{'\n'}{t('Mülkü ekleyince kiracın için bir davet kodu oluşur. Kiracın kodla katılınca kira, talep ve belgeleri birlikte takip edersiniz.')}</Empty>
         <Button block title={t('Mülk ekle')} icon={<Icon name="plus" size={16} color="#fff" />} onPress={() => open('ev-ekle')} />
         <Button block kind="ghost" title={t('Excel ile toplu ekle')} onPress={() => go('/mulk-sahibi/ice-aktar')} />

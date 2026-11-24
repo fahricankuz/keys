@@ -6,7 +6,7 @@ import * as Clipboard from 'expo-clipboard';
 import { t, locale } from '../domain/i18n';
 import { humanError } from '../domain/admin';
 import { inviteLink } from '../domain/backend';
-import { MODULES, SECTORS, adminDeleteOrg, adminOrgs, adminSaveOrg, adminSetMaster, sectorModules, sectorOf } from '../domain/org';
+import { MODULES, PORTFOLIO_SECTORS, SECTORS, adminDeleteOrg, adminOrgs, adminSaveOrg, adminSetMaster, sectorModules, sectorOf } from '../domain/org';
 import { Button, Chip, Field, Text } from '../ui/kit';
 import { Loader } from '../ui/Loader';
 import { fonts, radius, useColors } from '../ui/theme';
@@ -190,7 +190,8 @@ function OrgCard({ o, reload }: { o: any; reload: () => void }) {
       {err ? <Text v="small" color={c.badInk}>{err}</Text> : null}
       {info ? <Text v="small" color={c.okInk}>{info}</Text> : null}
       <Row wrap>
-        {o.master ? <Button kind={mode === 'property' ? 'primary' : 'ghost'} title={t('Mülk ekle')} onPress={() => { setInfo(null); setMode(mode === 'property' ? '' : 'property'); }} /> : null}
+        {/* GYO, AVM, depo ve site kurumlarının portföyü birimlerdedir: birimleri kurumun yöneticisi Portföy/Site yöneticisi ekranından ekler. */}
+        {o.master && !PORTFOLIO_SECTORS.includes(o.sector) ? <Button kind={mode === 'property' ? 'primary' : 'ghost'} title={t('Mülk ekle')} onPress={() => { setInfo(null); setMode(mode === 'property' ? '' : 'property'); }} /> : null}
         <Button kind={mode === 'manage' ? 'primary' : 'ghost'} title={t('Yöneticiler ve roller')} onPress={() => setMode(mode === 'manage' ? '' : 'manage')} />
         <Button kind={mode === 'master' ? 'primary' : 'ghost'} title={t('Master belirle')} onPress={() => setMode(mode === 'master' ? '' : 'master')} />
         <Button kind="ghost" title={t('Düzenle')} onPress={() => setMode('edit')} />

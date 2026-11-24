@@ -1871,6 +1871,12 @@ export const EN_EXTRA = {
   // Yönetici paneli yeni kabuk
   'Bildirimler ({n})': 'Notifications ({n})',
   'Açık temaya geç': 'Switch to light theme',
+  // Kurum sözleşmesi sektöre göre
+  "Kendi dairen": "Your own flat",
+  "Kurumsal · {org}": "Enterprise · {org}",
+  "Paketin kurumunun sözleşmesiyle yönetilir. Mülk adedini artırmak ya da sözleşmeyi uzatmak için anahtar ekibine yaz: info@anahtar.io": "Your plan is managed by your organization's contract. To add properties or extend the contract, write to the anahtar team: info@anahtar.io",
+  "{n} / {m} mülk kullanıldı": "{n} / {m} properties used",
+  "{org} kurumunun birimleri {view} görünümünde. Bu sayfa yalnız kendi kiraladığın mülkler içindir.": "{org}'s units are in the {view} view. This page is only for properties you rent out yourself.",
   // Kurumsal ödeme
   "Banka hesapları": "Bank accounts",
   "Banka hesapları (Havale/EFT), Sanal POS durumu ve ödeme istekleri: ödeme alınınca paket tanımlanır.": "Bank accounts (bank transfer), virtual POS status and payment requests: the plan is granted once payment arrives.",
