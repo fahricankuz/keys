@@ -100,6 +100,26 @@ export function renderOutbox(row: OutboxRow, appUrl?: string, contact = 'info@an
     return { subject, html: layout(L), text: plain(L) };
   }
 
+  if (row.kind === 'aidat_ozet') {
+    // Maliklere aylık aidat özeti (site_malik_summary): daire daire geçen ayın durumu ve ödenmemiş borç.
+    const tl = (n: unknown) => new Intl.NumberFormat(en ? 'en-GB' : 'tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(Number(n) || 0);
+    const [y, mo] = String(d.month ?? '').split('-').map(Number);
+    const month = y && mo ? new Date(Date.UTC(y, mo - 1, 15)).toLocaleDateString(en ? 'en-GB' : 'tr-TR', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
+    const ST: Record<string, [string, string]> = { paid: ['ödendi', 'paid'], partial: ['kısmen ödendi', 'partly paid'], open: ['ödenmedi', 'unpaid'], none: ['tahakkuk yok', 'no charge'] };
+    const units = Array.isArray(d.units) ? d.units : [];
+    const total = units.reduce((a: number, u: any) => a + (Number(u.due) || 0), 0);
+    const rows: [string, string][] = units.map((u: any) => [`${u.org ?? ''} · ${u.unit ?? ''}`,
+      `${(ST[u.status] ?? ST.none)[en ? 1 : 0]}${u.payer === 'kiraci' ? (en ? ' (tenant pays)' : ' (kiracı öder)') : ''}${Number(u.due) > 0 ? ' · ' + (en ? 'due ' : 'borç ') + tl(u.due) : ''}`]);
+    subject = en ? `Your monthly dues summary · ${month}` : `Aylık aidat özetin · ${month}`;
+    L = en
+      ? { lang: lg, foot, title: `Dues summary · ${month}`, lead: [first ? `Hi ${first},` : 'Hi,', `Here is the ${month} dues status of your ${units.length} flats.`],
+          rows: [...rows, ['Total unpaid', tl(total)]], button: { label: 'Open My site', url: `${app}/uygulama/sitem` },
+          note: 'You can turn this e-mail off in Settings → Notifications.' }
+      : { lang: lg, foot, title: `Aidat özeti · ${month}`, lead: [first ? `Merhaba ${first},` : 'Merhaba,', `${units.length} dairenin ${month} aidat durumu aşağıda.`],
+          rows: [...rows, ['Toplam ödenmemiş', tl(total)]], button: { label: 'Sitem’i aç', url: `${app}/uygulama/sitem` },
+          note: 'Bu e-postayı Ayarlar → Bildirimler’den kapatabilirsin.' };
+    return { subject, html: layout(L), text: plain(L) };
+  }
   if (row.kind === 'havale_bilgi') {
     // Kurumsal / elle paket: Havale/EFT ödeme bilgisi (yönetici panelinde "Paket ver" → Havale/EFT). Açıklama kodu ödemeyi eşleştirir.
     const tl = (n: unknown) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 2 }).format(Number(n) || 0);

@@ -1904,6 +1904,7 @@ export const EN_EXTRA = {
   "ödendi {d}": "paid {d}",
   // Malike aidat bildirimi
   'Kiracım aidatı geciktirince': 'When my tenant pays the dues late',
+  'Aylık aidat özeti (e-posta)': 'Monthly dues summary (e-mail)',
   '{n} dairenin maliki uygulamaya bağlı değil': '{n} flats have no owner linked in the app',
   'Maliki bağlı değil': 'No owner linked',
   // Kurumsal paketten kurum

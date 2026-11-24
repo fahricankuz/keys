@@ -344,6 +344,8 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
                 <OnOff label={t('Site aidatı hatırlatmaları')} k="remindAidat" />
                 {/* Malik, aidatını kiracının ödediği dairede gecikme ve ödendi bildirimi alır (sunucu: site_malik_late, site_malik_paid). */}
                 {mySiteUnits().some((u: any) => u.role === 'malik' && u.payer_effective === 'kiraci') ? <OnOff label={t('Kiracım aidatı geciktirince')} k="malikAidat" /> : null}
+                {/* En az 2 dairesi olan malike ayın 1'inde özet e-postası (sunucu: site_malik_summary). */}
+                {mySiteUnits().filter((u: any) => u.role === 'malik').length >= 2 ? <OnOff label={t('Aylık aidat özeti (e-posta)')} k="malikOzet" /> : null}
               </Card>
             </>
           ) : null}
