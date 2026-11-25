@@ -4,7 +4,7 @@ import { serveDist, seed, ensureDist } from './app-helpers.mjs';
 import { watchErrors } from './helpers.mjs';
 
 const DIST = new URL('../app/dist-fake', import.meta.url).pathname;
-const PORT = 8261;
+const PORT = 8310;
 const ORG = '20000000-0000-4000-8000-0000000000d1';
 let server;
 test.describe.configure({ mode: 'serial' });
