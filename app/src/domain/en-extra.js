@@ -1908,6 +1908,14 @@ export const EN_EXTRA = {
   "Ödeme istekleri": "Payment requests",
   "Ücretsiz ver": "Grant for free",
   "ödendi {d}": "paid {d}",
+  // Gelir · gider · net, düzenli gider
+  "Gelir · gider · net": "Income · expenses · net",
+  "Yılbaşından bugüne": "Year to date",
+  "Gelir (tahsilat)": "Income (collected)",
+  "{y} yılbaşından bugüne": "{y} year to date",
+  "En çok: {list}": "Largest: {list}",
+  "Bu ay gidere yazıldı": "Recorded this month",
+  "Bu ay {d}’inde gidere yazılacak": "Will be recorded on day {d} this month",
   // Ek ödemeler
   "Ek ödemeler": "Extra payments",
   "{n} / {m} daire ödedi": "{n} / {m} flats paid",

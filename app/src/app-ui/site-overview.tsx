@@ -14,6 +14,7 @@ import { Button, Chip, Field, PressScale, Text } from '../ui/kit';
 import { fonts, radius, useBreakpoint, useColors } from '../ui/theme';
 import { Card, Empty, H2, Label, Muted, Note, Row, Stack } from './blocks';
 import { Pill } from './org';
+import { NetCard } from './site-net';
 import { MoneyField } from './forms';
 import { SetupChecklist } from './checklist';
 import { orgSteps } from '../domain/checklist';
@@ -308,6 +309,7 @@ export function Overview({ d, org, can, reload, go, ChargeRow }: {
       {hero}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>{kpis.map(([a, b, s]) => <Kpi key={a} label={a} value={b} sub={s} />)}</View>
       <RevenueChart charges={d.charges} endMonth={m} cur={pc} table={table} />
+      {!commercial ? <NetCard d={d} /> : null}
       {pc !== 'TRY' || Math.round(fxDiff) || fxMissing ? <FxNote cur={pc} missing={fxMissing} /> : null}
       <View style={{ flexDirection: desktop ? 'row' : 'column', gap: 14, alignItems: 'flex-start' }}>
         <View style={{ flex: desktop ? 1.25 : undefined, width: desktop ? undefined : '100%', gap: 14 }}>{left.filter(Boolean)}</View>
