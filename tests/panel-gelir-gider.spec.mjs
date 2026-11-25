@@ -100,3 +100,17 @@ test('gelir kırılımı: üyelik (kayıtlı tahmin + bu ay canlı + kurumsal be
   expect(f.net).toBeCloseTo(f.income - f.expense, 6);
   expect(M.cardSplit(100, { feeRate: 0.03, providerRate: 0.02 })).toEqual({ fee: 3, pos: 2, net: 1 });   // 100 TL: %2 kurum, %1 bizim
 });
+
+test('döviz: her kalem kendi gününün kuruyla çevrilip toplanır (gider gerçekleştiği gün, aylık gelir ayın son günü; adet çevrilmez)', () => {
+  const costs = [
+    { id: 'x', title: 'A', category: 'altyapi', amount: 3000, currency: 'TRY', vat_included: true, vat_rate: 0, recurrence: 'once', start_on: '2026-03-10' },
+    { id: 'y', title: 'B', category: 'altyapi', amount: 4000, currency: 'TRY', vat_included: true, vat_rate: 0, recurrence: 'once', start_on: '2026-03-25' }];
+  const rate = { '2026-03-10': 30, '2026-03-25': 40, '2026-03-31': 50 };
+  const conv = (v, d) => v / (rate[d] || 1);
+  const f = M.finance({ monthly: [{ month: '2026-03', mrr: 5000 }], months: ['2026-03'], costs, table: null, now: new Date('2026-06-01'), conv });
+  expect(f.expense).toBeCloseTo(3000 / 30 + 4000 / 40, 6);          // 100 + 100 (dönem sonu kuruyla olsaydı 140)
+  expect(f.income).toBeCloseTo(5000 / 50, 6);                       // aylık gelir ayın son gününün kuruyla
+  const v = M.volumes([{ month: '2026-03', rent: 5000, signups: 7 }], ['2026-03'], conv, new Date('2026-06-01'));
+  expect(v.rent).toBeCloseTo(100, 6);
+  expect(v.signups).toBe(7);
+});

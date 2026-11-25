@@ -1,6 +1,6 @@
 /* Yönetici paneli: para birimi seçimi (₺ / $ / €) ve tutar biçimi. Tüm tutarlar sunucuda TL'dir; seçilen dövize TCMB döviz satış
-   kuruyla çevrilir (domain/fx.js kuralı: günün kuru, hafta sonu ve tatilde son iş günü). Aylık değerler o ayın son gününün
-   (bu ay için bugünün) kuruyla, dönem toplamları dönemin son gününün kuruyla çevrilir. Kur yoksa tutar uydurulmaz: "—".
+   kuruyla çevrilir (domain/fx.js kuralı: günün kuru, hafta sonu ve tatilde son iş günü). Her kalem kendi gününün kuruyla çevrilir
+   ve sonra toplanır (giderler ve ödemeler kendi günü; aylık kalemler ayın son günü, bu ay bugün). Kur yoksa tutar uydurulmaz: "—".
    Seçim bu tarayıcıda hatırlanır (yalnız görünüm; veri değişmez). */
 import { createContext, ReactNode, useContext, useState } from 'react';
 import { View } from 'react-native';
@@ -51,7 +51,7 @@ export function useMoney() {
     rateNote: () => {
       if (cur === 'TRY') return '';
       const d = rateDay(table, cur, today());
-      return d ? t('TCMB döviz satış kuru; aylık değerler ayın son gününün, bu ay bugünün kuruyla ({d}).', { d: fmtFull(d) }) : t('Kur henüz yüklenmedi; tutarlar kur gelince görünür.');
+      return d ? t('TCMB döviz satış kuru; her işlem kendi gününün kuruyla çevrilip toplanır (aylık kalemler ayın son gününün, bu ay bugünün kuruyla; son kur {d}).', { d: fmtFull(d) }) : t('Kur henüz yüklenmedi; tutarlar kur gelince görünür.');
     },
   };
 }
