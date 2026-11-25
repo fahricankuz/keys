@@ -132,6 +132,8 @@ export const transferMaster = (oid, member) => rpc('org_transfer_master', { oid,
 export const PORTFOLIO_SECTORS = ['site', 'avm', 'depo', 'gyo'];
 /** Kurum davet kodu "K" ile başlar; eski (K + 7) ve yeni (K + 16) biçimler invite-code.js'te tanınır. */
 export const isOrgCode = (code) => isOrgInviteCode(code);
+/** Kurum davet bilgisi (oturumsuz): kurum adı, master daveti mi, davet edilen e-posta. Kod geçersizse null. */
+export const orgInviteInfo = (code) => rpc('org_invite_info', { invite_code: normalizeInviteCode(code) });
 export async function acceptOrgInvite(code){
   const oid = await rpc('accept_org_invite', { invite_code: normalizeInviteCode(code) });
   if (!oid) throw inviteRejected();      // sunucu her başarısızlığı NULL ile bildirir

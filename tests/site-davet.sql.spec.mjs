@@ -21,11 +21,12 @@ test.beforeAll(async () => {
   [{ id: rid, code }] = await q(`insert into public.site_residents (org_id, unit_id, role, name, phone, email) values ($1, $2, 'kiraci', 'Ayşe Kiracı', '05321112233', 'ayse@ornek.com') returning id`, [org, u1]).then(async ([{ id }]) => [{ id, code: (await q(`select public.site_resident_code($1) code`, [id]))[0].code }]);
 });
 
-test('davet bilgisi: oturumsuz kodla yalnız maskeli ad (telefon ve e-posta yok); kullanılınca hiçbir bilgi yok; villada "No" yok', async () => {
+test('davet bilgisi: oturumsuz kodla davetlinin bilgileri (kayıt formu için); kullanılınca hiçbir bilgi yok; villada "No" yok', async () => {
   await as(null, true);
   const [{ i }] = await q(`select public.site_invite_info($1) i`, [code.toLowerCase()]);
-  expect(i).toEqual({ org: 'Dalyan Sitesi', sector: 'site', unit: 'A Blok No 1', role: 'kiraci', name: 'A*** K***', email_bound: true, used: false });
-  expect(JSON.stringify(i)).not.toMatch(/05321112233|ayse@ornek\.com|Ayşe/);
+  // Karar (davet_bilgi_dolu, 25 Kasım 2026): kullanılmamış kodda davetlinin bilgileri kayıt formunu doldurmak için döner.
+  expect(i).toMatchObject({ org: 'Dalyan Sitesi', sector: 'site', unit: 'A Blok No 1', role: 'kiraci', name: 'A*** K***', email_bound: true, used: false });
+  expect(i.invitee.phone).toBe('05321112233');
   expect((await q(`select public.site_invite_info('SXXXXXXX') i`))[0].i).toBeNull();
   await as(null);
   expect((await q(`select public.unit_label($1) v`, [villa]))[0].v).toBe('Villa 3');

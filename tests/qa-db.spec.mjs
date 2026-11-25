@@ -81,7 +81,7 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
     'create_rent_certificate', 'delete_my_account', 'file_in_locked_inspect', 'file_review_ok', 'has_access', 'import_properties', 'investor_report_mail', 'invite_preview', 'is_admin', 'is_banned', 'is_member',
     'is_org_master', 'is_org_member', 'is_owner', 'is_site_resident', 'link_site_unit',
     'member_can', 'member_role', 'msg_side', 'my_access', 'my_orgs', 'my_site_units',
-    'org_bank_save', 'org_can', 'org_detail', 'org_invite_create', 'org_invite_delete', 'org_member_remove', 'org_member_set', 'org_role_delete', 'org_role_save',
+    'org_bank_save', 'org_can', 'org_detail', 'org_invite_create', 'org_invite_delete', 'org_invite_info', 'org_member_remove', 'org_member_set', 'org_role_delete', 'org_role_save',
     'org_transfer_master',
     'post_system_message',
     'register_device_token', 'rent_bank_apply', 'report_error', 'reports_today', 'review_ok', 'shares_property', 'signup_code_ok', 'site_bank_apply', 'site_cash_summary', 'site_file_read_ok', 'site_file_write_ok', 'site_folder_ok', 'site_invite_info', 'site_invite_mail', 'site_linked', 'site_linked_tenants', 'site_meeting_reply', 'site_poll_results', 'site_poll_vote', 'site_project_vote_close', 'site_project_vote_open', 'site_project_vote_sync', 'site_report', 'site_resident_code', 'site_role', 'storage_quota_ok', 'submit_lead', 'team_list', 'team_remove', 'team_set', 'unregister_device_token', 'verify_rent_certificate'
@@ -93,10 +93,10 @@ test('güvenlik: oturumsuz (anon) çağrılabilen security definer işlevler yal
   const rows = await q(`select distinct p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.prosecdef and has_function_privilege('anon', p.oid, 'EXECUTE') order by 1`);
   expect(rows.map(r => r.proname)).toEqual([
-    // invite_preview, site_invite_info, signup_code_ok → davet/kayıt sayfaları: yalnız geçerli kod için bilgi, başarısız denemeler IP başına sınırlı;
+    // invite_preview, site_invite_info, org_invite_info, signup_code_ok → davet/kayıt sayfaları (kullanılmamış kodda davetlinin ad/e-posta/telefonu): yalnız geçerli kod için bilgi, başarısız denemeler IP başına sınırlı;
     // submit_lead → web kurumsal başvuru (IP ve e-posta başına sınır); report_error → oturum öncesi hata kaydı (IP başına sınır);
     // verify_rent_certificate → 10 haneli kodu bilen (belgenin anlık görüntüsü). Başka hiçbir işlev anon'a açık olmaz (migration anon_islev_yetkileri).
-    'invite_preview', 'report_error', 'signup_code_ok', 'site_invite_info', 'submit_lead', 'verify_rent_certificate'
+    'invite_preview', 'org_invite_info', 'report_error', 'signup_code_ok', 'site_invite_info', 'submit_lead', 'verify_rent_certificate'
   ]);
 });
 

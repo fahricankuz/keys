@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import AuthShell from '../auth/AuthShell';
-import { dropInvite, keepInvite, useAuth } from '../auth/auth';
+import { dropInvite, keepInvite, keepPrefill, useAuth } from '../auth/auth';
+import { orgInviteInfo } from '../domain/org';
 import { t } from '../domain/i18n';
 import { invitePreview } from '../domain/backend';
 import { isOrgInviteCode, isSiteInviteCode, inviteCodeFromInput, normalizeInviteCode } from '../domain/invite-code';
@@ -33,9 +34,12 @@ export default function Katil() {
     if (!mounted) return;
     if (!code) { if (given) setMissing(true); else router.replace('/giris'); return; }
     keepInvite(code);
-    if (live && !isOrgInviteCode(code) && !isSiteInviteCode(code)) invitePreview(code).then((x) => { setInfo(x); noInvite(x); }).catch(() => {});
+    // Davet edenin girdiği ad, e-posta ve telefon kayıt formuna hazır gelir (kod kullanılmamışsa sunucu döner; kişi değiştirebilir).
+    const fill = (x: any) => { if (x?.invitee) keepPrefill({ code, ...x.invitee }); };
+    if (live && !isOrgInviteCode(code) && !isSiteInviteCode(code)) invitePreview(code).then((x) => { setInfo(x); noInvite(x); fill(x); }).catch(() => {});
+    if (live && isOrgInviteCode(code) && !user) orgInviteInfo(code).then((x: any) => { noInvite(x); fill(x); }).catch(() => {});
     // Site daveti: sunucu yalnız site, daire, rol ve maskeli ad döndürür (telefon ve e-posta yok); kayıt formu önceden doldurulmaz.
-    if (live && isSiteInviteCode(code) && !user) siteInviteInfo(code).then((x) => { setSiteInfo(x); noInvite(x); }).catch(() => {});
+    if (live && isSiteInviteCode(code) && !user) siteInviteInfo(code).then((x) => { setSiteInfo(x); noInvite(x); fill(x); }).catch(() => {});
     if (ready && live && user && !user.admin) join(code).then(() => router.replace('/uygulama'));
   }, [mounted, code, given, ready, live, user, join, router]);
 

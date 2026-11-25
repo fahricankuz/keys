@@ -992,7 +992,14 @@ export function createClient(url, key, opts){
         const i = db.tables.invites.find(x => inviteNorm(x.code) === inviteNorm(args.invite_code));
         if (!i || i.accepted_by || (i.expires_at && new Date(i.expires_at) < new Date())) return { data:null, error:null };
         const p = db.tables.properties.find(x => x.id === i.property_id) || {}, o = db.tables.profiles.find(x => x.id === i.created_by) || {};
-        return { data:{ role:i.role || 'tenant', scope:i.scope, owner:o.name, property:p.name, valid:true, email_bound:!!String(i.email || '').trim() }, error:null };
+        return { data:{ role:i.role || 'tenant', scope:i.scope, owner:o.name, property:p.name, valid:true, email_bound:!!String(i.email || '').trim(),
+          invitee:{ name:i.name || '', email:i.email || '', phone:i.phone || '' } }, error:null };   // davet_bilgi_dolu
+      }
+      if (name === 'org_invite_info'){
+        const i = (db.tables.org_invites || []).find(x => inviteNorm(x.code) === inviteNorm(args.invite_code));
+        if (!i || i.accepted_by || (i.expires_at && new Date(i.expires_at) < new Date())) return { data:null, error:null };
+        const o = (db.tables.organizations || []).find(x => x.id === i.org_id) || {};
+        return { data:{ org:o.name, sector:o.sector, master:!!i.master, invitee:{ email:i.email || '' } }, error:null };
       }
       if (name === 'site_invite_info'){
         const T = db.tables, r = T.site_residents.find(x => inviteNorm(x.code) === inviteNorm(args.invite_code));
@@ -1000,7 +1007,8 @@ export function createClient(url, key, opts){
         const u = T.site_units.find(x => x.id === r.unit_id) || {}, o = (T.organizations || []).find(x => x.id === r.org_id) || {};
         const unit = o.sector === 'site' ? (u.block ? u.block + (/(^|\s)(blok|bloğu|block)$/i.test(u.block) ? ' ' : ' Blok ') : '') + (/^\d/.test(String(u.no)) ? 'No ' : '') + u.no : (u.block ? u.block + ' · ' : '') + u.no;
         // migration davet_kodlari: ad maskeli (mask_name), telefon ve e-posta yok.
-        return { data:{ org:o.name, sector:o.sector, unit, role:r.role, name:maskName(r.name), email_bound:!!String(r.email || '').trim(), used:false }, error:null };
+        return { data:{ org:o.name, sector:o.sector, unit, role:r.role, name:maskName(r.name), email_bound:!!String(r.email || '').trim(), used:false,
+          invitee:{ name:r.name || '', email:r.email || '', phone:r.phone || '' } }, error:null };   // davet_bilgi_dolu
       }
       if (name === 'accept_site_invite'){
         const r = db.tables.site_residents.find(x => inviteNorm(x.code) === inviteNorm(args.invite_code));
