@@ -12,7 +12,7 @@ test('bio sayfası: dizinlenmez, betik yok, bağlantılar doğru', () => {
   expect(page).not.toMatch(/<script\b/i);
   expect(page).not.toMatch(/\son[a-z]+\s*=/i);
   for (const href of ['https://apps.apple.com/tr/app/id6834434284', 'https://play.google.com/store/apps/details?id=io.anahtar.app',
-    '/kayit/', '/kurumsal/', '/destek/', 'mailto:info@anahtar.io', 'https://www.instagram.com/anahtar_io/', 'https://www.tiktok.com/@anahtar.io'])
+    '/kayit/', '/kurumsal/', '/destek/', 'mailto:info@anahtar.io', 'https://www.instagram.com/anahtar_io/', 'https://www.tiktok.com/@anahtar.io', 'https://www.facebook.com/share/19o78yxmTv/', 'https://x.com/anahtar_io'])
     expect(page, href).toContain(`href="${href}"`);
 });
 
