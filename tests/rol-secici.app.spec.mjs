@@ -97,7 +97,7 @@ test('mülk sahibi rolündeyken Site adresi "yönetici değilsin" demez: yöneti
 
   await page.goto(`http://localhost:${PORT}/uygulama/site`);
   await expect(page.getByText('Bir site yönetiminin yöneticisi değilsin.')).toHaveCount(0);
-  await page.getByRole('button', { name: /Site yöneticisi rolüne geç/ }).click();
+  // Adres açılışı uygulamayı yeniden başlatır: master'ı olunan kurum seçili gelir (geçiş düğmesine gerek kalmaz).
   await expect(secici(page)).toHaveAccessibleName(/^Rol seç: Site yöneticisi/, { timeout: 15000 });
 
   await page.getByRole('button', { name: 'Ara', exact: true }).click();

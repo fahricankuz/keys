@@ -54,6 +54,7 @@ export function activeCtx(list: Ctx[] = myContexts()): string {
 /** Bağlamı seçer: görünüm rolünü ve kurum seçimini ayarlar, hatırlar, ekranı yeniler. Dönen değer: açılacak sayfa. */
 export function selectCtx(key: string): string {
   ui.ctx = key;
+  if (live.user) ui.ctxFor = live.user.id;   // bu oturumda seçim yapıldı: açılış kuralı (master kurum) seçimi ezmez
   if (key === 'kiraci') ui.role = 'tenant';
   else ui.role = 'landlord';
   if (key.startsWith('site:')) ui.siteOrg = key.slice(5);
