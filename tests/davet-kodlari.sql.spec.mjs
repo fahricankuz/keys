@@ -228,8 +228,9 @@ test('önizleme: oturumsuz çağrı yalnız geçerli kod için rol/mülk/sahip a
   const [{ code: old }] = await q(`insert into public.invites (property_id, created_by, expires_at) values ('p2', '${L2}', now() - interval '1 day') returning code`);
   await as(null, true);
   const [{ r }] = await q(`select public.invite_preview($1) r`, [ok.toLowerCase()]);
-  expect(r).toEqual({ role: 'tenant', scope: 'property', owner: 'Başka Ev Sahibi', property: 'Bebek', valid: true, email_bound: true });
-  expect(JSON.stringify(r)).not.toMatch(/veli@ornek|05001112233|Veli/);
+  // Karar (davet_bilgi_dolu, 25 Kasım 2026): kullanılmamış kodda davetlinin bilgileri kayıt formunu doldurmak için döner.
+  expect(r).toEqual({ role: 'tenant', scope: 'property', owner: 'Başka Ev Sahibi', property: 'Bebek', valid: true, email_bound: true,
+    invitee: { name: 'Veli Kiracı', email: 'veli@ornek.com', phone: '05001112233' } });
   expect((await q(`select public.invite_preview($1) r`, [old]))[0].r).toBeNull();
   expect((await q(`select public.invite_preview('') r`))[0].r).toBeNull();
   // signup_code_ok: yalnız boolean; yeni uzun kod ve eski kod
@@ -244,8 +245,8 @@ test('önizleme: oturumsuz çağrı yalnız geçerli kod için rol/mülk/sahip a
   const [{ code }] = await q(`select public.site_resident_code($1) code`, [id]);
   await as(null, true);
   const [{ i }] = await q(`select public.site_invite_info($1) i`, [code]);
-  expect(i).toEqual({ org: 'Atakum Sitesi', sector: 'site', unit: 'A Blok No 1', role: 'kiraci', name: 'A*** Y***', email_bound: true, used: false });
-  expect(JSON.stringify(i)).not.toMatch(/05321112233|ayse@ornek|Ayşe|Yılmaz/);
+  expect(i).toEqual({ org: 'Atakum Sitesi', sector: 'site', unit: 'A Blok No 1', role: 'kiraci', name: 'A*** Y***', email_bound: true, used: false,
+    invitee: { name: 'Ayşe Yılmaz', email: 'ayse@ornek.com', phone: '05321112233' } });   // kullanılmamış kod: kayıt formu dolu (davet_bilgi_dolu)
 });
 
 /* ---------------------------------------------------------------- sakin kodu yetkisi ve sütun yetkileri

@@ -40,8 +40,8 @@ export default function SignupForm({ role, site = false }: { role: Role; site?: 
     const ad = (q?.get('ad') || '').trim(), e = (q?.get('e') || '').trim();
     if (ad) setName(ad.slice(0, 60));
     if (e) setEmail(e);
-    // Site davetinden gelindiyse yönetimin girdiği bilgiler hazır gelir (kişi değiştirebilir).
-    const pre = role === 'tenant' ? pendingPrefill() : null;
+    // Davetten gelindiyse (mülk, ekip, site, kurum) davet edenin girdiği bilgiler hazır gelir (kişi değiştirebilir).
+    const pre = pendingPrefill();
     if (pre) { if (pre.name) setName(pre.name); if (pre.email) setEmail(pre.email); if (pre.phone) setPhone(pre.phone); }
   }, [role]);
   if (ready && user && !sent) return <SignedIn user={user} />;
