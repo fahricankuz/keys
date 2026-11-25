@@ -55,10 +55,12 @@ export function useAdminFinance() {
 }
 
 /** Dönemin finansı ve karşılaştırması. */
-export function periodFinance(data: any, table: any, period: Period) {
+export function periodFinance(data: any, table: any, period: Period, conv?: (v: number, day: string) => number | null) {
   const pm = periodMonths(period);
-  const args = { monthly: data.monthly, liveMrr: data.mrr.mrr, orgs: data.orgs, costs: data.costs, table };
-  return { cur: finance({ ...args, months: pm.cur }), prev: finance({ ...args, months: pm.prev, liveMrr: 0 }), vol: volumes(data.monthly, pm.cur), volPrev: volumes(data.monthly, pm.prev), pm };
+  // Seçili para birimine her kalem kendi gününün kuruyla çevrilir (conv); sonuçlar seçili para birimindedir (fmtc ile biçimlenir).
+  const cv = conv ? (v: number, d: string) => conv(v, d) ?? 0 : (v: number) => v;
+  const args = { monthly: data.monthly, liveMrr: data.mrr.mrr, orgs: data.orgs, costs: data.costs, table, conv: cv };
+  return { cur: finance({ ...args, months: pm.cur }), prev: finance({ ...args, months: pm.prev, liveMrr: 0 }), vol: volumes(data.monthly, pm.cur, cv), volPrev: volumes(data.monthly, pm.prev, cv), pm };
 }
 
 const INCOME_LABEL = (k: string) => ({ uyelik: t('Üyelik ücreti'), komisyon: t('İşlem ücreti (kartla aidat / kira)'), diger: t('Diğer (hukuki destek)') } as any)[k] || k;
@@ -66,9 +68,9 @@ const INCOME_LABEL = (k: string) => ({ uyelik: t('Üyelik ücreti'), komisyon: t
 /** Gelir, gider ve net: üç büyük değer ve altında kırılımlar. */
 export function FinanceCard({ f, prev, period, prevDay }: { f: any; prev: any; period: Period; prevDay?: string }) {
   const c = useColors();
-  const { money } = useMoney();
-  const tl = (v: number) => money(v);
-  const tlp = (v: number) => money(v, prevDay);
+  const { fmtc } = useMoney();
+  const tl = (v: number) => fmtc(v);           // f ve prev zaten seçili para biriminde (periodFinance, işlem günü kuru)
+  const tlp = (v: number) => fmtc(v);
   const { phone } = useBreakpoint();
   const dark = c.bg !== '#FAF5F0';
   // Üç değer renkli kutularda; net kutusu marka tonunda.

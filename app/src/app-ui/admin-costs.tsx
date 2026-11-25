@@ -104,16 +104,21 @@ export function Costs() {
   }, { total: 0, net: 0, vat: 0, byCat: {}, items: [], missing: false }) : monthSum;
   const [edit, setEdit] = useState<any>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const { money, conv, cur } = useMoney();
+  const { money, conv, cur, fmtc } = useMoney();
   const { desktop } = useBreakpoint();
   const M = (n: any, d?: string) => money(n, d || (period === 'year' ? undefined : month));
+  // Toplamlar ve kategori dağılımı: her gider kendi gününün kuruyla çevrilip toplanır (TL'de aynı).
+  const C = (it: any, k: 'gross' | 'net' | 'vat' = 'gross') => (it.missing ? 0 : cur === 'TRY' ? Number(it[k]) || 0 : conv(Number(it[k]) || 0, it.day) ?? 0);
   const remove = async (x: any) => {
     if (!await host.ask({ title: t('“{x}” silinsin mi?', { x: x.title }), body: t('Bu gider bütün aylardan kalkar. İşlem kaydına yazılır.'), ok: t('Sil'), danger: true })) return;
     try { await deleteCost(x.id); setMsg(t('Gider silindi.')); reload(); } catch (e) { setMsg(humanError(e)); }
   };
   if (err) return <Text v="small" color={c.badInk}>{err}</Text>;
   if (!costs || !sum) return <View style={{ alignItems: 'center', paddingVertical: 30 }}><Loader size={72} /></View>;
-  const cats = Object.entries(sum.byCat as Record<string, number>).sort((a, b) => b[1] - a[1]);
+  const conCats: Record<string, number> = {};
+  (sum.items || []).forEach((it: any) => { conCats[it.cost.category] = (conCats[it.cost.category] || 0) + C(it); });
+  const tot = { total: (sum.items || []).reduce((a: number, it: any) => a + C(it), 0), net: (sum.items || []).reduce((a: number, it: any) => a + C(it, 'net'), 0), vat: (sum.items || []).reduce((a: number, it: any) => a + C(it, 'vat'), 0) };
+  const cats = Object.entries(conCats).sort((a, b) => b[1] - a[1]);
   const soon = upcoming(costs);
   const dark = c.bg === '#1D1A19';
   const PAL = dark ? ['#E5625F', '#F2B544', '#7FC495', '#7DB3F0', '#B994EC', '#C9BDB6'] : ['#C8302E', '#E0A21B', '#2A6B3A', '#1F5FAD', '#5E2EA0', '#9A8F8A'];
@@ -145,19 +150,19 @@ export function Costs() {
         <Card gap={10} style={desktop ? { flex: 1, minWidth: 0 } : undefined}>
           <Label>{period === 'year' ? t('{y} giderleri (1 Ocak’tan bugüne)', { y }) : t('{m} giderleri', { m: monthYear(month) })}</Label>
           <Row gap={18} wrap align="center">
-            <Donut parts={cats.map(([k, v], i) => [v, PAL[i % PAL.length]] as [number, string])} center={M(sum.total)} />
+            <Donut parts={cats.map(([k, v], i) => [v, PAL[i % PAL.length]] as [number, string])} center={fmtc(tot.total)} />
             <View style={{ flex: 1, minWidth: 180, gap: 10 }}>
               {cats.length ? cats.map(([k, v], i) => (
                 <Row key={k} gap={8}>
                   <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: PAL[i % PAL.length] }} />
                   <Text v="small" style={{ flex: 1, fontFamily: fonts.bodyBold }}>{categoryLabel(k)}</Text>
-                  <Text v="small" style={{ fontFamily: fonts.bodyXBold, fontVariant: ['tabular-nums'] }}>{M(v)}</Text>
+                  <Text v="small" style={{ fontFamily: fonts.bodyXBold, fontVariant: ['tabular-nums'] }}>{fmtc(v)}</Text>
                   <Text v="small" muted style={{ width: 40, textAlign: 'right', fontVariant: ['tabular-nums'] }}>{'%' + Math.round((v / (sum.total || 1)) * 100)}</Text>
                 </Row>
               )) : <Empty>{t('Bu ay gider yok.')}</Empty>}
             </View>
           </Row>
-          <Muted>{t('KDV hariç {n} · KDV {v}', { n: M(sum.net), v: M(sum.vat) })}{!ready ? ' · ' + t('Kurlar yükleniyor…') : sum.missing ? ' · ' + t('Bazı dövizli giderlerin günü için kur yok; toplama katılmadı.') : ''}</Muted>
+          <Muted>{t('KDV hariç {n} · KDV {v}', { n: fmtc(tot.net), v: fmtc(tot.vat) })}{!ready ? ' · ' + t('Kurlar yükleniyor…') : sum.missing ? ' · ' + t('Bazı dövizli giderlerin günü için kur yok; toplama katılmadı.') : ''}</Muted>
         </Card>
         <View style={desktop ? { flex: 1.3, minWidth: 0 } : undefined}>
           <MonthChart title={t('{y} aylık gider', { y })} rows={chartRows} labels={{ up: t('Gider') }} fmt={(v) => fmtMoney(v, cur)} axisFmt={(v) => fmtShort(v, cur)} height={200}

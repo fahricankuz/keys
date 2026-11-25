@@ -306,7 +306,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const addLandlord = useCallback(async () => {
     if (!user) return t('Önce giriş yap.');
     if (user.role === 'landlord') return null;
-    if (user.role === 'team') return t('Ekip hesabı mülk sahibi hesabına dönüştürülemez.');
+    // Ekip hesabı: sunucu karar verir (başka bir mülk sahibinin ekibindeyse reddeder; davetle açılmış site yöneticisi dönüşebilir).
     if (!LIVE) return t('Bu özellik sunucuya bağlı kurulumda çalışır.');
     try {
       await backend.addLandlordRole();

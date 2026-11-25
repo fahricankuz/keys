@@ -11,7 +11,9 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const PACKAGE = 'io.anahtar.app';
-export const PATHS = ['/katil*', '/dogrula*', '/yeni-sifre*'];
+// iOS: bu yollar telefonda uygulamada açılır (yüklüyse). /uygulama*: bildirim e-postalarındaki bağlantılar (aidat, kira, talep…).
+// Android'de yollar uygulamanın içinde (app.json → intentFilters); /uygulama eklemek yeni derleme ister (1.0.1 ile).
+export const PATHS = ['/katil*', '/dogrula*', '/yeni-sifre*', '/uygulama*'];
 
 export function appleAssociation(teamId) {
   const id = String(teamId || '').trim();
