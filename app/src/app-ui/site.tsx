@@ -31,6 +31,7 @@ import { useStore } from './hooks';
 import { Picked } from './media';
 import { host } from '../domain/host';
 import { Pill } from './org';
+import { ExtraPayments } from './site-extra-pay';
 import { Contracts } from './site-contracts';
 import { BankImport } from './site-ekstre';
 import TransferInfo from './TransferInfo';
@@ -305,6 +306,7 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
   return (
     <Stack>
       {(!commercial && (d.modules || []).includes('aidat')) || (commercial && (d.modules || []).includes('kira')) ? <AutoAidat d={d} oid={oid} can={can} reload={reload} /> : null}
+      {!commercial ? <ExtraPayments d={d} /> : null}
       {can('org.settings') ? <BankCard oid={oid} commercial={commercial} /> : null}
       {can('payments.approve') ? <BankImport d={d} oid={oid} reload={reload} /> : null}
       {can('charges.manage') && !commercial && !extra ? (

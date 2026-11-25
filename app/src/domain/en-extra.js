@@ -1908,6 +1908,12 @@ export const EN_EXTRA = {
   "Ödeme istekleri": "Payment requests",
   "Ücretsiz ver": "Grant for free",
   "ödendi {d}": "paid {d}",
+  // Ek ödemeler
+  "Ek ödemeler": "Extra payments",
+  "{n} / {m} daire ödedi": "{n} / {m} flats paid",
+  "Ödemeyenler ({n})": "Unpaid ({n})",
+  "Ödemeyenlere son ödeme gününden 3 gün önce, son gün, 5 ve 15 gün sonra hatırlatma kendiliğinden gider; banka ekstresinden eşleştirme bu ödemeleri de kapsar.": "Unpaid flats get automatic reminders 3 days before the due date, on the day, and 5 and 15 days after; bank statement matching covers these payments too.",
+  "{n} dekont onay bekliyor": "{n} receipts awaiting approval",
   "TCMB döviz satış kuru; her işlem kendi gününün kuruyla çevrilip toplanır (aylık kalemler ayın son gününün, bu ay bugünün kuruyla; son kur {d}).": "CBRT FX selling rate; each item is converted at its own day's rate and then summed (monthly items at the month's last day, this month at today's rate; latest rate {d}).",
   // Malike aidat bildirimi
   'Kiracım aidatı geciktirince': 'When my tenant pays the dues late',
