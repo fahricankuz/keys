@@ -96,7 +96,7 @@ test('well-known: apple-app-site-association ve assetlinks.json geçerli JSON, d
   expect(existsSync(join(d, '.well-known'))).toBe(false);                 // değişken yoksa dosya da dizin de yok
   expect(writeWellKnown(d, { APPLE_TEAM_ID: 'ABCDE12345', ANDROID_SHA256: `${SHA_A}, ${SHA_B.toLowerCase()} ,` }).sort()).toEqual(['apple-app-site-association', 'assetlinks.json']);
   const aasa = JSON.parse(readFileSync(join(d, '.well-known/apple-app-site-association'), 'utf8'));
-  expect(aasa).toEqual({ applinks: { apps: [], details: [{ appID: 'ABCDE12345.io.anahtar.app', paths: ['/katil*', '/dogrula*', '/yeni-sifre*'] }] } });
+  expect(aasa).toEqual({ applinks: { apps: [], details: [{ appID: 'ABCDE12345.io.anahtar.app', paths: ['/katil*', '/dogrula*', '/yeni-sifre*', '/uygulama*'] }] } });
   const links = JSON.parse(readFileSync(join(d, '.well-known/assetlinks.json'), 'utf8'));
   expect(links).toEqual([{ relation: ['delegate_permission/common.handle_all_urls'], target: { namespace: 'android_app', package_name: 'io.anahtar.app', sha256_cert_fingerprints: [SHA_A, SHA_B.toUpperCase().match(/../g).join(':')] } }]);
   // Yalnız biri tanımlıysa yalnız o yazılır.

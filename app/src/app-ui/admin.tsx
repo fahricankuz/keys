@@ -285,30 +285,32 @@ function Health({ d }: { d: Data }) {
 function Payments({ d, onOlder, busy }: { d: Data; onOlder: () => void; busy: boolean }) {
   const c = useColors();
   const { desktop } = useBreakpoint();
-  const { money } = useMoney();
+  const { money, conv, fmtc } = useMoney();
   const [q, setQ] = useState('');
   const [st, setSt] = useState('all');
+  // Toplamlar: her ödeme kendi gününün (ödeme günü, yoksa ayın) kuruyla çevrilip toplanır.
+  const cv = (p: any) => conv(Number(p.amount) || 0, p.paid_on || p.month) ?? 0;
   const list = useMemo(() => d.payments.filter((p: any) => (st === 'all' || p.status === st) &&
     (!q.trim() || [p.propName, p.landlord, ...p.tenants, p.month].join(' ').toLocaleLowerCase('tr').includes(q.trim().toLocaleLowerCase('tr')))), [d, q, st]);
-  const total = list.filter((p: any) => p.status === 'approved').reduce((n: number, p: any) => n + (Number(p.amount) || 0), 0);
+  const total = list.filter((p: any) => p.status === 'approved').reduce((n: number, p: any) => n + cv(p), 0);
   // Özet: tüm kayıtlar üzerinden (süzgeçten bağımsız) durum sayıları ve tutarları.
   const by = (k: string) => d.payments.filter((p: any) => p.status === k);
-  const sumOf = (xs: any[]) => xs.reduce((n: number, p: any) => n + (Number(p.amount) || 0), 0);
+  const sumOf = (xs: any[]) => xs.reduce((n: number, p: any) => n + cv(p), 0);
   const tone = (k: string) => (k === 'approved' ? 'ok' : k === 'rejected' ? 'bad' : k === 'review' || k === 'partial' ? 'wait' : 'neu') as any;
   const H = (l: string, w: any) => <Text key={l || 'x'} v="small" style={[{ fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 0.6, textTransform: 'uppercase', color: c.muted }, typeof w === 'number' && w > 10 ? { width: w, textAlign: 'right' } : { flex: w }]}>{l}</Text>;
   return (
     <Stack>
       <KpiGrid>
-        <Kpi icon="check" tone="sage" label={t('Onaylandı')} value={money(sumOf(by('approved')))} sub={t('{n} kayıt', { n: by('approved').length })} />
-        <Kpi icon="calendar" tone="butter" label={t('Onay bekliyor')} value={String(by('review').length)} sub={money(sumOf(by('review')))} />
-        <Kpi icon="x" tone="peach" label={t('Reddedildi')} value={String(by('rejected').length)} sub={money(sumOf(by('rejected')))} />
-        <Kpi icon="card" tone="sky" label={t('Kısmi')} value={String(by('partial').length)} sub={money(sumOf(by('partial')))} />
+        <Kpi icon="check" tone="sage" label={t('Onaylandı')} value={fmtc(sumOf(by('approved')))} sub={t('{n} kayıt', { n: by('approved').length })} />
+        <Kpi icon="calendar" tone="butter" label={t('Onay bekliyor')} value={String(by('review').length)} sub={fmtc(sumOf(by('review')))} />
+        <Kpi icon="x" tone="peach" label={t('Reddedildi')} value={String(by('rejected').length)} sub={fmtc(sumOf(by('rejected')))} />
+        <Kpi icon="card" tone="sky" label={t('Kısmi')} value={String(by('partial').length)} sub={fmtc(sumOf(by('partial')))} />
       </KpiGrid>
       <Row gap={10} wrap align="flex-end">
         <View style={{ flexGrow: 1, flexBasis: 260, minWidth: 0 }}><Field label={t('Ara')} value={q} onChangeText={setQ} placeholder={t('Kiracı, mülk sahibi, mülk ya da ay')} /></View>
         <Seg scroll value={st} onChange={setSt} options={[['all', t('Hepsi')], ['review', t('Onay bekliyor')], ['approved', t('Onaylandı')], ['rejected', t('Reddedildi')], ['partial', t('Kısmi')]]} />
       </Row>
-      <Muted>{list.length} {t('kayıt')} · {t('Onaylı toplam')}: {money(total)}</Muted>
+      <Muted>{list.length} {t('kayıt')} · {t('Onaylı toplam')}: {fmtc(total)}</Muted>
       {list.length ? (
         <Card gap={0} style={{ padding: desktop ? 8 : 12 }}>
           {desktop ? (

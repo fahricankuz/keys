@@ -5,7 +5,7 @@ import { newDb, tryCall, ID } from './db-helpers.mjs';
 
 const { L, T, X } = ID;
 // tests/qa-db.spec.mjs ile aynı liste: yeni bir herkese açık işlev bilinçli bir karardır.
-export const ANON_ALLOWED = ['invite_preview', 'report_error', 'signup_code_ok', 'site_invite_info', 'submit_lead', 'verify_rent_certificate'];
+export const ANON_ALLOWED = ['invite_preview', 'org_invite_info', 'report_error', 'signup_code_ok', 'site_invite_info', 'submit_lead', 'verify_rent_certificate'];
 
 let db, as, q;
 test.describe.configure({ mode: 'serial' });

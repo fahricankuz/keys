@@ -114,9 +114,8 @@ test('site yönetimi ve sakin: daireler, davet, tahakkuk, duyuru, dekont, talep,
   await expect(page.getByText('M*** K***')).toBeVisible();
   await expect(page.getByText(/Bu davet bir e-posta adresine özel/)).toBeVisible();
   await page.getByRole('button', { name: 'Ücretsiz hesap oluştur' }).click();
-  await expect(page.getByLabel('Ad soyad')).toHaveValue('');
-  await expect(page.getByLabel('E-posta')).toHaveValue('');
-  await expect(page.getByLabel('Telefon (isteğe bağlı)')).toHaveValue('');
+  // Kayıt formu davet edenin girdiği bilgilerle dolu gelir (davet_bilgi_dolu); kişi değiştirebilir.
+  await expect(page.getByLabel('Ad soyad')).toHaveValue('Mehmet Kiracı');
   await expect(page.getByLabel('Davet kodu')).toHaveValue(code);
 
   // Davet e-postaya bağlıdır: yönetim kişinin e-postasını bu hesabın e-postasıyla düzeltince hesap kabul edebilir.
