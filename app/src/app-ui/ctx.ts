@@ -32,11 +32,15 @@ export function myContexts(): Ctx[] {
   const role = live.profile?.role;
   if (!live.user || !role) return [];
   const out: Ctx[] = [];
+  // Master'ı olunan kurum en başta (açılışta da o seçilir); sonra diğer kurumlar, kişisel roller.
+  const orgs = [...portfolioOrgs()].sort((a: any, b: any) => Number(!!b.master) - Number(!!a.master));
+  for (const o of orgs.filter((x: any) => x.master)) out.push({ key: 'site:' + o.id, label: o.sector === 'site' ? t('Site yöneticisi') : t('Portföy yöneticisi'), sub: o.name, icon: 'grid' });
   if (role === 'landlord') out.push({ key: 'ev', label: t('Mülk sahibi'), sub: packageText(), icon: 'landlord' });
-  else if (role === 'team') out.push({ key: 'ev', label: S.order.length ? roleLabel(memberRole(S.order[0])) : t('Ekip üyesi'), sub: t('Ekip'), icon: 'landlord' });
+  // Ekip hesabı: yalnız bir mülk sahibinin ekibindeyse ya da portföy kurumu yöneticisi değilse (davetle açılmış site yöneticisinde boş "Ekip üyesi" rolü çıkmasın).
+  else if (role === 'team' && (S.order.length || !portfolioOrgs().length)) out.push({ key: 'ev', label: S.order.length ? roleLabel(memberRole(S.order[0])) : t('Ekip üyesi'), sub: t('Ekip'), icon: 'landlord' });
   if (S.myHome && role !== 'tenant') out.push({ key: 'kiraci', label: t('Kiracı'), sub: (P(S.myHome) as any)?.name || t('Evim'), icon: 'home' });
   if (S.myHome && role === 'tenant' && portfolioOrgs().length) out.push({ key: 'kiraci', label: t('Kiracı'), sub: (P(S.myHome) as any)?.name || t('Evim'), icon: 'home' });
-  for (const o of portfolioOrgs()) out.push({ key: 'site:' + o.id, label: o.sector === 'site' ? t('Site yöneticisi') : t('Portföy yöneticisi'), sub: o.name, icon: 'grid' });
+  for (const o of orgs.filter((x: any) => !x.master)) out.push({ key: 'site:' + o.id, label: o.sector === 'site' ? t('Site yöneticisi') : t('Portföy yöneticisi'), sub: o.name, icon: 'grid' });
   return out;
 }
 
@@ -66,5 +70,8 @@ export function restoreCtx() {
   let saved: string | null = null;
   try { saved = storage.getItem(KEY(id)); } catch {}
   const list = myContexts();
+  // Master'ı olunan kurum varsa uygulama her açılışta orada başlar; gün içinde seçiciden başka role geçilebilir.
+  const master = list.find((x) => x.key.startsWith('site:') && (portfolioOrgs() as any[]).some((o) => 'site:' + o.id === x.key && o.master));
+  if (master) { selectCtx(master.key); return; }
   if (saved && list.some((x) => x.key === saved)) selectCtx(saved);
 }

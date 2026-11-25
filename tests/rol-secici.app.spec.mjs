@@ -40,7 +40,7 @@ async function giris(page, d, email, entry) {
 }
 const secici = (page) => page.getByRole('button', { name: /^Rol seç/ });
 
-test('üç rol listelenir (rolün yanında paket/yer yazar); seçim paneli günceller; seçim yenilemede kalır', async ({ page }) => {
+test('üç rol listelenir (rolün yanında paket/yer yazar); seçim paneli günceller; yeniden açılışta master kurum gelir', async ({ page }) => {
   await giris(page, veri(true), 'ev@ornek.com', '/giris/mulk-sahibi');
   await expect(secici(page)).toBeVisible({ timeout: 15000 });
   await expect(secici(page)).toHaveAccessibleName('Rol seç: Site yöneticisi');          // kurum yöneticisinin varsayılanı (eski davranış)
@@ -65,9 +65,9 @@ test('üç rol listelenir (rolün yanında paket/yer yazar); seçim paneli günc
   await expect(page.getByRole('link', { name: /Ödemeler/ }).first()).toBeVisible();
   await expect(secici(page)).toHaveAccessibleName(/^Rol seç: Kiracı/);
 
-  // Yenileyince seçim kalır.
+  // Yeniden açılınca (yenileme) master'ı olunan kurumda başlar (rol önceliği: master yönetici).
   await page.reload();
-  await expect(secici(page)).toHaveAccessibleName(/^Rol seç: Kiracı/, { timeout: 15000 });
+  await expect(secici(page)).toHaveAccessibleName('Rol seç: Site yöneticisi', { timeout: 15000 });
   expect(errors).toEqual([]);
 });
 

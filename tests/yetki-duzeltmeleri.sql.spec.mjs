@@ -189,6 +189,7 @@ test('mülk org_id: istemci başkasının kurumuna mülk bağlayamaz; kendi kuru
   expect((await q(`select count(*)::int c from public.properties where org_id = '${org}'`))[0].c).toBe(0);
   // kurum yöneticisi (master) mülk sahibi olarak kendi kurumuna bağlayabilir (add_landlord_role ile)
   await as(M);
+  await q(`select public.add_landlord_role()`);   // site master'ı otomatik mülk sahibi olmaz (portfoy_master_rol); kendisi ekler
   await db.query(`insert into public.properties (id, owner_id, name, rent, due_day) values ('m-p1', '${M}', 'Kurum mülkü', 1, 5)`);
   // Site kurumunun portföyü birimlerdedir: master'ın kişisel mülkü kuruma bağlanmaz, kişisel paketine sayılır (migration kurum_sektor_sayac).
   expect((await q(`select org_id from public.properties where id = 'm-p1'`))[0].org_id).toBeNull();
