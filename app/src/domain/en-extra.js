@@ -1908,6 +1908,12 @@ export const EN_EXTRA = {
   "Ödeme istekleri": "Payment requests",
   "Ücretsiz ver": "Grant for free",
   "ödendi {d}": "paid {d}",
+  // Ek ödemeler
+  "Ek ödemeler": "Extra payments",
+  "{n} / {m} daire ödedi": "{n} / {m} flats paid",
+  "Ödemeyenler ({n})": "Unpaid ({n})",
+  "Ödemeyenlere son ödeme gününden 3 gün önce, son gün, 5 ve 15 gün sonra hatırlatma kendiliğinden gider; banka ekstresinden eşleştirme bu ödemeleri de kapsar.": "Unpaid flats get automatic reminders 3 days before the due date, on the day, and 5 and 15 days after; bank statement matching covers these payments too.",
+  "{n} dekont onay bekliyor": "{n} receipts awaiting approval",
   // Malike aidat bildirimi
   'Kiracım aidatı geciktirince': 'When my tenant pays the dues late',
   'Aylık aidat özeti (e-posta)': 'Monthly dues summary (e-mail)',
