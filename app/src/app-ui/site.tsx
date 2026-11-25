@@ -31,6 +31,8 @@ import { useStore } from './hooks';
 import { Picked } from './media';
 import { host } from '../domain/host';
 import { Pill } from './org';
+import { NetCard } from './site-net';
+import { ExtraPayments } from './site-extra-pay';
 import { Contracts } from './site-contracts';
 import { BankImport } from './site-ekstre';
 import TransferInfo from './TransferInfo';
@@ -305,6 +307,7 @@ function Charges({ d, oid, can, reload, seed }: { d: any; oid: string; can: (p: 
   return (
     <Stack>
       {(!commercial && (d.modules || []).includes('aidat')) || (commercial && (d.modules || []).includes('kira')) ? <AutoAidat d={d} oid={oid} can={can} reload={reload} /> : null}
+      {!commercial ? <ExtraPayments d={d} /> : null}
       {can('org.settings') ? <BankCard oid={oid} commercial={commercial} /> : null}
       {can('payments.approve') ? <BankImport d={d} oid={oid} reload={reload} /> : null}
       {can('charges.manage') && !commercial && !extra ? (
@@ -502,7 +505,7 @@ function RecurringCard({ d, oid, can, reload }: { d: any; oid: string; can: (p: 
         <Row key={x.id} between wrap style={{ paddingVertical: 8, borderTopWidth: i ? 1 : 0, borderColor: c.line }}>
           <View style={{ flex: 1, minWidth: 180 }}>
             <Text v="small" style={{ fontFamily: fonts.bodyXBold }}>{x.cat}{x.note ? ' · ' + x.note : ''}</Text>
-            <Muted>{[t('Her ayın {d}’i', { d: x.day }), t('{m} başlangıç', { m: monthYear(x.start_month) }), x.end_month ? t('{m} bitiş', { m: monthYear(x.end_month) }) : '', x.active ? '' : t('Durduruldu')].filter(Boolean).join(' · ')}</Muted>
+            <Muted>{[t('Her ayın {d}’i', { d: x.day }), t('{m} başlangıç', { m: monthYear(x.start_month) }), x.end_month ? t('{m} bitiş', { m: monthYear(x.end_month) }) : '', x.active ? (x.last_month === thisMonth() ? t('Bu ay gidere yazıldı') : t('Bu ay {d}’inde gidere yazılacak', { d: x.day })) : t('Durduruldu')].filter(Boolean).join(' · ')}</Muted>
           </View>
           <Row gap={6}>
             <Text v="small" style={{ fontFamily: fonts.bodyXBold, fontVariant: ['tabular-nums'] }}>{tl(x.amount)}</Text>
@@ -556,6 +559,7 @@ function Expenses({ d, oid, can, reload, onDistribute }: { d: any; oid: string; 
   };
   return (
     <Stack>
+      {!typed ? <NetCard d={d} /> : null}
       {!typed ? <CashCard d={d} oid={oid} can={can} reload={reload} from={m + '-01'} to={m + '-31'} title={t('{month} kasası', { month: monthYear(m) })} /> : null}
       {!typed ? <RecurringCard d={d} oid={oid} can={can} reload={reload} /> : null}
       {can('expenses.manage') ? (
