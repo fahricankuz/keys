@@ -167,15 +167,15 @@ export function Overview({ ops, go }: { ops?: { pending?: number; banned?: numbe
   const [period, setPeriod] = usePeriod();
   const { data, err, table } = useAdminFinance();
   const { width, phone } = useBreakpoint();
-  const { money } = useMoney();
+  const { money, conv, fmtc } = useMoney();
   const side = width >= 1280;   // geniş ekranda gelir–gider kutusu ile yıl grafiği yan yana
   const head = <PageHead label={t('Yönetici')} title={t('Genel bakış')} sub={t('Kısa özet; ayrıntılar Büyüme, Gelir ve Gider sayfalarında.')} right={<><CurrencyPick /><PeriodSeg value={period} onChange={setPeriod} /></>} />;
   if (err) return <Stack>{head}<Text v="small" color={c.badInk}>{err}</Text></Stack>;
   if (!data) return <Stack>{head}<Spin /></Stack>;
   const k = data.k, o = k.owners;
-  const { cur, prev, vol, volPrev, pm } = periodFinance(data, table, period);
+  const { cur, prev, vol, volPrev, pm } = periodFinance(data, table, period, conv);
   const prevDay = monthEnd(pm.prev[pm.prev.length - 1]);
-  const tl = (v: number) => money(v);
+  const tl = (v: number) => fmtc(v);
   const big = (label: string, value: number, before: number, sub: string) => {
     const d = delta(value, before);
     return (
@@ -184,7 +184,7 @@ export function Overview({ ops, go }: { ops?: { pending?: number; banned?: numbe
         <Text v="num" color={c.heroInk} style={{ fontSize: phone ? 34 : 44, lineHeight: phone ? 40 : 50, fontVariant: ['tabular-nums'] }}>{tl(value)}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           {d ? <TrendChip trend={d} onDark /> : null}
-          <Muted onDark>{[prevLabel(period) + ': ' + money(before, prevDay), sub].filter(Boolean).join(' · ')}</Muted>
+          <Muted onDark>{[prevLabel(period) + ': ' + fmtc(before), sub].filter(Boolean).join(' · ')}</Muted>
         </View>
       </View>
     );
@@ -232,12 +232,13 @@ export function Growth({ onCrm }: { onCrm?: (s: any) => void } = {}) {
   const { desktop } = useBreakpoint();
   const [period, setPeriod] = usePeriod();
   const { data, err, table } = useAdminFinance();
+  const { conv } = useMoney();
   const [days, setDays] = useState('30');
   const { data: kd } = useLoad<any>(() => loadKpis(Number(days)), [days]);
   if (err) return <Text v="small" color={c.badInk}>{err}</Text>;
   if (!data || !kd) return <Spin />;
   const k = kd, o = k.owners, orgs = k.orgs;
-  const { vol, volPrev } = periodFinance(data, table, period);
+  const { vol, volPrev } = periodFinance(data, table, period, conv);
   const sectors = orgs ? Object.entries(orgs.bySector || {}).sort((a: any, b: any) => b[1] - a[1]) : [];
   return (
     <Stack gap={16}>
@@ -295,13 +296,13 @@ export function Revenue() {
   const c = useColors();
   const [period, setPeriod] = usePeriod();
   const { data, err, table } = useAdminFinance();
-  const { money } = useMoney();
+  const { money, conv, fmtc } = useMoney();
   const { width } = useBreakpoint();
   if (err) return <Text v="small" color={c.badInk}>{err}</Text>;
   if (!data) return <Spin />;
   const tl = (v: number) => money(v);
   const k = data.k, o = k.owners, r = data.mrr;
-  const { cur, prev, pm } = periodFinance(data, table, period);
+  const { cur, prev, pm } = periodFinance(data, table, period, conv);
   const prevDay = monthEnd(pm.prev[pm.prev.length - 1]);
   const contracts = (data.orgs || []).filter((x: any) => x.status === 'active').sort((a: any, b: any) => String(a.contract_until || '9999').localeCompare(String(b.contract_until || '9999')));
   const orgMonthly = contracts.reduce((a: number, x: any) => a + (Number(x.billing?.monthly_fee) || 0), 0);

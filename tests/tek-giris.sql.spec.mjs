@@ -106,8 +106,13 @@ test('mülk sahibi özelliği: mevcut mülk sahibinin denemesi değişmez; ekip 
   expect((await q(`select public.add_landlord_role() as r`))[0].r).toBe('landlord');
   expect((await q(`select public.my_access() as a`))[0].a.trialEnds).toBe(before);
   expect((await q(`select landlord_since from public.profiles where id = $1`, [ID.L]))[0].landlord_since).toBeNull();
+  // Başka bir mülk sahibinin ekibindeki hesap dönüştürülemez; kimsenin ekibinde olmayan ekip hesabı (ör. davetle açılmış site yöneticisi) dönüşebilir.
+  await db.exec(`reset role; insert into public.team_members (owner_id, member_id, role, scope) values ('${ID.L}', '${NEW(3)}', 'agent', 'portfolio') on conflict do nothing`);
   await as(NEW(3));
   expect(await tryCall(db, `select public.add_landlord_role()`)).toMatch(/Ekip hesabı/);
+  await db.exec(`reset role; delete from public.team_members where member_id = '${NEW(3)}'`);
+  await as(NEW(3));
+  expect((await q(`select public.add_landlord_role() as r`))[0].r).toBe('landlord');
   await as(null, true);
   expect(await tryCall(db, `select public.add_landlord_role()`)).toMatch(/permission denied/);
 });

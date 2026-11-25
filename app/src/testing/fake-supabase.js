@@ -646,8 +646,9 @@ export function createClient(url, key, opts){
         const pmail = id => (db.users.find(u => u.id === id) || {}).email || '';
         const setMaster = (oid, uid) => { T.org_members.forEach(m => { if (m.org_id === oid && m.is_master && m.user_id !== uid) m.is_master = false; });
           // schema.sql → org_master_landlord: kiracı (eve kiracı olarak bağlı değilse) ve ekip (kimsenin ekibinde değilse) hesabı mülk sahibi olur.
-          { const pr = T.profiles.find(x => x.id === uid);
-            if (pr && ((pr.role === 'tenant' && !T.memberships.some(m => m.user_id === uid && m.role === 'tenant'))
+          // portfoy_master_rol: site, GYO, AVM ve depo master'ı mülk sahibine çevrilmez.
+          { const pr = T.profiles.find(x => x.id === uid), osec = (T.organizations.find(o => o.id === oid) || {}).sector;
+            if (pr && !['site','avm','depo','gyo'].includes(osec) && ((pr.role === 'tenant' && !T.memberships.some(m => m.user_id === uid && m.role === 'tenant'))
                     || (pr.role === 'team' && !(T.team_members || []).some(m => m.member_id === uid)))) { pr.role = 'landlord'; pr.landlord_since = pr.landlord_since || now(); } }
           const m = mem(oid, uid); if (m) Object.assign(m, { is_master:true, role_id:null }); else T.org_members.push({ org_id:oid, user_id:uid, role_id:null, is_master:true, created_at:now() }); };
         if (name === 'investor_report_mail'){
@@ -982,7 +983,7 @@ export function createClient(url, key, opts){
       if (name === 'add_landlord_role'){
         const p = db.tables.profiles.find(x => x.id === me);
         if (!p) return { data:null, error:{ message:'Oturum açılmamış', code:'42501' } };
-        if (p.role === 'team') return { data:null, error:{ message:'Ekip hesabı mülk sahibi hesabına dönüştürülemez', code:'22023' } };
+        if (p.role === 'team' && (db.tables.team_members || []).some(m => m.member_id === p.id)) return { data:null, error:{ message:'Ekip hesabı mülk sahibi hesabına dönüştürülemez', code:'22023' } };
         if (p.role !== 'landlord'){ p.role = 'landlord'; p.landlord_since = p.landlord_since || now(); persist(db); }
         return { data:'landlord', error:null };
       }

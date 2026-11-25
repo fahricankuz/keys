@@ -1916,6 +1916,7 @@ export const EN_EXTRA = {
   "En çok: {list}": "Largest: {list}",
   "Bu ay gidere yazıldı": "Recorded this month",
   "Bu ay {d}’inde gidere yazılacak": "Will be recorded on day {d} this month",
+  "TCMB döviz satış kuru; her işlem kendi gününün kuruyla çevrilip toplanır (aylık kalemler ayın son gününün, bu ay bugünün kuruyla; son kur {d}).": "CBRT FX selling rate; each item is converted at its own day's rate and then summed (monthly items at the month's last day, this month at today's rate; latest rate {d}).",
   // Malike aidat bildirimi
   'Kiracım aidatı geciktirince': 'When my tenant pays the dues late',
   'Aylık aidat özeti (e-posta)': 'Monthly dues summary (e-mail)',

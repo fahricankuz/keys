@@ -135,8 +135,14 @@ export function orgFeeFor(orgs = [], month){
  * costs + table: elle girilen giderler ve kur tablosu.
  * Üyelik: kaydedilmiş aylık tahmin (admin_revenue_months); bu ay için canlı tahmin; kaydı olmayan geçmiş ay "veri yok" (missing).
  */
-/** @param {{ monthly?: any[], months?: string[], liveMrr?: number, orgs?: any[], costs?: any[], table?: any, now?: Date }} o */
-export function finance({ monthly = [], months = [], liveMrr = 0, orgs = [], costs = [], table = null, now = new Date() }){
+/** Ayın kur günü: ayın son günü; bu ay ya da gelecek için bugün. */
+/** @param {string} m @param {Date} [now] */
+const monthDay = (m, now = new Date()) => { const [y, mo] = m.split('-').map(Number); const d = new Date(Date.UTC(y, mo, 0)).toISOString().slice(0, 10); const t = now.toISOString().slice(0, 10); return d > t ? t : d; };
+
+/** conv(tlTutar, gün): seçilen para birimine çevirici (TL için kimlik). Her kalem kendi gününün kuruyla çevrilir, sonra toplanır:
+    giderler gerçekleştiği günün, aylık gelirler (paket, sözleşme, işlem ücreti) ayın son gününün (bu ay bugünün) kuruyla. */
+/** @param {{ monthly?: any[], months?: string[], liveMrr?: number, orgs?: any[], costs?: any[], table?: any, now?: Date, conv?: (v: number, d: string) => number }} o */
+export function finance({ monthly = [], months = [], liveMrr = 0, orgs = [], costs = [], table = null, now = new Date(), conv = (v, _d) => v }){
   const by = Object.fromEntries(monthly.map((x) => [x.month, x]));
   const thisMonth = mk(now);
   let membership = 0, contracts = 0, fee = 0, legal = 0, pos = 0, missing = 0;
@@ -144,16 +150,21 @@ export function finance({ monthly = [], months = [], liveMrr = 0, orgs = [], cos
   let manual = 0;
   months.forEach((m) => {
     const r = by[m] || {};
-    if (m === thisMonth) membership += Number(liveMrr) || 0;
-    else if (r.mrr != null) membership += Number(r.mrr);
+    const md = monthDay(m, now), cv = (v) => conv(Number(v) || 0, md) || 0;
+    if (m === thisMonth) membership += cv(liveMrr);
+    else if (r.mrr != null) membership += cv(r.mrr);
     else if (m < thisMonth) missing++;
-    contracts += orgFeeFor(orgs, m);
+    contracts += cv(orgFeeFor(orgs, m));
     const card = cardSplit(r.card);
-    fee += card.fee; pos += card.pos;
-    legal += Number(r.legal) || 0;
+    fee += cv(card.fee); pos += cv(card.pos);
+    legal += cv(r.legal);
     const c = monthCosts(costs, m, table);
-    manual += c.total;
-    Object.entries(c.byCat).forEach(([k, v]) => { costCats[k] = (costCats[k] || 0) + v; });
+    c.items.forEach((it) => {
+      if (it.missing) return;
+      const v = conv(it.gross, it.day) || 0;
+      manual += v;
+      costCats[it.cost.category] = (costCats[it.cost.category] || 0) + v;
+    });
   });
   if (pos) costCats.odeme = (costCats.odeme || 0) + pos;
   const income = membership + contracts + fee + legal;
@@ -170,11 +181,12 @@ export function finance({ monthly = [], months = [], liveMrr = 0, orgs = [], cos
 }
 
 /** Dönemin hacimleri ve yeni kayıtları (admin_monthly satırlarından). */
-/** @param {any[]} monthly @param {string[]} months */
-export function volumes(monthly = [], months = []){
+/** @param {any[]} monthly @param {string[]} months @param {(v: number, d: string) => number} [conv] @param {Date} [now] */
+export function volumes(monthly = [], months = [], conv = (v, _d) => v, now = new Date()){
   const rows = monthly.filter((x) => months.includes(x.month));
-  const sum = (k) => rows.reduce((a, x) => a + (Number(x[k]) || 0), 0);
-  return { rent: sum('rent') + sum('orgRent'), orgRent: sum('orgRent'), aidat: sum('aidat') + sum('siteAidat'), siteAidat: sum('siteAidat'), card: sum('card'), signups: sum('signups') };
+  const sum = (k) => rows.reduce((a, x) => a + (conv(Number(x[k]) || 0, monthDay(x.month, now)) || 0), 0);
+  const count = (k) => rows.reduce((a, x) => a + (Number(x[k]) || 0), 0);   // adet: çevrilmez
+  return { rent: sum('rent') + sum('orgRent'), orgRent: sum('orgRent'), aidat: sum('aidat') + sum('siteAidat'), siteAidat: sum('siteAidat'), card: sum('card'), signups: count('signups') };
 }
 
 export async function loadMonthly(year){
