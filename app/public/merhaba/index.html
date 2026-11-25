@@ -27,7 +27,7 @@
 /* Her zaman açık tema (sitenin ana sayfasıyla aynı dil): beyaz zemin, krem yüzeyler, kırmızı vurgu, pastel bilgi kartları */
 :root{color-scheme:light;--bg:#FFFFFF;--cream:#FAF5F0;--surface:#FFFFFF;--tile:#F3ECE5;--ink:#1D1A19;--muted:#5C4F4A;--line:#E8DDD5;--accent:#C8302E;--accent-text:#A8231F;
 --gul:#F7E4DF;--gul-ink:#A8231F;--bal:#F5B544;--bal-soft:#FBEBC8;--bal-ink:#6B4A00;--fes:#D5EBD7;--fes-ink:#2A6B3A;--kil:#EDE3DA;--kil-ink:#5C4F4A;
---ease-out:cubic-bezier(.23,1,.32,1);--ease-in-out:cubic-bezier(.77,0,.175,1);--loop:8s}
+--ease-out:cubic-bezier(.23,1,.32,1);--ease-in-out:cubic-bezier(.77,0,.175,1);--loop:8s;--ease-drawer:cubic-bezier(.32,.72,0,1)}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink)}
 body{font:16px/1.5 'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden}
@@ -40,6 +40,14 @@ header{text-align:center}
 h1{font:800 clamp(44px,13vw,58px)/.98 'Inter Display','Inter',sans-serif;letter-spacing:-.05em;margin:0}
 h1 .l1{display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center}
 h1 em{display:block;font-style:normal;color:var(--accent)}
+/* Açılış: ana sayfadaki "Slam" efekti. Başlık satırları maskenin altından yaylanarak yükselir (yay: damping 15, stiffness 140),
+   "Ödendi" etiketi ve diğer bloklar ana sayfadaki Reveal gibi bulanıklıktan netleşerek gelir (900 ms, .32,.72,0,1). */
+.mask{display:block;overflow:hidden;padding-bottom:.06em;margin-bottom:-.06em}
+.mask>span{display:inline-block;transform:translateY(110%);animation:slam .95s linear forwards}
+.l1 .mask{display:inline-block}
+.s1>span{animation-delay:.08s}.s2>span{animation-delay:.22s}
+@keyframes slam{0%{transform:translateY(110%)}12%{transform:translateY(62%)}24%{transform:translateY(22%)}36%{transform:translateY(-1%)}46%{transform:translateY(-5%)}58%{transform:translateY(-3.5%)}70%{transform:translateY(-.5%)}84%{transform:translateY(.6%)}100%{transform:none}}
+.pop{display:inline-block;opacity:0;filter:blur(8px);transform:translateY(12px);animation:up .9s var(--ease-drawer) .42s forwards}
 .chip{display:inline-flex;align-items:center;gap:7px;font:700 14px/1 'Inter',sans-serif;letter-spacing:0;background:var(--cream);color:var(--ink);padding:8px 12px;border-radius:999px;vertical-align:middle;
 transform-origin:left center;animation:nod var(--loop) var(--ease-in-out) infinite}
 .chip i{width:12px;height:12px;border-radius:4px;background:var(--bal);display:block}
@@ -49,13 +57,13 @@ transform-origin:left center;animation:nod var(--loop) var(--ease-in-out) infini
    Hikâye: kiracı arıza yazar → mülk sahibi yazıyor… → cevap gelir → talep çubuğu ilerler, "Çözüldü" → Kasım kirası "Ödendi" → başlıktaki etiket onaylar. */
 .stage{position:relative;height:300px;margin:26px 0 8px}
 .card{position:absolute;border-radius:20px;padding:10px;box-shadow:0 18px 40px -22px rgba(29,26,25,.45);
-opacity:0;scale:.96;filter:blur(6px);animation:card .9s var(--ease-out) forwards,drift 7s var(--ease-in-out) infinite}
+opacity:0;transform:translateY(40px);filter:blur(8px);animation:card .9s var(--ease-drawer) forwards,drift 7s var(--ease-in-out) infinite}
 .card .tag{display:inline-block;background:#fff;border-radius:999px;font-weight:700;font-size:11.5px;padding:3px 9px;margin:0 0 7px}
 .row{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#fff;border-radius:11px;padding:6px 10px;font-size:12px;font-weight:600;margin-top:5px}
 .row b{font-weight:700;color:var(--fes-ink)}
-.c-pay{left:0;top:0;width:182px;z-index:1;background:var(--bal);rotate:-4deg;animation-delay:.35s,0s;animation-duration:.9s,7.4s}
-.c-req{right:0;top:46px;width:178px;background:var(--kil);rotate:4deg;animation-delay:.45s,-2s;animation-duration:.9s,8.2s}
-.c-chat{left:50%;bottom:0;width:236px;margin-left:-118px;z-index:2;background:var(--fes);animation-delay:.55s,-4s;animation-duration:.9s,6.8s}
+.c-pay{left:0;top:0;width:182px;z-index:1;background:var(--bal);rotate:-4deg;animation-delay:.38s,0s;animation-duration:.9s,7.4s}
+.c-req{right:0;top:46px;width:178px;background:var(--kil);rotate:4deg;animation-delay:.46s,-2s;animation-duration:.9s,8.2s}
+.c-chat{left:50%;bottom:0;width:236px;margin-left:-118px;z-index:2;background:var(--fes);animation-delay:.54s,-4s;animation-duration:.9s,6.8s}
 /* Durum değişimi: eski ve yeni yazı aynı yerde, bulanıklıkla yumuşak geçiş */
 .sw{display:inline-grid;text-align:right}.sw>*{grid-area:1/1}
 .sw .a{color:var(--bal-ink);font-weight:700}
@@ -75,7 +83,7 @@ opacity:0;scale:.96;filter:blur(6px);animation:card .9s var(--ease-out) forwards
 .typing i{width:5px;height:5px;border-radius:50%;background:var(--muted);animation:bounce .9s var(--ease-in-out) infinite}
 .typing i:nth-child(2){animation-delay:.12s}.typing i:nth-child(3){animation-delay:.24s}
 /* Zaman çizelgesi (8 sn): 0–15% yazıyor · 15% cevap · 20–50% çubuk · 50% Çözüldü · 56% Ödendi · 60% etiket · 90–100% sıfırlanır */
-@keyframes card{to{opacity:1;scale:1;filter:blur(0)}}
+@keyframes card{to{opacity:1;transform:none;filter:blur(0)}}
 @keyframes drift{0%,100%{translate:0 0}50%{translate:0 -7px}}
 @keyframes typing{0%,14%{opacity:1}17%,96%{opacity:0}100%{opacity:1}}
 @keyframes reply{0%,15%{opacity:0;transform:translateY(6px) scale(.96)}20%,90%{opacity:1;transform:none}96%,100%{opacity:0;transform:none}}
@@ -88,9 +96,9 @@ opacity:0;scale:.96;filter:blur(6px);animation:card .9s var(--ease-out) forwards
 @keyframes nod{0%,58%,72%,100%{transform:none}62%{transform:translateY(-3px) rotate(-3deg)}66%{transform:translateY(0) rotate(1deg)}}
 @keyframes bounce{0%,60%,100%{transform:none}30%{transform:translateY(-3px)}}
 /* Giriş: yukarıdan aşağı, 70 ms arayla, hafif bulanıklıktan netleşerek */
-.up{opacity:0;filter:blur(4px);transform:translateY(12px);animation:up .7s var(--ease-out) forwards}
+.up{opacity:0;filter:blur(8px);transform:translateY(28px);animation:up .9s var(--ease-drawer) forwards}
 @keyframes up{to{opacity:1;filter:blur(0);transform:none}}
-.d1{animation-delay:.07s}.d2{animation-delay:.14s}.d3{animation-delay:.21s}.d4{animation-delay:.3s}.d5{animation-delay:.65s}.d6{animation-delay:.72s}.d7{animation-delay:.79s}.d8{animation-delay:.86s}
+.d2{animation-delay:.26s}.d3{animation-delay:.32s}.d5{animation-delay:.6s}.d6{animation-delay:.68s}.d7{animation-delay:.76s}.d8{animation-delay:.84s}
 /* Düğmeler: sitedeki hap düğmeler (çerçeveli ve kırmızı) */
 .stores{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:22px 0 14px}
 .store{display:flex;align-items:center;justify-content:center;gap:10px;min-height:56px;border-radius:999px;background:#fff;color:var(--ink);border:2px solid var(--ink);text-decoration:none;padding:0 14px;transition:transform 160ms var(--ease-out),background-color 200ms ease}
@@ -128,14 +136,14 @@ footer a{color:var(--muted);font-weight:600;text-decoration:none}
 @media (min-width:700px){main{max-width:520px;padding-top:56px}}
 /* Hareket istemeyenler için her şey durur, içerik görünür kalır */
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition-property:opacity,background-color,border-color!important}
-.up,.card{opacity:1;filter:none;transform:none;scale:1}.sw .a{opacity:0}.sw .b{opacity:1;filter:none}.msg.me{opacity:1}.typing{opacity:0}.bar s{transform:none}.bar u{transform:translateX(100%)}}
+.up,.card,.pop,.mask>span{opacity:1;filter:none;transform:none;scale:1}.sw .a{opacity:0}.sw .b{opacity:1;filter:none}.msg.me{opacity:1}.typing{opacity:0}.bar s{transform:none}.bar u{transform:translateX(100%)}}
 </style>
 </head>
 <body>
 <main>
 <header>
 <div class="brand up"><svg class="mark" viewBox="0 0 1000 1000" role="img" aria-label="anahtar"><mask id="m"><rect width="1000" height="1000" rx="230" fill="#fff"/><g transform="translate(180,190) scale(0.64)"><path d="M388.46 927.44C504.68 927.44 578.78 886.8800000000001 627.92 797.96H631.04V913.4000000000001H893.12V358.82000000000005C893.12 177.08000000000004 761.3 71.78000000000009 521.8399999999999 71.78000000000009C283.15999999999997 71.78000000000009 148.21999999999997 177.86 136.51999999999998 356.48H386.12C391.58 300.32000000000005 437.6 264.44000000000005 512.48 264.44000000000005C583.46 264.44000000000005 627.14 297.98 627.14 347.1200000000001V351.0200000000001C627.14 400.1600000000001 573.3199999999999 411.86000000000007 425.9 424.3400000000001C250.4 438.38000000000005 106.1 498.44000000000005 106.1 683.3000000000001C106.1 847.1000000000001 223.88 927.44 388.46 927.44Z M506.5,696.9 A80,80 0 1,1 552.7,696.9 L562.6,764.3 L496.6,764.3 Z" fill="#000" fill-rule="evenodd"/></g></mask><rect width="1000" height="1000" rx="230" fill="var(--accent)" mask="url(#m)"/></svg><p class="name">anahtar</p></div>
-<h1 class="up d1"><span class="l1">Kira işinin <span class="chip"><i></i>Ödendi</span></span><em>anahtarı.</em></h1>
+<h1><span class="l1"><span class="mask s1"><span>Kira işinin</span></span> <span class="pop"><span class="chip"><i></i>Ödendi</span></span></span><span class="mask s2"><span><em>anahtarı.</em></span></span></h1>
 <p class="lead up d2">Sözleşme, ödeme, depozito ve arıza yazışması tek uygulamada. Kiracı ve mülk sahibi aynı kayda iki taraftan bakar.</p>
 <p class="note up d3">Mülk sahibine 1 ay ücretsiz · Kiracıya hep ücretsiz</p>
 </header>
