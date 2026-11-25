@@ -23,9 +23,13 @@ test.beforeAll(async () => {
 });
 
 test('düzenli gider: günü gelince bir kez; erken gün ve bitişten sonra yok; gidere kategori ve not', async () => {
+  // Bu test sabah işini (site_recurring_run) sabit tarihlerle sınar; eklemede anında yazma (gerçek bugüne bağlı) ayrı testte.
+  await as(null);
+  await db.exec('alter table public.site_recurring_expenses disable trigger site_recurring_now');
   await as(M);
   await q(`insert into public.site_recurring_expenses (org_id, cat, amount, day, note, start_month, end_month) values ($1, 'Personel', 25000, 5, 'Kapıcı maaşı', '2026-11', '2026-12')`, [org]);
   await as(null);
+  await db.exec('alter table public.site_recurring_expenses enable trigger site_recurring_now');
   expect((await q(`select public.site_recurring_run('2026-11-04') n`))[0].n).toBe(0);      // gün gelmedi
   expect((await q(`select public.site_recurring_run('2026-11-05') n`))[0].n).toBe(1);
   expect((await q(`select public.site_recurring_run('2026-11-20') n`))[0].n).toBe(0);      // aynı ay ikinci kez yok
@@ -57,4 +61,20 @@ test('kasa özeti: yönetim her zaman; sakin yalnız paylaşım açıksa; fatura
   await as(ID.X);
   expect(await tryCall(db, `select public.site_cash_summary($1, '2026-10')`, [org])).toMatch(/paylaşılmıyor/);
   expect(await q(`select * from public.site_recurring_expenses`)).toEqual([]);
+});
+
+test('düzenli gider eklenince ayın günü geçtiyse bu ayın gideri hemen yazılır; ikinci kez yazılmaz; günü gelmediyse beklenir', async () => {
+  const { newDb: nd, ID: I } = await import('./db-helpers.mjs');
+  const x = await nd();
+  await x.as(I.A);
+  const [{ admin_org_save: o }] = await x.q(`select public.admin_org_save($1)`, [{ name: 'Anında Sitesi', sector: 'site' }]);
+  await x.as(null);
+  const m = new Date().toISOString().slice(0, 7);
+  await x.q(`insert into public.site_recurring_expenses (org_id, cat, amount, day, start_month, active) values ($1, 'Personel', 26000, 1, $2, true)`, [o, m]);
+  expect(await x.q(`select amount from public.site_expenses where org_id = $1`, [o])).toHaveLength(1);
+  await x.q(`select public.site_recurring_run()`);
+  expect(await x.q(`select 1 from public.site_expenses where org_id = $1`, [o])).toHaveLength(1);
+  await x.q(`insert into public.site_recurring_expenses (org_id, cat, amount, day, start_month, active) values ($1, 'Bahçe', 500, 28, $2, true)`, [o, m]);
+  const n = await x.q(`select 1 from public.site_expenses where org_id = $1`, [o]);
+  expect(n.length).toBe(new Date().getDate() >= 28 ? 2 : 1);
 });
