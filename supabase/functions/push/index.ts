@@ -136,7 +136,8 @@ sentryServe('push', async (req) => {
 
   // 4. E-posta (varsayılan açık; kullanıcı kapatmadıysa ve Resend yapılandırıldıysa)
   let mailed = false;
-  if (mailConfigured()) {
+  // Duyuru bildirimi (duyuru-…) e-postası ayrıca mail_outbox 'duyuru' ile gider; burada bildirim e-postası doğmaz.
+  if (mailConfigured() && !/^duyuru-/.test(n.tag ?? '')) {
     // Ödeme (bill-…) ve hesap (acct-…: askıya alma, e-posta onayı) bildirimleri işlem e-postasıdır:
     // kullanıcı bildirim e-postalarını kapatmış olsa da gönderilir.
     if (profile?.settings?.email !== false || /^(bill|acct)-/.test(n.tag ?? '')) {

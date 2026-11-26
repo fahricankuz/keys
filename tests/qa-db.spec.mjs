@@ -74,13 +74,15 @@ test('güvenlik: dışarıdan çağrılabilen security definer işlevler yalnız
     // site_resident_code → "Malik ve kiracılar" yetkisi (yeni istemci kodu yalnız bununla okur; sütunun doğrudan okunmasının kapanması specs/followup-migrations içindedir).
     // investor_report_mail → Raporlar yetkisi ve açık yatırımcı modülü; yalnız çağıranın kendi e-postasına, saatte 10.
     // admin_pay_request / admin_pay_set → yalnız anahtar yöneticisi (is_admin); kurumsal ödeme isteği ve sonucu.
+    // admin_announcement_* / admin_announcements → yalnız anahtar yöneticisi; my_announcements / announcement_mark → yalnız çağıranın kendi duyuru satırı;
+    // announcement_unsubscribe → e-postadaki alıcıya özel jetonu bilen (yalnız duyuru e-postalarını kapatır).
     // add_landlord_role → yalnız çağıranın kendi hesabı (kiracı → mülk sahibi, deneme bir kez); signup_code_ok → kodu bilen (yalnız geçerli/geçersiz döner).
-    'accept_invite', 'accept_org_invite', 'accept_site_invite', 'activity_feed', 'add_landlord_role', 'admin_add_property', 'admin_audit_log', 'admin_cohorts', 'admin_cost_delete', 'admin_cost_save', 'admin_delete_message', 'admin_delete_user', 'admin_extend_trial', 'admin_kpis', 'admin_messages', 'admin_monthly',
+    'accept_invite', 'accept_org_invite', 'accept_site_invite', 'activity_feed', 'add_landlord_role', 'admin_add_property', 'admin_announcement_cancel', 'admin_announcement_count', 'admin_announcement_save', 'admin_announcement_send', 'admin_announcement_test', 'admin_announcements', 'admin_audit_log', 'admin_cohorts', 'admin_cost_delete', 'admin_cost_save', 'admin_delete_message', 'admin_delete_user', 'admin_extend_trial', 'admin_kpis', 'admin_messages', 'admin_monthly',
     'admin_org_delete', 'admin_org_save', 'admin_org_set_master', 'admin_orgs', 'admin_pay_request', 'admin_pay_set', 'admin_revenue_save', 'admin_send_email',
     'admin_set_ban', 'admin_set_cpi', 'admin_set_plan', 'admin_subscription_events', 'admin_subscriptions', 'admin_threads', 'admin_user_roles', 'admin_users',
-    'create_rent_certificate', 'delete_my_account', 'file_in_locked_inspect', 'file_review_ok', 'has_access', 'import_properties', 'investor_report_mail', 'invite_preview', 'is_admin', 'is_banned', 'is_member',
+    'announcement_mark', 'announcement_unsubscribe', 'create_rent_certificate', 'delete_my_account', 'file_in_locked_inspect', 'file_review_ok', 'has_access', 'import_properties', 'investor_report_mail', 'invite_preview', 'is_admin', 'is_banned', 'is_member',
     'is_org_master', 'is_org_member', 'is_owner', 'is_site_resident', 'link_site_unit',
-    'member_can', 'member_role', 'msg_side', 'my_access', 'my_orgs', 'my_site_units',
+    'member_can', 'member_role', 'msg_side', 'my_access', 'my_announcements', 'my_orgs', 'my_site_units',
     'org_bank_save', 'org_can', 'org_detail', 'org_invite_create', 'org_invite_delete', 'org_invite_info', 'org_member_remove', 'org_member_set', 'org_role_delete', 'org_role_save',
     'org_transfer_master',
     'post_system_message',
@@ -95,8 +97,9 @@ test('güvenlik: oturumsuz (anon) çağrılabilen security definer işlevler yal
   expect(rows.map(r => r.proname)).toEqual([
     // invite_preview, site_invite_info, org_invite_info, signup_code_ok → davet/kayıt sayfaları (kullanılmamış kodda davetlinin ad/e-posta/telefonu): yalnız geçerli kod için bilgi, başarısız denemeler IP başına sınırlı;
     // submit_lead → web kurumsal başvuru (IP ve e-posta başına sınır); report_error → oturum öncesi hata kaydı (IP başına sınır);
+    // announcement_unsubscribe → duyuru e-postasındaki alıcıya özel jeton (yalnız duyuru e-postalarını kapatır).
     // verify_rent_certificate → 10 haneli kodu bilen (belgenin anlık görüntüsü). Başka hiçbir işlev anon'a açık olmaz (migration anon_islev_yetkileri).
-    'invite_preview', 'org_invite_info', 'report_error', 'signup_code_ok', 'site_invite_info', 'submit_lead', 'verify_rent_certificate'
+    'announcement_unsubscribe', 'invite_preview', 'org_invite_info', 'report_error', 'signup_code_ok', 'site_invite_info', 'submit_lead', 'verify_rent_certificate'
   ]);
 });
 

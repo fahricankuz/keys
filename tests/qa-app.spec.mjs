@@ -426,7 +426,7 @@ test('ayarlar: yan menüden açılır; ad/telefon kaydedilir, e-posta onayla de�
 
   // Bildirim sekmesi: e-posta seçeneği varsayılan açık.
   await page.getByRole('button', { name: 'Bildirimler', exact: true }).click();
-  await expect(page.getByRole('switch', { name: 'E-posta' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('switch', { name: 'E-posta', exact: true })).toHaveAttribute('aria-checked', 'true');
 });
 
 test('ayarlar: telefonda üst çubuktaki dişliden açılır; mülk sahibi rapor e-postası örneğini görür', async ({ page }) => {

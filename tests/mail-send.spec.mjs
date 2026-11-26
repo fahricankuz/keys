@@ -74,3 +74,19 @@ test('aidat_ozet: daire daire durum, kiracı öder notu, borç ve toplam; Sitem 
   expect(m.html).toContain('https://anahtar.io/uygulama/sitem');
 });
 
+
+test('duyuru: tür rozeti, selam, metin, düğme bağlantısı ve alıcıya özel abonelik iptali; İngilizce', () => {
+  const m = renderOutbox({ kind: 'duyuru', data: { kind: 'feature', name: 'Ayşe Mülk', title: 'Konsolide raporlar geldi', body: 'Tüm mülklerinin <b>net</b> geliri.',
+    cta: 'Rapora git', url: '/uygulama/rapor', token: 'abc-123' } }, 'https://anahtar.io');
+  expect(m.subject).toBe('Konsolide raporlar geldi');
+  expect(m.html).toContain('Yeni özellik');
+  expect(m.html).toContain('Merhaba Ayşe,');
+  expect(m.html).toContain('&lt;b&gt;net&lt;/b&gt;');
+  expect(m.html).toContain('href="https://anahtar.io/uygulama/rapor"');
+  expect(m.html).toContain('https://anahtar.io/duyuru-iptal?t=abc-123');
+  expect(m.text).toContain('Duyuru e-postalarını alma: https://anahtar.io/duyuru-iptal?t=abc-123');
+  const en = renderOutbox({ kind: 'duyuru', lang: 'en', data: { kind: 'maintenance', title: 'Planned maintenance', body: 'x', token: 't' } }, 'https://anahtar.io');
+  expect(en.html).toContain('Maintenance');
+  expect(en.html).toContain('Unsubscribe from announcements');
+  expect(en.html).not.toContain('Rapora git');
+});

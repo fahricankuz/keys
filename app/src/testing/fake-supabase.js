@@ -11,7 +11,7 @@ const TABLES = ['profiles','properties','property_shared','memberships','invites
                 'organizations','org_roles','org_members','org_invites',
                 'site_units','site_residents','site_charges','site_expenses','site_announcements','site_requests','site_budgets','site_turnovers','site_rent_changes','site_auto','site_meetings','site_meeting_replies','site_polls','site_votes','site_documents','site_investor_notes','mail_outbox','site_cash','site_recurring_expenses',
                 'site_projects','site_project_updates','site_request_messages','site_project_costs','site_contracts','site_bank_txns','rent_bank_txns',
-                'app_config','fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_costs','admin_revenue_months','crm_leads','crm_notes','admin_emails','pay_accounts','corp_payments','mail_outbox'];
+                'app_config','fx_rates','legal_requests','legal_notes','client_errors','function_logs','content_reports','user_blocks','customer_contacts','rent_certificates','admin_costs','admin_revenue_months','crm_leads','crm_notes','admin_emails','pay_accounts','corp_payments','mail_outbox','announcements','announcement_recipients'];
 
 /** Açıklama kodu (migration havale_bilgileri → gen_pay_code): 6 karakter, karışan harf/rakam yok. */
 const payCode = () => Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
@@ -1107,6 +1107,52 @@ export function createClient(url, key, opts){
         }));
         return { data: Object.values(groups).map(g => ({ cohort: g.cohort, role: g.role, size: g.size,
           active: Object.fromEntries(Object.entries(g.seen || {}).map(([m, set]) => [m, set.size])) })), error:null };
+      }
+      // schema.sql → duyurular (migration duyurular): kitle (rol), gece uyarısı (__fakequiet), kart/şerit, gördü/kapattı/tıkladı.
+      if (name.startsWith('admin_announcement') && !isAdmin(db, me)) return { data:null, error:{ message:'Yönetici yetkisi gerekli', code:'42501' } };
+      if (name === 'admin_announcement_save' || name === 'admin_announcement_count' || name === 'admin_announcement_send' || name === 'admin_announcement_test'
+          || name === 'admin_announcement_cancel' || name === 'admin_announcements' || name === 'my_announcements' || name === 'announcement_mark'){
+        const T = db.tables, A = args || {};
+        T.announcements = T.announcements || []; T.announcement_recipients = T.announcement_recipients || [];
+        const ok = (x) => { persist(db); return { data:x, error:null }; };
+        const audience = (aud) => {
+          const roles = (aud && aud.roles) || [];
+          return T.profiles.filter(p => !roles.length || (roles.includes('landlord') && p.role === 'landlord')
+            || (roles.includes('tenant') && T.memberships.some(m => m.user_id === p.id && m.role === 'tenant'))).map(p => p.id);
+        };
+        const R = (aid) => T.announcement_recipients.filter(r => r.announcement_id === aid && !r.test);
+        if (name === 'admin_announcement_count') return ok(audience(A.aud).length);
+        if (name === 'admin_announcement_save'){
+          const p = A.p || {};
+          if (p.id){ const a = T.announcements.find(x => x.id === p.id); Object.assign(a, p, { status:'draft' }); return ok(a.id); }
+          const id = T.announcements.reduce((m, x) => Math.max(m, x.id), 0) + 1;
+          T.announcements.push({ kind:'info', view:'card', body:'', title_en:'', body_en:'', cta:'', cta_en:'', url:'', audience:{}, ch_app:true, ch_push:false, ch_email:false, ...p, id, status:'draft', recipients:0, created_at: now(), sent_at:null });
+          return ok(id);
+        }
+        if (name === 'admin_announcement_test'){
+          if (!T.announcement_recipients.some(r => r.announcement_id === A.aid && r.user_id === me)) T.announcement_recipients.push({ announcement_id:A.aid, user_id:me, test:true });
+          return ok(null);
+        }
+        if (name === 'admin_announcement_send'){
+          const a = T.announcements.find(x => x.id === A.aid);
+          if (!['draft','scheduled'].includes(a.status)) return { data:null, error:{ message:'Bu duyuru zaten gönderildi', code:'22023' } };
+          if (a.ch_push && !A.force && localStorage.getItem('__fakequiet') === '1') return ok({ quiet:true });
+          for (const u of audience(a.audience)) if (!T.announcement_recipients.some(r => r.announcement_id === a.id && r.user_id === u))
+            T.announcement_recipients.push({ announcement_id:a.id, user_id:u, push_at: a.ch_push ? now() : null, mail_at: a.ch_email ? now() : null });
+          Object.assign(a, { status:'sent', sent_at: now(), recipients: R(a.id).length });
+          return ok({ sent:true, recipients: a.recipients });
+        }
+        if (name === 'admin_announcement_cancel'){ T.announcements.find(x => x.id === A.aid).status = 'cancelled'; return ok(null); }
+        if (name === 'admin_announcements') return ok(T.announcements.slice().reverse().map(a => ({ ...a,
+          reached: R(a.id).filter(r => r.push_at || r.mail_at).length, seen: R(a.id).filter(r => r.seen_at).length, clicked: R(a.id).filter(r => r.clicked_at).length })));
+        if (name === 'my_announcements') return ok(T.announcement_recipients.filter(r => r.user_id === me && !r.dismissed_at).map(r => [r, T.announcements.find(a => a.id === r.announcement_id)])
+          .filter(([r, a]) => a && a.ch_app && (['sending','sent'].includes(a.status) || (r.test && ['draft','scheduled'].includes(a.status))))
+          .map(([r, a]) => ({ id:a.id, kind:a.kind, view:a.view, title:a.title, body:a.body, title_en:a.title_en, body_en:a.body_en, cta:a.cta, cta_en:a.cta_en, url:a.url, seen: !!r.seen_at })));
+        if (name === 'announcement_mark'){
+          const r = T.announcement_recipients.find(x => x.announcement_id === A.aid && x.user_id === me);
+          if (r){ r.seen_at = r.seen_at || now(); if (A.what === 'dismiss') r.dismissed_at = now(); if (A.what === 'click') r.clicked_at = now(); }
+          return ok(null);
+        }
       }
       // schema.sql → admin_pay_request / admin_pay_set (migration kurumsal_odeme) ile aynı kurallar.
       if (name === 'admin_pay_request' || name === 'admin_pay_set'){

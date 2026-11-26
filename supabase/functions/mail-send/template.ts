@@ -1,5 +1,5 @@
 // anahtar — gönderim kuyruğundaki e-postaların (mail_outbox) HTML'i: hesap silindi, ekibe paket seçimi, kurum yöneticisi daveti,
-// yatırımcı raporu özeti ("Mailime gönder"), yönetici panelinden yazılan ileti (admin_message), Havale/EFT ödeme bilgisi (havale_bilgi).
+// yatırımcı raporu özeti ("Mailime gönder"), yönetici panelinden yazılan ileti (admin_message), Havale/EFT ödeme bilgisi (havale_bilgi), duyuru (duyuru).
 // Saf işlev (Deno ve Node'da çalışır; testler önizleme üretir). E-posta istemcileri için: tablo düzeni, satır içi stil, sistem yazı tipi.
 // Bütün e-postalar koyu başlık bandında koyu zeminli logoyla (anahtar-logo-mail-koyu.png) gelir; karanlık modda da bozulmaz.
 
@@ -12,14 +12,15 @@ const trimUrl = (u?: string) => (u || 'https://anahtar.io').replace(/\/+$/, '');
 export type OutboxRow = { kind: string; lang?: string; data?: Record<string, unknown> };
 export type Mail = { subject: string; html: string; text: string };
 
-type Layout = { lang: string; title: string; lead: string[]; rows?: [string, string][]; button?: { label: string; url: string }; note?: string; foot: string };
+type Layout = { lang: string; title: string; lead: string[]; rows?: [string, string][]; button?: { label: string; url: string }; note?: string; foot: string; badge?: string; unsub?: { label: string; url: string } };
 function layout(o: Layout): string {
   const rows = (o.rows ?? []).filter(([, v]) => String(v ?? '').trim());
   return `<!doctype html><html lang="${o.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(o.title)}</title></head>
 <body style="margin:0;padding:0;background:${C.kirec}"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.kirec}"><tr><td align="center" style="padding:24px 12px">
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:${C.kart};border:1px solid ${C.kil};border-radius:24px;overflow:hidden">
 <tr><td bgcolor="#1D1A19" style="background:${C.baca};padding:26px 28px 28px"><img src="${LOGO}" width="168" height="31" alt="anahtar" style="display:block;border:0;outline:none;text-decoration:none">
-<div style="font:800 28px/1.15 ${FONT};color:#FFF3EA;letter-spacing:-.6px;margin-top:20px">${esc(o.title)}</div></td></tr>
+${o.badge ? `<div style="margin-top:18px"><span style="display:inline-block;background:#F2C94C;color:${C.baca};font:700 12px ${FONT};padding:4px 10px;border-radius:999px">${esc(o.badge)}</span></div>` : ''}
+<div style="font:800 28px/1.15 ${FONT};color:#FFF3EA;letter-spacing:-.6px;margin-top:${o.badge ? 10 : 20}px">${esc(o.title)}</div></td></tr>
 <tr><td style="padding:24px 28px 8px">${o.lead.map((p, i) => `<div style="font:400 16px/1.6 ${FONT};color:${i === 0 ? C.baca : C.kahve};margin-top:${i ? 8 : 0}px;white-space:pre-line">${esc(p)}</div>`).join('')}</td></tr>
 ${rows.length ? `<tr><td style="padding:8px 28px 0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font:400 15px/1.5 ${FONT}">${rows.map(([k, v]) =>
     `<tr><td style="padding:5px 0;color:${C.kahve};width:38%;vertical-align:top">${esc(k)}</td><td style="padding:5px 0;color:${C.baca};font-weight:600">${esc(v)}</td></tr>`).join('')}</table></td></tr>` : ''}
@@ -27,12 +28,12 @@ ${o.button ? `<tr><td style="padding:18px 28px 6px"><a href="${esc(o.button.url)
 ${o.note ? `<tr><td style="padding:14px 28px 0"><div style="font:400 14px/1.55 ${FONT};color:${C.kahve}">${esc(o.note)}</div></td></tr>` : ''}
 <tr><td style="padding:0 28px 26px"><div style="height:8px"></div></td></tr>
 </table>
-<div style="font:400 12px/1.5 ${FONT};color:${C.duman};margin-top:14px;text-align:center">${esc(o.foot)}</div>
+<div style="font:400 12px/1.5 ${FONT};color:${C.duman};margin-top:14px;text-align:center">${esc(o.foot)}${o.unsub ? ` · <a href="${esc(o.unsub.url)}" style="color:${C.duman};text-decoration:underline">${esc(o.unsub.label)}</a>` : ''}</div>
 </td></tr></table></body></html>`;
 }
 
 const plain = (o: Layout) => [...o.lead, '', ...(o.rows ?? []).filter(([, v]) => String(v ?? '').trim()).map(([k, v]) => `${k}: ${v}`),
-  o.button ? `\n${o.button.label}: ${o.button.url}` : '', o.note ? `\n${o.note}` : '', '', '— anahtar'].filter((x, i, a) => !(x === '' && a[i - 1] === '')).join('\n');
+  o.button ? `\n${o.button.label}: ${o.button.url}` : '', o.note ? `\n${o.note}` : '', '', '— anahtar', o.unsub ? `${o.unsub.label}: ${o.unsub.url}` : ''].filter((x, i, a) => !(x === '' && a[i - 1] === '')).join('\n');
 
 const PLAN: Record<string, string> = { tek: 'Başlangıç', bes: 'Profesyonel', kurumsal: 'Kurumsal' };
 
@@ -118,6 +119,19 @@ export function renderOutbox(row: OutboxRow, appUrl?: string, contact = 'info@an
       : { lang: lg, foot, title: `Aidat özeti · ${month}`, lead: [first ? `Merhaba ${first},` : 'Merhaba,', `${units.length} dairenin ${month} aidat durumu aşağıda.`],
           rows: [...rows, ['Toplam ödenmemiş', tl(total)]], button: { label: 'Sitem’i aç', url: `${app}/uygulama/sitem` },
           note: 'Bu e-postayı Ayarlar → Bildirimler’den kapatabilirsin.' };
+    return { subject, html: layout(L), text: plain(L) };
+  }
+  if (row.kind === 'duyuru') {
+    // Yönetici panelinden duyuru (Müşteriler › Duyurular; announcement_deliver). Altta alıcıya özel "Duyuru e-postalarını alma" bağlantısı.
+    const KIND: Record<string, [string, string]> = { info: ['Bilgilendirme', 'Update'], feature: ['Yeni özellik', 'New feature'], maintenance: ['Bakım', 'Maintenance'] };
+    const url = String(d.url ?? '');
+    const link = /^https:\/\//.test(url) ? url : `${app}${url.startsWith('/uygulama') ? url : '/uygulama'}`;
+    const cta = String(d.cta ?? '').trim();
+    subject = String(d.title ?? 'anahtar');
+    L = { lang: lg, foot, title: String(d.title ?? ''), badge: (KIND[String(d.kind)] ?? KIND.info)[en ? 1 : 0],
+          lead: [first ? (en ? `Hi ${first},` : `Merhaba ${first},`) : (en ? 'Hi,' : 'Merhaba,'), String(d.body ?? '')].filter((x) => x.trim()),
+          button: cta ? { label: cta, url: link } : undefined,
+          unsub: d.token ? { label: en ? 'Unsubscribe from announcements' : 'Duyuru e-postalarını alma', url: `${app}/duyuru-iptal?t=${encodeURIComponent(String(d.token))}` } : undefined };
     return { subject, html: layout(L), text: plain(L) };
   }
   if (row.kind === 'havale_bilgi') {

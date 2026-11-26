@@ -82,7 +82,7 @@ const cssV = existsSync(cssFile) ? createHash('sha256').update(readFileSync(cssF
 
 // Sunucuyla konuşan sayfalar (giriş, kayıt, şifre, davet, panel, hesaplayıcı) bağlantıyı önceden açar: ilk istek
 // DNS/TLS beklemez. Ana sayfa ve tanıtım sayfaları açmaz (oturumu olmayan ziyaretçi sunucuya hiç bağlanmaz).
-const API_PAGES = /^(giris|kayit|sifre|yeni-sifre|dogrula|katil|uygulama|admin|satin-al|kira-artis-hesaplama)(\/|$)/;
+const API_PAGES = /^(giris|kayit|sifre|yeni-sifre|dogrula|katil|duyuru-iptal|uygulama|admin|satin-al|kira-artis-hesaplama)(\/|$)/;
 const preconnect = (file) => {
   const key = pageKey(file);
   return api && API_PAGES.test(key) ? `<link rel="preconnect" href="${api}" crossorigin=""/>` : '';
