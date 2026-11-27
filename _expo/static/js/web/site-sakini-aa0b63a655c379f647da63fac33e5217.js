@@ -1,0 +1,3 @@
+var _sentryDebugIds,_sentryDebugIdIdentifier;void 0===_sentryDebugIds&&(_sentryDebugIds={});try{var stack=(new Error).stack;stack&&(_sentryDebugIds[stack]="fe7fb43d-bc23-4ea2-85ff-c23ea7537fb4",_sentryDebugIdIdentifier="sentry-dbid-fe7fb43d-bc23-4ea2-85ff-c23ea7537fb4")}catch(e){}
+__d(function(g,r,i,a,m,_e,d){"use strict";Object.defineProperty(_e,'__esModule',{value:!0}),Object.defineProperty(_e,"default",{enumerable:!0,get:function(){return f}});var e,t=r(d[0]),n=(e=t)&&e.__esModule?e:{default:e},u=r(d[1]);function f(){return(0,u.jsx)(n.default,{role:"tenant",site:!0})}},778,[901,6]);
+//# debugId=fe7fb43d-bc23-4ea2-85ff-c23ea7537fb4

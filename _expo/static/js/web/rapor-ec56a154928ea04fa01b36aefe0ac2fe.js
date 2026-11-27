@@ -1,0 +1,3 @@
+var _sentryDebugIds,_sentryDebugIdIdentifier;void 0===_sentryDebugIds&&(_sentryDebugIds={});try{var stack=(new Error).stack;stack&&(_sentryDebugIds[stack]="30d6f42d-1b80-44a3-8663-1158e27669a1",_sentryDebugIdIdentifier="sentry-dbid-30d6f42d-1b80-44a3-8663-1158e27669a1")}catch(e){}
+__d(function(g,r,i,a,m,e,d){"use strict";Object.defineProperty(e,'__esModule',{value:!0}),Object.defineProperty(e,"default",{enumerable:!0,get:function(){return l}});var t=r(d[0]),u=r(d[1]),n=r(d[2]),o=r(d[3]);function l(){return'landlord'===u.ui.role?(0,o.jsx)(n.Report,{}):(0,o.jsx)(t.Redirect,{href:"/uygulama"})}},795,[831,834,922,6]);
+//# debugId=30d6f42d-1b80-44a3-8663-1158e27669a1

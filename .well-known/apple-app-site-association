@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "F5DQK4ZWFP.io.anahtar.app",
+        "paths": [
+          "/katil*",
+          "/dogrula*",
+          "/yeni-sifre*",
+          "/uygulama*"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "io.anahtar.app",
+      "sha256_cert_fingerprints": [
+        "6D:99:2F:BA:44:FD:A8:B0:F8:C6:69:37:FA:9D:B1:B2:3B:32:4B:4A:BB:56:F6:3B:14:FF:D7:BE:EC:CD:9A:D1"
+      ]
+    }
+  }
+]
