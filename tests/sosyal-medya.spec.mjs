@@ -30,3 +30,14 @@ test('web altbilgisi mağaza rozetleri doğru mağaza adreslerine gider', () => 
   expect(landing).toContain('CONFIG.stores.ios');
   expect(landing).toContain('CONFIG.stores.android');
 });
+
+test('sosyal medya ve mağaza bağlantıları web’de yalnızca yeni sekmede açılır (onPress ile href birlikte olmaz)', () => {
+  const landing = read('app/src/site/Landing.tsx');
+  expect(landing).toContain("hrefAttrs: { target: '_blank', rel: 'noopener noreferrer' }");
+  const social = landing.slice(landing.indexOf('CONFIG.social.map((so)'), landing.indexOf('CONFIG.social.map((so)') + 400);
+  expect(social).toContain('extLink(so.url)');
+  expect(social).not.toContain('onPress=');
+  const badge = landing.slice(landing.indexOf('function StoreBadge'), landing.indexOf('export function Footer'));
+  expect(badge).toContain('extLink(url)');
+  expect(badge).not.toMatch(/onPress=\{open\}|webHref\(url\)/);
+});
