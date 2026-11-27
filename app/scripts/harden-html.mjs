@@ -89,7 +89,7 @@ const preconnect = (file) => {
 };
 
 // Giriş yapılan ve işlem sayfaları arama sonuçlarına girmez (robots.txt tek başına dizinden çıkarmaz; karar sayfanın kendi etiketindedir).
-const NOINDEX_PAGES = /^(giris|kayit|sifre|yeni-sifre|dogrula|katil|uygulama|admin|belge|satin-al)(\/|$)/;
+const NOINDEX_PAGES = /^(giris|kayit|sifre|yeni-sifre|dogrula|katil|duyuru-iptal|uygulama|admin|belge|satin-al)(\/|$)/;
 
 // Paylaşım önizlemesi (WhatsApp, X, LinkedIn): marka görseli app/public/og/anahtar.jpg (1200x630, scripts/blog/og.mjs marka).
 const OG_IMAGE = 'https://anahtar.io/og/anahtar.jpg';
