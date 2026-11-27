@@ -18,6 +18,8 @@
 - [Aidatı kim öder: kiracı mı, ev sahibi mi?](https://anahtar.io/blog/aidat-kim-oder/): Aidat, yakıt, kapıcı, demirbaş ve DASK giderlerinden hangisi kiracıya, hangisi ev sahibine aittir? Kanun ve uygulamayla tek tabloda.
 - [Kiracı tahliyesi: yasal yollar ve süreler](https://anahtar.io/blog/kiraci-tahliyesi/): Ev sahibi kiracıyı hangi durumlarda çıkarabilir? İhtiyaç, tahliye taahhüdü, iki haklı ihtar, 10 yıllık süre ve zorunlu arabuluculuk.
 - [Kira geliri beyannamesi: kimler verir, nasıl hesaplanır?](https://anahtar.io/blog/kira-geliri-beyannamesi/): Konut ve işyeri kira gelirinin beyanı: istisna, götürü ve gerçek gider, Mart ayı beyan süresi, taksitler ve hazır beyan sistemi.
+- [Kira takibi için Excel mi, kira takip uygulaması mı?](https://anahtar.io/blog/kira-takip-programi-excel-mi-uygulama-mi/): Excel ile kira takip uygulamasının farkları: ödeme ve dekont kaydı, hatırlatma, belge arşivi ve kiracıyla ortak kayıt. Hangisi ne zaman yeter?
+- [Kira teslim tutanağı nasıl hazırlanır?](https://anahtar.io/blog/teslim-tutanagi-nasil-hazirlanir/): Kiraya girerken ve çıkarken mülkün durumunu fotoğraflı tutanakla belgelemek depozito anlaşmazlığını önler. Tutanakta neler olmalı, adım adım.
 
 ## Yasal
 - [Gizlilik ve KVKK](https://anahtar.io/gizlilik/)
