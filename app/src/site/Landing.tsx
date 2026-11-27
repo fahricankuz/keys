@@ -426,7 +426,7 @@ function Pricing({ go, anchor }: { go: (p: string) => void; anchor: (el: any) =>
         <Reveal style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'center' }}>
           {phone ? null : <Icon name="check" size={16} color={c.okInk} />}
           <Text v="small" muted style={{ textAlign: 'center' }}>{t('Kiracılar ve ekip üyeleri (emlakçı, muhasebeci, personel) her zaman ücretsiz.')}</Text>
-          <PressScale onPress={() => go('/kayit/kiraci')} accessibilityRole="link" {...webHref('/kayit/kiraci/')}><Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('Kiracı olarak kayıt ol')} ›</Text></PressScale>
+          <PressScale onPress={() => go('/kayit/kiraci')} accessibilityRole="link" {...webHref('/kayit/kiraci/')} style={{ minHeight: 44, justifyContent: 'center' }}><Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('Kiracı olarak kayıt ol')} ›</Text></PressScale>
         </Reveal>
       </Container>
     </View>
@@ -535,7 +535,7 @@ export function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
       <Container style={{ paddingTop: phone ? 56 : 88, paddingBottom: 28, gap: phone ? 40 : 64 }}>
         <View style={{ flexDirection: phone ? 'column' : 'row', justifyContent: 'space-between', gap: phone ? 36 : 48 }}>
           <View style={{ gap: 14, maxWidth: 300 }}>
-            <PressScale onPress={() => scrollTo('top')} accessibilityRole="link" accessibilityLabel={t('Ana sayfa')} style={{ alignSelf: 'flex-start' }}><Wordmark size={28} color={c.heroInk} /></PressScale>
+            <PressScale onPress={() => scrollTo('top')} accessibilityRole="link" {...webHref('/')} accessibilityLabel={t('Ana sayfa')} style={{ alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }}><Wordmark size={28} color={c.heroInk} /></PressScale>
             <Text v="small" color={c.heroMuted} style={{ lineHeight: 21 }}>{t('Kira işinin anahtarı.')}</Text>
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: phone ? 32 : 72 }}>
@@ -543,7 +543,7 @@ export function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
               <View key={head} style={{ gap: 6, minWidth: 140 }}>
                 <Text v="small" color={c.heroInk} style={{ fontFamily: fonts.bodyBold, marginBottom: 6 }}>{head}</Text>
                 {links.map(([label, run, href]) => (
-                  <PressScale key={label} accessibilityRole="link" {...(href ? webHref(href) : null)} onPress={run} style={{ minHeight: 36, justifyContent: 'center' }}><Text v="small" color={c.heroMuted}>{label}</Text></PressScale>
+                  <PressScale key={label} accessibilityRole="link" {...(href ? webHref(href) : null)} onPress={run} style={{ minHeight: 44, justifyContent: 'center' }}><Text v="small" color={c.heroMuted}>{label}</Text></PressScale>
                 ))}
               </View>
             ))}

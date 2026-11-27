@@ -99,7 +99,7 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
       <Container style={{ zIndex: 20 }}>
         <View style={{ position: 'relative' }}>
           <View style={{ minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <PressScale onPress={() => { setOpen(false); scrollTo('top'); }} accessibilityRole="link" {...webHref('/')} accessibilityLabel={t('Ana sayfa')}>
+            <PressScale onPress={() => { setOpen(false); scrollTo('top'); }} accessibilityRole="link" {...webHref('/')} accessibilityLabel={t('Ana sayfa')} style={{ minHeight: 44, justifyContent: 'center' }}>
               <Wordmark size={phone ? (narrow ? 17 : 21) : 28} animate />
             </PressScale>
             {!phone && (
