@@ -22,3 +22,11 @@ test('web altbilgisi ve mobil Yardım sekmesi yapılandırmadan okur, İngilizce
   expect(read('app/src/app-ui/sheets.tsx')).toContain('CONFIG.social');
   expect(read('app/src/domain/en-extra.js')).toContain("'Bizi takip et': 'Follow us'");
 });
+
+test('web altbilgisi mağaza rozetleri doğru mağaza adreslerine gider', () => {
+  expect(config).toContain("ios: 'https://apps.apple.com/tr/app/id6834434284'");
+  expect(config).toContain("android: 'https://play.google.com/store/apps/details?id=io.anahtar.app'");
+  const landing = read('app/src/site/Landing.tsx');
+  expect(landing).toContain('CONFIG.stores.ios');
+  expect(landing).toContain('CONFIG.stores.android');
+});

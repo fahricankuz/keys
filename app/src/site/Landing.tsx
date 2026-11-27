@@ -8,6 +8,7 @@ import { t, getLang, setLang } from '../domain/i18n';
 import { demo } from './money';
 import { CONFIG } from '../domain/config';
 import { Button, Chip, Container, PressScale, Text, webHref } from '../ui/kit';
+import { SvgXml } from 'react-native-svg';
 import { Wordmark } from '../ui/Wordmark';
 import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
 import { Slam } from '../ui/motion';
@@ -520,6 +521,37 @@ function CalcBand() {
   );
 }
 
+const SOCIAL_SVG: Record<string, (c: string) => string> = {
+  instagram: (c) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.1" fill="${c}" stroke="none"/></svg>`,
+  tiktok: (c) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${c}"><path d="M16.6 3c.3 2.2 1.6 3.6 3.8 3.8v3.1c-1.4.1-2.6-.3-3.8-1v6.3c0 3.6-2.5 5.8-5.6 5.8-3.3 0-5.6-2.6-5.4-5.7.2-3 2.8-5.2 6-4.8v3.2c-.4-.1-.8-.2-1.2-.1-1.3.1-2.2 1.1-2.1 2.3.1 1.2 1.1 2.1 2.4 2 1.3 0 2.2-.9 2.2-2.3V3h3.7Z"/></svg>`,
+  facebook: (c) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${c}"><path d="M13.5 21v-7.5h2.6l.4-3h-3V8.6c0-.9.3-1.5 1.5-1.5h1.6V4.4c-.3 0-1.2-.1-2.3-.1-2.3 0-3.9 1.4-3.9 4v2.2H7.8v3h2.6V21h3.1Z"/></svg>`,
+  x: (c) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${c}"><path d="M17.8 3h3.1l-6.8 7.7 8 10.3h-6.2l-4.9-6.3L5.4 21H2.3l7.3-8.2L2 3h6.4l4.4 5.8L17.8 3Zm-1.1 16.2h1.7L7.4 4.7H5.6l11.1 14.5Z"/></svg>`
+};
+
+const APPLE_PATH = 'M12.15 6.9c-.95 0-2.42-1.08-3.96-1.04-2.04.03-3.91 1.18-4.96 3.01-2.12 3.68-.55 9.1 1.52 12.09 1.01 1.45 2.21 3.09 3.79 3.04 1.52-.07 2.09-.99 3.94-.99 1.83 0 2.35.99 3.96.95 1.64-.03 2.68-1.48 3.68-2.95 1.16-1.69 1.64-3.33 1.66-3.42-.04-.01-3.18-1.22-3.22-4.86-.03-3.04 2.48-4.49 2.6-4.56-1.43-2.09-3.62-2.32-4.39-2.38-2-.16-3.68 1.09-4.61 1.09ZM15.53 3.83c.84-1.01 1.4-2.43 1.25-3.83-1.21.05-2.66.8-3.53 1.82-.78.9-1.45 2.34-1.27 3.71 1.34.1 2.72-.69 3.55-1.7Z';
+const PLAY_PATH = 'M5 3.2v17.6a1 1 0 0 0 1.5.86l14-8.8a1 1 0 0 0 0-1.72l-14-8.8A1 1 0 0 0 5 3.2Z';
+
+/** Mağaza rozeti: marka düğmesiyle aynı dil (hap, krem çerçeve, üzerine gelince Kiremit). Koyu zeminde kullanılır. */
+function StoreBadge({ kind, url }: { kind: 'ios' | 'android'; url: string }) {
+  const c = useColors();
+  const [hot, setHot] = useState(false);
+  const ios = kind === 'ios';
+  const open = () => Linking.openURL(url).catch(() => {});
+  const web: any = Platform.OS === 'web' ? { transitionProperty: 'background-color, border-color, box-shadow', transitionDuration: '220ms', cursor: 'pointer' } : null;
+  return (
+    <PressScale onPress={open} accessibilityRole="link" accessibilityLabel={ios ? t('App Store’dan indir') : t('Google Play’den indir')} {...webHref(url)}
+      hoverScale={1.03} scaleTo={0.95} onHoverIn={() => setHot(true)} onHoverOut={() => setHot(false)}
+      style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: radius.pill, borderWidth: 2, borderColor: hot ? c.accent : 'rgba(251,244,234,0.45)', backgroundColor: hot ? c.accent : 'transparent',
+        paddingHorizontal: 22, minHeight: 56, boxShadow: hot ? '0 6px 18px rgba(201,45,43,0.28)' : 'none', ...web }]}>
+      <SvgXml width={22} height={22} xml={`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${c.heroInk}" d="${ios ? APPLE_PATH : PLAY_PATH}"/></svg>`} />
+      <View>
+        <Text v="small" color={hot ? c.accentInk : c.heroMuted} style={{ fontSize: 12, lineHeight: 14 }}>{t('Şuradan indir')}</Text>
+        <Text v="small" color={c.heroInk} style={{ fontFamily: fonts.bodyBold, fontSize: 16, lineHeight: 20 }}>{ios ? 'App Store' : 'Google Play'}</Text>
+      </View>
+    </PressScale>
+  );
+}
+
 export function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
   const c = useColors();
   const { phone } = useBreakpoint();
@@ -528,7 +560,6 @@ export function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
   const cols: [string, [string, () => void, string?][]][] = [
     [t('Ürün'), [[t('Özellikler'), () => scrollTo('ozellikler')], [t('Nasıl çalışır'), () => scrollTo('nasil')], [t('Fiyatlar'), () => scrollTo('fiyat')], [t('Çözümler'), () => openPage('cozumler'), '/cozumler/'], [t('Kurumsal'), () => openPage('kurumsal'), '/kurumsal/'], [t('Kira artış hesaplama'), () => openPage('kira-artis-hesaplama'), '/kira-artis-hesaplama/'], [t('Blog'), open(site('blog/')), '/blog/']]],
     [t('Destek'), [[t('Destek merkezi'), open(CONFIG.legal.support), '/destek/'], [t('Sıkça sorulanlar'), () => scrollTo('sss')], [CONFIG.supportEmail, open('mailto:' + CONFIG.supportEmail)]]],
-    [t('Bizi takip et'), CONFIG.social.map((s): [string, () => void, string] => [s.name, open(s.url), s.url])],
     [t('Yasal'), [[t('Kullanım Koşulları'), open(CONFIG.legal.terms), '/kosullar/'], [t('Gizlilik ve KVKK'), open(CONFIG.legal.privacy), '/gizlilik/'], [t('Hesap silme'), open(CONFIG.legal.deletion), '/hesap-silme/']]]
   ];
   return (
@@ -538,8 +569,17 @@ export function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
           <View style={{ gap: 14, maxWidth: 300 }}>
             <PressScale onPress={() => scrollTo('top')} accessibilityRole="link" {...webHref('/')} accessibilityLabel={t('Ana sayfa')} style={{ alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }}><Wordmark size={28} color={c.heroInk} /></PressScale>
             <Text v="small" color={c.heroMuted} style={{ lineHeight: 21 }}>{t('Kira işinin anahtarı.')}</Text>
+            <View style={{ flexDirection: 'row', gap: 4, marginLeft: -10 }}>
+              {CONFIG.social.map((so) => (
+                <PressScale key={so.key} onPress={open(so.url)} accessibilityRole="link" accessibilityLabel={so.name} {...webHref(so.url)}
+                  style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+                  <SvgXml width={24} height={24} xml={SOCIAL_SVG[so.key](c.heroInk)} />
+                </PressScale>
+              ))}
+            </View>
           </View>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: phone ? 32 : 72 }}>
+          <View style={{ gap: 36, alignItems: phone ? 'flex-start' : 'flex-end', flex: phone ? undefined : 1 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: phone ? 32 : 72, justifyContent: phone ? 'flex-start' : 'flex-end' }}>
             {cols.map(([head, links]) => (
               <View key={head} style={{ gap: 6, minWidth: 140 }}>
                 <Text v="small" color={c.heroInk} style={{ fontFamily: fonts.bodyBold, marginBottom: 6 }}>{head}</Text>
@@ -548,6 +588,11 @@ export function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
                 ))}
               </View>
             ))}
+          </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+              <StoreBadge kind="ios" url={CONFIG.stores.ios} />
+              <StoreBadge kind="android" url={CONFIG.stores.android} />
+            </View>
           </View>
         </View>
         <View style={{ borderTopWidth: 1, borderTopColor: 'rgba(250,245,240,0.14)', paddingTop: 20, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>

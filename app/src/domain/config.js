@@ -19,6 +19,11 @@ export const CONFIG = {
     support: 'https://anahtar.io/destek/'
   },
   /** Sosyal medya hesapları: web altbilgisi, uygulamadaki Yardım sekmesi ve yapılandırılmış veri (sameAs) buradan okur. */
+  /** Uygulama mağazası sayfaları (web altbilgisindeki indirme rozetleri). */
+  stores: {
+    ios: 'https://apps.apple.com/tr/app/id6834434284',
+    android: 'https://play.google.com/store/apps/details?id=io.anahtar.app'
+  },
   social: [
     { key: 'instagram', name: 'Instagram', url: 'https://www.instagram.com/anahtar_io/' },
     { key: 'tiktok', name: 'TikTok', url: 'https://www.tiktok.com/@anahtar.io' },
