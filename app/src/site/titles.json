@@ -1,5 +1,8 @@
 {
-  "": "anahtar | Kira işinin anahtarı",
+  "": {
+    "title": "Kira Takip Programı: Kira, Aidat, Depozito | anahtar",
+    "desc": "Kira, aidat, depozito, arıza ve belge takibi tek yerde. Mülk sahibi, kiracı ve site yönetimi için; mülk sahiplerine 1 ay ücretsiz."
+  },
   "giris": "Giriş yap | anahtar",
   "giris/kiraci": "Giriş yap | anahtar",
   "giris/mulk-sahibi": "Giriş yap | anahtar",
@@ -42,7 +45,7 @@
     "desc": "Kira artış oranı hesaplama: TÜİK 12 aylık ortalama TÜFE ile yasal zam tavanını ve yeni kira bedelini saniyeler içinde hesapla. Konut ve işyeri için ücretsiz."
   },
   "cozumler": {
-    "title": "Çözümler: mülk sahibi, kiracı, emlak ofisi ve kurumsal | anahtar",
+    "title": "Kira Yönetimi Çözümleri: Mülk Sahibi, Emlak Ofisi | anahtar",
     "desc": "Tek daireden yüzlerce mülklük portföye: mülk sahibi, kiracı, emlak ofisi, site yönetimi, AVM, GYO, depo ve aile ofisi için anahtar."
   },
   "cozumler/mulk-sahibi": {
@@ -63,19 +66,19 @@
   },
   "cozumler/avm": {
     "title": "AVM ve ticari merkezler için kiracı yönetimi | anahtar",
-    "desc": "Mağaza kiraları, stopaj, sözleşme yenilemeleri ve kiracı talepleri tek panelde."
+    "desc": "AVM ve ticari merkezlerde mağaza kiralarını, stopajı, sözleşme yenilemelerini ve kiracı taleplerini tek panelden takip edin."
   },
   "cozumler/gyo": {
     "title": "GYO için portföy ve kira takibi | anahtar",
-    "desc": "Tahsilat, getiri ve sözleşme takvimi tek ekranda; aylık ve yıllık rapor."
+    "desc": "GYO portföyünüzde tahsilatı, getiriyi ve sözleşme takvimini tek ekranda izleyin; aylık ve yıllık raporlar otomatik hazır."
   },
   "cozumler/depo-lojistik": {
     "title": "Depo ve lojistik alanları için kira yönetimi | anahtar",
-    "desc": "Depo kiraları, uzun vadeli sözleşmeler ve sigorta tarihleri tek yerde."
+    "desc": "Depo ve lojistik alanlarının kiralarını, uzun vadeli sözleşmelerini ve sigorta tarihlerini tek yerden yönetin, süreleri kaçırmayın."
   },
   "cozumler/family-office": {
     "title": "Aile ofisi için kira ve gider yönetimi | anahtar",
-    "desc": "Aile ve şirket mülklerinin kirası, gideri ve vergisi tek yerde; düzenli rapor."
+    "desc": "Aile ve şirket mülklerinin kirasını, giderini ve vergisini tek yerde yönetin; düzenli raporlarla portföyünüzü net görün."
   },
   "satin-al": "Paketini seç | anahtar"
 }

@@ -4,7 +4,7 @@
 //
 // Her yazıda: title (≤ 60 karakter, arama sonucu başlığı), h1 (sayfa başlığı), description (≤ 160 karakter),
 // category, keywords, date / updated (YYYY-MM-DD), summary (kartlarda), body (HTML; h2'lere id verilir,
-// içindekiler bunlardan çıkar), faq (sayfada görünür ve FAQPage yapılandırılmış verisine girer), related (slug).
+// içindekiler bunlardan çıkar), short (Kısa cevap, 30-60 kelime), sources ([[ad, adres]], resmî kaynak), faq (sayfada görünür ve FAQPage yapılandırılmış verisine girer), related (slug).
 
 export const CATEGORIES = {
   hukuk: { name: 'Kira hukuku', tone: 'gul' },
@@ -16,6 +16,8 @@ export const CATEGORIES = {
 export const POSTS = [
   {
     slug: 'kira-artisi-nasil-hesaplanir',
+    short: "Konut ve çatılı işyeri kirasında yenilenen kira döneminde artış, bir önceki kira yılının TÜFE 12 aylık ortalamalara göre değişim oranını geçemez (TBK 344). Oran, kira yılının dolduğu ayda TÜİK’in açıkladığı bültendeki değerdir. Sözleşmede daha düşük bir oran yazıyorsa o oran geçerlidir.",
+    sources: [["Türk Borçlar Kanunu (6098), mevzuat.gov.tr", "https://www.mevzuat.gov.tr/MevzuatMetin/1.5.6098.htm"], ["TÜİK, Enflasyon ve Fiyat istatistikleri", "https://data.tuik.gov.tr/Kategori/GetKategori?p=enflasyon-ve-fiyat-106"]],
     title: 'Kira artışı nasıl hesaplanır? Örnekli rehber',
     h1: 'Kira artışı nasıl hesaplanır?',
     description: 'Konut kirasında yasal artış sınırı TÜFE 12 aylık ortalamasıdır. Oranı nereden bulacağınızı ve adım adım örnek hesabı anlatıyoruz.',
@@ -49,6 +51,8 @@ export const POSTS = [
   },
   {
     slug: 'isyeri-kirasinda-stopaj',
+    short: "İşyeri kirasını ödeyen kiracı vergi mükellefiyse kira bedeli üzerinden yüzde 20 stopaj keser ve muhtasar beyannameyle vergi dairesine öder (GVK 94). Mülk sahibine net kira geçer: net = brüt × 0,80. Konut kiralarında kiracı işletme değilse stopaj yoktur.",
+    sources: [["Gelir Vergisi Kanunu (193), mevzuat.gov.tr", "https://www.mevzuat.gov.tr/anasayfa/MevzuatFihristDetayIframe?MevzuatNo=193&MevzuatTertip=4&MevzuatTur=1"], ["Gelir İdaresi Başkanlığı (GİB)", "https://www.gib.gov.tr/"]],
     title: 'İşyeri kirasında stopaj: oran, hesap ve beyan',
     h1: 'İşyeri kirasında stopaj nedir, nasıl hesaplanır?',
     description: 'İşyeri kiralarında yüzde 20 stopajı kim keser, brütten nete nasıl hesaplanır, mülk sahibi nasıl beyan eder? Örneklerle anlattık.',
@@ -81,6 +85,8 @@ export const POSTS = [
   },
   {
     slug: 'depozito-kurallari',
+    short: "Depozito en fazla üç aylık kira bedeli olabilir (TBK 342). Para olarak verilirse bankada vadeli tasarruf hesabına yatırılır; iki tarafın onayı ya da icra veya mahkeme kararı olmadan ödenmez. Sözleşme bittikten sonra üç ay içinde dava ya da icra takibi yoksa kiracı iadeyi isteyebilir.",
+    sources: [["Türk Borçlar Kanunu (6098), mevzuat.gov.tr", "https://www.mevzuat.gov.tr/MevzuatMetin/1.5.6098.htm"]],
     title: 'Depozito kuralları: üst sınır ve iade süreci',
     h1: 'Depozito kuralları: ne kadar alınır, nasıl iade edilir?',
     description: 'Kira depozitosu en fazla kaç aylık kira olabilir, bankada nasıl tutulur, ne zaman iade edilir? Anlaşmazlığı önleyen kontrol listesiyle.',
@@ -113,6 +119,8 @@ export const POSTS = [
   },
   {
     slug: 'kira-sozlesmesinde-dikkat-edilecekler',
+    short: "İmzalamadan önce taraf ve mülk bilgilerini, kira bedeli ve ödeme gününü, artış oranını, depozitoyu, aidat dağılımını, süreyi, kullanım amacını, demirbaşları, teslim tutanağını ve tebligat adreslerini kontrol edin. Konut kiralarında kiracı süre bitiminden en az 15 gün önce bildirmezse sözleşme bir yıl uzar.",
+    sources: [["Türk Borçlar Kanunu (6098), mevzuat.gov.tr", "https://www.mevzuat.gov.tr/MevzuatMetin/1.5.6098.htm"]],
     title: 'Kira sözleşmesinde dikkat edilecek 10 madde',
     h1: 'Kira sözleşmesinde dikkat edilecek 10 madde',
     description: 'Kira sözleşmesi hazırlarken ya da imzalarken kontrol edilecek 10 madde; noter, e-Devlet ve elektronik sözleşme seçenekleriyle.',
@@ -139,6 +147,8 @@ export const POSTS = [
   },
   {
     slug: 'kira-odemesi-banka-dekont',
+    short: "Vergi Usul Kanunu’na dayanan düzenlemelere göre aylık 500 ₺ ve üzeri konut kiraları ile tutarı ne olursa olsun işyeri kiraları banka ya da PTT ile ödenmeli ve belgelenmelidir. Dekonta kira olduğunu, hangi aya ait olduğunu ve mülkün kısa adresini yazın.",
+    sources: [["Türk Borçlar Kanunu (6098), mevzuat.gov.tr", "https://www.mevzuat.gov.tr/MevzuatMetin/1.5.6098.htm"], ["Gelir İdaresi Başkanlığı (GİB)", "https://www.gib.gov.tr/"]],
     title: 'Kira ödemesi bankadan mı yapılmalı? Dekont rehberi',
     h1: 'Kira ödemesi bankadan mı yapılmalı? Dekontun önemi',
     description: 'Kira bedeli hangi durumlarda banka ya da PTT ile ödenmeli, dekonta ne yazılmalı, geç ödemede ne olur? Kiracı ve ev sahibi için rehber.',
@@ -168,6 +178,8 @@ export const POSTS = [
   },
   {
     slug: 'aidat-kim-oder',
+    short: "Genel kural: kullanımdan doğan giderleri (aidat, yakıt, kapıcı) kiracı, mülkün değerini koruyan ve artıran giderleri (asansör yenileme, çatı, demirbaş, DASK, emlak vergisi) ev sahibi öder. Sözleşmede farklı bir paylaşım kararlaştırılabilir.",
+    sources: [["Türk Borçlar Kanunu (6098), mevzuat.gov.tr", "https://www.mevzuat.gov.tr/MevzuatMetin/1.5.6098.htm"], ["Kat Mülkiyeti Kanunu (634), mevzuat.gov.tr", "https://mevzuat.gov.tr/MevzuatMetin/1.5.634.pdf"]],
     title: 'Aidatı kim öder: kiracı mı, ev sahibi mi?',
     h1: 'Aidatı kim öder: kiracı mı, ev sahibi mi?',
     description: 'Aidat, yakıt, kapıcı, demirbaş ve DASK giderlerinden hangisi kiracıya, hangisi ev sahibine aittir? Kanun ve uygulamayla tek tabloda.',
@@ -202,6 +214,8 @@ export const POSTS = [
   },
   {
     slug: 'kiraci-tahliyesi',
+    short: "Ev sahibi konut ve çatılı işyeri kiracısını ancak kanunda sayılan sebeplerle çıkarabilir: tahliye taahhüdü, bir kira yılında iki haklı ihtar, kirayı ödememe, gerçek ve zorunlu ihtiyaç, yeniden inşa ya da yeni malikin ihtiyacı gibi. Her sebebin süresi ve koşulları farklıdır.",
+    sources: [["Türk Borçlar Kanunu (6098), mevzuat.gov.tr", "https://www.mevzuat.gov.tr/MevzuatMetin/1.5.6098.htm"]],
     title: 'Kiracı tahliyesi: yasal yollar, süreler ve ihtar',
     h1: 'Kiracı tahliyesi: yasal yollar ve süreler',
     description: 'Ev sahibi kiracıyı hangi durumlarda çıkarabilir? İhtiyaç, tahliye taahhüdü, iki haklı ihtar, 10 yıllık süre ve zorunlu arabuluculuk.',
@@ -239,7 +253,9 @@ export const POSTS = [
   },
   {
     slug: 'kira-geliri-beyannamesi',
-    title: 'Kira geliri beyannamesi: kimler verir, nasıl hesaplanır?',
+    short: "Konut kira geliri her yıl belirlenen istisna tutarını aşıyorsa beyan edilir; stopajlı işyeri kira geliri de yıllık beyan sınırını aşınca beyana girer. Götürü gider (gelirin yüzde 15’i) ya da gerçek gider seçilir. Tutarlar her yıl değiştiği için GİB’in açıkladığı güncel değerleri kontrol edin.",
+    sources: [["Gelir Vergisi Kanunu (193), mevzuat.gov.tr", "https://www.mevzuat.gov.tr/anasayfa/MevzuatFihristDetayIframe?MevzuatNo=193&MevzuatTertip=4&MevzuatTur=1"], ["Gelir İdaresi Başkanlığı (GİB)", "https://www.gib.gov.tr/"]],
+    title: 'Kira geliri beyannamesi: kimler verir?',
     h1: 'Kira geliri beyannamesi: kimler verir, nasıl hesaplanır?',
     description: 'Konut ve işyeri kira gelirinin beyanı: istisna, götürü ve gerçek gider, Mart ayı beyan süresi, taksitler ve hazır beyan sistemi.',
     category: 'vergi', keywords: ['kira geliri beyannamesi', 'kira geliri vergisi', 'konut kira geliri istisnası', 'götürü gider', 'hazır beyan sistemi'],
@@ -266,5 +282,86 @@ export const POSTS = [
       ['Kira gelirini nereden beyan ederim?', 'GİB\'in hazır beyan sistemi üzerinden e-Devlet şifrenizle beyan edebilirsiniz.']
     ],
     related: ['isyeri-kirasinda-stopaj', 'aidat-kim-oder', 'kira-odemesi-banka-dekont']
+  },
+  {
+    slug: 'kira-takip-programi-excel-mi-uygulama-mi',
+    title: 'Kira takip programı: Excel mi, uygulama mı?',
+    h1: 'Kira takibi için Excel mi, kira takip uygulaması mı?',
+    description: 'Excel ile kira takip uygulamasının farkları: ödeme ve dekont kaydı, hatırlatma, belge arşivi ve kiracıyla ortak kayıt. Hangisi ne zaman yeter?',
+    category: 'rehber', keywords: ['kira takip programı', 'kira takip uygulaması', 'kira takip excel', 'kira takibi nasıl yapılır', 'mülk sahibi için kira takibi'],
+    date: '2026-11-27', updated: '2026-11-27',
+    summary: 'Excel ne zaman yeter, hangi noktada kira takip uygulaması gerekir; seçerken bakılacak özellikler.',
+    short: "Bir iki mülk ve düzenli ödeyen kiracı için Excel yeterli olabilir. Mülk, kiracı ve tarih sayısı arttıkça ödeme, dekont, belge ve hatırlatmalar için kira takip uygulaması daha güvenlidir; kiracıyla aynı kayda bakmak da anlaşmazlıkları azaltır.",
+    sources: [["Türk Borçlar Kanunu (6098), mevzuat.gov.tr", "https://www.mevzuat.gov.tr/MevzuatMetin/1.5.6098.htm"]],
+    body: `
+<p>Kirayı takip etmek tek bir dairede kolaydır: ay sonu gelir, ödeme kontrol edilir. Mülk, kiracı ve tarih sayısı arttıkça aynı iş dağınık bir dosya, bir klasör dolusu dekont ve unutulan tarihlere dönüşür. Bu yazıda Excel ile bir kira takip uygulamasının hangi durumda yeterli olduğunu karşılaştırıyoruz.</p>
+<h2 id="excel-yeter">Excel ne zaman yeter?</h2>
+<p>Bir ya da iki mülkünüz varsa, kiracınızla ödeme düzeniniz oturmuşsa ve takibi tek kişi yapıyorsa Excel işinizi görür. Aylık tutarı, ödeme gününü ve ödeme durumunu bir tabloda tutmak yeterlidir. Ücretsizdir ve her şeyi kendiniz biçimlendirirsiniz.</p>
+<h2 id="excel-zorlanir">Excel'in zorlandığı yerler</h2>
+<ul>
+<li><strong>Dekont ve belgeler ayrı yerde durur.</strong> Tabloda "ödendi" yazar, dekont ise telefonda ya da e-postadadır. Anlaşmazlıkta ödemeyi göstermek zaman alır.</li>
+<li><strong>Tarihleri sizin hatırlamanız gerekir.</strong> Sözleşme bitişi, kira artış tarihi ve depozito iadesi için tablo size hatırlatma yapmaz.</li>
+<li><strong>Kiracıyla ortak kayıt yoktur.</strong> Mülk sahibi bir tablo, kiracı kendi notlarını tutar; iki kayıt çoğu zaman farklı çıkar.</li>
+<li><strong>Arıza ve talepler mesajlara dağılır.</strong> Kim ne zaman ne bildirdi, sonradan bulmak zordur.</li>
+<li><strong>Artış hesabı elle yapılır.</strong> Yasal üst sınırı her yıl kendiniz bulup hesaplarsınız. Bkz. <a href="/blog/kira-artisi-nasil-hesaplanir/">kira artışı nasıl hesaplanır?</a></li>
+</ul>
+<h2 id="neye-bakmali">Kira takip uygulamasında nelere bakmalı?</h2>
+<ol>
+<li>Ödeme kaydı ve <strong>dekontun aynı kayıtta saklanması</strong></li>
+<li>Sözleşme bitişi ve kira artışı için <strong>önceden hatırlatma</strong></li>
+<li>Sözleşme, tutanak ve diğer <strong>belgelerin arşivi</strong></li>
+<li>Arıza ve taleplerin <strong>yazılı kaydı</strong></li>
+<li>Kiracı ile mülk sahibinin <strong>aynı kayda bakması</strong></li>
+<li>Gelir ve gider için <strong>rapor</strong> (beyan dönemi için işinize yarar)</li>
+<li>Kişisel verilerin korunması: KVKK aydınlatma metni ve hesap silme seçeneği</li>
+</ol>
+<p>Kira artışında yasal üst sınır, bir önceki kira yılının TÜFE 12 aylık ortalamalara göre değişim oranıdır (TBK 344). Uygulamanın bu sınırı bilmesi, yanlış teklif göndermenizi önler.</p>
+<h2 id="anahtar">anahtar'da</h2>
+<p>anahtar'da sözleşme, ödeme, depozito ve arıza yazışması tek uygulamadadır; kiracı ve mülk sahibi aynı kayda iki taraftan bakar. Kiracı hesabı ücretsizdir, mülk sahiplerine 1 ay ücretsiz deneme sunulur. Web ve iPhone/Android aynı hesapla çalışır. <a href="/kayit/mulk-sahibi/">Ücretsiz deneyin</a> ya da önce <a href="/kira-artis-hesaplama/">kira artış hesaplayıcısına</a> bakın.</p>
+`,
+    faq: [
+      ['Excel ile kira takibi yeterli mi?', 'Bir iki mülk ve düzenli ödeyen kiracı için yeterli olabilir. Mülk, kiracı ve tarih sayısı arttıkça dekont, belge, hatırlatma ve kiracıyla ortak kayıt için uygulama daha güvenlidir.'],
+      ['Kira takip uygulamasında kiracının da hesabı olmalı mı?', 'Zorunlu değildir ama iki tarafın aynı kayda bakması dekont ve talep anlaşmazlıklarını azaltır. anahtar’da kiracı hesabı ücretsizdir.'],
+      ['Kira takip programı mülk sahibine vergi beyanında yardımcı olur mu?', 'Ödeme ve gider kayıtlarının düzenli tutulması beyan hazırlığını kolaylaştırır. Beyan tutarları ve istisna sınırları her yıl değişir; güncel değerleri GİB’den kontrol edin.']
+    ],
+    related: ['kira-artisi-nasil-hesaplanir', 'kira-sozlesmesinde-dikkat-edilecekler', 'kira-odemesi-banka-dekont']
+  },
+  {
+    slug: 'teslim-tutanagi-nasil-hazirlanir',
+    title: 'Kira teslim tutanağı nasıl hazırlanır?',
+    h1: 'Kira teslim tutanağı nasıl hazırlanır?',
+    description: 'Kiraya girerken ve çıkarken mülkün durumunu fotoğraflı tutanakla belgelemek depozito anlaşmazlığını önler. Tutanakta neler olmalı, adım adım.',
+    category: 'rehber', keywords: ['kira teslim tutanağı', 'evden çıkış tutanağı', 'kira giriş tutanağı', 'depozito iadesi', 'ev teslim tutanağı örneği'],
+    date: '2026-11-27', updated: '2026-11-27',
+    summary: 'Giriş ve çıkış tutanağında bulunması gerekenler: sayaçlar, demirbaşlar, fotoğraf ve imzalar.',
+    short: "Kiraya girerken ve çıkarken tarafların imzaladığı, fotoğrafla desteklenmiş bir tutanak tutun: sayaç okumaları, anahtar ve kumandalar, demirbaşlar ve odaların durumu yazılsın. Kiracı teslim aldığı durumda geri verir (TBK 334); tutanak bu durumun kanıtıdır.",
+    sources: [["Türk Borçlar Kanunu (6098), mevzuat.gov.tr", "https://www.mevzuat.gov.tr/MevzuatMetin/1.5.6098.htm"]],
+    body: `
+<p>Kiracı taşındıktan sonra en sık anlaşmazlık depozito iadesinde çıkar: "Bu çizik vardı", "yoktu". Mülkün teslim anındaki durumunu iki tarafın imzaladığı bir tutanakla kayda geçirmek bu tartışmaların çoğunu baştan önler.</p>
+<h2 id="neden">Neden tutanak gerekir?</h2>
+<p>Türk Borçlar Kanunu'nun 334. maddesine göre kiracı, kiralananı teslim aldığı durumda geri vermekle yükümlüdür; sözleşmeye uygun kullanımdan doğan eskime ve değişiklikler bunun dışındadır. Hangi durumda teslim aldığınızı gösteren bir kayıt yoksa "olağan eskime" ile "hasar" arasındaki ayrımı ispatlamak zorlaşır.</p>
+<h2 id="neler-olmali">Tutanakta neler olmalı?</h2>
+<ul>
+<li><strong>Taraflar ve mülk:</strong> ad soyad, adres, bağımsız bölüm bilgisi ve tutanak tarihi.</li>
+<li><strong>Sayaç okumaları:</strong> elektrik, su ve doğalgaz değerleri; fatura anlaşmazlığını önler.</li>
+<li><strong>Anahtar ve kumandalar:</strong> sayıları ve türleri (daire, bina girişi, otopark kumandası).</li>
+<li><strong>Demirbaşlar:</strong> mülkle birlikte verilen eşyalar tek tek listelenir (ankastre fırın, klima, dolap gibi).</li>
+<li><strong>Oda oda durum:</strong> duvar, zemin, kapı, pencere, banyo ve mutfakta mevcut hasarlar yazılır.</li>
+<li><strong>Fotoğraf ve video:</strong> her oda ve her mevcut hasar tarihli çekilir; tutanakla birlikte saklanır.</li>
+<li><strong>İmzalar:</strong> iki tarafın adı, tarihi ve imzası.</li>
+</ul>
+<h2 id="giris-cikis">Giriş ve çıkışta aynı şablonu kullanın</h2>
+<p>Çıkışta giriş tutanağını yan yana açıp aynı sırayla ilerleyin: sayaçları yeniden okuyun, demirbaşları ve odaları karşılaştırın, farkları not edin. Fark yoksa "giriş tutanağıyla aynı durumda teslim alındı" yazıp imzalayın. Fark varsa depozito kesintisi ya da onarım bu kayda dayanır. Bkz. <a href="/blog/depozito-kurallari/">depozito kuralları</a>.</p>
+<h2 id="eskime-hasar">Eskime mi, hasar mı?</h2>
+<p>Zamanla solan boya ya da eskiyen halı gibi olağan kullanım izleri eskimedir. Kırık kapı, yanık parke ya da duvarda delik gibi olağan kullanımı aşan durumlar hasardır. Sınırın nereden geçtiği tartışmalı olabilir; tutanaktaki ilk durum ve fotoğraflar bu tartışmada en güçlü kayıttır.</p>
+<h2 id="anahtar">anahtar'da</h2>
+<p>anahtar'da giriş tutanağı ve çıkış kaydı uygulamadan hazırlanır; mülk sahibi ve kiracı aynı kayda bakar, belge arşivde kalır. Kira sözleşmesinde teslim tutanağı maddesi için bkz. <a href="/blog/kira-sozlesmesinde-dikkat-edilecekler/">kira sözleşmesinde dikkat edilecekler</a>.</p>
+`,
+    faq: [
+      ['Teslim tutanağı noterde mi yapılmalı?', 'Tutanağın noterde yapılması zorunlu değildir. İki tarafın tarih ve imzayla onayladığı, fotoğrafla desteklenmiş yazılı tutanak ispat açısından değerlidir.'],
+      ['Tutanak imzalanmazsa ne olur?', 'Tutanak olmaması mülkün teslim anındaki durumunu ispatlamayı zorlaştırır. Karşı taraf imzalamazsa tarihli fotoğraf ve video çekip bunları yazılı mesajla karşı tarafa iletmek yardımcı olur.'],
+      ['Çıkışta ne yapmalıyım?', 'Giriş tutanağıyla aynı sırayla ilerleyin: sayaçlar, anahtarlar, demirbaşlar ve odaların durumu. Farkları tutanağa yazın, iki taraf imzalasın.']
+    ],
+    related: ['depozito-kurallari', 'kira-sozlesmesinde-dikkat-edilecekler', 'kiraci-tahliyesi']
   }
 ];

@@ -9,6 +9,9 @@ import { pressLayers } from './layers';
 import { t } from '../domain/i18n';
 import { filesPreparing, onFilesPreparing } from '../domain/file-prep';
 
+/** Web'de gezinme bağlantıları gerçek `<a href>` olsun (arama motorları JS çalıştırmadan izler); telefonda etkisiz. */
+export const webHref = (path: string): any => (Platform.OS === 'web' ? { href: path } : {});
+
 type Variant = 'display' | 'h1' | 'h2' | 'h3' | 'body' | 'small' | 'label' | 'num';
 const SCALE: Record<Variant, TextStyle> = {
   // Marka kiti 05-yazi-tipleri: başlıklar Inter Display, gövde Inter. Etiketlerde büyük harf yok.

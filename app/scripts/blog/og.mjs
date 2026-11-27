@@ -26,13 +26,20 @@ const page = (title, label, tone) => {
 };
 
 mkdirSync(OUT, { recursive: true });
+const MARKA = process.argv[2] === 'marka';   // yalnız marka görseli: node scripts/blog/og.mjs marka
 const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
 const p = await b.newPage({ viewport: { width: 1200, height: 630 } });
-for (const post of POSTS) {
+for (const post of MARKA ? [] : POSTS) {
   await p.setContent(page(post.h1, CATEGORIES[post.category].name, CATEGORIES[post.category].tone));
   await p.screenshot({ path: join(OUT, post.slug + '.jpg'), type: 'jpeg', quality: 86 });
 }
-await p.setContent(page('Kira işleri, sade anlatımla.', 'Blog', 'gul'));
-await p.screenshot({ path: join(OUT, 'blog.jpg'), type: 'jpeg', quality: 86 });
+if (!MARKA) {
+  await p.setContent(page('Kira işleri, sade anlatımla.', 'Blog', 'gul'));
+  await p.screenshot({ path: join(OUT, 'blog.jpg'), type: 'jpeg', quality: 86 });
+}
+// Ana site ve tüm Expo sayfalarının paylaşım görseli.
+mkdirSync(join(OUT, '..', '..', 'og'), { recursive: true });
+await p.setContent(page('Kira işinin anahtarı.', 'Kira takibi', 'gul'));
+await p.screenshot({ path: join(OUT, '..', '..', 'og', 'anahtar.jpg'), type: 'jpeg', quality: 86 });
 await b.close();
-console.log('og: ' + (POSTS.length + 1) + ' görsel');
+console.log('og: ' + (MARKA ? 1 : POSTS.length + 2) + ' görsel');

@@ -6,7 +6,7 @@ import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { t, getLang, setLang } from '../domain/i18n';
 import { useAuth } from '../auth/auth';
-import { Button, Container, PressScale, Text } from '../ui/kit';
+import { Button, Container, PressScale, Text, webHref } from '../ui/kit';
 import { Wordmark } from '../ui/Wordmark';
 import { fonts, radius, shadows, useBreakpoint, useColors, useReducedMotion } from '../ui/theme';
 import { Icon } from '../app-ui/blocks';
@@ -56,7 +56,7 @@ export function TopBar() {
   return (
     <View style={[{ position: 'relative', zIndex: 2, overflow: 'hidden' }, flow]}>
       {shine ? <View style={shine} /> : null}
-      <PressScale onPress={() => router.push('/kayit/mulk-sahibi')} accessibilityRole="link" scaleTo={0.99}
+      <PressScale onPress={() => router.push('/kayit/mulk-sahibi')} accessibilityRole="link" {...webHref('/kayit/mulk-sahibi/')} scaleTo={0.99}
         style={{ minHeight: phone ? 42 : 46, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: phone ? 8 : 12, flexWrap: 'nowrap', paddingVertical: 8 }}>
         <View style={{ backgroundColor: c.lemon, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 }}>
           <RNText style={{ fontFamily: fonts.bodyXBold, fontSize: phone ? 11 : 11.5, letterSpacing: 0.6, color: '#1D1A19' }}>{t('FIRSAT')}</RNText>
@@ -99,7 +99,7 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
       <Container style={{ zIndex: 20 }}>
         <View style={{ position: 'relative' }}>
           <View style={{ minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <PressScale onPress={() => { setOpen(false); scrollTo('top'); }} accessibilityRole="link" accessibilityLabel={t('Ana sayfa')}>
+            <PressScale onPress={() => { setOpen(false); scrollTo('top'); }} accessibilityRole="link" {...webHref('/')} accessibilityLabel={t('Ana sayfa')} style={{ minHeight: 44, justifyContent: 'center' }}>
               <Wordmark size={phone ? (narrow ? 17 : 21) : 28} animate />
             </PressScale>
             {!phone && (
@@ -111,7 +111,7 @@ export function Nav({ go, scrollTo, openFeature }: { go: (p: string) => void; sc
                     <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{label}</Text>
                   </PressScale>
                 ))}
-                <PressScale onPress={() => { setOpen(false); go('/kira-artis-hesaplama'); }} accessibilityRole="link" style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+                <PressScale onPress={() => { setOpen(false); go('/kira-artis-hesaplama'); }} accessibilityRole="link" {...webHref('/kira-artis-hesaplama/')} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
                   <Text v="small" style={{ fontFamily: fonts.bodyMedium, fontSize: 14 }}>{t('Kira artışı hesapla')}</Text>
                 </PressScale>
                 <PressScale onPress={() => { setOpen(false); scrollTo('sss'); }} accessibilityRole="link" style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
@@ -169,7 +169,7 @@ function SolutionMenu({ onPick }: { onPick: (path: string) => void }) {
           {list.map((s) => {
             const on = s.slug === active;
             return (
-              <Pressable key={s.slug} onHoverIn={() => setActive(s.slug)} onPress={() => onPick('/cozumler/' + s.slug)} accessibilityRole="link" accessibilityLabel={s.name + ' · ' + s.sub}
+              <Pressable key={s.slug} onHoverIn={() => setActive(s.slug)} onPress={() => onPick('/cozumler/' + s.slug)} accessibilityRole="link" {...webHref('/cozumler/' + s.slug + '/')} accessibilityLabel={s.name + ' · ' + s.sub}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, minHeight: 44, borderRadius: 16, backgroundColor: on ? c.surface2 : 'transparent' }}>
                 <Icon name={s.icon} size={19} color={on ? c.accentText : c.ink} />
                 <RNText numberOfLines={1} style={{ flex: 1, fontFamily: on ? fonts.bodyXBold : fonts.bodyBold, fontSize: 15, color: c.ink }}>
@@ -195,10 +195,10 @@ function SolutionMenu({ onPick }: { onPick: (path: string) => void }) {
             ))}
           </View>
           <View style={{ flexDirection: 'row', gap: 18, marginTop: 'auto' as any }}>
-            <PressScale onPress={() => onPick(page)} accessibilityRole="link">
+            <PressScale onPress={() => onPick(page)} accessibilityRole="link" {...webHref(page + '/')}>
               <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 14, color: c.accentText }}>{t('{name} sayfasına git', { name: cur.name })} ›</RNText>
             </PressScale>
-            <PressScale onPress={() => onPick('/cozumler')} accessibilityRole="link">
+            <PressScale onPress={() => onPick('/cozumler')} accessibilityRole="link" {...webHref('/cozumler/')}>
               <RNText style={{ fontFamily: fonts.bodyBold, fontSize: 14, color: c.muted }}>{t('Tüm çözümler')} ›</RNText>
             </PressScale>
           </View>

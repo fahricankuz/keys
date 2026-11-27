@@ -92,7 +92,7 @@ function toc(body) {
 
 function article(p) {
   const { html, items } = toc(p.body);
-  const list = `<ol>${items.map(([id, t]) => `<li><a href="#${id}">${t}</a></li>`).concat(p.faq.length ? ['<li><a href="#sss">Sık sorulanlar</a></li>'] : []).join('')}</ol>`;
+  const list = `<ol>${items.map(([id, t]) => `<li><a href="#${id}">${t}</a></li>`).concat(p.faq.length ? ['<li><a href="#sss">Sık sorulanlar</a></li>'] : [], p.sources && p.sources.length ? ['<li><a href="#kaynaklar">Kaynaklar</a></li>'] : []).join('')}</ol>`;
   const path = '/blog/' + p.slug;
   const related = p.related.map((s) => POSTS.find((x) => x.slug === s)).filter(Boolean);
   const share = encodeURIComponent(SITE + path);
@@ -101,7 +101,8 @@ function article(p) {
       '@context': 'https://schema.org', '@type': 'BlogPosting', headline: p.h1, description: p.description,
       image: SITE + '/blog/og/' + p.slug + '.jpg', datePublished: p.date, dateModified: p.updated || p.date,
       inLanguage: 'tr-TR', mainEntityOfPage: { '@type': 'WebPage', '@id': SITE + path }, author: ORG, publisher: ORG,
-      articleSection: CATEGORIES[p.category].name, keywords: p.keywords.join(', '), wordCount: words(p.body)
+      articleSection: CATEGORIES[p.category].name, keywords: p.keywords.join(', '), wordCount: words(p.body),
+      ...(p.sources && p.sources.length ? { citation: p.sources.map(([name, url]) => ({ '@type': 'CreativeWork', name, url })) } : {})
     },
     {
       '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [
@@ -122,14 +123,15 @@ ${bar('blog')}
 ${tag(p.category)}
 <h1 style="margin-top:14px">${esc(p.h1)}</h1>
 <p class="lead">${esc(p.description)}</p>
-<p class="meta"><span>Yayın: <time datetime="${p.date}">${human(p.date)}</time></span>${p.updated && p.updated !== p.date ? `<span>Güncelleme: <time datetime="${p.updated}">${human(p.updated)}</time></span>` : ''}<span>${minutes(p)} dk okuma</span></p>
+<p class="meta"><span>Yayın: <time datetime="${p.date}">${human(p.date)}</time></span>${p.updated && p.updated !== p.date ? `<span>Güncelleme: <time datetime="${p.updated}">${human(p.updated)}</time></span>` : ''}<span>${minutes(p)} dk okuma</span><span>Yayıncı: anahtar (Devredin Bilgi Teknolojileri A.Ş.)</span></p>
 </div>
 ${cover(p, 'article-cover')}
 <div class="article">
 <article class="prose">
-<nav class="toc toc-inline" aria-label="İçindekiler"><b>İçindekiler</b>${list}</nav>
+${p.short ? `<div class="callout"><p><strong>Kısa cevap:</strong> ${esc(p.short)}</p></div>\n` : ''}<nav class="toc toc-inline" aria-label="İçindekiler"><b>İçindekiler</b>${list}</nav>
 ${html}
 ${p.faq.length ? `<h2 id="sss">Sık sorulanlar</h2>\n${p.faq.map(([q, a]) => `<details><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('\n')}` : ''}
+${p.sources && p.sources.length ? `<h2 id="kaynaklar">Kaynaklar</h2>\n<ul>${p.sources.map(([label, url]) => `<li><a href="${esc(url)}" rel="noopener" target="_blank">${esc(label)}</a></li>`).join('')}</ul>` : ''}
 <div class="share">Paylaş: <a href="https://wa.me/?text=${encodeURIComponent(p.h1 + ' ')}${share}" rel="noopener">WhatsApp</a><a href="https://x.com/intent/post?url=${share}&amp;text=${encodeURIComponent(p.h1)}" rel="noopener">X</a><a href="https://www.linkedin.com/sharing/share-offsite/?url=${share}" rel="noopener">LinkedIn</a></div>
 <p class="disclaimer">Bu yazı genel bilgi amaçlıdır, hukuki ya da mali danışmanlık değildir. Mevzuat değişebilir; işlem yapmadan önce güncel resmi kaynakları kontrol edin ve gerekirse bir uzmana danışın.</p>
 </article>
@@ -192,13 +194,15 @@ ${sorted.map(item).join('\n')}
 `;
 }
 
+/** Hesaplama sayfasının içeriği gerçekten değiştiği tarih (derleme tarihi değil); sayfa içeriği değişince elle güncellenir. */
+const CALC_UPDATED = '2026-11-27';
 function sitemap() {
   const file = join(PUB, 'sitemap.xml');
   const keep = readFileSync(file, 'utf8').split('\n').filter((l) => l.includes('<url>') && !l.includes('/blog/') && !/\/(kira-artis-hesaplama|kurumsal|cozumler)/.test(l));
   const last = [...POSTS].map((p) => p.updated || p.date).sort().pop();
   const lines = [
     ...keep,
-    `  <url><loc>${SITE}/kira-artis-hesaplama/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod><changefreq>monthly</changefreq></url>`,
+    `  <url><loc>${SITE}/kira-artis-hesaplama/</loc><lastmod>${CALC_UPDATED}</lastmod></url>`,
     `  <url><loc>${SITE}/kurumsal/</loc></url>`,
     `  <url><loc>${SITE}/cozumler/</loc></url>`,
     ...SEGMENTS.map((x) => `  <url><loc>${SITE}/cozumler/${x}/</loc></url>`),
@@ -207,6 +211,30 @@ function sitemap() {
 
   ];
   writeFileSync(file, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${lines.join('\n')}\n</urlset>\n`);
+}
+
+/** /llms.txt: yapay zekâ araçları için sitenin kısa, düz metin haritası (blog yazıları POSTS'tan üretilir). */
+function llms() {
+  const seg = { 'mulk-sahibi': 'Mülk sahibi', kiraci: 'Kiracı', 'emlak-ofisi': 'Emlak ofisi', 'site-yonetimi': 'Site yönetimi', avm: 'AVM', gyo: 'GYO', 'depo-lojistik': 'Depo ve lojistik', 'family-office': 'Aile ofisi' };
+  return `# anahtar
+
+> anahtar, kira ve site yönetimi uygulamasıdır: kira, aidat, depozito, arıza ve belge takibi tek yerde. Mülk sahibi, kiracı ve yönetici aynı kayda kendi taraflarından bakar. Türkçe ve İngilizce; web ve iPhone/Android.
+
+## Sayfalar
+- [Ana sayfa](${SITE}/): ürün özeti
+- [Çözümler](${SITE}/cozumler/): ${SEGMENTS.map((x) => seg[x]).join(', ')}
+- [Kira artış oranı hesaplama](${SITE}/kira-artis-hesaplama/): TÜİK 12 aylık ortalama TÜFE ile yasal zam tavanı
+- [Kurumsal paket](${SITE}/kurumsal/)
+- [Destek merkezi](${SITE}/destek/)
+
+## Blog
+${POSTS.map((p) => `- [${p.h1}](${SITE}/blog/${p.slug}/): ${p.description}`).join('\n')}
+
+## Yasal
+- [Gizlilik ve KVKK](${SITE}/gizlilik/)
+- [Kullanım koşulları](${SITE}/kosullar/)
+- [Hesap silme](${SITE}/hesap-silme/)
+`;
 }
 
 const write = (rel, html) => { const f = join(PUB, rel); mkdirSync(dirname(f), { recursive: true }); writeFileSync(f, html); };
@@ -220,6 +248,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   write('blog/rss.xml', rss());
   write('destek/index.html', destekPage({ head, bar, foot }));
   sitemap();
+  write('llms.txt', llms());
   const og = POSTS.filter((p) => !existsSync(join(PUB, 'blog/og', p.slug + '.jpg')));
   console.log(`blog: ${POSTS.length} yazı yazıldı` + (og.length ? `; kapak görseli eksik: ${og.map((p) => p.slug).join(', ')} (node scripts/blog/og.mjs)` : ''));
 }

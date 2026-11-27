@@ -4,7 +4,7 @@ import { ReactNode, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text as RNText, View } from 'react-native';
 import Svg, { G, Path } from 'react-native-svg';
 import { t } from '../domain/i18n';
-import { PressScale, Text } from '../ui/kit';
+import { PressScale, Text, webHref } from '../ui/kit';
 import { fonts, radius, shadows, useBreakpoint, useColors, useReducedMotion } from '../ui/theme';
 import { MONO } from '../ui/Wordmark';
 import { Icon } from '../app-ui/blocks';
@@ -17,7 +17,7 @@ function Option({ s, onPress, compact }: { s: Segment; onPress: () => void; comp
   const c = useColors();
   const bg = c.accentSoft, fg = c.accentText;
   return (
-    <PressScale onPress={onPress} accessibilityRole="link" accessibilityLabel={s.name + ' · ' + s.sub} scaleTo={0.98} hoverScale={1.015}
+    <PressScale onPress={onPress} accessibilityRole="link" {...webHref('/cozumler/' + s.slug + '/')} accessibilityLabel={s.name + ' · ' + s.sub} scaleTo={0.98} hoverScale={1.015}
       wrapStyle={{ flexGrow: 1, flexBasis: compact ? 220 : 300 }}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: c.surface, borderRadius: 22, borderWidth: 1, borderColor: c.line, padding: compact ? 12 : 16, minHeight: compact ? 64 : 84 }}>
       <View style={{ width: compact ? 40 : 52, height: compact ? 40 : 52, borderRadius: compact ? 13 : 16, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
@@ -60,7 +60,7 @@ const FLOW: any = Platform.OS === 'web' ? StyleSheet.create({
 function FlowCard({ s, go, copy }: { s: Segment; go: (p: string) => void; copy?: boolean }) {
   const c = useColors();
   return (
-    <PressScale onPress={() => go('/cozumler/' + s.slug)} accessibilityRole="link" accessibilityLabel={s.name + ' · ' + s.sub} scaleTo={0.97} hoverScale={1.03}
+    <PressScale onPress={() => go('/cozumler/' + s.slug)} accessibilityRole="link" {...webHref('/cozumler/' + s.slug + '/')} accessibilityLabel={s.name + ' · ' + s.sub} scaleTo={0.97} hoverScale={1.03}
       focusable={!copy} {...(copy ? ({ tabIndex: -1 } as any) : {})}
       style={{ width: 300, flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: c.surface, borderRadius: 24, borderWidth: 1, borderColor: c.line, paddingVertical: 14, paddingLeft: 14, paddingRight: 18, boxShadow: '0 1px 0 rgba(29,26,25,0.03), 0 12px 32px -18px rgba(29,26,25,0.28)' } as any}>
       <View style={{ width: 46, height: 46, borderRadius: 15, backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
@@ -143,7 +143,7 @@ export function BrandBand({ title, body, action }: { title: string; body: string
 export function Headline({ parts, size, center }: { parts: [string, string, string]; size: number; center?: boolean }) {
   const c = useColors();
   return (
-    <RNText style={{ fontFamily: fonts.siteBold, fontSize: size, lineHeight: Math.round(size * 1.06), letterSpacing: -size * 0.035, color: c.ink, textAlign: center ? 'center' : undefined, textWrap: 'balance' } as any}>
+    <RNText {...({ role: 'heading', 'aria-level': 1 } as any)} style={{ fontFamily: fonts.siteBold, fontSize: size, lineHeight: Math.round(size * 1.06), letterSpacing: -size * 0.035, color: c.ink, textAlign: center ? 'center' : undefined, textWrap: 'balance' } as any}>
       {parts[0]} <RNText style={{ color: c.accent }}>{parts[1]}</RNText> {parts[2]}
     </RNText>
   );
