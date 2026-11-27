@@ -561,6 +561,7 @@ export function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
   const { phone } = useBreakpoint();
   const lang = getLang();
   const open = (u: string) => () => Linking.openURL(u).catch(() => {});
+  // href'i olan bağlantılar web'de yalnızca <a href> olarak (aynı sekmede) gider; onPress da olsaydı openURL ayrıca yeni sekme açardı.
   const cols: [string, [string, () => void, string?][]][] = [
     [t('Ürün'), [[t('Özellikler'), () => scrollTo('ozellikler')], [t('Nasıl çalışır'), () => scrollTo('nasil')], [t('Fiyatlar'), () => scrollTo('fiyat')], [t('Çözümler'), () => openPage('cozumler'), '/cozumler/'], [t('Kurumsal'), () => openPage('kurumsal'), '/kurumsal/'], [t('Kira artış hesaplama'), () => openPage('kira-artis-hesaplama'), '/kira-artis-hesaplama/'], [t('Blog'), open(site('blog/')), '/blog/']]],
     [t('Destek'), [[t('Destek merkezi'), open(CONFIG.legal.support), '/destek/'], [t('Sıkça sorulanlar'), () => scrollTo('sss')], [CONFIG.supportEmail, open('mailto:' + CONFIG.supportEmail)]]],
@@ -588,7 +589,7 @@ export function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
               <View key={head} style={{ gap: 6, minWidth: 140 }}>
                 <Text v="small" color={c.heroInk} style={{ fontFamily: fonts.bodyBold, marginBottom: 6 }}>{head}</Text>
                 {links.map(([label, run, href]) => (
-                  <PressScale key={label} accessibilityRole="link" {...(href ? webHref(href) : null)} onPress={run} style={{ minHeight: 44, justifyContent: 'center' }}><Text v="small" color={c.heroMuted}>{label}</Text></PressScale>
+                  <PressScale key={label} accessibilityRole="link" {...(href ? webHref(href) : null)} onPress={href && Platform.OS === 'web' ? undefined : run} style={{ minHeight: 44, justifyContent: 'center' }}><Text v="small" color={c.heroMuted}>{label}</Text></PressScale>
                 ))}
               </View>
             ))}

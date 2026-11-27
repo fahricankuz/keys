@@ -41,3 +41,8 @@ test('sosyal medya ve mağaza bağlantıları web’de yalnızca yeni sekmede a�
   expect(badge).toContain('extLink(url)');
   expect(badge).not.toMatch(/onPress=\{open\}|webHref\(url\)/);
 });
+
+test('altbilgideki iç sayfa bağlantıları web’de yalnızca href ile (aynı sekmede) gider, openURL ile ikinci sekme açılmaz', () => {
+  const landing = read('app/src/site/Landing.tsx');
+  expect(landing).toContain("onPress={href && Platform.OS === 'web' ? undefined : run}");
+});
