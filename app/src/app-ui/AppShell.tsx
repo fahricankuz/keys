@@ -21,6 +21,7 @@ import { renderSheet } from './sheets';
 import { useAuth } from '../auth/auth';
 import { RoleSwitcher } from './RoleSwitcher';
 import { myContexts } from './ctx';
+import { AnnounceBanner, AnnounceCard } from './announce';
 
 type Item = { label: string; icon: string; path: string; badge?: number };
 const SETTINGS = '/uygulama/ayarlar';
@@ -205,6 +206,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const c = useColors();
   const insets = useInsets();
   const { tabs, extra, side } = items();
+  const pathname = usePathname();
   return (
     <PanelUI.Provider value={true}>
     <PanelPhone.Provider value={phone}>
@@ -214,10 +216,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
         {desktop && <SideNav list={[...(side || [...tabs, ...extra]), { label: t('Ayarlar'), icon: 'gear', path: SETTINGS }]} />}
         <View style={{ flex: 1 }}>
           {!desktop && myContexts().length > 1 ? <View style={{ paddingHorizontal: 14, paddingTop: 10 }}><RoleSwitcher compact /></View> : null}
+          {/* Duyuru şeridi yalnız ana sekmelerin üstünde (yönetici paneli › Duyurular). */}
+          {tabs.some((x: any) => String(x.path).split('?')[0] === pathname.replace(/\/$/, '')) ? <AnnounceBanner /> : null}
           <View style={{ flex: 1 }}>{children}</View>
           {!desktop && <TabBar list={tabs} more={[...extra, { label: t('Ayarlar'), icon: 'gear', path: SETTINGS }]} />}
         </View>
       </View>
+      <AnnounceCard />
       <OpenSplash />
     </OverlayProvider>
     </PanelPhone.Provider>

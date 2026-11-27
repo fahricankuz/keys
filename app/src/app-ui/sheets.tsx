@@ -367,6 +367,8 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
             <DevicePush />
             <NativePushRow />
             <OnOff label={t('E-posta')} k="email" />
+            {/* anahtar duyuruları (yönetici paneli › Duyurular); e-postadaki "Duyuru e-postalarını alma" bağlantısı da bunu kapatır. */}
+            <OnOff label={t('Duyuru e-postaları')} k="duyuruMail" />
             {hasFeature('sms')
               ? <OnOff label={smsLabel} k="sms" />
               : (

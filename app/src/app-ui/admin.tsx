@@ -26,6 +26,7 @@ import { AdminMoneyProvider, CurrencyNote, CurrencyPick } from './admin-money';
 import { MailComposer } from './admin-mail';
 import { OrgDraft, Orgs, sectorFromRole } from './admin-orgs';
 import { PaySettings } from './admin-pay';
+import { Announcements } from './admin-announce';
 import { AddProperty } from './admin-property';
 import OpenSplash from './OpenSplash';
 import { planLabel } from '../domain/plans';
@@ -81,6 +82,7 @@ export default function AdminPanel() {
     ['health', t('Müşteri sağlığı'), 'bell', t('İlgilenilmezse kaybedilebilecek müşteriler: nedeni, iletişim bilgisi ve son temas. Haftalık arama listesi.'), t('Müşteriler')],
     ['orgs', t('Kurumlar'), 'office', t('Kurumsal müşteriler: sektör ve modüller, sözleşme, master yönetici, yöneticiler ve roller.'), t('Müşteriler')],
     ['billing', t('Kurumsal ödeme'), 'card', t('Banka hesapları (Havale/EFT), Sanal POS durumu ve ödeme istekleri: ödeme alınınca paket tanımlanır.'), t('Müşteriler')],
+    ['announce', t('Duyurular'), 'bell', t('Kullanıcılara uygulama içi kart ya da şerit, telefon bildirimi ve e-postayla duyuru gönder; kimin gördüğünü izle.'), t('Müşteriler')],
     ['support', t('Talepler'), 'chat', t('“Bize ulaş” formundan gelen kurumsal, içe aktarma ve genel talepler.'), t('Destek')],
     ['reports', t('Şikâyetler'), 'flag', t('Kullanıcıların bildirdiği mesaj ve kişiler: 24 saat içinde incele, gerekirse mesajı sil ya da hesabı askıya al.'), t('Destek')],
     ['legal', t('Hukuki talepler'), 'scale', t('Hukuki süreç desteği talepleri: ödemeyi işaretle, büroya ilet, kişiye not yaz. Talebin dosyalarını büroya elle iletirsin.'), t('Destek')],
@@ -112,6 +114,7 @@ export default function AdminPanel() {
             {tab === 'accounts' && <Accounts d={data} reload={load} onOrg={(dr) => { setOrgDraft(dr); setTab('orgs'); }} />}
             {tab === 'health' && <Health d={data} />}
             {tab === 'billing' && <PaySettings />}
+            {tab === 'announce' && <Announcements />}
             {tab === 'orgs' && <Orgs draft={orgDraft} clearDraft={() => setOrgDraft(null)} />}
             {tab === 'support' && <Support onCrm={(r: any) => { setCrmSeed(leadFromRequest(r)); setTab('crm'); }} onConvert={(r: any) => {
               setOrgDraft({ name: r.company || r.name, sector: sectorFromRole(r.details?.role), units: r.units, lead_id: r.id, email: r.email,
