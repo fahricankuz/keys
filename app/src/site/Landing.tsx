@@ -521,6 +521,11 @@ function CalcBand() {
   );
 }
 
+/** Dış bağlantı: web'de yeni sekmede açılan gerçek <a href>, telefonda tarayıcı/uygulama. onPress verilmez; yoksa web'de aynı sekme de gider. */
+const extLink = (url: string): any => Platform.OS === 'web'
+  ? { href: url, hrefAttrs: { target: '_blank', rel: 'noopener noreferrer' } }
+  : { onPress: () => { Linking.openURL(url).catch(() => {}); } };
+
 const SOCIAL_SVG: Record<string, (c: string) => string> = {
   instagram: (c) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.1" fill="${c}" stroke="none"/></svg>`,
   tiktok: (c) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${c}"><path d="M16.6 3c.3 2.2 1.6 3.6 3.8 3.8v3.1c-1.4.1-2.6-.3-3.8-1v6.3c0 3.6-2.5 5.8-5.6 5.8-3.3 0-5.6-2.6-5.4-5.7.2-3 2.8-5.2 6-4.8v3.2c-.4-.1-.8-.2-1.2-.1-1.3.1-2.2 1.1-2.1 2.3.1 1.2 1.1 2.1 2.4 2 1.3 0 2.2-.9 2.2-2.3V3h3.7Z"/></svg>`,
@@ -536,10 +541,9 @@ function StoreBadge({ kind, url }: { kind: 'ios' | 'android'; url: string }) {
   const c = useColors();
   const [hot, setHot] = useState(false);
   const ios = kind === 'ios';
-  const open = () => Linking.openURL(url).catch(() => {});
   const web: any = Platform.OS === 'web' ? { transitionProperty: 'background-color, border-color, box-shadow', transitionDuration: '220ms', cursor: 'pointer' } : null;
   return (
-    <PressScale onPress={open} accessibilityRole="link" accessibilityLabel={ios ? t('App Store’dan indir') : t('Google Play’den indir')} {...webHref(url)}
+    <PressScale accessibilityRole="link" accessibilityLabel={ios ? t('App Store’dan indir') : t('Google Play’den indir')} {...extLink(url)}
       hoverScale={1.03} scaleTo={0.95} onHoverIn={() => setHot(true)} onHoverOut={() => setHot(false)}
       style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: radius.pill, borderWidth: 2, borderColor: hot ? c.accent : 'rgba(251,244,234,0.45)', backgroundColor: hot ? c.accent : 'transparent',
         paddingHorizontal: 22, minHeight: 56, boxShadow: hot ? '0 6px 18px rgba(201,45,43,0.28)' : 'none', ...web }]}>
@@ -557,6 +561,7 @@ export function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
   const { phone } = useBreakpoint();
   const lang = getLang();
   const open = (u: string) => () => Linking.openURL(u).catch(() => {});
+  // href'i olan bağlantılar web'de yalnızca <a href> olarak (aynı sekmede) gider; onPress da olsaydı openURL ayrıca yeni sekme açardı.
   const cols: [string, [string, () => void, string?][]][] = [
     [t('Ürün'), [[t('Özellikler'), () => scrollTo('ozellikler')], [t('Nasıl çalışır'), () => scrollTo('nasil')], [t('Fiyatlar'), () => scrollTo('fiyat')], [t('Çözümler'), () => openPage('cozumler'), '/cozumler/'], [t('Kurumsal'), () => openPage('kurumsal'), '/kurumsal/'], [t('Kira artış hesaplama'), () => openPage('kira-artis-hesaplama'), '/kira-artis-hesaplama/'], [t('Blog'), open(site('blog/')), '/blog/']]],
     [t('Destek'), [[t('Destek merkezi'), open(CONFIG.legal.support), '/destek/'], [t('Sıkça sorulanlar'), () => scrollTo('sss')], [CONFIG.supportEmail, open('mailto:' + CONFIG.supportEmail)]]],
@@ -571,7 +576,7 @@ export function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
             <Text v="small" color={c.heroMuted} style={{ lineHeight: 21 }}>{t('Kira işinin anahtarı.')}</Text>
             <View style={{ flexDirection: 'row', gap: 4, marginLeft: -10 }}>
               {CONFIG.social.map((so) => (
-                <PressScale key={so.key} onPress={open(so.url)} accessibilityRole="link" accessibilityLabel={so.name} {...webHref(so.url)}
+                <PressScale key={so.key} accessibilityRole="link" accessibilityLabel={so.name} {...extLink(so.url)}
                   style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
                   <SvgXml width={24} height={24} xml={SOCIAL_SVG[so.key](c.heroInk)} />
                 </PressScale>
@@ -584,7 +589,7 @@ export function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
               <View key={head} style={{ gap: 6, minWidth: 140 }}>
                 <Text v="small" color={c.heroInk} style={{ fontFamily: fonts.bodyBold, marginBottom: 6 }}>{head}</Text>
                 {links.map(([label, run, href]) => (
-                  <PressScale key={label} accessibilityRole="link" {...(href ? webHref(href) : null)} onPress={run} style={{ minHeight: 44, justifyContent: 'center' }}><Text v="small" color={c.heroMuted}>{label}</Text></PressScale>
+                  <PressScale key={label} accessibilityRole="link" {...(href ? webHref(href) : null)} onPress={href && Platform.OS === 'web' ? undefined : run} style={{ minHeight: 44, justifyContent: 'center' }}><Text v="small" color={c.heroMuted}>{label}</Text></PressScale>
                 ))}
               </View>
             ))}
