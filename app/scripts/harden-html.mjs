@@ -96,6 +96,7 @@ const OG_IMAGE = 'https://anahtar.io/og/anahtar.jpg';
 const SEGMENT_NAMES = { 'mulk-sahibi': 'Mülk sahibi', kiraci: 'Kiracı', 'emlak-ofisi': 'Emlak ofisi', 'site-yonetimi': 'Site yönetimi', avm: 'AVM', gyo: 'GYO', 'depo-lojistik': 'Depo ve lojistik', 'family-office': 'Aile ofisi' };
 const ORG = { '@type': 'Organization', '@id': 'https://anahtar.io/#org', name: 'anahtar', alternateName: 'anahtar.io', legalName: 'DEVREDİN BİLGİ TEKNOLOJİLERİ YAZILIM VE TİCARET ANONİM ŞİRKETİ',
   url: 'https://anahtar.io/', logo: { '@type': 'ImageObject', url: 'https://anahtar.io/icon-512.png' },
+  sameAs: ['https://www.instagram.com/anahtar_io/', 'https://www.tiktok.com/@anahtar.io', 'https://www.facebook.com/share/19o78yxmTv/', 'https://x.com/anahtar_io'],
   contactPoint: { '@type': 'ContactPoint', contactType: 'customer support', email: 'info@anahtar.io', availableLanguage: ['tr', 'en'] } };
 /** Sayfada görünen bilgiyi yansıtan yapılandırılmış veri: ana sayfada kuruluş, site ve uygulama; çözüm sayfalarında yol (breadcrumb). */
 const jsonLd = (key) => {

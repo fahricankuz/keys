@@ -18,6 +18,18 @@ export const CONFIG = {
     deletion: 'https://anahtar.io/hesap-silme/',
     support: 'https://anahtar.io/destek/'
   },
+  /** Sosyal medya hesapları: web altbilgisi, uygulamadaki Yardım sekmesi ve yapılandırılmış veri (sameAs) buradan okur. */
+  /** Uygulama mağazası sayfaları (web altbilgisindeki indirme rozetleri). */
+  stores: {
+    ios: 'https://apps.apple.com/tr/app/id6834434284',
+    android: 'https://play.google.com/store/apps/details?id=io.anahtar.app'
+  },
+  social: [
+    { key: 'instagram', name: 'Instagram', url: 'https://www.instagram.com/anahtar_io/' },
+    { key: 'tiktok', name: 'TikTok', url: 'https://www.tiktok.com/@anahtar.io' },
+    { key: 'facebook', name: 'Facebook', url: 'https://www.facebook.com/share/19o78yxmTv/' },
+    { key: 'x', name: 'X', url: 'https://x.com/anahtar_io' }
+  ],
   /** Sakinin aidat / kira ödemesinde kartla ödeme (sanal POS). İşlem ücreti ödeyene yansır: %2 ödeme kuruluşunun komisyonu,
       %0,5 anahtar hizmet bedeli. Ödeme kuruluşu sözleşmesi yapılıp provider yazılana kadar kartla ödeme "yakında" görünür. */
   cardPay: { provider: '', feeRate: 0.025, providerRate: 0.02 },
