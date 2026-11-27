@@ -549,6 +549,7 @@ export const EN_EXTRA = {
   'Bize ulaşın': 'Contact us',
   'Kurumsal paket': 'Enterprise plan',
   'Ürün': 'Product',
+  'Bizi takip et': 'Follow us',
   'Blog': 'Blog',
   'Yasal': 'Legal',
   'Tüm hakları saklıdır.': 'All rights reserved.',

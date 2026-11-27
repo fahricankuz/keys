@@ -528,6 +528,7 @@ export function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
   const cols: [string, [string, () => void, string?][]][] = [
     [t('Ürün'), [[t('Özellikler'), () => scrollTo('ozellikler')], [t('Nasıl çalışır'), () => scrollTo('nasil')], [t('Fiyatlar'), () => scrollTo('fiyat')], [t('Çözümler'), () => openPage('cozumler'), '/cozumler/'], [t('Kurumsal'), () => openPage('kurumsal'), '/kurumsal/'], [t('Kira artış hesaplama'), () => openPage('kira-artis-hesaplama'), '/kira-artis-hesaplama/'], [t('Blog'), open(site('blog/')), '/blog/']]],
     [t('Destek'), [[t('Destek merkezi'), open(CONFIG.legal.support), '/destek/'], [t('Sıkça sorulanlar'), () => scrollTo('sss')], [CONFIG.supportEmail, open('mailto:' + CONFIG.supportEmail)]]],
+    [t('Bizi takip et'), CONFIG.social.map((s): [string, () => void, string] => [s.name, open(s.url), s.url])],
     [t('Yasal'), [[t('Kullanım Koşulları'), open(CONFIG.legal.terms), '/kosullar/'], [t('Gizlilik ve KVKK'), open(CONFIG.legal.privacy), '/gizlilik/'], [t('Hesap silme'), open(CONFIG.legal.deletion), '/hesap-silme/']]]
   ];
   return (

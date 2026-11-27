@@ -419,6 +419,10 @@ export function SettingsBody({ close, page }: { close: () => void; page?: boolea
               {link(t('Gizlilik ve KVKK aydınlatma metni'), CONFIG.legal.privacy)}
             <LI last title={t('Hesap silme bilgisi')} onPress={() => Linking.openURL(CONFIG.legal.deletion).catch(() => {})} right={<Muted>›</Muted>} />
           </List>
+          <H2>{t('Bizi takip et')}</H2>
+          <List>
+            {CONFIG.social.map((s, i) => <LI key={s.key} last={i === CONFIG.social.length - 1} title={s.name} onPress={() => Linking.openURL(s.url).catch(() => {})} right={<Muted>›</Muted>} />)}
+          </List>
           <H2>{t('Verilerin')}</H2>
           {ui.role === 'landlord' ? <Button kind="ghost" block title={t('Ödeme ve giderleri Excel olarak indir')} onPress={() => act('exportXlsx')} /> : null}
           <Button kind="ghost" block title={t('Tüm verimi indir (JSON)')} onPress={() => act('exportData')} />
