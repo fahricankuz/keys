@@ -19,6 +19,8 @@
 <meta property="og:image" content="https://anahtar.io/marka/anahtar-logo-kirmizi-zemin.png"/>
 <meta property="og:locale" content="tr_TR"/>
 <meta name="twitter:card" content="summary"/>
+<link rel="preload" href="/fonts/inter-700.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/intertight-800.woff2" as="font" type="font/woff2" crossorigin>
 <style>
 @font-face{font-family:'Inter';src:url(/fonts/inter-500.woff2) format('woff2');font-weight:500;font-display:swap}
 @font-face{font-family:'Inter';src:url(/fonts/inter-600.woff2) format('woff2');font-weight:600;font-display:swap}
@@ -27,7 +29,7 @@
 /* Her zaman açık tema (sitenin ana sayfasıyla aynı dil): beyaz zemin, krem yüzeyler, kırmızı vurgu, pastel bilgi kartları */
 :root{color-scheme:light;--bg:#FFFFFF;--cream:#FAF5F0;--surface:#FFFFFF;--tile:#F3ECE5;--ink:#1D1A19;--muted:#5C4F4A;--line:#E8DDD5;--accent:#C8302E;--accent-text:#A8231F;
 --gul:#F7E4DF;--gul-ink:#A8231F;--bal:#F5B544;--bal-soft:#FBEBC8;--bal-ink:#6B4A00;--fes:#D5EBD7;--fes-ink:#2A6B3A;--kil:#EDE3DA;--kil-ink:#5C4F4A;
---ease-out:cubic-bezier(.23,1,.32,1);--ease-in-out:cubic-bezier(.77,0,.175,1);--loop:8s;--ease-drawer:cubic-bezier(.32,.72,0,1);--t0:1.45s}
+--ease-out:cubic-bezier(.23,1,.32,1);--ease-in-out:cubic-bezier(.77,0,.175,1);--loop:8s;--ease-drawer:cubic-bezier(.32,.72,0,1);--t0:2.02s}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink)}
 body{font:16px/1.5 'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden}
@@ -40,9 +42,17 @@ header{text-align:center}
 h1{font:800 clamp(44px,13vw,58px)/.98 'Inter Display','Inter',sans-serif;letter-spacing:-.05em;margin:0}
 h1 .l1{display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center}
 h1 em{display:block;font-style:normal;color:var(--accent)}
-/* Açılış katmanı: 2,1 sn sonra tümüyle kalkar; sayfanın kendi girişi pencere açılırken başlar (--t0) */
-.intro{position:fixed;inset:0;z-index:50;pointer-events:none;animation:introOff 0s linear 2.1s forwards}
-.intro svg{display:block}
+/* Açılış katmanı: 2,02 sn, sonra tümüyle kalkar. Yalnız transform ve opacity animasyonu (telefonda GPU'da çalışır; SVG maskesi ve SMIL yok).
+   Birim: --u = görünüm alanının uzun kenarının binde biri (eski SVG viewBox 1000 birimiyle aynı yerleşim).
+   1) krem "a" belirir ve içindeki anahtar deliğine doğru yakınlaşır (logo 4 kat büyük çizilir, 4 kat küçültülmüş başlar: yakınlaşırken keskin kalır)
+   2) kırmızı ekranda anahtar deliği biçiminde beyaz pencere büyüyerek sayfayı açar. Sayfanın kendi girişi açılış bitince başlar (--t0). */
+.intro{--u:calc(100vmax/1000);position:fixed;inset:0;z-index:50;pointer-events:none;overflow:hidden;background:linear-gradient(180deg,#D03A36,#CA3633);animation:introOff 0s linear 2.1s forwards}
+.intro svg{position:absolute;display:block;will-change:transform,opacity}
+.ilogo{width:calc(686*var(--u))!important;height:calc(746*var(--u))!important;left:calc(50% - 362.1*var(--u));top:calc(50% - 448.6*var(--u));transform-origin:calc(368.5*var(--u)) calc(478.2*var(--u));opacity:0;transform:scale(.235);animation:ilogo 2.02s linear both,ilogoO 2.02s linear both}
+.ikey{width:calc(160*var(--u))!important;height:calc(224*var(--u))!important;left:calc(50% - 80*var(--u));top:calc(50% - 80*var(--u));transform-origin:calc(80*var(--u)) calc(80*var(--u));transform:scale(0);animation:ikey 2.02s linear both}
+@keyframes ilogo{0%{transform:scale(.235);animation-timing-function:cubic-bezier(.23,1,.32,1)}25.7%{transform:scale(.25);animation-timing-function:linear}36.6%{transform:scale(.25);animation-timing-function:cubic-bezier(.7,0,.84,0)}72.2%,100%{transform:scale(12)}}
+@keyframes ilogoO{0%{opacity:0}25.7%,72.2%{opacity:1}72.3%,100%{opacity:0}}
+@keyframes ikey{0%,72.3%{transform:scale(0);animation-timing-function:cubic-bezier(.65,0,.35,1)}100%{transform:scale(10)}}
 @keyframes introOff{to{visibility:hidden}}
 /* Açılış: ana sayfadaki "Slam" efekti. Başlık satırları maskenin altından yaylanarak yükselir (yay: damping 15, stiffness 140),
    "Ödendi" etiketi ve diğer bloklar ana sayfadaki Reveal gibi bulanıklıktan netleşerek gelir (900 ms, .32,.72,0,1). */
@@ -51,7 +61,7 @@ h1 em{display:block;font-style:normal;color:var(--accent)}
 .l1 .mask{display:inline-block}
 .s1>span{animation-delay:calc(var(--t0) + .08s)}.s2>span{animation-delay:calc(var(--t0) + .22s)}
 @keyframes slam{0%{transform:translateY(110%)}12%{transform:translateY(62%)}24%{transform:translateY(22%)}36%{transform:translateY(-1%)}46%{transform:translateY(-5%)}58%{transform:translateY(-3.5%)}70%{transform:translateY(-.5%)}84%{transform:translateY(.6%)}100%{transform:none}}
-.pop{display:inline-block;opacity:0;filter:blur(8px);transform:translateY(12px);animation:up .9s var(--ease-drawer) calc(var(--t0) + .42s) forwards}
+.pop{display:inline-block;opacity:0;transform:translateY(12px);animation:up .9s var(--ease-drawer) calc(var(--t0) + .42s) forwards}
 .chip{display:inline-flex;align-items:center;gap:7px;font:700 14px/1 'Inter',sans-serif;letter-spacing:0;background:var(--cream);color:var(--ink);padding:8px 12px;border-radius:999px;vertical-align:middle;
 transform-origin:left center;animation:nod var(--loop) var(--ease-in-out) infinite}
 .chip i{width:12px;height:12px;border-radius:4px;background:var(--bal);display:block}
@@ -61,7 +71,7 @@ transform-origin:left center;animation:nod var(--loop) var(--ease-in-out) infini
    Hikâye: kiracı arıza yazar → mülk sahibi yazıyor… → cevap gelir → talep çubuğu ilerler, "Çözüldü" → Kasım kirası "Ödendi" → başlıktaki etiket onaylar. */
 .stage{position:relative;height:300px;margin:26px 0 8px}
 .card{position:absolute;border-radius:20px;padding:10px;box-shadow:0 18px 40px -22px rgba(29,26,25,.45);
-opacity:0;transform:translateY(40px);filter:blur(8px);animation:card .9s var(--ease-drawer) forwards,drift 7s var(--ease-in-out) infinite}
+opacity:0;transform:translateY(40px);animation:card .9s var(--ease-drawer) forwards,drift 7s var(--ease-in-out) infinite}
 .card .tag{display:inline-block;background:#fff;border-radius:999px;font-weight:700;font-size:11.5px;padding:3px 9px;margin:0 0 7px}
 .row{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#fff;border-radius:11px;padding:6px 10px;font-size:12px;font-weight:600;margin-top:5px}
 .row b{font-weight:700;color:var(--fes-ink)}
@@ -87,7 +97,7 @@ opacity:0;transform:translateY(40px);filter:blur(8px);animation:card .9s var(--e
 .typing i{width:5px;height:5px;border-radius:50%;background:var(--muted);animation:bounce .9s var(--ease-in-out) infinite}
 .typing i:nth-child(2){animation-delay:.12s}.typing i:nth-child(3){animation-delay:.24s}
 /* Zaman çizelgesi (8 sn): 0–15% yazıyor · 15% cevap · 20–50% çubuk · 50% Çözüldü · 56% Ödendi · 60% etiket · 90–100% sıfırlanır */
-@keyframes card{to{opacity:1;transform:none;filter:blur(0)}}
+@keyframes card{to{opacity:1;transform:none}}
 @keyframes drift{0%,100%{translate:0 0}50%{translate:0 -7px}}
 @keyframes typing{0%,14%{opacity:1}17%,96%{opacity:0}100%{opacity:1}}
 @keyframes reply{0%,15%{opacity:0;transform:translateY(6px) scale(.96)}20%,90%{opacity:1;transform:none}96%,100%{opacity:0;transform:none}}
@@ -100,8 +110,8 @@ opacity:0;transform:translateY(40px);filter:blur(8px);animation:card .9s var(--e
 @keyframes nod{0%,58%,72%,100%{transform:none}62%{transform:translateY(-3px) rotate(-3deg)}66%{transform:translateY(0) rotate(1deg)}}
 @keyframes bounce{0%,60%,100%{transform:none}30%{transform:translateY(-3px)}}
 /* Giriş: yukarıdan aşağı, 70 ms arayla, hafif bulanıklıktan netleşerek */
-.up{opacity:0;filter:blur(8px);transform:translateY(28px);animation:up .9s var(--ease-drawer) var(--t0) forwards}
-@keyframes up{to{opacity:1;filter:blur(0);transform:none}}
+.up{opacity:0;transform:translateY(28px);animation:up .9s var(--ease-drawer) var(--t0) forwards}
+@keyframes up{to{opacity:1;transform:none}}
 .d2{animation-delay:calc(var(--t0) + .26s)}.d3{animation-delay:calc(var(--t0) + .32s)}.d5{animation-delay:calc(var(--t0) + .6s)}.d6{animation-delay:calc(var(--t0) + .68s)}.d7{animation-delay:calc(var(--t0) + .76s)}.d8{animation-delay:calc(var(--t0) + .84s)}
 /* Düğmeler: sitedeki hap düğmeler (çerçeveli ve kırmızı) */
 .stores{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:22px 0 14px}
@@ -147,20 +157,8 @@ footer a{color:var(--muted);font-weight:600;text-decoration:none}
 <!-- Açılış (uygulamadaki OpenSplash): tuğla zeminde "a"; kamera "a"nın gözündeki anahtar deliğinden geçer, ekran tuğla rengine döner,
      ortadan anahtar deliği biçiminde pencere açılır ve sayfa görünür. ~2 sn, yalnız SVG (SMIL) ve CSS; betik yok. -->
 <div class="intro" aria-hidden="true">
-<svg viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice" width="100%" height="100%">
-<defs>
-<radialGradient id="ibg" cx="50%" cy="46%" r="75%"><stop offset="0" stop-color="#D23B37"/><stop offset="1" stop-color="#A9221F"/></radialGradient>
-<mask id="iwin" maskUnits="userSpaceOnUse" x="-2000" y="-2000" width="5000" height="5000">
-<rect x="-2000" y="-2000" width="5000" height="5000" fill="#fff"/>
-<g transform="translate(500,500)"><g transform="scale(0)"><animateTransform attributeName="transform" type="scale" values="0;0;10" keyTimes="0;.723;1" calcMode="spline" keySplines="0 0 1 1;.65 0 .35 1" dur="2.02s" fill="freeze"/><path d="M-23.1,76.6 A80,80 0 1,1 23.1,76.6 L33.0,144.0 L-33.0,144.0 Z" fill="#000"/></g></g>
-</mask>
-</defs>
-<rect x="-2000" y="-2000" width="5000" height="5000" fill="url(#ibg)" mask="url(#iwin)"/>
-<g opacity="0"><animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;.257;.72;.722;1" dur="2.02s" fill="freeze"/>
-<g transform="translate(506.4,529.6)"><g><animateTransform attributeName="transform" type="scale" values=".94;1;1;48;48" keyTimes="0;.257;.366;.723;1" calcMode="spline" keySplines=".23 1 .32 1;0 0 1 1;.7 0 .84 0;0 0 1 1" dur="2.02s" fill="freeze"/>
-<g transform="translate(-506.4,-529.6) translate(330,330) scale(.34) translate(180,190) scale(.64)"><path d="M388.46 927.44C504.68 927.44 578.78 886.88 627.92 797.96H631.04V913.40H893.12V358.82C893.12 177.08 761.3 71.78 521.83 71.78C283.15 71.78 148.21 177.86 136.51 356.48H386.12C391.58 300.32 437.6 264.44 512.48 264.44C583.46 264.44 627.14 297.98 627.14 347.12V351.02C627.14 400.16 573.31 411.86 425.9 424.34C250.4 438.38 106.1 498.44 106.1 683.30C106.1 847.10 223.88 927.44 388.46 927.44Z M506.5,696.9 A80,80 0 1,1 552.7,696.9 L562.6,764.3 L496.6,764.3 Z" fill="#FAF5F0" fill-rule="evenodd"/></g>
-</g></g></g>
-</svg>
+<svg class="ilogo" viewBox="106 71 788 857" width="100%" height="100%"><path d="M388.46 927.44C504.68 927.44 578.78 886.88 627.92 797.96H631.04V913.40H893.12V358.82C893.12 177.08 761.3 71.78 521.83 71.78C283.15 71.78 148.21 177.86 136.51 356.48H386.12C391.58 300.32 437.6 264.44 512.48 264.44C583.46 264.44 627.14 297.98 627.14 347.12V351.02C627.14 400.16 573.31 411.86 425.9 424.34C250.4 438.38 106.1 498.44 106.1 683.30C106.1 847.10 223.88 927.44 388.46 927.44Z M506.5,696.9 A80,80 0 1,1 552.7,696.9 L562.6,764.3 L496.6,764.3 Z" fill="#FAF5F0" fill-rule="evenodd"/></svg>
+<svg class="ikey" viewBox="-80 -80 160 224" width="100%" height="100%"><path d="M-23.1,76.6 A80,80 0 1,1 23.1,76.6 L33.0,144.0 L-33.0,144.0 Z" fill="#fff"/></svg>
 </div>
 <main>
 <header>

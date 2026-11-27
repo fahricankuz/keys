@@ -24,3 +24,18 @@ test('bio sayfası gizli: site haritasında, robots.txt’de ve başka hiçbir s
   const src = walk(new URL('../app/src/', import.meta.url).pathname).filter((f) => /\.(tsx?|jsx?)$/.test(f));
   for (const f of src) expect(readFileSync(f, 'utf8'), f).not.toMatch(/['"`]\/merhaba/);
 });
+
+test('bio sayfası açılışı telefonda akıcı: SVG maskesi ve SMIL yok, giriş animasyonlarında blur yok, giriş açılıştan sonra başlar', () => {
+  const intro = page.slice(page.indexOf('<div class="intro"'), page.indexOf('</div>', page.indexOf('<div class="intro"')));
+  expect(intro).not.toMatch(/<mask|<animate|<set\b|mask=/i);
+  const css = page.slice(page.indexOf('<style>'), page.indexOf('</style>'));
+  expect(css).toContain('.intro{');
+  for (const sel of ['.up{', '.card{', '.pop{']) expect(css.slice(css.indexOf(sel), css.indexOf('}', css.indexOf(sel))), sel).not.toContain('filter');
+  expect(css).not.toMatch(/@keyframes (up|card)\{[^}]*filter/);
+  // Sayfanın girişi (--t0), açılışın süresine (2,02 sn) eşit ya da sonra başlar
+  expect(css).toMatch(/--t0:2\.02s/);
+  expect(css).toContain('animation:ilogo 2.02s');
+  // İlk görünen yazılar önceden yüklenir
+  expect(page).toContain('href="/fonts/inter-700.woff2" as="font"');
+  expect(page).toContain('href="/fonts/intertight-800.woff2" as="font"');
+});
