@@ -3,7 +3,7 @@ import { Text as RNText, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { t, getLang } from '../domain/i18n';
 import { loadRates } from '../domain/cpi';
-import { Button, Container, PressScale, Text } from '../ui/kit';
+import { Button, Container, PressScale, Text, webHref } from '../ui/kit';
 import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
 import { Icon } from '../app-ui/blocks';
 import { Reveal } from '../ui/Reveal';
@@ -146,7 +146,7 @@ export default function KiraArtis() {
       </Container>
 
       <Container style={{ paddingTop: phone ? 56 : 120, maxWidth: 820, gap: 14 }}>
-        <Display size={phone ? 24 : 40}>{t('Kira artışı nasıl hesaplanır?')}</Display>
+        <Display level={2} size={phone ? 24 : 40}>{t('Kira artışı nasıl hesaplanır?')}</Display>
         <Text v="body" style={{ fontSize: phone ? 16 : 18, lineHeight: phone ? 25 : 29 }}>{t('Türk Borçlar Kanunu’nun 344. maddesine göre konut ve çatılı işyeri kiralarında yenilenen dönemdeki artış, bir önceki kira yılında TÜFE’nin 12 aylık ortalamalara göre değişim oranını geçemez.')}</Text>
         <View style={{ backgroundColor: c.surface, borderRadius: 20, borderWidth: 1, borderColor: c.line, borderLeftWidth: 4, borderLeftColor: c.accent, padding: 18 }}>
           <Text v="body" style={{ fontFamily: fonts.bodyXBold, fontSize: phone ? 16 : 19 }}>{t('Yeni kira = Mevcut kira × (1 + TÜFE 12 aylık ortalama ÷ 100)')}</Text>
@@ -155,7 +155,7 @@ export default function KiraArtis() {
       </Container>
 
       <Container style={{ paddingTop: phone ? 40 : 80, maxWidth: 820, gap: 14 }}>
-        <Display size={phone ? 24 : 40}>{t('Son kira artış oranları')}</Display>
+        <Display level={2} size={phone ? 24 : 40}>{t('Son kira artış oranları')}</Display>
         {table.length ? (
           <View style={{ backgroundColor: c.surface, borderRadius: 24, borderWidth: 1, borderColor: c.line, overflow: 'hidden' }}>
             {table.map((m, i) => { const [y, mo] = m.split('-').map(Number); const n = key(y, mo); return (
@@ -170,7 +170,7 @@ export default function KiraArtis() {
       </Container>
 
       <Container style={{ paddingTop: phone ? 40 : 80, maxWidth: 820, gap: 10 }}>
-        <Display size={phone ? 24 : 40}>{t('Sık sorulanlar')}</Display>
+        <Display level={2} size={phone ? 24 : 40}>{t('Sık sorulanlar')}</Display>
         {FAQ.map(([q, a], i) => (
           <PressScale key={q} onPress={() => setOpen(open === i ? null : i)} accessibilityRole="button" aria-expanded={open === i} scaleTo={0.99}
             style={{ backgroundColor: c.surface, borderRadius: 20, borderWidth: 1, borderColor: open === i ? c.accent : c.line, padding: 18, gap: 8 }}>
@@ -182,7 +182,7 @@ export default function KiraArtis() {
           </PressScale>
         ))}
         <Text v="small" muted style={{ marginTop: 10 }}>{t('Hesaplama genel bilgi amaçlıdır. İşlem yapmadan önce güncel TÜİK bültenini ve sözleşmeni kontrol et.')}</Text>
-        <PressScale onPress={() => openPage('blog/kira-artisi-nasil-hesaplanir')} accessibilityRole="link" style={{ alignSelf: 'flex-start' }}>
+        <PressScale onPress={() => openPage('blog/kira-artisi-nasil-hesaplanir')} accessibilityRole="link" {...webHref('/blog/kira-artisi-nasil-hesaplanir/')} style={{ alignSelf: 'flex-start' }}>
           <Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('Rehber: Kira artışı nasıl hesaplanır?')} ›</Text>
         </PressScale>
       </Container>

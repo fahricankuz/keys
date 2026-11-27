@@ -52,7 +52,7 @@ export default function SegmentPage() {
       </Container>
 
       <Container style={{ paddingTop: phone ? 48 : 112, gap: phone ? 14 : 22 }}>
-        <Display size={phone ? 24 : 40}>{t('Bugün yaşanan')}</Display>
+        <Display level={2} size={phone ? 24 : 40}>{t('Bugün yaşanan')}</Display>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
           {s.pains.map(([a, b], i) => card(<>
             <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: '#F0CFC8', alignItems: 'center', justifyContent: 'center' }}><Text v="small" color="#A8231F" style={{ fontFamily: fonts.bodyXBold }}>{i + 1}</Text></View>
@@ -63,7 +63,7 @@ export default function SegmentPage() {
       </Container>
 
       <Container style={{ paddingTop: phone ? 40 : 88, gap: phone ? 14 : 22 }}>
-        <Display size={phone ? 24 : 40}>{t('anahtar ile')}</Display>
+        <Display level={2} size={phone ? 24 : 40}>{t('anahtar ile')}</Display>
         <View style={{ flexDirection: phone ? 'column' : 'row', gap: 12, alignItems: 'stretch' }}>
           {card(<>
             <View style={{ alignSelf: 'flex-start' }}><Chip tone="ok" label={t('Hazır')} /></View>

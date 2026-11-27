@@ -13,7 +13,7 @@ export default function Cozumler() {
   return (
     <SitePage>
       <Container style={{ paddingTop: phone ? 40 : 96, paddingBottom: phone ? 48 : 112, gap: phone ? 24 : 40, maxWidth: 1080 }}>
-        <SectionHead compact label={t('Çözümler')} title={t('Seni en iyi ne tanımlar?')} body={t('Tek bir daireden yüzlerce mülklük portföylere kadar anahtar’ın sana uygun kullanımını gör.')} />
+        <SectionHead compact level={1} label={t('Çözümler')} title={t('Seni en iyi ne tanımlar?')} body={t('Tek bir daireden yüzlerce mülklük portföylere kadar anahtar’ın sana uygun kullanımını gör.')} />
         <SegmentGrid go={(p) => router.push(p as any)} />
       </Container>
     </SitePage>

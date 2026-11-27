@@ -85,7 +85,7 @@ export default function AuthShell({ title, lead, children, side, wide, top }: {
   const form = (
     <Animated.View entering={FadeInDown.springify().damping(22).stiffness(130)} style={{ width: '100%', maxWidth: wide ? 640 : 460, alignSelf: 'center', gap: 20 }}>
       <View style={{ gap: 8 }}>
-        <Text v="h1" style={{ fontSize: phone ? 30 : 36, lineHeight: phone ? 33 : 39, fontFamily: fonts.siteBold, letterSpacing: -0.8 }}>{title}</Text>
+        <Text v="h1" {...({ role: 'heading', 'aria-level': 1 } as any)} style={{ fontSize: phone ? 30 : 36, lineHeight: phone ? 33 : 39, fontFamily: fonts.siteBold, letterSpacing: -0.8 }}>{title}</Text>
         {lead ? <Text v="body" muted>{lead}</Text> : null}
       </View>
       <View style={{ gap: 16, backgroundColor: c.surface, padding: phone ? 18 : 26, borderRadius: 28, borderWidth: 1, borderColor: c.line,

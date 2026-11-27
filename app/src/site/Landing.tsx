@@ -7,7 +7,7 @@ import Animated, { FadeIn, FadeInDown, FadeOutUp } from 'react-native-reanimated
 import { t, getLang, setLang } from '../domain/i18n';
 import { demo } from './money';
 import { CONFIG } from '../domain/config';
-import { Button, Chip, Container, PressScale, Text } from '../ui/kit';
+import { Button, Chip, Container, PressScale, Text, webHref } from '../ui/kit';
 import { Wordmark } from '../ui/Wordmark';
 import { fonts, radius, shadows, useBreakpoint, useColors } from '../ui/theme';
 import { Slam } from '../ui/motion';
@@ -27,22 +27,22 @@ const site = (path: string) => CONFIG.publicUrl.replace(/\/?$/, '/') + path;
 const BALANCE: any = Platform.OS === 'web' ? { textWrap: 'balance' } : null;
 
 /** Büyük başlık yazısı. */
-export function Display({ children, size, color, style, center }: { children: ReactNode; size: number; color?: string; style?: any; center?: boolean }) {
+export function Display({ children, size, color, style, center, level }: { children: ReactNode; size: number; color?: string; style?: any; center?: boolean; level?: 1 | 2 | 3 }) {
   const c = useColors();
   return (
-    <RNText style={[{ fontFamily: fonts.siteBold, fontSize: size, lineHeight: Math.round(size * 1.08), letterSpacing: -size * (size > 40 ? 0.035 : 0.02), color: color ?? c.ink, textAlign: center ? 'center' : undefined, ...BALANCE }, style]}>
+    <RNText {...(level ? ({ role: 'heading', 'aria-level': level } as any) : null)} style={[{ fontFamily: fonts.siteBold, fontSize: size, lineHeight: Math.round(size * 1.08), letterSpacing: -size * (size > 40 ? 0.035 : 0.02), color: color ?? c.ink, textAlign: center ? 'center' : undefined, ...BALANCE }, style]}>
       {children}
     </RNText>
   );
 }
 
-export function SectionHead({ label, title, body, onDark, compact }: { label?: string; title: string; body?: string; onDark?: boolean; compact?: boolean }) {
+export function SectionHead({ label, title, body, onDark, compact, level = 2 }: { label?: string; title: string; body?: string; onDark?: boolean; compact?: boolean; level?: 1 | 2 | 3 }) {
   const c = useColors();
   const { phone } = useBreakpoint();
   return (
     <Reveal style={{ alignItems: 'center', gap: phone || compact ? 10 : 14, maxWidth: compact ? 1140 : 820, alignSelf: 'center' }}>
       {label ? <Text v="label" color={onDark ? c.lemon : c.accentText} style={{ fontSize: 13, letterSpacing: 0.4 }}>{label}</Text> : null}
-      <Display size={phone ? 26 : compact ? 44 : 64} center color={onDark ? c.heroInk : undefined}>{title}</Display>
+      <Display level={level} size={phone ? 26 : compact ? 44 : 64} center color={onDark ? c.heroInk : undefined}>{title}</Display>
       {body ? <Text v="body" color={onDark ? c.heroMuted : c.muted} style={{ fontSize: phone ? 15 : compact ? 18 : 21, lineHeight: phone ? 21 : compact ? 26 : 30, textAlign: 'center', maxWidth: compact ? 760 : 640, ...BALANCE }}>{body}</Text> : null}
     </Reveal>
   );
@@ -72,7 +72,7 @@ function Hero({ scrollTo }: { go: (p: string) => void; scrollTo: (k: string) => 
   return (
     <Container style={{ paddingTop: phone ? 28 : 44, alignItems: 'center' }}>
       <View style={{ alignItems: 'center', gap: phone ? 14 : 18 }}>
-        <View style={{ alignItems: 'center' }}>
+        <View {...({ role: 'heading', 'aria-level': 1 } as any)} style={{ alignItems: 'center' }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: size * 0.12 }}>
             <Slam delay={80} height={Math.round(size * 1.1)}><Display size={size}>{t('Kira işinin')}</Display></Slam>
             <Reveal delay={420} y={12}>
@@ -371,7 +371,7 @@ function HowItWorks({ go, anchor }: { go: (p: string) => void; anchor: (el: any)
                 <View style={{ flex: 1, gap: 6, paddingRight: desktop ? 28 : 0, paddingBottom: desktop || last ? 0 : 16 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: desktop ? 28 : undefined }}>
                     <Icon name={icon} size={18} color={c.accentText} />
-                    <Display size={phone ? 17 : 23} style={{ flexShrink: 1 }}>{title}</Display>
+                    <Display level={3} size={phone ? 17 : 23} style={{ flexShrink: 1 }}>{title}</Display>
                   </View>
                   <Text v="body" muted style={{ fontSize: phone ? 15 : 16, lineHeight: phone ? 22 : 24 }}>{body}</Text>
                 </View>
@@ -426,7 +426,7 @@ function Pricing({ go, anchor }: { go: (p: string) => void; anchor: (el: any) =>
         <Reveal style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'center' }}>
           {phone ? null : <Icon name="check" size={16} color={c.okInk} />}
           <Text v="small" muted style={{ textAlign: 'center' }}>{t('Kiracılar ve ekip üyeleri (emlakçı, muhasebeci, personel) her zaman ücretsiz.')}</Text>
-          <PressScale onPress={() => go('/kayit/kiraci')} accessibilityRole="link"><Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('Kiracı olarak kayıt ol')} ›</Text></PressScale>
+          <PressScale onPress={() => go('/kayit/kiraci')} accessibilityRole="link" {...webHref('/kayit/kiraci/')}><Text v="small" color={c.accentText} style={{ fontFamily: fonts.bodyBold }}>{t('Kiracı olarak kayıt ol')} ›</Text></PressScale>
         </Reveal>
       </Container>
     </View>
@@ -482,7 +482,7 @@ function Contact({ anchor }: { anchor: (el: any) => void }) {
       <Container style={{ paddingTop: phone ? 44 : 128, paddingBottom: phone ? 44 : 128, alignItems: 'center' }}>
         <Reveal style={{ alignItems: 'center', gap: phone ? 12 : 24, maxWidth: 760 }}>
           <Text v="label" color={c.accentText} style={{ fontSize: 13, letterSpacing: 0.4 }}>{t('İletişim')}</Text>
-          <Display size={phone ? 26 : 72} center>{t('Soruların için yaz.')}</Display>
+          <Display level={2} size={phone ? 26 : 72} center>{t('Soruların için yaz.')}</Display>
           <PressScale onPress={mail} accessibilityRole="link"><Display size={phone ? 19 : 36} color={c.accent} center>{CONFIG.supportEmail}</Display></PressScale>
           <Text v="body" muted style={{ fontSize: phone ? 14.5 : 18, lineHeight: phone ? 21 : 27, textAlign: 'center', maxWidth: 520 }}>
             {t('Hesap, paket ve veri silme işlemleri için destek merkezine ya da e-postaya ulaşabilirsin.')}
@@ -506,7 +506,7 @@ function CalcBand() {
       <Reveal style={{ backgroundColor: c.lemon, borderRadius: phone ? 26 : 36, padding: phone ? 22 : 44, flexDirection: phone ? 'column' : 'row', alignItems: phone ? 'flex-start' : 'center', gap: phone ? 16 : 32, overflow: 'hidden' }}>
         <View style={{ flex: phone ? undefined : 1, gap: 8 }}>
           <Text v="label" color="#6B4A00" style={{ fontSize: 13, letterSpacing: 0.4 }}>{t('Ücretsiz araç')}</Text>
-          <Display size={phone ? 24 : 40} color="#1D1A19">{t('Bu yıl kiraya ne kadar zam yapılabilir?')}</Display>
+          <Display level={2} size={phone ? 24 : 40} color="#1D1A19">{t('Bu yıl kiraya ne kadar zam yapılabilir?')}</Display>
           <Text v="body" color="#3B2A00" style={{ fontSize: phone ? 15 : 17, lineHeight: phone ? 22 : 26, maxWidth: 560 }}>{t('TÜİK’in her ay açıkladığı 12 aylık ortalama TÜFE ile yasal zam tavanını ve yeni kira bedelini saniyeler içinde hesapla.')}</Text>
         </View>
         <View style={{ backgroundColor: '#1D1A19', borderRadius: 24, padding: phone ? 18 : 24, gap: 6, minWidth: phone ? undefined : 300, alignSelf: phone ? 'stretch' : 'auto' }}>
@@ -525,10 +525,10 @@ export function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
   const { phone } = useBreakpoint();
   const lang = getLang();
   const open = (u: string) => () => Linking.openURL(u).catch(() => {});
-  const cols: [string, [string, () => void][]][] = [
-    [t('Ürün'), [[t('Özellikler'), () => scrollTo('ozellikler')], [t('Nasıl çalışır'), () => scrollTo('nasil')], [t('Fiyatlar'), () => scrollTo('fiyat')], [t('Çözümler'), () => openPage('cozumler')], [t('Kurumsal'), () => openPage('kurumsal')], [t('Kira artış hesaplama'), () => openPage('kira-artis-hesaplama')], [t('Blog'), open(site('blog/'))]]],
-    [t('Destek'), [[t('Destek merkezi'), open(CONFIG.legal.support)], [t('Sıkça sorulanlar'), () => scrollTo('sss')], [CONFIG.supportEmail, open('mailto:' + CONFIG.supportEmail)]]],
-    [t('Yasal'), [[t('Kullanım Koşulları'), open(CONFIG.legal.terms)], [t('Gizlilik ve KVKK'), open(CONFIG.legal.privacy)], [t('Hesap silme'), open(CONFIG.legal.deletion)]]]
+  const cols: [string, [string, () => void, string?][]][] = [
+    [t('Ürün'), [[t('Özellikler'), () => scrollTo('ozellikler')], [t('Nasıl çalışır'), () => scrollTo('nasil')], [t('Fiyatlar'), () => scrollTo('fiyat')], [t('Çözümler'), () => openPage('cozumler'), '/cozumler/'], [t('Kurumsal'), () => openPage('kurumsal'), '/kurumsal/'], [t('Kira artış hesaplama'), () => openPage('kira-artis-hesaplama'), '/kira-artis-hesaplama/'], [t('Blog'), open(site('blog/')), '/blog/']]],
+    [t('Destek'), [[t('Destek merkezi'), open(CONFIG.legal.support), '/destek/'], [t('Sıkça sorulanlar'), () => scrollTo('sss')], [CONFIG.supportEmail, open('mailto:' + CONFIG.supportEmail)]]],
+    [t('Yasal'), [[t('Kullanım Koşulları'), open(CONFIG.legal.terms), '/kosullar/'], [t('Gizlilik ve KVKK'), open(CONFIG.legal.privacy), '/gizlilik/'], [t('Hesap silme'), open(CONFIG.legal.deletion), '/hesap-silme/']]]
   ];
   return (
     <View style={{ backgroundColor: c.deepA }}>
@@ -542,8 +542,8 @@ export function Footer({ scrollTo }: { scrollTo: (k: string) => void }) {
             {cols.map(([head, links]) => (
               <View key={head} style={{ gap: 6, minWidth: 140 }}>
                 <Text v="small" color={c.heroInk} style={{ fontFamily: fonts.bodyBold, marginBottom: 6 }}>{head}</Text>
-                {links.map(([label, run]) => (
-                  <PressScale key={label} accessibilityRole="link" onPress={run} style={{ minHeight: 36, justifyContent: 'center' }}><Text v="small" color={c.heroMuted}>{label}</Text></PressScale>
+                {links.map(([label, run, href]) => (
+                  <PressScale key={label} accessibilityRole="link" {...(href ? webHref(href) : null)} onPress={run} style={{ minHeight: 36, justifyContent: 'center' }}><Text v="small" color={c.heroMuted}>{label}</Text></PressScale>
                 ))}
               </View>
             ))}
