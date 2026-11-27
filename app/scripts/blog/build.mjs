@@ -192,13 +192,15 @@ ${sorted.map(item).join('\n')}
 `;
 }
 
+/** Hesaplama sayfasının içeriği gerçekten değiştiği tarih (derleme tarihi değil); sayfa içeriği değişince elle güncellenir. */
+const CALC_UPDATED = '2026-11-27';
 function sitemap() {
   const file = join(PUB, 'sitemap.xml');
   const keep = readFileSync(file, 'utf8').split('\n').filter((l) => l.includes('<url>') && !l.includes('/blog/') && !/\/(kira-artis-hesaplama|kurumsal|cozumler)/.test(l));
   const last = [...POSTS].map((p) => p.updated || p.date).sort().pop();
   const lines = [
     ...keep,
-    `  <url><loc>${SITE}/kira-artis-hesaplama/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod><changefreq>monthly</changefreq></url>`,
+    `  <url><loc>${SITE}/kira-artis-hesaplama/</loc><lastmod>${CALC_UPDATED}</lastmod></url>`,
     `  <url><loc>${SITE}/kurumsal/</loc></url>`,
     `  <url><loc>${SITE}/cozumler/</loc></url>`,
     ...SEGMENTS.map((x) => `  <url><loc>${SITE}/cozumler/${x}/</loc></url>`),
@@ -207,6 +209,30 @@ function sitemap() {
 
   ];
   writeFileSync(file, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${lines.join('\n')}\n</urlset>\n`);
+}
+
+/** /llms.txt: yapay zekâ araçları için sitenin kısa, düz metin haritası (blog yazıları POSTS'tan üretilir). */
+function llms() {
+  const seg = { 'mulk-sahibi': 'Mülk sahibi', kiraci: 'Kiracı', 'emlak-ofisi': 'Emlak ofisi', 'site-yonetimi': 'Site yönetimi', avm: 'AVM', gyo: 'GYO', 'depo-lojistik': 'Depo ve lojistik', 'family-office': 'Aile ofisi' };
+  return `# anahtar
+
+> anahtar, kira ve site yönetimi uygulamasıdır: kira, aidat, depozito, arıza ve belge takibi tek yerde. Mülk sahibi, kiracı ve yönetici aynı kayda kendi taraflarından bakar. Türkçe ve İngilizce; web ve iPhone/Android.
+
+## Sayfalar
+- [Ana sayfa](${SITE}/): ürün özeti
+- [Çözümler](${SITE}/cozumler/): ${SEGMENTS.map((x) => seg[x]).join(', ')}
+- [Kira artış oranı hesaplama](${SITE}/kira-artis-hesaplama/): TÜİK 12 aylık ortalama TÜFE ile yasal zam tavanı
+- [Kurumsal paket](${SITE}/kurumsal/)
+- [Destek merkezi](${SITE}/destek/)
+
+## Blog
+${POSTS.map((p) => `- [${p.h1}](${SITE}/blog/${p.slug}/): ${p.description}`).join('\n')}
+
+## Yasal
+- [Gizlilik ve KVKK](${SITE}/gizlilik/)
+- [Kullanım koşulları](${SITE}/kosullar/)
+- [Hesap silme](${SITE}/hesap-silme/)
+`;
 }
 
 const write = (rel, html) => { const f = join(PUB, rel); mkdirSync(dirname(f), { recursive: true }); writeFileSync(f, html); };
@@ -220,6 +246,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   write('blog/rss.xml', rss());
   write('destek/index.html', destekPage({ head, bar, foot }));
   sitemap();
+  write('llms.txt', llms());
   const og = POSTS.filter((p) => !existsSync(join(PUB, 'blog/og', p.slug + '.jpg')));
   console.log(`blog: ${POSTS.length} yazı yazıldı` + (og.length ? `; kapak görseli eksik: ${og.map((p) => p.slug).join(', ')} (node scripts/blog/og.mjs)` : ''));
 }

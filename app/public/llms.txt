@@ -1,0 +1,25 @@
+# anahtar
+
+> anahtar, kira ve site yönetimi uygulamasıdır: kira, aidat, depozito, arıza ve belge takibi tek yerde. Mülk sahibi, kiracı ve yönetici aynı kayda kendi taraflarından bakar. Türkçe ve İngilizce; web ve iPhone/Android.
+
+## Sayfalar
+- [Ana sayfa](https://anahtar.io/): ürün özeti
+- [Çözümler](https://anahtar.io/cozumler/): Mülk sahibi, Kiracı, Emlak ofisi, Site yönetimi, AVM, GYO, Depo ve lojistik, Aile ofisi
+- [Kira artış oranı hesaplama](https://anahtar.io/kira-artis-hesaplama/): TÜİK 12 aylık ortalama TÜFE ile yasal zam tavanı
+- [Kurumsal paket](https://anahtar.io/kurumsal/)
+- [Destek merkezi](https://anahtar.io/destek/)
+
+## Blog
+- [Kira artışı nasıl hesaplanır?](https://anahtar.io/blog/kira-artisi-nasil-hesaplanir/): Konut kirasında yasal artış sınırı TÜFE 12 aylık ortalamasıdır. Oranı nereden bulacağınızı ve adım adım örnek hesabı anlatıyoruz.
+- [İşyeri kirasında stopaj nedir, nasıl hesaplanır?](https://anahtar.io/blog/isyeri-kirasinda-stopaj/): İşyeri kiralarında yüzde 20 stopajı kim keser, brütten nete nasıl hesaplanır, mülk sahibi nasıl beyan eder? Örneklerle anlattık.
+- [Depozito kuralları: ne kadar alınır, nasıl iade edilir?](https://anahtar.io/blog/depozito-kurallari/): Kira depozitosu en fazla kaç aylık kira olabilir, bankada nasıl tutulur, ne zaman iade edilir? Anlaşmazlığı önleyen kontrol listesiyle.
+- [Kira sözleşmesinde dikkat edilecek 10 madde](https://anahtar.io/blog/kira-sozlesmesinde-dikkat-edilecekler/): Kira sözleşmesi hazırlarken ya da imzalarken kontrol edilecek 10 madde; noter, e-Devlet ve elektronik sözleşme seçenekleriyle.
+- [Kira ödemesi bankadan mı yapılmalı? Dekontun önemi](https://anahtar.io/blog/kira-odemesi-banka-dekont/): Kira bedeli hangi durumlarda banka ya da PTT ile ödenmeli, dekonta ne yazılmalı, geç ödemede ne olur? Kiracı ve ev sahibi için rehber.
+- [Aidatı kim öder: kiracı mı, ev sahibi mi?](https://anahtar.io/blog/aidat-kim-oder/): Aidat, yakıt, kapıcı, demirbaş ve DASK giderlerinden hangisi kiracıya, hangisi ev sahibine aittir? Kanun ve uygulamayla tek tabloda.
+- [Kiracı tahliyesi: yasal yollar ve süreler](https://anahtar.io/blog/kiraci-tahliyesi/): Ev sahibi kiracıyı hangi durumlarda çıkarabilir? İhtiyaç, tahliye taahhüdü, iki haklı ihtar, 10 yıllık süre ve zorunlu arabuluculuk.
+- [Kira geliri beyannamesi: kimler verir, nasıl hesaplanır?](https://anahtar.io/blog/kira-geliri-beyannamesi/): Konut ve işyeri kira gelirinin beyanı: istisna, götürü ve gerçek gider, Mart ayı beyan süresi, taksitler ve hazır beyan sistemi.
+
+## Yasal
+- [Gizlilik ve KVKK](https://anahtar.io/gizlilik/)
+- [Kullanım koşulları](https://anahtar.io/kosullar/)
+- [Hesap silme](https://anahtar.io/hesap-silme/)

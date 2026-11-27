@@ -239,7 +239,7 @@ export const POSTS = [
   },
   {
     slug: 'kira-geliri-beyannamesi',
-    title: 'Kira geliri beyannamesi: kimler verir, nasıl hesaplanır?',
+    title: 'Kira geliri beyannamesi: kimler verir?',
     h1: 'Kira geliri beyannamesi: kimler verir, nasıl hesaplanır?',
     description: 'Konut ve işyeri kira gelirinin beyanı: istisna, götürü ve gerçek gider, Mart ayı beyan süresi, taksitler ve hazır beyan sistemi.',
     category: 'vergi', keywords: ['kira geliri beyannamesi', 'kira geliri vergisi', 'konut kira geliri istisnası', 'götürü gider', 'hazır beyan sistemi'],

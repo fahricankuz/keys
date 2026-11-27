@@ -1,13 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://anahtar.io/</loc></url>
-  <url><loc>https://anahtar.io/kayit/</loc></url>
-  <url><loc>https://anahtar.io/giris/</loc></url>
   <url><loc>https://anahtar.io/destek/</loc></url>
   <url><loc>https://anahtar.io/gizlilik/</loc></url>
   <url><loc>https://anahtar.io/kosullar/</loc></url>
   <url><loc>https://anahtar.io/hesap-silme/</loc></url>
-  <url><loc>https://anahtar.io/kira-artis-hesaplama/</loc><lastmod>2026-10-29</lastmod><changefreq>monthly</changefreq></url>
+  <url><loc>https://anahtar.io/kira-artis-hesaplama/</loc><lastmod>2026-11-27</lastmod></url>
   <url><loc>https://anahtar.io/kurumsal/</loc></url>
   <url><loc>https://anahtar.io/cozumler/</loc></url>
   <url><loc>https://anahtar.io/cozumler/mulk-sahibi/</loc></url>

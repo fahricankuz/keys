@@ -88,6 +88,34 @@ const preconnect = (file) => {
   return api && API_PAGES.test(key) ? `<link rel="preconnect" href="${api}" crossorigin=""/>` : '';
 };
 
+// Giriş yapılan ve işlem sayfaları arama sonuçlarına girmez (robots.txt tek başına dizinden çıkarmaz; karar sayfanın kendi etiketindedir).
+const NOINDEX_PAGES = /^(giris|kayit|sifre|yeni-sifre|dogrula|katil|uygulama|admin|belge|satin-al)(\/|$)/;
+
+// Paylaşım önizlemesi (WhatsApp, X, LinkedIn): marka görseli app/public/og/anahtar.jpg (1200x630, scripts/blog/og.mjs marka).
+const OG_IMAGE = 'https://anahtar.io/og/anahtar.jpg';
+const SEGMENT_NAMES = { 'mulk-sahibi': 'Mülk sahibi', kiraci: 'Kiracı', 'emlak-ofisi': 'Emlak ofisi', 'site-yonetimi': 'Site yönetimi', avm: 'AVM', gyo: 'GYO', 'depo-lojistik': 'Depo ve lojistik', 'family-office': 'Aile ofisi' };
+const ORG = { '@type': 'Organization', '@id': 'https://anahtar.io/#org', name: 'anahtar', alternateName: 'anahtar.io', legalName: 'DEVREDİN BİLGİ TEKNOLOJİLERİ YAZILIM VE TİCARET ANONİM ŞİRKETİ',
+  url: 'https://anahtar.io/', logo: { '@type': 'ImageObject', url: 'https://anahtar.io/icon-512.png' },
+  contactPoint: { '@type': 'ContactPoint', contactType: 'customer support', email: 'info@anahtar.io', availableLanguage: ['tr', 'en'] } };
+/** Sayfada görünen bilgiyi yansıtan yapılandırılmış veri: ana sayfada kuruluş, site ve uygulama; çözüm sayfalarında yol (breadcrumb). */
+const jsonLd = (key) => {
+  const g = [];
+  if (key === '') {
+    g.push(ORG,
+      { '@type': 'WebSite', '@id': 'https://anahtar.io/#site', url: 'https://anahtar.io/', name: 'anahtar', inLanguage: 'tr-TR', publisher: { '@id': 'https://anahtar.io/#org' } },
+      { '@type': 'SoftwareApplication', name: 'anahtar', applicationCategory: 'BusinessApplication', operatingSystem: 'Web, iOS, Android', inLanguage: 'tr-TR',
+        description: 'Kira, aidat, depozito, arıza ve belge takibi tek yerde; mülk sahibi, kiracı ve site yönetimi için.', publisher: { '@id': 'https://anahtar.io/#org' } });
+  }
+  const m = key.match(/^cozumler\/([a-z-]+)$/);
+  if (m && SEGMENT_NAMES[m[1]]) {
+    g.push({ '@type': 'BreadcrumbList', itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Ana sayfa', item: 'https://anahtar.io/' },
+      { '@type': 'ListItem', position: 2, name: 'Çözümler', item: 'https://anahtar.io/cozumler/' },
+      { '@type': 'ListItem', position: 3, name: SEGMENT_NAMES[m[1]], item: `https://anahtar.io/${key}/` }] });
+  }
+  return g.length ? `<script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@graph': g }).replace(/</g, '\\u003c')}</script>` : '';
+};
+
 let count = 0;
 for (const file of walk(out)) {
   let html = readFileSync(file, 'utf8');
@@ -118,7 +146,18 @@ for (const file of walk(out)) {
       `<meta name="description" content="${esc(desc)}"/>`,
       `<link rel="canonical" href="https://anahtar.io${slash('/' + key)}"/>`,
       `<meta property="og:title" content="${title}"/>`,
-      `<meta property="og:description" content="${esc(desc)}"/>`
+      `<meta property="og:description" content="${esc(desc)}"/>`,
+      '<meta property="og:site_name" content="anahtar"/>',
+      '<meta property="og:type" content="website"/>',
+      `<meta property="og:url" content="https://anahtar.io${slash('/' + key)}"/>`,
+      `<meta property="og:image" content="${OG_IMAGE}"/>`,
+      '<meta property="og:image:width" content="1200"/>',
+      '<meta property="og:image:height" content="630"/>',
+      '<meta name="twitter:card" content="summary_large_image"/>',
+      `<meta name="twitter:title" content="${title}"/>`,
+      `<meta name="twitter:description" content="${esc(desc)}"/>`,
+      `<meta name="twitter:image" content="${OG_IMAGE}"/>`,
+      ...(NOINDEX_PAGES.test(key) ? ['<meta name="robots" content="noindex,nofollow"/>'] : [])
     ]),
     '<meta name="referrer" content="strict-origin-when-cross-origin"/>',
     '<meta property="og:locale" content="tr_TR"/>',
@@ -130,7 +169,7 @@ for (const file of walk(out)) {
     `<link rel="apple-touch-icon" href="${base}/apple-touch-icon.png"/>`
   ].join('');
   // CSP en başta olmalı ki sonraki kaynaklara da uygulansın; çerçeve koruması hemen ardından.
-  html = html.replace('<head>', `<head>${head}${guard}${preconnect(file)}${own ? '' : fontCss()}`);
+  html = html.replace('<head>', `<head>${head}${guard}${preconnect(file)}${own ? '' : fontCss() + jsonLd(key)}`);
   writeFileSync(file, html);
   count++;
 }
